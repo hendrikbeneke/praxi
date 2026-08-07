@@ -59,7 +59,7 @@ The practice does not only treat patients. It also sells courses, exam preparati
 
 ## Stack — fixed, do not deviate
 
-- Node 22 LTS, TypeScript `strict`, ESM
+- Node 24 LTS, TypeScript `strict`, ESM
 - pnpm workspace (monorepo)
 - Backend: **Hono** (Node adapter), one process serving both the API and the built frontend
 - DB: **PostgreSQL 17**, local via Docker Compose (Postgres only — never the app)
@@ -72,6 +72,7 @@ The practice does not only treat patients. It also sells courses, exam preparati
 - Passwords: `@node-rs/argon2`
 - Logging: pino
 - Tests: Vitest
+- Lint and format: **Biome** — one tool, one config, no ESLint and no Prettier
 
 **Never introduce:** Next.js, Redis, BullMQ, Prisma, Auth.js/NextAuth, tRPC, Docker for the application itself, any cloud service or SaaS dependency.
 
@@ -93,7 +94,7 @@ Do not implement, and do not add schema for, anything beyond what is specified h
 ## Architecture
 
 ```
-praxis/
+praxi/
 ├─ apps/
 │  ├─ server/
 │  │  ├─ src/
@@ -102,19 +103,35 @@ praxis/
 │  │  │  ├─ domain/        business logic, transactions
 │  │  │  ├─ pdf/           invoice.tsx, overlay.ts, din5008.ts
 │  │  │  ├─ google/        (last slice)
-│  │  │  ├─ middleware/    auth.ts, tenant.ts, error.ts
+│  │  │  ├─ middleware/    error.ts, request-log.ts, auth.ts, tenant.ts
+│  │  │  ├─ env.ts         Zod-validated environment
+│  │  │  ├─ logger.ts      pino
 │  │  │  ├─ messages.ts    German user-facing strings
 │  │  │  ├─ app.ts         Hono app, exports `AppType`
 │  │  │  └─ index.ts       serve() + static SPA
-│  │  └─ data/             invoices/, templates/, files/  (gitignored)
+│  │  ├─ drizzle.config.ts
+│  │  ├─ data/             invoices/, templates/, files/  (gitignored)
+│  │  └─ public/           SPA build output (gitignored)
 │  └─ web/
-│     └─ src/              routes/, components/, lib/api.ts, lib/strings.ts
+│     ├─ src/              routes/, components/, lib/api.ts, lib/strings.ts
+│     ├─ components.json   shadcn/ui
+│     ├─ tsr.config.json   TanStack Router file-based routing
+│     └─ vite.config.ts
 ├─ packages/shared/        Zod schemas + derived types
-├─ docker-compose.yml      Postgres 17 only
+├─ docker-compose.yml      Postgres 17 only, host port 55432
+├─ tsconfig.base.json
+├─ biome.json
+├─ pnpm-workspace.yaml
 ├─ .env.example
+├─ README.md               setup steps
 ├─ CLAUDE.md
 └─ WORKPLAN.md             slice order and current progress
 ```
+
+Dev mode runs Vite on 5173 (proxying `/api` to 3000) alongside the server on
+3000. `pnpm build` writes the SPA into `apps/server/public`; `pnpm start` then
+serves API and SPA from one process on 3000. The client always calls the
+relative path `/api`, so no code branches on the mode.
 
 The split between `routes/` (HTTP, auth, validation, error translation) and `domain/` (business rules, transactions) is mandatory. A route handler contains no business rule. Business rules are unit-tested; route handlers usually are not.
 

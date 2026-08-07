@@ -1,0 +1,22 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Postinstall scripts are opt-in. Keep this list explicit rather than allowing
+# everything; esbuild (via vite/tsx) and biome ship platform binaries.
+allowBuilds:
+  esbuild: true
+  '@biomejs/biome': true
+
+# pnpm holds back very fresh releases by default. These are the versions this
+# slice pinned deliberately.
+minimumReleaseAgeExclude:
+  - '@tanstack/react-router@1.170.23'
+  - '@tanstack/router-core@1.171.19'
+  - '@tanstack/router-generator@1.167.25'
+  - '@tanstack/router-plugin@1.168.27'
+  - '@types/node@26.2.0'
+  - hono@4.13.1
+  - lucide-react@1.30.0
+  - tsx@4.23.11
+  - '@tanstack/router-cli@1.167.25'

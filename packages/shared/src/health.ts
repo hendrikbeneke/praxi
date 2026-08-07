@@ -1,0 +1,9 @@
+import { z } from 'zod'
+
+export const healthResponseSchema = z.object({
+  status: z.literal('ok'),
+  /** ISO 8601, UTC. All timestamps are stored and transported in UTC. */
+  time: z.iso.datetime(),
+})
+
+export type HealthResponse = z.infer<typeof healthResponseSchema>

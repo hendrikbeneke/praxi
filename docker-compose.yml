@@ -1,0 +1,24 @@
+# Postgres only. The application itself is never containerised.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: praxi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: praxi
+      POSTGRES_PASSWORD: praxi
+      POSTGRES_DB: praxi
+      # Deterministic collation, so ORDER BY on contact names does not depend
+      # on the host locale.
+      POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=de-DE --encoding=UTF8'
+    ports:
+      # Host port 55432 is deliberately unusual: it cannot clash with a locally
+      # installed Postgres (5432) or another project's compose file (5433).
+      - '55432:5432'
+    volumes:
+      - ./.docker-data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U praxi -d praxi']
+      interval: 5s
+      timeout: 5s
+      retries: 10

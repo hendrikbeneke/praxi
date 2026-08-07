@@ -1,0 +1,98 @@
+# praxi
+
+Practice management software for a German *Heilpraktiker für Psychotherapie*
+practice. One practitioner, one tenant, running locally on a Mac.
+
+`CLAUDE.md` holds the architecture, the domain rules and the target data model.
+`WORKPLAN.md` holds the slice order and the current progress.
+
+## Requirements
+
+- **Node 24 LTS** — the exact version is pinned in `.nvmrc`
+- **pnpm 11** — `corepack enable` is enough, the version is pinned in
+  `package.json` under `packageManager`
+- **Docker** — for Postgres 17 only; the application itself is never
+  containerised
+
+## Setup
+
+```bash
+corepack enable          # provides the pinned pnpm
+pnpm install
+cp .env.example .env     # defaults work as they are
+pnpm db:up               # starts Postgres 17 on host port 55432
+pnpm dev                 # http://localhost:5173
+```
+
+`pnpm dev` starts three processes: the shared package in watch mode, the Hono
+server on port 3000, and Vite on port 5173. Work happens on **5173** — Vite
+proxies `/api` to the server, so the frontend always calls the relative path
+`/api` and needs no environment switch.
+
+## Production mode
+
+```bash
+pnpm build
+pnpm start               # http://localhost:3000
+```
+
+`pnpm build` compiles the shared package and the server to `dist/` and writes
+the SPA into `apps/server/public`. `pnpm start` then serves the API and the SPA
+from a **single process on port 3000**. Unknown paths fall back to `index.html`
+so client-side routing survives a reload; unknown `/api` paths stay a JSON 404.
+
+Set `NODE_ENV=production` for the static file serving to be registered.
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `pnpm dev` | shared watch + server (3000) + Vite (5173) |
+| `pnpm build` | shared → server → SPA into `apps/server/public` |
+| `pnpm start` | single process on port 3000 |
+| `pnpm typecheck` | `tsc` across all packages, in dependency order |
+| `pnpm test` | Vitest across all packages |
+| `pnpm lint` | Biome (lint + format check) |
+| `pnpm format` | Biome, writing fixes |
+| `pnpm db:up` / `pnpm db:down` | start / stop Postgres |
+| `pnpm db:generate` | generate a migration from the Drizzle schema |
+| `pnpm db:migrate` | apply pending migrations |
+| `pnpm db:studio` | Drizzle Studio |
+
+## Database
+
+Postgres 17 runs in Docker on **host port 55432** — deliberately far away from
+5432 and 5433 so it cannot clash with another local Postgres. Its data lives in
+a bind mount under `.docker-data/`, which is not in version control.
+
+The server refuses to start when Postgres is unreachable, rather than failing at
+the first request.
+
+## Ports
+
+| Port | Process |
+|---|---|
+| 5173 | Vite dev server (development only) |
+| 3000 | Hono — API always, SPA in production |
+| 55432 | Postgres in Docker |
+
+## Layout
+
+```
+apps/server      Hono API, Drizzle schema and migrations, PDF rendering
+apps/web         Vite + React 19 + TanStack Router SPA
+packages/shared  Zod schemas, imported by both sides
+```
+
+`apps/server/data/` holds uploaded PDF templates, generated invoice PDFs and
+note attachments. It sits outside the web root on purpose: nothing in it is ever
+served statically, only through an authenticated route.
+
+## Conventions
+
+Code, identifiers, comments and documentation are English; everything the
+practitioner reads is German. German strings live in
+`apps/server/src/messages.ts` and `apps/web/src/lib/strings.ts`, never inlined.
+
+Logs carry identifiers, never content — no names, no note text, no file names,
+no query strings. See `CLAUDE.md` rule 12.

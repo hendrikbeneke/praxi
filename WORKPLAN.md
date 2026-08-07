@@ -6,7 +6,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 
 | # | Slice | Status |
 |---|---|---|
-| 0 | Scaffold | todo |
+| 0 | Scaffold | **done** |
 | 1 | Tenant, user, login, practice settings | todo |
 | 2 | Contacts and roles | todo |
 | 3 | Services and service groups | todo |
@@ -37,6 +37,16 @@ No domain tables yet.
 - `README.md` with setup steps
 
 **Done when:** a fresh clone reaches a working `http://localhost:3000` following only the README.
+
+**As built.** Decisions taken in this slice, both deviating from the original stack note in CLAUDE.md and agreed before implementation:
+
+- **Node 24 LTS** instead of Node 22. Node 22 is already in maintenance and ends April 2027; Node 24 is supported until April 2028. CLAUDE.md updated accordingly.
+- **Biome 2.5** instead of ESLint + Prettier. One tool, one config file, React-hooks rules included. CLAUDE.md updated accordingly.
+- **TypeScript 5.9.3**, deliberately not the newer native compiler (7.x). The type inference of Drizzle and Hono's `hc` is the load-bearing part of this codebase; the switch is a one-line bump later, because TypeScript only type-checks here and never emits for the frontend.
+- Postgres on **host port 55432**.
+- All dependency versions are pinned exactly, no caret ranges.
+- `packages/shared` is consumed as a built package (`tsc` → `dist/`), not through a path alias — the same resolution in dev and in the production build.
+- `apps/web/src/routeTree.gen.ts` is generated (`tsr generate` in `typecheck`, the Vite plugin in dev/build) and not in version control.
 
 ## Slice 1 — Tenant, user, login, practice settings
 

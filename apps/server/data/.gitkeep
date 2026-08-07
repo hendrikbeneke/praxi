@@ -1,0 +1,5 @@
+This directory holds uploaded PDF templates, generated invoice PDFs and note
+attachments. It is outside the web root on purpose: nothing in here is ever
+served by static file serving, only through an authenticated route.
+
+Its contents are not in version control.
