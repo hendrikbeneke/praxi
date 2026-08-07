@@ -1,0 +1,178 @@
+# WORKPLAN.md
+
+Slice order for this repository. Read together with `CLAUDE.md`, which holds the architecture, the domain rules and the target data model.
+
+**One slice = one plan + one DDL review + one implementation + one commit.** Do not start a slice before I confirm the plan, and do not continue to the next slice unprompted. Update the status column in this file as part of each slice's commit.
+
+| # | Slice | Status |
+|---|---|---|
+| 0 | Scaffold | todo |
+| 1 | Tenant, user, login, practice settings | todo |
+| 2 | Contacts and roles | todo |
+| 3 | Services and service groups | todo |
+| 4 | Activities and appointments | todo |
+| 5 | Notes, files, locking | todo |
+| 6 | Invoices: draft, finalize, PDF | todo |
+| 7 | Cancellation invoices | todo |
+| 8 | Payments and receivables | todo |
+| 9 | Google Calendar sync | todo |
+| 10 | Sending invoices by email | todo |
+
+---
+
+## Slice 0 — Scaffold
+
+No domain tables yet.
+
+- pnpm workspace: `apps/server`, `apps/web`, `packages/shared`
+- `docker-compose.yml` with Postgres 17 only, data in a bind mount under `.docker-data/`, on a non-default port to avoid clashing with other local projects
+- Drizzle + drizzle-kit wired up, migration folder, empty schema
+- Hono app with `GET /api/health`, error middleware, pino logger
+- Vite + React 19 + TanStack Router with a single placeholder route, Tailwind, shadcn/ui initialized
+- `apps/server/src/messages.ts` and `apps/web/src/lib/strings.ts` created, even if nearly empty
+- `pnpm dev` runs Vite (5173, proxying `/api` to 3000) and the server (3000) together
+- `pnpm build` builds the SPA into the server's static directory; `pnpm start` serves everything from `http://localhost:3000`
+- `pnpm typecheck`, `pnpm test`, `pnpm lint` exist and pass
+- `.env.example`, `.gitignore` (including `apps/server/data/` and `.docker-data/`)
+- `README.md` with setup steps
+
+**Done when:** a fresh clone reaches a working `http://localhost:3000` following only the README.
+
+## Slice 1 — Tenant, user, login, practice settings
+
+First vertical slice. It establishes the pattern every later slice copies.
+
+- Tables `tenant`, `practice_settings`, `app_user`, `session`, with RLS policies created and disabled
+- Seed: one tenant, one `practice_settings` row with fake but realistic master data, one user with a password from an env variable
+- `domain/auth.ts`: argon2 verification, session creation, validation, expiry
+- `middleware/auth.ts` and `middleware/tenant.ts` — tenant id derived from the session, never from the request
+- Routes: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET/PUT /api/settings`
+- Session cookie `httpOnly`, `SameSite=Lax`, `secure` only when not on localhost
+- UI: login page, app shell with sidebar navigation (Kontakte, Termine, Vorgänge, Rechnungen, Leistungen, Einstellungen — targets may be stubs), practice settings form
+- Tests for `domain/auth.ts`
+
+**Done when:** I can log in, edit the practice master data, reload and stay logged in, log out.
+
+## Slice 2 — Contacts and roles
+
+- Tables `contact` and `contact_role`
+- `domain/counter.ts`: a reusable `SELECT ... FOR UPDATE` counter, used here for `contact_number` and reused for invoice numbers in slice 6. Build it properly now, at a low-risk site.
+- Form adapts to `kind`: person fields versus organization fields
+- Roles as a multi-select, several roles per contact, `since` recorded
+- Routes: list with search across name, company name and contact number; get, create, update, archive (soft, via `archived_at`, no hard delete)
+- UI: contact list (TanStack Table, role filter, archived hidden by default), create/edit form, contact detail page with tabs — Stammdaten filled, Notizen / Vorgänge / Termine / Rechnungen present but empty
+- Tests for the counter, including a concurrent-call test
+
+**Done when:** I can create people and organizations, assign several roles, search and archive them.
+
+## Slice 3 — Services and service groups
+
+Deliberately small — it confirms the slice-2 pattern is repeatable.
+
+- Tables `service`, `service_group`, `service_group_item`
+- CRUD for both, `active` flag instead of deletion
+- Group editor: assemble services with quantity and order
+- **No pricing logic, no history.** The catalogue is a template store; see CLAUDE.md rule 5.
+
+**Done when:** the catalogue is maintainable and inactive entries no longer appear in selection lists.
+
+## Slice 4 — Activities and appointments
+
+Two tables in one slice because they are created together in practice.
+
+- Tables `activity`, `activity_item`, `appointment`, plus the `btree_gist` extension and the overlap constraint on `appointment` in a hand-written migration:
+
+```sql
+ALTER TABLE appointment ADD CONSTRAINT appointment_no_overlap
+  EXCLUDE USING gist (
+    tenant_id WITH =,
+    tstzrange(starts_at, ends_at) WITH &&
+  ) WHERE (status NOT IN ('cancelled', 'cancelled_late'));
+```
+
+  SQLSTATE `23P01` is caught and translated into a readable German message.
+- `domain/activity.ts`: creating an activity copies description, fee code, price and duration from the chosen services into `activity_item`; picking a `service_group` resolves it into individual items immediately and stores no group reference. Free items without `service_id` are supported.
+- Creating an activity also creates its appointment by default, with an option to skip it. `activity.appointment_id` is nullable and unique.
+- `billable` toggle per item, and the ability to add further items — this is how a no-show becomes an Ausfallhonorar
+- Routes: activities per contact and per date range, create, update, delete; appointments by date range, reschedule, change status
+- UI: week and day calendar view, create from calendar and from the contact page, activity editor with its item list, Vorgänge and Termine tabs on the contact
+- Tests: price copy independent of later catalogue changes, group resolution, overlap rejection, cancelled appointments not blocking a slot
+
+**Done when:** I can book an appointment with services, change the catalogue afterwards without the booking changing, and mark a no-show with an Ausfallhonorar.
+
+## Slice 5 — Notes, files, locking
+
+The most rule-heavy slice. See CLAUDE.md rule 7.
+
+- Tables `note`, `note_file`, plus the `protect_locked_note` trigger and the equivalent guard on `note_file`
+- File upload to `data/files/`, served only through an authenticated route, never statically
+- `domain/note-lock.ts`: canonical serialization including file hashes, `lockNote`, `verifyChain`
+- Addenda via `corrects_note_id`
+- Routes: notes per contact and per activity, create, update while unlocked, lock, add addendum, upload and download files, verify chain
+- UI: Notizen tab on the contact with a chronological list, editor for unlocked notes, lock button with a confirmation dialog stating plainly that this cannot be undone, addenda indented under the note they correct, chain verification view, notes also visible on the activity
+- Tests: chain across several notes, tamper detection, trigger blocks updates to locked rows and their files, addendum flow
+
+**Done when:** I can document a session, attach a file, lock it, supplement it with an addendum, and the verification reports a manually tampered row as broken.
+
+## Slice 6 — Invoices: draft, finalize, PDF
+
+See CLAUDE.md rules 8, 9, 10 and 11.
+
+- Tables `invoice`, `invoice_line`, `number_range`, `text_template`, plus the immutability trigger for finalized invoices and the guard on `activity_item` referenced by a finalized invoice
+- `domain/number-range.ts` (reusing the slice-2 counter): editable `next_value`, collision check on assignment with a clear error
+- `domain/finalize-invoice.ts`: number, line snapshots, text snapshots, `recipient_snapshot`, total, PDF, hash, status
+- Billable query per CLAUDE.md rule 6, including the cancelled-invoice exclusion — write the test for that case before the implementation
+- `pdf/din5008.ts` with the Form B constants, `pdf/invoice.tsx` for the content, `pdf/overlay.ts` merging onto the uploaded template with pdf-lib; template page 2 backs all following pages when present
+- Template upload in the practice settings
+- Text templates: manage intro and outro blocks, mark defaults and the paid variant
+- Routes: create draft from selected billable items or empty, edit lines, choose texts, preview PDF, finalize, finalize with "Betrag erhalten", download
+- UI: invoice list with status filter, draft editor, billable-items picker per contact, finalize confirmation
+- Tests: number assignment including concurrency and collision, snapshotting, trigger blocks changes to finalized invoices, totals
+
+**Done when:** a finalized invoice has a number, a PDF on disk with a stored hash, correct DIN 5008 placement on the template, and cannot be modified.
+
+## Slice 7 — Cancellation invoices
+
+See CLAUDE.md rule 9.
+
+- `domain/cancel-invoice.ts`: cancellation document with negative amounts, same number range, mutual references
+- PDF title "Stornorechnung" with a reference to the original number
+- The freed `activity_item` rows become billable again — no replacement draft is created
+- UI: cancel action on a finalized invoice, both documents visibly linked
+- Tests: amounts negate the original, references on both rows, no double cancellation, items reappear in the billable list
+
+**Done when:** cancelling produces a correct second document, leaves the original untouched apart from its reference, and returns the items to the billable pool.
+
+## Slice 8 — Payments and receivables
+
+- Table `payment`
+- Routes: record, list and delete payments for an invoice
+- Derived status per invoice: open, partially paid, paid, overdue — computed, never stored
+- UI: payment entry from the invoice and as a shortcut from the activity (which resolves to that activity's invoice), receivables overview with amount, due date, days overdue, filters
+- Tests: partial payment, overpayment, due date arithmetic
+
+**Done when:** the receivables view answers "who still owes what" at a glance.
+
+## Slice 9 — Google Calendar sync
+
+Only once everything above is in daily use. Design constraint: **Google never receives data identifying a patient.** The local database stays the system of record; Google Calendar is a projection.
+
+- Table `google_sync_queue` (outbox), worker as a `setInterval` in the same process
+- OAuth2 loopback flow (`http://127.0.0.1:PORT/oauth/callback`), refresh token stored encrypted locally
+- Read: `freebusy.query` against the practitioner's private calendars, shown as busy blocks while scheduling. Intervals only, never event content.
+- Write: appointments pushed to a dedicated "Praxis" calendar with the contact number as the event title, no description, no attendees, no invitations
+- Limited return channel: `events.list` with `syncToken`, applying only `starts_at`, `ends_at` and `cancelled` back onto the matching `google_event_id`. Everything else ignored. Simultaneous changes on both sides mark the appointment as a sync conflict for manual resolution instead of merging.
+- Works offline: a failed push never blocks creating or changing an appointment
+
+**Done when:** appointments appear pseudonymously in Google Calendar, private blockers are visible while scheduling, and pulling the network cable breaks nothing.
+
+## Slice 10 — Sending invoices by email
+
+Purely additive; nothing earlier depends on it.
+
+- SMTP configuration in the practice settings
+- `sent_at`, `sent_to` on the invoice, plus a small send log
+- Send the finalized PDF as an attachment to the contact's email address, with a configurable subject and body template
+- Sending is never automatic and never part of finalization
+
+**Done when:** I can send a finalized invoice from the app and see when it went where.
