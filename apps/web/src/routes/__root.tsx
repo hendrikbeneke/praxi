@@ -1,7 +1,17 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import type { QueryClient } from '@tanstack/react-query'
+import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+import { Toaster } from '@/components/ui/sonner'
 import { strings } from '@/lib/strings'
 
-export const Route = createRootRoute({
+/**
+ * The root holds no chrome: the sidebar belongs to the authenticated area and
+ * would be wrong on the login page. It lives in `_app.tsx` instead.
+ *
+ * The query client is in the router context so route guards can await data
+ * before a component renders — that is what keeps the app shell from flashing
+ * for an unauthenticated visitor.
+ */
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: RootLayout,
   notFoundComponent: () => <p className="p-8 text-muted-foreground">{strings.error.notFound}</p>,
 })
@@ -9,14 +19,8 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <div className="min-h-svh bg-background text-foreground">
-      <header className="border-b">
-        <div className="mx-auto max-w-5xl px-6 py-4">
-          <h1 className="font-semibold text-lg">{strings.app.title}</h1>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        <Outlet />
-      </main>
+      <Outlet />
+      <Toaster position="bottom-right" />
     </div>
   )
 }

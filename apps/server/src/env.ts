@@ -25,6 +25,13 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+
+  // Read by `pnpm db:seed` only, therefore optional here — the server must
+  // start without them. The seed validates them itself and refuses to run on
+  // a missing or empty password.
+  SEED_USER_EMAIL: z.string().optional(),
+  SEED_USER_PASSWORD: z.string().optional(),
+  SEED_USER_NAME: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

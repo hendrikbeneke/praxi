@@ -19,6 +19,7 @@
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @praxi/server db:generate",
     "db:migrate": "pnpm --filter @praxi/server db:migrate",
+    "db:seed": "pnpm --filter @praxi/server db:seed",
     "db:studio": "pnpm --filter @praxi/server db:studio"
   },
   "devDependencies": {

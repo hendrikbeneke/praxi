@@ -285,16 +285,47 @@ Enum values marked `?` below are deliberately undecided and get settled in their
 All tables carry `id uuid primary key` (UUIDv7, generated in the application), `tenant_id`, `created_at`, `updated_at`.
 
 ```
-tenant                name
+-- as built (slice 1)
+tenant                name text not null
 
-practice_settings     tenant_id (unique), practice_name, street, postal_code, city,
-                      country, phone, email, website, tax_number,
-                      bank_name, iban, bic,
-                      default_payment_term_days,
-                      invoice_template_path, letter_template_path
+-- as built (slice 1)
+practice_settings     tenant_id uuid not null unique -> tenant(id),
+                      practice_name text not null,
+                      street, postal_code, city              (text, nullable)
+                      country text not null default 'DE',
+                      phone, email, website, tax_number      (text, nullable)
+                      bank_name, iban, bic                   (text, nullable)
+                      default_payment_term_days integer not null default 14
+                        check (between 0 and 365)
+                      -- invoice_template_path / letter_template_path are added
+                      -- in slice 6, together with the upload that fills them.
 
-app_user              tenant_id, email, password_hash, name, active
-session               user_id, token_hash, expires_at
+-- as built (slice 1)
+app_user              tenant_id uuid not null -> tenant(id),
+                      email text not null,
+                      password_hash text not null,           (argon2id)
+                      name text not null,
+                      active boolean not null default true
+                      unique index on (email)                -- global, not per
+                        -- tenant: the login form has no tenant context
+                      check (email = lower(email))
+                      unique (id, tenant_id)                 -- for the FK below
+                      index on (tenant_id)
+
+-- as built (slice 1)
+session               tenant_id uuid not null -> tenant(id),
+                      user_id uuid not null,
+                      token_hash text not null,              (sha256 of the
+                        -- cookie token; the token itself is never stored)
+                      expires_at timestamptz not null,       (sliding, 14 days)
+                      last_seen_at timestamptz not null default now()
+                      foreign key (user_id, tenant_id)
+                        -> app_user (id, tenant_id) on delete cascade
+                        -- composite on purpose: tenant_id is denormalized onto
+                        -- the session so auth resolves in one select, and this
+                        -- key makes a mismatching tenant impossible
+                      unique index on (token_hash)
+                      index on (user_id), index on (expires_at)
 
 contact               tenant_id, contact_number (unique per tenant, sequential),
                       kind (person|organization),

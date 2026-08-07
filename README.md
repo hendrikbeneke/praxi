@@ -19,10 +19,16 @@ practice. One practitioner, one tenant, running locally on a Mac.
 ```bash
 corepack enable          # provides the pinned pnpm
 pnpm install
-cp .env.example .env     # defaults work as they are
+cp .env.example .env     # then set SEED_USER_PASSWORD
 pnpm db:up               # starts Postgres 17 on host port 55432
+pnpm db:migrate          # creates the tables
+pnpm db:seed             # one tenant, its practice settings, one user
 pnpm dev                 # http://localhost:5173
 ```
+
+Sign in with `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` from your `.env`. The
+seed is idempotent and never overwrites the password of a user that already
+exists — to change it, delete the user and seed again.
 
 `pnpm dev` starts three processes: the shared package in watch mode, the Hono
 server on port 3000, and Vite on port 5173. Work happens on **5173** — Vite
@@ -57,6 +63,7 @@ Set `NODE_ENV=production` for the static file serving to be registered.
 | `pnpm db:up` / `pnpm db:down` | start / stop Postgres |
 | `pnpm db:generate` | generate a migration from the Drizzle schema |
 | `pnpm db:migrate` | apply pending migrations |
+| `pnpm db:seed` | tenant, practice settings and user (idempotent) |
 | `pnpm db:studio` | Drizzle Studio |
 
 ## Database
@@ -67,6 +74,17 @@ a bind mount under `.docker-data/`, which is not in version control.
 
 The server refuses to start when Postgres is unreachable, rather than failing at
 the first request.
+
+### Tests need the database
+
+The domain layer is tested against a real Postgres — triggers and constraints
+are part of the rules being tested and cannot be checked any other way. So
+`pnpm test` needs `pnpm db:up`.
+
+Each Vitest worker gets its own database (`praxi_test_w1`, `praxi_test_w2`, …)
+on the same container, created and migrated on first use and truncated between
+test cases. Workers never share tables, so the suite stays correct while Vitest
+runs files in parallel. The development database is never touched.
 
 ## Ports
 

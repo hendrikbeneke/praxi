@@ -7,7 +7,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | # | Slice | Status |
 |---|---|---|
 | 0 | Scaffold | **done** |
-| 1 | Tenant, user, login, practice settings | todo |
+| 1 | Tenant, user, login, practice settings | **done** |
 | 2 | Contacts and roles | todo |
 | 3 | Services and service groups | todo |
 | 4 | Activities and appointments | todo |
@@ -62,6 +62,46 @@ First vertical slice. It establishes the pattern every later slice copies.
 - Tests for `domain/auth.ts`
 
 **Done when:** I can log in, edit the practice master data, reload and stay logged in, log out.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`session` carries `tenant_id`** on top of `user_id`, against the sketch, so
+  the auth middleware resolves user and tenant in one select. The
+  denormalization is held true by a composite foreign key
+  `(user_id, tenant_id) -> app_user (id, tenant_id)`, which needs the extra
+  `unique (id, tenant_id)` on `app_user`. A session cannot claim a tenant its
+  user does not belong to; there is a test for it.
+- **`app_user.email` is unique globally**, not per tenant — the login form has
+  no tenant context — plus `check (email = lower(email))` so case cannot
+  produce duplicates. The functional-index variant was the alternative; only
+  one of the two, not both.
+- **`invoice_template_path` / `letter_template_path` deferred to slice 6**,
+  where the upload that fills them is built. Nothing on spec.
+- **Tests run against a real Postgres from now on.** Isolation is one database
+  per Vitest worker (`praxi_test_w1`, …), created and migrated on demand in
+  `src/test/setup.ts`, truncated between test cases. The originally planned
+  schema-per-worker does not work: drizzle-kit writes foreign keys as
+  `REFERENCES "public"."tenant"`, so every worker would land on the same
+  tables. `pnpm test` therefore needs `pnpm db:up`.
+- **UUIDv7 from the `uuid` package** (`src/id.ts`). Postgres 17 has no native
+  `uuidv7()`, and ids are generated in the application anyway.
+- **URL paths are English** (`/login`, `/settings`, `/contacts` …), consistent
+  with the identifier rule; all visible labels stay German. The glossary row in
+  CLAUDE.md that was thought to say otherwise does not exist — nothing to
+  change there.
+- **Sessions**: 32 random bytes base64url, stored only as SHA-256, 14 days
+  sliding, written back at most once an hour. Logout deletes the row; expired
+  rows are cleared out on each login. Unknown email and deactivated account
+  both cost a real Argon2 verification against a dummy hash produced with the
+  same parameters, so neither answer nor timing tells accounts apart.
+- **Seed** is `pnpm db:seed`, idempotent, refuses an empty or too short
+  `SEED_USER_PASSWORD` and never overwrites the password of an existing user.
+- Two things found while building, both fixed here:
+  `@hono/zod-validator` answers validation failures with its own English body
+  that echoes the rejected input — wrapped in `middleware/validate.ts` so it
+  throws instead and only field *names* reach the log (rule 12). And `shadcn`
+  pulled `next-themes` in with the toaster; removed, the toaster follows the
+  operating system.
 
 ## Slice 2 — Contacts and roles
 

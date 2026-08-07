@@ -17,7 +17,16 @@ const queryClient = new QueryClient({
   },
 })
 
-const router = createRouter({ routeTree, defaultPreload: 'intent' })
+/**
+ * The query client goes into the router context so route guards and loaders
+ * can fetch before a component renders — that is what lets `_app` decide
+ * whether anybody is signed in without the shell flashing first.
+ */
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  context: { queryClient },
+})
 
 declare module '@tanstack/react-router' {
   interface Register {
