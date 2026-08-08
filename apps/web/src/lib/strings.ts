@@ -235,6 +235,11 @@ export const strings = {
   },
   error: {
     generic: 'Es ist ein unerwarteter Fehler aufgetreten.',
+    /** Deliberately different wording from `generic`: the two were identical
+     *  once, and an unreachable server read as a server error. */
+    serverUnreachable:
+      'Der Server ist nicht erreichbar. Bitte prüfen Sie, ob die Anwendung läuft, ' +
+      'und versuchen Sie es erneut.',
     notFound: 'Diese Seite gibt es nicht.',
   },
 } as const

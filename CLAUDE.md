@@ -149,6 +149,8 @@ The tenant id comes from the session via `middleware/tenant.ts` and is never acc
 
 Always `integer` cents. Never floats, never `numeric` in application logic. Formatting only in the presentation layer via `Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' })`.
 
+Formatted amounts are never persisted and never cross the API boundary. Cents as integers go into the database and into every request and response payload; formatting happens only when rendering to the user — in the UI or in the PDF.
+
 ### 3. Time
 
 All timestamps `timestamptz`, stored in UTC. Display and input in `Europe/Berlin`. Pure dates (date of birth, invoice date, date of service, payment date) as `date`, not timestamps.
