@@ -15,6 +15,34 @@
       "when": 1786136007144,
       "tag": "0001_rls_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786199073873,
+      "tag": "0002_updated_at_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786199102640,
+      "tag": "0003_striped_xorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786199115299,
+      "tag": "0004_contact_triggers_and_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786199377204,
+      "tag": "0005_updated_at_always",
+      "breakpoints": true
     }
   ]
 }

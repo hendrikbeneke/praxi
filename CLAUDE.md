@@ -327,20 +327,59 @@ session               tenant_id uuid not null -> tenant(id),
                       unique index on (token_hash)
                       index on (user_id), index on (expires_at)
 
-contact               tenant_id, contact_number (unique per tenant, sequential),
-                      kind (person|organization),
+-- as built (slice 2)
+contact               tenant_id uuid not null -> tenant(id),
+                      contact_number integer not null check (>= 1),
+                      kind contact_kind not null                (pgEnum:
+                        -- person | organization; structural, never changes)
                       -- person
-                      salutation, title, first_name, last_name, date_of_birth,
+                      salutation, title, first_name, last_name  (text, nullable)
+                      date_of_birth date,
                       -- organization
-                      company_name, vat_id, contact_person,
-                      -- both
-                      street, postal_code, city, country, email, phone,
-                      internal_note, archived_at
+                      company_name, contact_person              (text, nullable)
+                      -- both: a sole trader is a person and can have a VAT id
+                      vat_id, street, postal_code, city         (text, nullable)
+                      country text not null default 'DE',
+                      email, phone, internal_note               (text, nullable)
+                      archived_at timestamptz                   (soft delete;
+                        -- there is no hard delete path)
+                      sort_name text generated always as (
+                        coalesce(company_name,
+                          btrim(coalesce(last_name,'') || ' ' ||
+                                coalesce(first_name,'')))) stored
+                        -- surname first, ordered in the ICU de-DE collation
+                        -- that migration 0002 asserts. Displaying is a
+                        -- different question: formatContactName() in
+                        -- packages/shared, shared with the client.
+                      unique (tenant_id, contact_number),
+                      unique (id, tenant_id)                    -- for the FK
+                      index on (tenant_id, sort_name)           -- the list's
+                        -- ORDER BY. No index for the search: it is a leading
+                        -- wildcard ILIKE, which no btree can serve.
+                      check contact_kind_fields (
+                        person       => last_name not null,
+                                        company_name/contact_person null
+                        organization => company_name not null,
+                                        salutation/title/first_name/
+                                        last_name/date_of_birth null)
 
-contact_role          contact_id, role (?patient|prospect|participant|
-                                         guardian|billing_recipient|other),
-                      since
-                      unique (contact_id, role)
+-- as built (slice 2)
+contact_role          tenant_id uuid not null -> tenant(id),
+                      contact_id uuid not null,
+                      role text not null,
+                      since date                                (nullable — when
+                        -- an old contact is entered afterwards the start date
+                        -- often cannot be reconstructed)
+                      check contact_role_role_check (role in (
+                        'patient','prospect','participant',
+                        'guardian','billing_recipient','other'))
+                        -- text + named check rather than an enum, because this
+                        -- set is expected to change; see Conventions
+                      foreign key (contact_id, tenant_id)
+                        -> contact (id, tenant_id) on delete cascade
+                      unique (contact_id, role)                 -- also serves
+                        -- lookups by contact and the cascade check
+                      index on (tenant_id, role)                -- role filter
 
 service               tenant_id, short_code, description, fee_code,
                       default_price_cents, default_duration_min, active
@@ -379,8 +418,20 @@ note_file             tenant_id, note_id, file_name, mime_type, size_bytes,
 text_template         tenant_id, kind (intro|outro), name, body,
                       is_default, is_paid_variant
 
-number_range          tenant_id, code, prefix, next_value, padding
+-- as built (slice 2), extended in slice 6
+number_range          tenant_id uuid not null -> tenant(id),
+                      code text not null,
+                      next_value integer not null check (>= 1)
                       unique (tenant_id, code)
+                      -- prefix and padding arrive in slice 6 with the UI that
+                      -- fills them; they are invoice concerns only.
+                      --
+                      -- domain/counter.ts holds a whitelist of codes whose row
+                      -- may be created on demand, starting at 1 — currently
+                      -- 'contact' alone. For every other code a missing row is
+                      -- an error: an invoice range is configured on purpose and
+                      -- may continue a numbering from the previous system, so
+                      -- starting at 1 would reissue existing numbers.
 
 invoice               tenant_id, contact_id,
                       type (invoice|cancellation_invoice),
@@ -431,3 +482,9 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - Tests are mandatory for everything in `domain/`. UI and simple CRUD routes need none.
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
 - Conventional Commits, in English, one commit per slice.
+
+**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `contact_role.role`, `activity.type`, `appointment.status`, `note.type`. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
+
+**`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
+
+**Database collation.** The cluster is initialised with the ICU provider and locale `de-DE`, so `ORDER BY` puts umlauts where a German card index does. Migration `0002` asserts this and fails with instructions if it is missing. Check `datlocprovider`/`datlocale`, never `datcollate` — under the ICU provider `datcollate` still shows the libc locale the cluster was built with and says nothing about how text sorts.

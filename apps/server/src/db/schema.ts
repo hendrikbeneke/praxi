@@ -5,17 +5,23 @@
  * `id uuid primary key` filled with a UUIDv7 from the application (see
  * `src/id.ts`), and `created_at` / `updated_at` as `timestamptz`.
  *
- * `updated_at` is maintained by Drizzle's `$onUpdate` rather than by a trigger,
- * so the value is visible in the returning clause of the same statement.
+ * `updated_at` is maintained by the `set_updated_at()` trigger, which every
+ * table gets — see CLAUDE.md under Conventions. It is deliberately not set
+ * from the application: a value that silently stays behind on a `psql` update
+ * is worse than no value at all. A `BEFORE UPDATE` trigger rewrites the row
+ * before it is stored, so `returning` still sees the new value.
  */
 
+import type { ContactKind, ContactRole } from '@praxi/shared'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -27,10 +33,7 @@ import {
 /** Columns every table repeats. Spread into the table definition. */
 const timestamps = {
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp({ withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
+  updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 }
 
 /**
@@ -142,5 +145,144 @@ export const session = pgTable(
     uniqueIndex('session_token_hash_key').on(t.tokenHash),
     index('session_user_idx').on(t.userId),
     index('session_expires_idx').on(t.expiresAt),
+  ],
+)
+
+/**
+ * The reusable counter behind `contact_number` and, from slice 6, invoice
+ * numbers. `next_value` is edited by hand for invoices (CLAUDE.md rule 8);
+ * `prefix` and `padding` arrive in that slice, together with the UI that fills
+ * them.
+ */
+export const numberRange = pgTable(
+  'number_range',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    code: text().notNull(),
+    nextValue: integer().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    unique('number_range_tenant_code_key').on(t.tenantId, t.code),
+    check('number_range_next_value_positive', sql`${t.nextValue} >= 1`),
+  ],
+)
+
+export const contactKind = pgEnum('contact_kind', ['person', 'organization'])
+
+/**
+ * The generic party — person or organization. A patient is a contact holding
+ * the `patient` role, never its own table (CLAUDE.md rule 4).
+ */
+export const contact = pgTable(
+  'contact',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    contactNumber: integer().notNull(),
+    kind: contactKind().notNull().$type<ContactKind>(),
+
+    // person
+    salutation: text(),
+    title: text(),
+    firstName: text(),
+    lastName: text(),
+    dateOfBirth: date({ mode: 'string' }),
+
+    // organization
+    companyName: text(),
+    contactPerson: text(),
+
+    // both — a sole trader is a person and can still have a VAT id
+    vatId: text(),
+    street: text(),
+    postalCode: text(),
+    city: text(),
+    country: text().notNull().default('DE'),
+    email: text(),
+    phone: text(),
+    internalNote: text(),
+    archivedAt: timestamp({ withTimezone: true }),
+
+    /**
+     * Surname first for people, company name for organizations, so one index
+     * orders the list the way a card index does. Sorting uses the database
+     * collation, which migration 0002 asserts is ICU `de-DE`.
+     *
+     * Raw column names inside the expression on purpose — referencing the
+     * column objects here would be a circular reference during table
+     * definition.
+     */
+    sortName: text().generatedAlwaysAs(
+      sql`coalesce("company_name", btrim(coalesce("last_name", '') || ' ' || coalesce("first_name", '')))`,
+    ),
+    ...timestamps,
+  },
+  (t) => [
+    unique('contact_tenant_number_key').on(t.tenantId, t.contactNumber),
+    // Referenced by the composite foreign key on `contact_role`.
+    unique('contact_id_tenant_key').on(t.id, t.tenantId),
+    index('contact_tenant_sort_idx').on(t.tenantId, t.sortName),
+    check('contact_number_positive', sql`${t.contactNumber} >= 1`),
+    /**
+     * `kind` decides which fields apply, and the database says so. Without
+     * this a half-filled record reaches slice 6 and ends up in an invoice's
+     * `recipient_snapshot`, where it can no longer be corrected.
+     */
+    check(
+      'contact_kind_fields',
+      sql`(
+        ${t.kind} = 'person'
+          and ${t.lastName} is not null
+          and ${t.companyName} is null and ${t.contactPerson} is null
+      ) or (
+        ${t.kind} = 'organization'
+          and ${t.companyName} is not null
+          and ${t.salutation} is null and ${t.title} is null
+          and ${t.firstName} is null and ${t.lastName} is null
+          and ${t.dateOfBirth} is null
+      )`,
+    ),
+  ],
+)
+
+/**
+ * Roles live here rather than in a column on `contact`, because a contact
+ * holds several at once and they come and go over time (CLAUDE.md rule 4).
+ *
+ * `role` is `text` with a named check constraint, not an enum: this set is
+ * expected to change, and a check constraint is replaced with DROP/ADD in one
+ * migration. The allowed values are defined once, in `packages/shared`.
+ */
+export const contactRole = pgTable(
+  'contact_role',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    contactId: uuid().notNull(),
+    role: text().notNull().$type<ContactRole>(),
+    since: date({ mode: 'string' }),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.contactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'contact_role_contact_tenant_fk',
+    }).onDelete('cascade'),
+    // Also serves lookups by contact — contact_id is the leading column.
+    unique('contact_role_contact_role_key').on(t.contactId, t.role),
+    index('contact_role_tenant_role_idx').on(t.tenantId, t.role),
+    check(
+      'contact_role_role_check',
+      sql`${t.role} in ('patient', 'prospect', 'participant', 'guardian', 'billing_recipient', 'other')`,
+    ),
   ],
 )

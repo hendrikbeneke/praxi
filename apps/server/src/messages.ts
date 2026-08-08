@@ -23,4 +23,15 @@ export const messages = {
   settings: {
     missing: 'Es sind keine Praxisstammdaten hinterlegt.',
   },
+  contact: {
+    notFound: 'Dieser Kontakt existiert nicht.',
+    kindImmutable:
+      'Die Art des Kontakts — Person oder Organisation — kann nachträglich nicht geändert werden. ' +
+      'Legen Sie stattdessen einen neuen Kontakt an.',
+  },
+  numberRange: {
+    missing:
+      'Für diesen Nummernkreis ist kein Startwert hinterlegt. ' +
+      'Bitte richten Sie ihn in den Einstellungen ein.',
+  },
 } as const

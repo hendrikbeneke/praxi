@@ -4,6 +4,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.js'
 import { sameOrigin } from './middleware/origin.js'
 import { requestLog } from './middleware/request-log.js'
 import { authRoute } from './routes/auth.js'
+import { contactsRoute } from './routes/contacts.js'
 import { healthRoute } from './routes/health.js'
 import { settingsRoute } from './routes/settings.js'
 
@@ -23,6 +24,7 @@ const routes = app
   .route('/api/health', healthRoute)
   .route('/api/auth', authRoute)
   .route('/api/settings', settingsRoute)
+  .route('/api/contacts', contactsRoute)
 
 export { app }
 export type AppType = typeof routes

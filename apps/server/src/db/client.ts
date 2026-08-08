@@ -37,6 +37,17 @@ export function db() {
 
 export type Database = ReturnType<typeof db>
 
+/**
+ * The handle inside `database.transaction(...)`. Domain functions that must
+ * run within a caller's transaction — the number counter, for one — take this
+ * instead of `Database`, so the type makes the requirement explicit.
+ */
+export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/** For read helpers that are called both standalone and from inside a
+ *  transaction. */
+export type DbReader = Database | Transaction
+
 /** Fails fast at startup if Postgres is not reachable. */
 export async function verifyDatabaseConnection(): Promise<void> {
   await getClient()`select 1`

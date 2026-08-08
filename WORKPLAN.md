@@ -8,7 +8,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 |---|---|---|
 | 0 | Scaffold | **done** |
 | 1 | Tenant, user, login, practice settings | **done** |
-| 2 | Contacts and roles | todo |
+| 2 | Contacts and roles | **done** |
 | 3 | Services and service groups | todo |
 | 4 | Activities and appointments | todo |
 | 5 | Notes, files, locking | todo |
@@ -114,6 +114,56 @@ First vertical slice. It establishes the pattern every later slice copies.
 - Tests for the counter, including a concurrent-call test
 
 **Done when:** I can create people and organizations, assign several roles, search and archive them.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`number_range` created now with `code` and `next_value` only**; `prefix`
+  and `padding` arrive in slice 6 with the upload that fills them.
+  `domain/counter.ts` may create a missing row **only for whitelisted codes**
+  (currently `contact`). For anything else — `invoice` above all — a missing
+  row raises `MissingNumberRangeError`: that range is configured on purpose and
+  may continue a numbering from the previous system, so a silent start at 1
+  would reissue existing numbers. Both branches are tested.
+- **Enum versus check constraint** is now a written rule under Conventions in
+  CLAUDE.md. `contact.kind` is a `pgEnum` (structurally fixed); `contact_role.role`
+  is `text` with the named constraint `contact_role_role_check` (the set is
+  expected to change). The TypeScript union comes from the Zod schema in
+  `packages/shared` and the Drizzle type is derived from it.
+- **`contact_kind_fields` check constraint** enforces which fields belong to
+  which kind. `vat_id` is deliberately *not* restricted to organizations — a
+  sole trader is a person and can have a VAT id.
+- **Generated column `sort_name`** (surname first, company name for
+  organizations) for ordering; displaying goes through `formatContactName()` in
+  `packages/shared`, which slice 6 reuses for `recipient_snapshot` so the
+  stored name reads exactly like the one on screen.
+- **The search term never enters the URL.** Role filter and "show archived" are
+  router search params; the free-text term is component state, because in this
+  application it is almost always a patient's name and the URL reaches browser
+  history and autocomplete.
+- **Roles travel inside the contact payload** and are reconciled in the same
+  transaction. Existing rows are updated in place, never deleted and
+  recreated — that is what keeps `since` from being reset on every save.
+- **Composite foreign key** `(contact_id, tenant_id) -> contact (id, tenant_id)`,
+  the same pattern as `session` in slice 1.
+- **No index for the search** — a leading-wildcard `ILIKE` cannot use a btree,
+  and at the expected row count a sequential scan beats maintaining `pg_trgm`.
+  Two indexes from the first draft were dropped for the same reason: an
+  `archived_at` index (the filter matches nearly every row) and a
+  `contact_role (contact_id)` index (`unique (contact_id, role)` already leads
+  with that column).
+
+**`updated_at` decided for the whole schema:** a generic `set_updated_at()`
+trigger, created in migration `0002` and attached to every table including the
+four from slice 1; `$onUpdate` was removed from the Drizzle schema. The first
+attempt skipped writes that changed nothing, which does not work: Postgres
+fills generated columns *after* `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD`
+is always true on a table with one. Migration `0005` corrects it — `updated_at`
+now means *last write*, uniformly.
+
+Migration `0002` also asserts the database runs under the ICU provider with
+locale `de-DE`, checked via `datlocprovider`/`datlocale`; `datcollate` still
+reports the libc locale under ICU and would have passed a wrongly built
+cluster.
 
 ## Slice 3 — Services and service groups
 
