@@ -20,6 +20,7 @@
     "db:generate": "pnpm --filter @praxi/server db:generate",
     "db:migrate": "pnpm --filter @praxi/server db:migrate",
     "db:seed": "pnpm --filter @praxi/server db:seed",
+    "db:seed:services": "pnpm --filter @praxi/server db:seed:services",
     "db:studio": "pnpm --filter @praxi/server db:studio"
   },
   "devDependencies": {

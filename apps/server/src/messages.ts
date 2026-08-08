@@ -29,6 +29,13 @@ export const messages = {
       'Die Art des Kontakts — Person oder Organisation — kann nachträglich nicht geändert werden. ' +
       'Legen Sie stattdessen einen neuen Kontakt an.',
   },
+  service: {
+    notFound: 'Diese Leistung existiert nicht.',
+    shortCodeTaken: 'Dieses Kürzel ist bereits vergeben.',
+    groupNotFound: 'Diese Leistungsgruppe existiert nicht.',
+    groupNameTaken: 'Eine Leistungsgruppe mit diesem Namen existiert bereits.',
+    unknownService: 'Die Gruppe verweist auf eine Leistung, die es nicht gibt.',
+  },
   numberRange: {
     missing:
       'Für diesen Nummernkreis ist kein Startwert hinterlegt. ' +

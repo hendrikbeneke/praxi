@@ -6,6 +6,8 @@ import { requestLog } from './middleware/request-log.js'
 import { authRoute } from './routes/auth.js'
 import { contactsRoute } from './routes/contacts.js'
 import { healthRoute } from './routes/health.js'
+import { serviceGroupsRoute } from './routes/service-groups.js'
+import { servicesRoute } from './routes/services.js'
 import { settingsRoute } from './routes/settings.js'
 
 const app = new Hono<AppEnv>()
@@ -25,6 +27,8 @@ const routes = app
   .route('/api/auth', authRoute)
   .route('/api/settings', settingsRoute)
   .route('/api/contacts', contactsRoute)
+  .route('/api/services', servicesRoute)
+  .route('/api/service-groups', serviceGroupsRoute)
 
 export { app }
 export type AppType = typeof routes

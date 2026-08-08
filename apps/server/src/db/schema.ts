@@ -286,3 +286,112 @@ export const contactRole = pgTable(
     ),
   ],
 )
+
+/**
+ * The catalogue. Every `service` is a template: creating an `activity_item`
+ * copies description, fee code, price and duration out of it, and `service_id`
+ * survives only as a record of origin (CLAUDE.md rule 5).
+ *
+ * Hence no price history and no validity dates — editing the catalogue is
+ * meant to leave everything that already exists untouched, past and future
+ * alike.
+ */
+export const service = pgTable(
+  'service',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    shortCode: text(),
+    description: text().notNull(),
+    feeCode: text(),
+    defaultPriceCents: integer().notNull(),
+    defaultDurationMin: integer(),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    // Referenced by the composite foreign key on `service_group_item`.
+    unique('service_id_tenant_key').on(t.id, t.tenantId),
+    /**
+     * Unique only where given: not every service needs a handle, but two
+     * sharing one would make quick entry ambiguous.
+     */
+    uniqueIndex('service_tenant_short_code_key')
+      .on(t.tenantId, t.shortCode)
+      .where(sql`${t.shortCode} is not null`),
+    /**
+     * No negative prices in the catalogue. A discount is not a service — rule
+     * 5 handles it by editing the price on the `activity_item`, which stays
+     * free until the item is billed.
+     */
+    check('service_price_not_negative', sql`${t.defaultPriceCents} >= 0`),
+    check(
+      'service_duration_positive',
+      sql`${t.defaultDurationMin} is null or ${t.defaultDurationMin} > 0`,
+    ),
+  ],
+)
+
+/**
+ * A selection helper, nothing more. Picking a group resolves it into
+ * individual items at entry time; no table outside this one ever stores a
+ * group id (CLAUDE.md rule 5), so renaming or emptying a group cannot reach
+ * back into an activity that was entered from it.
+ */
+export const serviceGroup = pgTable(
+  'service_group',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    name: text().notNull(),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    unique('service_group_tenant_name_key').on(t.tenantId, t.name),
+    unique('service_group_id_tenant_key').on(t.id, t.tenantId),
+  ],
+)
+
+export const serviceGroupItem = pgTable(
+  'service_group_item',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    serviceGroupId: uuid().notNull(),
+    serviceId: uuid().notNull(),
+    /** A session is the unit; the length of one lives in `duration_min`. */
+    quantity: integer().notNull().default(1),
+    /**
+     * Sort order only, not an identity — deliberately without a unique
+     * constraint, so reordering can rewrite the rows one by one instead of
+     * needing a deferred constraint or a shuffle through spare values. Saving
+     * renumbers them from 0 without gaps.
+     */
+    position: integer().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.serviceGroupId, t.tenantId],
+      foreignColumns: [serviceGroup.id, serviceGroup.tenantId],
+      name: 'service_group_item_group_tenant_fk',
+    }).onDelete('cascade'),
+    // No cascade: services are never deleted, only deactivated. This foreign
+    // key is what makes that stick.
+    foreignKey({
+      columns: [t.serviceId, t.tenantId],
+      foreignColumns: [service.id, service.tenantId],
+      name: 'service_group_item_service_tenant_fk',
+    }),
+    unique('service_group_item_group_service_key').on(t.serviceGroupId, t.serviceId),
+    index('service_group_item_group_idx').on(t.serviceGroupId, t.position),
+    check('service_group_item_quantity_positive', sql`${t.quantity} > 0`),
+  ],
+)

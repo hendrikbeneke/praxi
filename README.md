@@ -22,7 +22,7 @@ pnpm install
 cp .env.example .env     # then set SEED_USER_PASSWORD
 pnpm db:up               # starts Postgres 17 on host port 55432
 pnpm db:migrate          # creates the tables
-pnpm db:seed             # one tenant, its practice settings, one user
+pnpm db:seed             # tenant, practice settings, user, example catalogue
 pnpm dev                 # http://localhost:5173
 ```
 
@@ -63,7 +63,8 @@ Set `NODE_ENV=production` for the static file serving to be registered.
 | `pnpm db:up` / `pnpm db:down` | start / stop Postgres |
 | `pnpm db:generate` | generate a migration from the Drizzle schema |
 | `pnpm db:migrate` | apply pending migrations |
-| `pnpm db:seed` | tenant, practice settings and user (idempotent) |
+| `pnpm db:seed` | tenant, practice settings, user and example catalogue |
+| `pnpm db:seed:services` | the example service catalogue on its own |
 | `pnpm db:studio` | Drizzle Studio |
 
 ## Database

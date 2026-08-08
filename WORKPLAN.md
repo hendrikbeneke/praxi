@@ -9,7 +9,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 0 | Scaffold | **done** |
 | 1 | Tenant, user, login, practice settings | **done** |
 | 2 | Contacts and roles | **done** |
-| 3 | Services and service groups | todo |
+| 3 | Services and service groups | **done** |
 | 4 | Activities and appointments | todo |
 | 5 | Notes, files, locking | todo |
 | 6 | Invoices: draft, finalize, PDF | todo |
@@ -175,6 +175,48 @@ Deliberately small — it confirms the slice-2 pattern is repeatable.
 - **No pricing logic, no history.** The catalogue is a template store; see CLAUDE.md rule 5.
 
 **Done when:** the catalogue is maintainable and inactive entries no longer appear in selection lists.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`short_code` optional but unique where given**, via a partial unique index.
+  A required code would force one onto services nobody ever types.
+- **`default_price_cents >= 0`.** A discount is not a service; rule 5 handles
+  it by editing the price on the `activity_item`. Relaxing this later is a
+  `DROP CONSTRAINT` that cannot fail, which makes it the cheaper direction.
+- **`quantity` is `integer`** here and on `activity_item` in slice 4. A session
+  is the unit; length lives in `duration_min`.
+- **`active` travels in the payload**, no `activate`/`deactivate` routes. This
+  differs from archiving a contact on purpose: that is a guarded action with a
+  confirmation, this is a checkbox in a form, and two paths to one outcome
+  would be worse than the inconsistency.
+- **Group items travel in the group payload** and are replaced wholesale in one
+  transaction. Unlike a contact's roles these rows carry nothing worth
+  preserving — no date, no history — so delete-and-insert is both simpler and
+  correct, and `position` is rewritten from the array index.
+- **No unique constraint on `position`**, so reordering does not need a
+  deferred constraint or a shuffle through spare values.
+- **Money formatting lives in `packages/shared`** (`formatEuro`,
+  `formatEuroAmount`, `parseEuroAmount`), not in the frontend: slice 6 formats
+  the same amounts server-side for the PDF, and a printed invoice must not read
+  differently from the screen it was checked on. `parseEuroAmount` is the only
+  logic in this slice testable without a database, and it has the tests.
+- **The forms are dialogs, not routes** — again a deviation from the contacts
+  pattern. A catalogue entry has seven fields and is maintained by jumping
+  between many of them; keeping the list in view is worth more here than
+  matching the contact page.
+- **Seed** extended with a plausible HPP catalogue: seven services, one group
+  (`Prüfungsvorbereitung Kompakttag`, 4× Prüfungsvorbereitung + 1× telefonische
+  Beratung) so slice 4 has a real group to resolve. `fee_code` is left empty
+  throughout — inventing GebüH numbers would put made-up billing codes on real
+  invoices. `pnpm db:seed:services` runs that section alone; the seed never
+  updates an entry that already exists.
+
+Found while building: `uniqueViolationConstraint` read the SQLSTATE off the
+thrown error directly and therefore never matched — Drizzle wraps driver errors
+in a `DrizzleQueryError` and the code sits on `cause`. A duplicate short code
+came back as a generic 500 with no complaint anywhere. `db/errors.ts` now walks
+the cause chain, and `db/errors.test.ts` asserts it against a genuine Drizzle
+error rather than a hand-built object.
 
 ## Slice 4 — Activities and appointments
 

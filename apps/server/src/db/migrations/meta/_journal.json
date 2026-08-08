@@ -43,6 +43,20 @@
       "when": 1786199377204,
       "tag": "0005_updated_at_always",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786225669847,
+      "tag": "0006_absent_fixer",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786225685429,
+      "tag": "0007_service_triggers_and_rls",
+      "breakpoints": true
     }
   ]
 }

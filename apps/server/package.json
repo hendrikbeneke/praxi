@@ -16,7 +16,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx src/db/seed.ts",
+    "db:seed": "tsx src/db/seed/run.ts",
+    "db:seed:services": "tsx src/db/seed/run-services.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

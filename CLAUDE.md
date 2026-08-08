@@ -381,11 +381,55 @@ contact_role          tenant_id uuid not null -> tenant(id),
                         -- lookups by contact and the cascade check
                       index on (tenant_id, role)                -- role filter
 
-service               tenant_id, short_code, description, fee_code,
-                      default_price_cents, default_duration_min, active
+-- as built (slice 3)
+service               tenant_id uuid not null -> tenant(id),
+                      short_code text                           (nullable)
+                      description text not null,                -- copied onto
+                        -- activity_item, and from there onto invoice_line
+                      fee_code text,                            (GebüH, free
+                        -- text, usually empty; nothing derives from it)
+                      default_price_cents integer not null check (>= 0),
+                        -- no negative catalogue entries: a discount is not a
+                        -- service, rule 5 handles it by editing the price on
+                        -- the activity_item
+                      default_duration_min integer
+                        check (null or > 0)                     -- an
+                        -- Ausfallhonorar has no duration
+                      active boolean not null default true
+                      unique (id, tenant_id)                    -- for the FK
+                      unique index (tenant_id, short_code)
+                        where short_code is not null            -- unique only
+                        -- where given; not every service needs a handle
+                      -- deliberately absent: valid_from/valid_to, price
+                      -- history. Editing the catalogue must leave everything
+                      -- that already exists untouched (rule 5).
 
-service_group         tenant_id, name, active
-service_group_item    service_group_id, service_id, quantity, position
+-- as built (slice 3)
+service_group         tenant_id uuid not null -> tenant(id),
+                      name text not null,
+                      active boolean not null default true
+                      unique (tenant_id, name),
+                      unique (id, tenant_id)
+
+-- as built (slice 3)
+service_group_item    tenant_id uuid not null -> tenant(id),
+                      service_group_id uuid not null,
+                      service_id uuid not null,
+                      quantity integer not null default 1 check (> 0),
+                        -- integer: a session is the unit, length lives in
+                        -- duration_min. activity_item.quantity matches.
+                      position integer not null                 -- sort order
+                        -- only, no unique constraint: reordering rewrites the
+                        -- rows and renumbers from 0 without gaps
+                      foreign key (service_group_id, tenant_id)
+                        -> service_group (id, tenant_id) on delete cascade
+                      foreign key (service_id, tenant_id)
+                        -> service (id, tenant_id)              -- no cascade:
+                        -- services are never deleted, only deactivated
+                      unique (service_group_id, service_id),
+                      index on (service_group_id, position)
+                      -- This is the only table in the schema that may hold a
+                      -- service_group_id (rule 5).
 
 activity              tenant_id, contact_id, type (?session|talk|consultation|other),
                       occurred_at, duration_min,
@@ -477,9 +521,11 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 
 - No `any`, no `@ts-ignore`. Fix the root cause.
 - One Zod schema per entity in `packages/shared`, types derived from it. No hand-maintained parallel interfaces.
-- Migrations are immutable. A schema change means a new migration.
+- Migrations are immutable once applied: never edit a migration file that has run, always add a new one. But do not contort a design to avoid a migration — there is no production database yet, and a migration during development is cheap. Prefer the correct schema over the one that avoids an `ALTER TABLE`.
+- Before going live the migration history will be squashed into a single baseline. That baseline must be produced with `pg_dump --schema-only` against the real database, never regenerated from the Drizzle schema: Drizzle does not know the hand-written parts — triggers, the `EXCLUDE` constraint, RLS policies, the ICU locale check, partial indexes — and would silently drop them.
 - Every new entity follows the structure of the entity built before it. Consistency beats local cleverness — if you want to deviate from an established pattern, say so and explain why before doing it.
 - Tests are mandatory for everything in `domain/`. UI and simple CRUD routes need none.
+- Do not add optimizations, caching or short-circuits that were not asked for. If you think one is warranted, propose it separately instead of building it in.
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
 - Conventional Commits, in English, one commit per slice.
 

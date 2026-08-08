@@ -1,19 +1,17 @@
 /**
- * Seeds the one tenant, its practice settings and the one user.
+ * Tenant, practice settings and the one user.
  *
- * Idempotent: run it as often as you like. An existing tenant is reused, and
- * an existing user keeps the password it has — the seed never silently
- * overwrites a password that is already in use.
- *
- *   pnpm db:seed
+ * Idempotent: an existing tenant is reused, and an existing user keeps the
+ * password it has — the seed never silently overwrites a password that is
+ * already in use.
  */
 import { passwordPolicy } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
-import { closeDatabase, db } from '../db/client.js'
-import { appUser, practiceSettings, tenant } from '../db/schema.js'
-import { hashPassword } from '../domain/auth.js'
-import { getEnv, loadEnvFile } from '../env.js'
-import { newId } from '../id.js'
+import { hashPassword } from '../../domain/auth.js'
+import { getEnv } from '../../env.js'
+import { newId } from '../../id.js'
+import type { Database } from '../client.js'
+import { appUser, practiceSettings, tenant } from '../schema.js'
 
 /** Obviously fake master data — never a realistic person or practice. */
 const SEED_TENANT_NAME = 'Testpraxis'
@@ -52,9 +50,9 @@ function requireSeedUser() {
   return { email, password, name }
 }
 
-async function seed(): Promise<void> {
+/** Returns the tenant id, so the other seed sections can hang off it. */
+export async function seedBase(database: Database): Promise<string> {
   const seedUser = requireSeedUser()
-  const database = db()
 
   const tenantId = await database.transaction(async (tx) => {
     const [existing] = await tx.select({ id: tenant.id }).from(tenant).limit(1)
@@ -89,16 +87,13 @@ async function seed(): Promise<void> {
     console.info(`created user ${seedUser.email}`)
   }
 
-  console.info('seed complete')
+  return tenantId
 }
 
-loadEnvFile()
-
-try {
-  await seed()
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error)
-  process.exitCode = 1
-} finally {
-  await closeDatabase()
+/** For the sections that run on their own and need the tenant that is already
+ *  there. */
+export async function requireTenantId(database: Database): Promise<string> {
+  const [row] = await database.select({ id: tenant.id }).from(tenant).limit(1)
+  if (!row) throw new Error('No tenant found. Run `pnpm db:seed` first.')
+  return row.id
 }

@@ -61,6 +61,9 @@ export const strings = {
     country: 'Bitte einen zweistelligen Länder-Code eingeben, zum Beispiel DE.',
     paymentTerm: 'Bitte eine Zahl zwischen 0 und 365 eingeben.',
     tooLong: 'Diese Eingabe ist zu lang.',
+    amount: 'Bitte einen Betrag eingeben, zum Beispiel 90,00.',
+    duration: 'Bitte eine Dauer in Minuten eingeben oder das Feld leer lassen.',
+    quantity: 'Bitte eine Menge ab 1 eingeben.',
   },
   contact: {
     title: 'Kontakte',
@@ -153,6 +156,67 @@ export const strings = {
       appointments: 'Termine',
       invoices: 'Rechnungen',
     },
+  },
+  service: {
+    title: 'Leistungen',
+    description: 'Der Leistungskatalog. Vorlagen für Vorgänge und Rechnungen.',
+    /** CLAUDE.md rule 5 — worth saying on screen, because it is the opposite
+     *  of what most catalogues do. */
+    templateHint:
+      'Der Katalog ist eine Vorlage. Beim Anlegen eines Vorgangs werden Bezeichnung, Ziffer, ' +
+      'Preis und Dauer kopiert — spätere Änderungen hier wirken sich auf nichts Bestehendes aus.',
+
+    tabServices: 'Leistungen',
+    tabGroups: 'Leistungsgruppen',
+    showInactive: 'Inaktive anzeigen',
+
+    create: 'Neue Leistung',
+    createTitle: 'Leistung anlegen',
+    editTitle: 'Leistung bearbeiten',
+    empty: 'Noch keine Leistungen im Katalog.',
+
+    shortCode: 'Kürzel',
+    shortCodeHint: 'Optional, für die Schnellauswahl. Muss eindeutig sein.',
+    serviceDescription: 'Bezeichnung',
+    feeCode: 'Ziffer (GebüH)',
+    price: 'Preis',
+    priceHint: 'In Euro, zum Beispiel 90,00',
+    duration: 'Dauer',
+    durationMinutes: 'Minuten',
+    durationEmpty: 'ohne Dauer',
+    active: 'Aktiv',
+    activeHint: 'Inaktive Leistungen erscheinen in keiner Auswahlliste.',
+    inactiveBadge: 'Inaktiv',
+
+    groupCreate: 'Neue Gruppe',
+    groupCreateTitle: 'Leistungsgruppe anlegen',
+    groupEditTitle: 'Leistungsgruppe bearbeiten',
+    groupEmpty: 'Noch keine Leistungsgruppen.',
+    groupName: 'Name',
+    groupItems: 'Enthaltene Leistungen',
+    groupItemsEmpty: 'Noch keine Leistung hinzugefügt.',
+    groupAddItem: 'Leistung hinzufügen',
+    groupChooseService: 'Leistung wählen',
+    groupQuantity: 'Menge',
+    groupSum: 'Summe',
+    groupMoveUp: 'Nach oben',
+    groupMoveDown: 'Nach unten',
+    groupRemove: 'Entfernen',
+    groupCount: (count: number) => (count === 1 ? '1 Leistung' : `${count} Leistungen`),
+    /** A group may hold a service that was deactivated afterwards. */
+    groupInactiveService: 'Diese Leistung ist inaktiv.',
+    groupHint:
+      'Eine Gruppe ist nur eine Auswahlhilfe. Beim Anlegen eines Vorgangs wird sie sofort in ' +
+      'einzelne Positionen aufgelöst; gespeichert wird kein Verweis auf die Gruppe.',
+
+    save: 'Speichern',
+    saving: 'Wird gespeichert …',
+    cancel: 'Abbrechen',
+    created: 'Leistung angelegt.',
+    saved: 'Leistung gespeichert.',
+    groupCreated: 'Leistungsgruppe angelegt.',
+    groupSaved: 'Leistungsgruppe gespeichert.',
+    saveFailed: 'Der Eintrag konnte nicht gespeichert werden.',
   },
   actions: {
     recheck: 'Erneut prüfen',
