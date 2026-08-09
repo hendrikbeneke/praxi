@@ -1,7 +1,28 @@
-import type { Contact, ContactInput, ContactListQuery, ContactRoleInput } from '@praxi/shared'
-import { and, asc, count, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import type {
+  Contact,
+  ContactInput,
+  ContactListItem,
+  ContactListQuery,
+  ContactRoleInput,
+} from '@praxi/shared'
+import type { AnyColumn, SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
-import { contact, contactRole } from '../db/schema.js'
+import { appointment, contact, contactRole } from '../db/schema.js'
 import { newId } from '../id.js'
 import { nextNumber } from './counter.js'
 
@@ -185,11 +206,130 @@ function escapeLikePattern(value: string): string {
   return value.replaceAll(/[\\%_]/g, (character) => `\\${character}`)
 }
 
+/**
+ * How far either side of now the `current` order looks. Fourteen days covers
+ * "was here last week" and "is coming next week", which is what the list is
+ * asked for when the practitioner sits down to document.
+ */
+export const CURRENT_WINDOW_DAYS = 14
+
+const DAY_MS = 86_400_000
+
+/**
+ * Seconds between an appointment and now, unsigned — the past and the future
+ * are equally close.
+ *
+ * `abs()` has no interval form in Postgres (`@` does, but reads like a typo),
+ * so the difference goes through `extract(epoch from …)` first. The cast on
+ * the parameter is not decoration: without it `timestamptz - $1` has to pick
+ * between subtracting a timestamp and subtracting an interval.
+ */
+function distanceToNow(column: SQL | AnyColumn, now: Date): SQL {
+  return sql`abs(extract(epoch from ${column} - ${now.toISOString()}::timestamptz))`
+}
+
+/**
+ * One row per contact with an appointment inside the window: the appointment
+ * nearest to now. `distinct on` is what keeps a contact with three
+ * appointments this week from appearing three times.
+ *
+ * Cancelled appointments do not count — the order answers "who is around",
+ * and a cancellation is precisely the answer "not this one". A no-show does
+ * count: it happened, it just happened without the patient, and it is a reason
+ * to open the record.
+ */
+function nearestAppointments(database: Database, tenantId: string, now: Date) {
+  const from = new Date(now.getTime() - CURRENT_WINDOW_DAYS * DAY_MS)
+  const to = new Date(now.getTime() + CURRENT_WINDOW_DAYS * DAY_MS)
+
+  return database
+    .selectDistinctOn([appointment.contactId], {
+      contactId: appointment.contactId,
+      startsAt: appointment.startsAt,
+    })
+    .from(appointment)
+    .where(
+      and(
+        eq(appointment.tenantId, tenantId),
+        gte(appointment.startsAt, from),
+        lte(appointment.startsAt, to),
+        notInArray(appointment.status, ['cancelled', 'cancelled_late']),
+      ),
+    )
+    .orderBy(appointment.contactId, distanceToNow(appointment.startsAt, now))
+    .as('nearest')
+}
+
+type ListRow = ContactRow & { appointmentAt: Date | null }
+type Page = { rows: ListRow[]; total: number }
+
+/**
+ * The everyday order: whoever was here in the last two weeks or is coming in
+ * the next, nearest to now first. Contacts without an appointment in the
+ * window are not in this list at all — that is the filter, not a side effect
+ * of the sort.
+ */
+async function currentPage(
+  database: Database,
+  tenantId: string,
+  query: ContactListQuery,
+  where: SQL | undefined,
+  now: Date,
+): Promise<Page> {
+  const nearest = nearestAppointments(database, tenantId, now)
+
+  const [rows, [totals]] = await Promise.all([
+    database
+      .select({ ...columns, appointmentAt: nearest.startsAt })
+      .from(contact)
+      .innerJoin(nearest, eq(nearest.contactId, contact.id))
+      .where(where)
+      .orderBy(distanceToNow(nearest.startsAt, now))
+      .limit(query.limit)
+      .offset(query.offset),
+    database
+      .select({ value: count() })
+      .from(contact)
+      .innerJoin(nearest, eq(nearest.contactId, contact.id))
+      .where(where),
+  ])
+
+  return { rows, total: totals?.value ?? 0 }
+}
+
+/** The card index. `sort_name` puts the surname first and sorts in the
+ *  database's ICU de-DE collation, so umlauts land where a card index would
+ *  put them. */
+async function alphabeticalPage(
+  database: Database,
+  query: ContactListQuery,
+  where: SQL | undefined,
+): Promise<Page> {
+  const column = query.sort === 'number' ? contact.contactNumber : contact.sortName
+  const direction = query.dir === 'desc' ? desc : asc
+
+  const [rows, [totals]] = await Promise.all([
+    database
+      .select(columns)
+      .from(contact)
+      .where(where)
+      .orderBy(direction(column))
+      .limit(query.limit)
+      .offset(query.offset),
+    database.select({ value: count() }).from(contact).where(where),
+  ])
+
+  // No appointment is looked up here: the column that shows one exists only to
+  // explain the `current` order.
+  return { rows: rows.map((row) => ({ ...row, appointmentAt: null })), total: totals?.value ?? 0 }
+}
+
 export async function listContacts(
   database: Database,
   tenantId: string,
   query: ContactListQuery,
-): Promise<{ items: Contact[]; total: number }> {
+  now: Date = new Date(),
+): Promise<{ items: ContactListItem[]; total: number }> {
   const filters = [eq(contact.tenantId, tenantId)]
 
   if (!query.includeArchived) filters.push(isNull(contact.archivedAt))
@@ -220,18 +360,10 @@ export async function listContacts(
 
   const where = and(...filters)
 
-  const [rows, [totals]] = await Promise.all([
-    database
-      .select(columns)
-      .from(contact)
-      .where(where)
-      // sort_name puts the surname first and sorts in the database's ICU
-      // de-DE collation, so umlauts land where a card index would put them.
-      .orderBy(asc(contact.sortName))
-      .limit(query.limit)
-      .offset(query.offset),
-    database.select({ value: count() }).from(contact).where(where),
-  ])
+  const { rows, total } =
+    query.order === 'current'
+      ? await currentPage(database, tenantId, query, where, now)
+      : await alphabeticalPage(database, query, where)
 
   const roles = await rolesFor(
     database,
@@ -239,8 +371,11 @@ export async function listContacts(
   )
 
   return {
-    items: rows.map((row) => toContact(row, roles.get(row.id) ?? [])),
-    total: totals?.value ?? 0,
+    items: rows.map((row) => ({
+      ...toContact(row, roles.get(row.id) ?? []),
+      appointmentAt: row.appointmentAt?.toISOString() ?? null,
+    })),
+    total,
   }
 }
 

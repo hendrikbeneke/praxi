@@ -1,9 +1,19 @@
-import { type Contact, formatContactNameSorted } from '@praxi/shared'
+import {
+  type ContactListItem,
+  type ContactSortField,
+  contactListOrderSchema,
+  contactSortFieldSchema,
+  formatBerlinDate,
+  formatBerlinDateTime,
+  formatContactNameSorted,
+  formatRelativeBerlin,
+  sortDirectionSchema,
+} from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createColumnHelper, flexRender, tableFeatures, useTable } from '@tanstack/react-table'
-import { Plus } from 'lucide-react'
-import { useDeferredValue, useMemo, useState } from 'react'
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
+import { useDeferredValue, useState } from 'react'
 import { z } from 'zod'
 import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
@@ -30,18 +40,29 @@ import { roleTypeListQueryOptions } from '@/lib/contact-types'
 import { contactListQueryOptions } from '@/lib/contacts'
 import { strings } from '@/lib/strings'
 
+/** `role` absent means the default tab — the first role flagged as one. `all`
+ *  is the explicit choice, and the two have to stay distinguishable. */
 const ALL_ROLES = 'all'
 const PAGE_SIZE = 50
 
 /**
- * Role and archived live in the URL; the search term deliberately does not.
- * In this application a search term is almost always a patient's name, and the
- * URL ends up in browser history and autocomplete (CLAUDE.md rule 12).
+ * Role, order and archived live in the URL; the search term deliberately does
+ * not. In this application a search term is almost always a patient's name, and
+ * the URL ends up in browser history and autocomplete (CLAUDE.md rule 12).
  */
 const searchSchema = z.object({
   // A role code, not an enum: the set is maintained in the settings. It is not
   // personal data, so it may live in the URL.
-  roleCode: z.string().optional(),
+  role: z.string().optional(),
+  /**
+   * The screen starts on `current` — opening the contact list is how the day's
+   * documentation begins, and the question then is who was just here. The API
+   * defaults to `alpha` instead, so the request always names the order rather
+   * than relying on the other end's idea of a default.
+   */
+  order: contactListOrderSchema.default('current'),
+  sort: contactSortFieldSchema.default('name'),
+  dir: sortDirectionSchema.default('asc'),
   archived: z.boolean().optional(),
 })
 
@@ -58,25 +79,34 @@ export const Route = createFileRoute('/_app/contacts/')({
  */
 const features = tableFeatures({})
 
-const column = createColumnHelper<typeof features, Contact>()
+const column = createColumnHelper<typeof features, ContactListItem>()
+
+type ColumnOptions = {
+  roleLabels: Map<string, string>
+  /** Only the `current` order has an appointment to show, and only there does
+   *  the column explain anything. */
+  showAppointment: boolean
+  sortHeader: (field: ContactSortField, label: string) => React.ReactNode
+  now: Date
+}
 
 /**
  * Built inside the component rather than at module level: the role labels come
- * from `contact_role_type`, which the practitioner maintains — there is no
- * static list to read them from any more.
+ * from `contact_role_type`, which the practitioner maintains, and the columns
+ * depend on the chosen order.
  *
  * `columns()` keeps each column's own value type; a plain array would widen
  * them to a single one and stop type-checking the cells.
  */
-function contactColumns(roleLabels: Map<string, string>) {
+function contactColumns(options: ColumnOptions) {
   return column.columns([
     column.accessor('contactNumber', {
-      header: strings.contact.columns.number,
+      header: () => options.sortHeader('number', strings.contact.columns.number),
       cell: (info) => <span className="tabular-nums">{info.getValue()}</span>,
     }),
     column.display({
       id: 'name',
-      header: strings.contact.columns.name,
+      header: () => options.sortHeader('name', strings.contact.columns.name),
       cell: (info) => {
         const contact = info.row.original
         return (
@@ -101,7 +131,7 @@ function contactColumns(roleLabels: Map<string, string>) {
           <span className="flex flex-wrap gap-1">
             {roles.map((entry) => (
               <Badge key={entry.roleCode} variant="outline">
-                {roleLabels.get(entry.roleCode) ?? entry.roleCode}
+                {options.roleLabels.get(entry.roleCode) ?? entry.roleCode}
               </Badge>
             ))}
           </span>
@@ -112,14 +142,38 @@ function contactColumns(roleLabels: Map<string, string>) {
       header: strings.contact.columns.city,
       cell: (info) => info.getValue() ?? '—',
     }),
-    column.accessor('email', {
-      header: strings.contact.columns.email,
-      cell: (info) => info.getValue() ?? '—',
+    column.accessor('dateOfBirth', {
+      header: strings.contact.columns.dateOfBirth,
+      cell: (info) => {
+        const date = info.getValue()
+        // A plain date rendered through the Berlin formatter needs an instant;
+        // midday can never fall on the wrong side of a timezone boundary.
+        return date ? (
+          <span className="tabular-nums">{formatBerlinDate(`${date}T12:00:00Z`)}</span>
+        ) : (
+          '—'
+        )
+      },
     }),
-    column.accessor('phone', {
-      header: strings.contact.columns.phone,
-      cell: (info) => info.getValue() ?? '—',
-    }),
+    ...(options.showAppointment
+      ? [
+          column.accessor('appointmentAt', {
+            header: strings.contact.columns.appointment,
+            cell: (info) => {
+              const at = info.getValue()
+              if (!at) return '—'
+              return (
+                <span className="flex flex-col">
+                  <span className="tabular-nums">{formatBerlinDateTime(at)}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {formatRelativeBerlin(at, options.now)}
+                  </span>
+                </span>
+              )
+            },
+          }),
+        ]
+      : []),
   ])
 }
 
@@ -131,15 +185,7 @@ function ContactListPage() {
   // Keeps typing responsive without a timer: the list re-queries with the
   // settled value while the input stays immediate.
   const deferredTerm = useDeferredValue(term)
-
-  const contacts = useQuery(
-    contactListQueryOptions({
-      q: deferredTerm.trim() || undefined,
-      roleCode: search.roleCode,
-      includeArchived: search.archived ?? false,
-      limit: PAGE_SIZE,
-    }),
-  )
+  const searching = deferredTerm.trim() !== ''
 
   // Inactive types included: a contact may still hold one, and its badge has
   // to read as a name rather than as a code.
@@ -148,18 +194,77 @@ function ContactListPage() {
   const tabTypes = types.filter((type) => type.active && type.showAsTab)
   const otherTypes = types.filter((type) => type.active && !type.showAsTab)
 
-  const columns = useMemo(
-    () => contactColumns(new Map(types.map((type) => [type.code, type.label]))),
-    [types],
+  /** No role in the URL means the first tab — "Patienten" after the seed. With
+   *  no flagged role at all there is nothing to default to, so it is Alle. */
+  const activeRole = search.role ?? tabTypes[0]?.code ?? ALL_ROLES
+
+  /**
+   * The search beats both filters: while something is typed, the whole card
+   * index is searched, regardless of role and of the time window. This is a
+   * rule of this screen, not of the API — hence here and not in the domain.
+   */
+  const contacts = useQuery(
+    contactListQueryOptions({
+      q: deferredTerm.trim() || undefined,
+      roleCode: searching || activeRole === ALL_ROLES ? undefined : activeRole,
+      order: searching ? 'alpha' : search.order,
+      sort: search.sort,
+      dir: search.dir,
+      includeArchived: search.archived ?? false,
+      limit: PAGE_SIZE,
+      // The role types decide what the default tab is, so asking before they
+      // arrive would query the wrong list and then correct itself on screen.
+      enabled: !roleTypes.isPending,
+    }),
   )
 
   const rows = contacts.data?.items ?? []
   const total = contacts.data?.total ?? 0
 
-  const table = useTable({ features, columns, data: rows })
+  /** One instant per render, so two rows of the same table cannot disagree
+   *  about what "now" is. */
+  const now = new Date()
 
-  const setRole = (roleCode: string | undefined) =>
-    void navigate({ search: (previous) => ({ ...previous, roleCode }) })
+  const setSearch = (next: Partial<z.infer<typeof searchSchema>>) =>
+    void navigate({ search: (previous) => ({ ...previous, ...next }) })
+
+  /** Clicking a heading sorts — and pulls the view over to A–Z, because in the
+   *  `current` order the sort would have nowhere to take effect. */
+  const sortHeader = (field: ContactSortField, label: string) => {
+    const activeHere = search.order === 'alpha' && search.sort === field && !searching
+    const Arrow = search.dir === 'desc' ? ArrowDown : ArrowUp
+
+    return (
+      <button
+        type="button"
+        className="-mx-2 flex items-center gap-1 rounded px-2 py-1 hover:bg-muted"
+        onClick={() =>
+          setSearch({
+            order: 'alpha',
+            sort: field,
+            dir: activeHere && search.dir === 'asc' ? 'desc' : 'asc',
+          })
+        }
+      >
+        {label}
+        {activeHere && <Arrow className="size-3" aria-hidden />}
+      </button>
+    )
+  }
+
+  const showAppointment = search.order === 'current' && !searching
+
+  // Rebuilt on every render rather than memoized: the labels, the visible
+  // columns and the sort arrows all depend on state that changes here, and the
+  // table holds no state of its own that recreating them could disturb.
+  const columns = contactColumns({
+    roleLabels: new Map(types.map((type) => [type.code, type.label])),
+    showAppointment,
+    sortHeader,
+    now,
+  })
+
+  const table = useTable({ features, columns, data: rows })
 
   return (
     <>
@@ -188,39 +293,12 @@ function ContactListPage() {
           />
         </div>
 
-        {/* The tabs are the roles flagged `show_as_tab`; everything else stays
-            reachable through the dropdown beside them, so no role is
-            unfilterable and the bar stays short. */}
-        <div className="flex flex-wrap items-center gap-1 pb-2">
-          <Button
-            size="sm"
-            variant={search.roleCode === undefined ? 'default' : 'outline'}
-            onClick={() => setRole(undefined)}
-          >
-            {strings.contact.allRolesTab}
-          </Button>
-          {tabTypes.map((type) => (
-            <Button
-              key={type.code}
-              size="sm"
-              variant={search.roleCode === type.code ? 'default' : 'outline'}
-              onClick={() => setRole(type.code)}
-            >
-              {type.label}
-            </Button>
-          ))}
-        </div>
-
         {otherTypes.length > 0 && (
           <div className="w-56">
             <Label htmlFor="role-filter">{strings.contact.moreRoles}</Label>
             <Select
-              value={
-                search.roleCode && otherTypes.some((type) => type.code === search.roleCode)
-                  ? search.roleCode
-                  : ALL_ROLES
-              }
-              onValueChange={(value) => setRole(value === ALL_ROLES ? undefined : value)}
+              value={otherTypes.some((type) => type.code === activeRole) ? activeRole : ALL_ROLES}
+              onValueChange={(value) => setSearch({ role: value })}
             >
               <SelectTrigger id="role-filter" className="mt-2 w-full">
                 <SelectValue placeholder={strings.contact.moreRoles} />
@@ -242,12 +320,7 @@ function ContactListPage() {
             id="show-archived"
             checked={search.archived ?? false}
             onCheckedChange={(checked) =>
-              void navigate({
-                search: (previous) => ({
-                  ...previous,
-                  archived: checked === true ? true : undefined,
-                }),
-              })
+              setSearch({ archived: checked === true ? true : undefined })
             }
           />
           <Label htmlFor="show-archived" className="font-normal">
@@ -255,6 +328,53 @@ function ContactListPage() {
           </Label>
         </div>
       </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        {/* The tabs are the roles flagged `show_as_tab`; everything else stays
+            reachable through the dropdown above, so no role is unfilterable and
+            the bar stays short. Relations never appear here — they are not a
+            property of a single contact. */}
+        <div className="flex flex-wrap items-center gap-1">
+          {tabTypes.map((type) => (
+            <Button
+              key={type.code}
+              size="sm"
+              variant={activeRole === type.code ? 'default' : 'outline'}
+              onClick={() => setSearch({ role: type.code })}
+            >
+              {type.label}
+            </Button>
+          ))}
+          <Button
+            size="sm"
+            variant={activeRole === ALL_ROLES ? 'default' : 'outline'}
+            onClick={() => setSearch({ role: ALL_ROLES })}
+          >
+            {strings.contact.allRolesTab}
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant={search.order === 'current' ? 'default' : 'outline'}
+            onClick={() => setSearch({ order: 'current' })}
+          >
+            {strings.contact.orderCurrent}
+          </Button>
+          <Button
+            size="sm"
+            variant={search.order === 'alpha' ? 'default' : 'outline'}
+            onClick={() => setSearch({ order: 'alpha' })}
+          >
+            {strings.contact.orderAlpha}
+          </Button>
+        </div>
+      </div>
+
+      {searching && (
+        <p className="mb-3 text-muted-foreground text-sm">{strings.contact.searchAll}</p>
+      )}
 
       <div className="rounded-md border">
         <Table>
@@ -273,11 +393,13 @@ function ContactListPage() {
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-muted-foreground">
-                  {contacts.isPending
-                    ? strings.status.loading
-                    : deferredTerm || search.roleCode
-                      ? strings.contact.emptyFiltered
-                      : strings.contact.empty}
+                  <EmptyMessage
+                    pending={contacts.isPending}
+                    searching={searching}
+                    order={search.order}
+                    filtered={activeRole !== ALL_ROLES}
+                    onShowAll={() => setSearch({ order: 'alpha', role: ALL_ROLES })}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -311,4 +433,36 @@ function ContactListPage() {
       )}
     </>
   )
+}
+
+/** An empty `current` list is the normal state on a quiet day, so it says what
+ *  it means and offers the way out rather than reading like a dead end. */
+function EmptyMessage({
+  pending,
+  searching,
+  order,
+  filtered,
+  onShowAll,
+}: {
+  pending: boolean
+  searching: boolean
+  order: 'current' | 'alpha'
+  filtered: boolean
+  onShowAll: () => void
+}) {
+  if (pending) return <>{strings.status.loading}</>
+  if (searching) return <>{strings.contact.emptyFiltered}</>
+
+  if (order === 'current') {
+    return (
+      <span className="flex flex-wrap items-center gap-2">
+        {strings.contact.emptyCurrent}
+        <Button variant="link" className="h-auto p-0" onClick={onShowAll}>
+          {strings.contact.emptyCurrentAction}
+        </Button>
+      </span>
+    )
+  }
+
+  return <>{filtered ? strings.contact.emptyFiltered : strings.contact.empty}</>
 }

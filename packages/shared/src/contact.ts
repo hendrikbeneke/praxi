@@ -118,6 +118,40 @@ export const contactSchema = z.object({
 export type Contact = z.infer<typeof contactSchema>
 
 /**
+ * A row of the contact list.
+ *
+ * `appointmentAt` is the appointment nearest to now within the window the
+ * "Aktuell" order uses, and `null` in every other order — the column that
+ * explains that order only exists there.
+ */
+export const contactListItemSchema = contactSchema.extend({
+  appointmentAt: z.iso.datetime().nullable(),
+})
+
+export type ContactListItem = z.infer<typeof contactListItemSchema>
+
+/**
+ * How the list is ordered.
+ *
+ * `current` is the everyday entry point: whoever was here in the last days or
+ * is coming in the next, nearest first. `alpha` is the card index.
+ *
+ * The default here is `alpha`, the plainer of the two — an API that starts
+ * filtering by a time window unless told otherwise is a surprise. The screen
+ * defaults to `current` and says so in the request.
+ */
+export const contactListOrders = ['current', 'alpha'] as const
+export const contactListOrderSchema = z.enum(contactListOrders)
+export type ContactListOrder = z.infer<typeof contactListOrderSchema>
+
+export const contactSortFields = ['name', 'number'] as const
+export const contactSortFieldSchema = z.enum(contactSortFields)
+export type ContactSortField = z.infer<typeof contactSortFieldSchema>
+
+export const sortDirectionSchema = z.enum(['asc', 'desc'])
+export type SortDirection = z.infer<typeof sortDirectionSchema>
+
+/**
  * Query for the contact list.
  *
  * `q` is deliberately not part of the router's search params on the client: in
@@ -128,6 +162,9 @@ export type Contact = z.infer<typeof contactSchema>
 export const contactListQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   roleCode: typeCodeSchema.optional(),
+  order: contactListOrderSchema.default('alpha'),
+  sort: contactSortFieldSchema.default('name'),
+  dir: sortDirectionSchema.default('asc'),
   includeArchived: z
     .enum(['true', 'false'])
     .default('false')

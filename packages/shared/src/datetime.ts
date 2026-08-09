@@ -135,3 +135,43 @@ export function formatBerlinDateTime(iso: string): string {
 export function minutesBetween(startIso: string, endIso: string): number {
   return Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000)
 }
+
+/** Whole days between two instants, counted in Berlin calendar days rather
+ *  than in 24-hour steps — "yesterday" is a day on the wall calendar. */
+function berlinDayDifference(iso: string, now: Date): number {
+  const target = Date.parse(`${toBerlinDate(iso)}T00:00:00Z`)
+  const today = Date.parse(`${toBerlinDate(now.toISOString())}T00:00:00Z`)
+  return Math.round((target - today) / 86_400_000)
+}
+
+/**
+ * How far away an appointment is, in the shortest German that still says it
+ * exactly: "vor 12 Min.", "in 2 Std.", "morgen 09:00", "Mo, 24.08. 09:00".
+ *
+ * Hand-written rather than `Intl.RelativeTimeFormat`, which says "vor 2
+ * Stunden" and offers no way to shorten it — in a table column the long form
+ * pushes the date out of view.
+ *
+ * `now` is a parameter so the rendering is a pure function of its input and
+ * the tests do not depend on the clock.
+ */
+export function formatRelativeBerlin(iso: string, now: Date): string {
+  const difference = new Date(iso).getTime() - now.getTime()
+  const distance = Math.abs(difference)
+  const past = difference < 0
+
+  if (distance < 60_000) return 'gerade eben'
+
+  const minutes = Math.round(distance / 60_000)
+  if (minutes < 60) return past ? `vor ${minutes} Min.` : `in ${minutes} Min.`
+
+  const days = berlinDayDifference(iso, now)
+  if (days === 0) {
+    const hours = Math.round(distance / 3_600_000)
+    return past ? `vor ${hours} Std.` : `in ${hours} Std.`
+  }
+  if (days === -1) return `gestern ${formatBerlinTime(iso)}`
+  if (days === 1) return `morgen ${formatBerlinTime(iso)}`
+
+  return `${formatBerlinWeekday(iso)} ${formatBerlinTime(iso)}`
+}

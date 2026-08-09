@@ -1,30 +1,49 @@
-import type { Contact, ContactInput } from '@praxi/shared'
+import type {
+  Contact,
+  ContactInput,
+  ContactListItem,
+  ContactListOrder,
+  ContactSortField,
+  SortDirection,
+} from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
 export type ContactListParams = {
   q?: string | undefined
   roleCode?: string | undefined
+  order?: ContactListOrder
+  sort?: ContactSortField
+  dir?: SortDirection
   includeArchived?: boolean
   limit?: number
   offset?: number
+  /** Held back until the role catalogue has arrived: it decides which tab is
+   *  the default, so asking earlier would show the wrong list and then correct
+   *  itself on screen. */
+  enabled?: boolean
 }
 
-export type ContactListResult = { items: Contact[]; total: number }
+export type ContactListResult = { items: ContactListItem[]; total: number }
 
 /**
  * `q` is part of the query key but never of the router's search params — see
  * the note on `contactListQuerySchema`. React Query caches per term all the
  * same, so paging back and forth costs nothing.
  */
-export const contactListQueryOptions = (params: ContactListParams) =>
+export const contactListQueryOptions = ({ enabled = true, ...params }: ContactListParams) =>
   queryOptions({
+    // `enabled` is destructured out first: it says when to ask, not what is
+    // asked for, and in the key it would file one answer under two names.
     queryKey: ['contacts', 'list', params],
     queryFn: async (): Promise<ContactListResult> => {
       const res = await api.api.contacts.$get({
         query: {
           ...(params.q ? { q: params.q } : {}),
           ...(params.roleCode ? { roleCode: params.roleCode } : {}),
+          ...(params.order ? { order: params.order } : {}),
+          ...(params.sort ? { sort: params.sort } : {}),
+          ...(params.dir ? { dir: params.dir } : {}),
           includeArchived: params.includeArchived ? 'true' : 'false',
           ...(params.limit === undefined ? {} : { limit: String(params.limit) }),
           ...(params.offset === undefined ? {} : { offset: String(params.offset) }),
@@ -33,6 +52,7 @@ export const contactListQueryOptions = (params: ContactListParams) =>
       if (!res.ok) throw await apiError(res)
       return res.json()
     },
+    enabled,
     placeholderData: (previous) => previous,
   })
 
