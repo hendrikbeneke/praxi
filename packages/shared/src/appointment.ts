@@ -34,6 +34,14 @@ export function occupiesSlot(status: AppointmentStatus): boolean {
   return !SLOT_RELEASING_STATUSES.includes(status)
 }
 
+/**
+ * An appointment runs within a day. Anything longer is a typo, and a typo here
+ * is expensive: the exclusion constraint takes the slot literally, so a single
+ * mistyped end date blocks the calendar for every day it covers and every
+ * later booking fails with "there is already an appointment".
+ */
+export const MAX_APPOINTMENT_MINUTES = 24 * 60
+
 /** What is sent alongside an activity to create or move its calendar entry. */
 export const appointmentDraftSchema = z
   .object({
@@ -47,6 +55,12 @@ export const appointmentDraftSchema = z
     message: 'endsAt must be after startsAt',
     path: ['endsAt'],
   })
+  .refine(
+    (draft) =>
+      new Date(draft.endsAt).getTime() - new Date(draft.startsAt).getTime() <=
+      MAX_APPOINTMENT_MINUTES * 60_000,
+    { message: 'appointment is longer than a day', path: ['endsAt'] },
+  )
 
 export type AppointmentDraft = z.infer<typeof appointmentDraftSchema>
 

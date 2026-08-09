@@ -236,9 +236,17 @@ function CalendarPage() {
                     const startMinutes =
                       Number(startLocal.slice(11, 13)) * 60 + Number(startLocal.slice(14, 16))
                     const top = ((startMinutes - DAY_START_HOUR * 60) / 60) * PIXELS_PER_HOUR
-                    const height = Math.max(
-                      18,
-                      (minutesBetween(entry.startsAt, entry.endsAt) / 60) * PIXELS_PER_HOUR - 2,
+                    // Clamped to the bottom of the grid. An entry that runs
+                    // past the visible day — or, when something went wrong,
+                    // past the day itself — must not paint over the columns
+                    // below it.
+                    const gridHeight = (DAY_END_HOUR - DAY_START_HOUR) * PIXELS_PER_HOUR
+                    const height = Math.min(
+                      Math.max(
+                        18,
+                        (minutesBetween(entry.startsAt, entry.endsAt) / 60) * PIXELS_PER_HOUR - 2,
+                      ),
+                      Math.max(18, gridHeight - top),
                     )
                     const released = !occupiesSlot(entry.status)
 

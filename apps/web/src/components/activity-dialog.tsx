@@ -10,6 +10,8 @@ import {
   formatEuro,
   formatEuroAmount,
   fromBerlinDateTimeLocal,
+  MAX_APPOINTMENT_MINUTES,
+  minutesBetween,
   occupiesSlot,
   parseEuroAmount,
   type Service,
@@ -164,7 +166,6 @@ export function ActivityDialog({
   const [internalNote, setInternalNote] = useState('')
   const [items, setItems] = useState<DraftItem[]>([])
   const [withAppointment, setWithAppointment] = useState(true)
-  const [endsAtLocal, setEndsAtLocal] = useState('')
   const [status, setStatus] = useState<AppointmentStatus>('planned')
   const [appointmentNote, setAppointmentNote] = useState('')
 
@@ -178,16 +179,20 @@ export function ActivityDialog({
       setSelectedContactId(activity.contactId)
       setType(activity.type)
       setOccurredAtLocal(start)
-      setDurationText(activity.durationMin === null ? '' : String(activity.durationMin))
+      // With a calendar entry its length wins: that is the interval the
+      // calendar and the overlap constraint actually work with, and saving
+      // writes the same value back to the activity so the two stop drifting.
+      setDurationText(
+        activity.appointment
+          ? String(minutesBetween(activity.appointment.startsAt, activity.appointment.endsAt))
+          : activity.durationMin === null
+            ? ''
+            : String(activity.durationMin),
+      )
       setTitle(activity.title ?? '')
       setInternalNote(activity.internalNote ?? '')
       setItems(activity.items.map(fromStored))
       setWithAppointment(activity.appointment !== null)
-      setEndsAtLocal(
-        activity.appointment
-          ? toBerlinDateTimeLocal(activity.appointment.endsAt)
-          : addMinutesToLocal(start, DEFAULT_DURATION_MIN),
-      )
       setStatus(activity.appointment?.status ?? 'planned')
       setAppointmentNote(activity.appointment?.note ?? '')
       return
@@ -197,12 +202,11 @@ export function ActivityDialog({
     setSelectedContactId(contactId ?? null)
     setType('session')
     setOccurredAtLocal(start)
-    setDurationText('')
+    setDurationText(String(DEFAULT_DURATION_MIN))
     setTitle('')
     setInternalNote('')
     setItems([])
     setWithAppointment(true)
-    setEndsAtLocal(addMinutesToLocal(start, DEFAULT_DURATION_MIN))
     setStatus('planned')
     setAppointmentNote('')
   }, [open, activity, contactId, startsAtLocal])
@@ -211,6 +215,28 @@ export function ActivityDialog({
    *  a contact. Only the calendar leaves the choice open. */
   const contactLocked = activity !== undefined || contactId !== undefined
   const targetContactId = selectedContactId
+
+  /**
+   * One duration, two uses. The appointment's end is derived from it rather
+   * than entered separately: a second `datetime-local` for the end invites the
+   * date to be edited by accident, and a mistyped end date does not look wrong
+   * on screen while it blocks every slot it spans.
+   */
+  const parsedDuration = Number.parseInt(durationText, 10)
+  const durationMinutes =
+    Number.isFinite(parsedDuration) &&
+    parsedDuration > 0 &&
+    parsedDuration <= MAX_APPOINTMENT_MINUTES
+      ? parsedDuration
+      : null
+
+  const endsAtLocal =
+    occurredAtLocal === '' || durationMinutes === null
+      ? null
+      : addMinutesToLocal(occurredAtLocal, durationMinutes)
+
+  const canSave =
+    targetContactId !== null && occurredAtLocal !== '' && (!withAppointment || endsAtLocal !== null)
 
   const mutation = useMutation({
     mutationFn: (input: ActivityInput) =>
@@ -286,25 +312,26 @@ export function ActivityDialog({
   }
 
   function submit() {
-    if (!targetContactId || occurredAtLocal === '') return
+    if (targetContactId === null || occurredAtLocal === '') return
 
     mutation.mutate({
       contactId: targetContactId,
       type,
       occurredAt: fromBerlinDateTimeLocal(occurredAtLocal),
-      durationMin: Number.parseInt(durationText, 10) > 0 ? Number.parseInt(durationText, 10) : null,
+      durationMin: durationMinutes,
       title: title.trim() === '' ? null : title.trim(),
       internalNote: internalNote.trim() === '' ? null : internalNote.trim(),
       items: items.map(toItemInput),
-      appointment: withAppointment
-        ? {
-            startsAt: fromBerlinDateTimeLocal(occurredAtLocal),
-            endsAt: fromBerlinDateTimeLocal(endsAtLocal),
-            status,
-            title: title.trim() === '' ? null : title.trim(),
-            note: appointmentNote.trim() === '' ? null : appointmentNote.trim(),
-          }
-        : null,
+      appointment:
+        withAppointment && endsAtLocal !== null
+          ? {
+              startsAt: fromBerlinDateTimeLocal(occurredAtLocal),
+              endsAt: fromBerlinDateTimeLocal(endsAtLocal),
+              status,
+              title: title.trim() === '' ? null : title.trim(),
+              note: appointmentNote.trim() === '' ? null : appointmentNote.trim(),
+            }
+          : null,
     })
   }
 
@@ -358,12 +385,7 @@ export function ActivityDialog({
                 type="datetime-local"
                 className="mt-2"
                 value={occurredAtLocal}
-                onChange={(event) => {
-                  setOccurredAtLocal(event.target.value)
-                  if (event.target.value !== '') {
-                    setEndsAtLocal(addMinutesToLocal(event.target.value, DEFAULT_DURATION_MIN))
-                  }
-                }}
+                onChange={(event) => setOccurredAtLocal(event.target.value)}
               />
             </div>
 
@@ -373,10 +395,18 @@ export function ActivityDialog({
                 id={`${formId}-duration`}
                 type="number"
                 min={1}
+                max={MAX_APPOINTMENT_MINUTES}
                 className="mt-2"
                 value={durationText}
                 onChange={(event) => setDurationText(event.target.value)}
               />
+              {withAppointment && (
+                <p className="mt-1 text-muted-foreground text-xs">
+                  {endsAtLocal === null
+                    ? strings.activity.durationRequired
+                    : `${strings.activity.appointmentTo} ${endsAtLocal.slice(11)}`}
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-6">
@@ -586,7 +616,14 @@ export function ActivityDialog({
               <Checkbox
                 id={`${formId}-with-appointment`}
                 checked={withAppointment}
-                onCheckedChange={(checked) => setWithAppointment(checked === true)}
+                onCheckedChange={(checked) => {
+                  setWithAppointment(checked === true)
+                  // A calendar entry needs a length; without one there is
+                  // nothing to put in the grid.
+                  if (checked === true && durationText.trim() === '') {
+                    setDurationText(String(DEFAULT_DURATION_MIN))
+                  }
+                }}
               />
               <Label htmlFor={`${formId}-with-appointment`} className="font-normal">
                 {strings.activity.withAppointment}
@@ -599,14 +636,15 @@ export function ActivityDialog({
             {withAppointment && (
               <div className="mt-3 grid gap-4 sm:grid-cols-6">
                 <div className="sm:col-span-2">
-                  <Label htmlFor={`${formId}-ends`}>{strings.activity.appointmentTo}</Label>
-                  <Input
-                    id={`${formId}-ends`}
-                    type="datetime-local"
-                    className="mt-2"
-                    value={endsAtLocal}
-                    onChange={(event) => setEndsAtLocal(event.target.value)}
-                  />
+                  <span className="font-medium text-sm">{strings.activity.appointmentRange}</span>
+                  <p className="mt-2 text-sm tabular-nums">
+                    {endsAtLocal === null
+                      ? strings.activity.durationRequired
+                      : `${occurredAtLocal.slice(11)} – ${endsAtLocal.slice(11)}`}
+                  </p>
+                  <p className="mt-1 text-muted-foreground text-xs">
+                    {strings.activity.appointmentRangeHint}
+                  </p>
                 </div>
 
                 <div className="sm:col-span-2">
@@ -671,11 +709,7 @@ export function ActivityDialog({
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {strings.activity.cancel}
           </Button>
-          <Button
-            type="button"
-            onClick={submit}
-            disabled={mutation.isPending || !targetContactId || occurredAtLocal === ''}
-          >
+          <Button type="button" onClick={submit} disabled={mutation.isPending || !canSave}>
             {mutation.isPending ? strings.activity.saving : strings.activity.save}
           </Button>
         </DialogFooter>
