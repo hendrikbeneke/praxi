@@ -6,7 +6,10 @@
     "moduleResolution": "NodeNext",
     "rootDir": "src",
     "outDir": "dist",
-    "types": ["node"]
+    "types": ["node"],
+    // The invoice PDF is a react-pdf component tree; `.tsx` lives under
+    // `src/pdf/` and nowhere else on the server.
+    "jsx": "react-jsx"
   },
   "include": ["src"],
   "exclude": ["src/db/migrations"]

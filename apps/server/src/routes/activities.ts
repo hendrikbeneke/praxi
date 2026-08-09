@@ -7,6 +7,7 @@ import { db } from '../db/client.js'
 import { isOverlapViolation } from '../db/errors.js'
 import {
   ActivityHasNotesError,
+  BilledItemError,
   createActivity,
   deleteActivity,
   getActivity,
@@ -29,6 +30,11 @@ function notFound(): never {
 /** The rules live in `domain/activity.ts`; this only decides how they reach
  *  the client. */
 function translate(error: unknown): never {
+  if (error instanceof BilledItemError) {
+    throw new HTTPException(409, {
+      message: messages.invoice.billedItemBlocksDelete(error.itemDescription, error.invoiceNumber),
+    })
+  }
   if (error instanceof ActivityHasNotesError) {
     throw new HTTPException(409, { message: messages.note.activityHasNotes })
   }

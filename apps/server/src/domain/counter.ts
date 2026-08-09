@@ -60,6 +60,15 @@ async function lockRange(tx: Transaction, tenantId: string, code: string) {
  * Must be called inside a transaction, together with the insert that uses the
  * number. The `FOR UPDATE` lock is held until that transaction ends, so
  * concurrent callers queue up and no two ever see the same value.
+ *
+ * The counter only ever moves forward. No code path in the production flow
+ * lowers `next_value` or hands a number back — not when a draft is discarded
+ * (a draft never held one), and there is no reset endpoint of any kind. The
+ * single exception is the manual maintenance in the settings, which is what
+ * `domain/number-range.ts` exists for and where a human is answerable for the
+ * value. A rollback of *this* transaction does return the number, and that is
+ * the point: the number and the row it belongs to are committed together or
+ * not at all.
  */
 export async function nextNumber(tx: Transaction, tenantId: string, code: string): Promise<number> {
   let row = await lockRange(tx, tenantId, code)

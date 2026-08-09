@@ -416,6 +416,126 @@ export const strings = {
     chainFileMissing: 'Diese Datei liegt nicht mehr auf der Festplatte.',
     chainEntryOk: 'unverändert',
   },
+  invoice: {
+    title: 'Rechnungen',
+    description: 'Entwürfe, festgeschriebene Rechnungen und ihre Dokumente.',
+    create: 'Neue Rechnung',
+    empty: 'Noch keine Rechnungen.',
+    emptyDraft: 'Diese Rechnung hat noch keine Position.',
+
+    statusLabel: 'Status',
+    statuses: {
+      draft: 'Entwurf',
+      finalized: 'Festgeschrieben',
+      cancelled: 'Storniert',
+    },
+    types: {
+      invoice: 'Rechnung',
+      cancellation_invoice: 'Stornorechnung',
+    },
+    all: 'Alle',
+
+    number: 'Nummer',
+    contact: 'Empfänger',
+    invoiceDate: 'Rechnungsdatum',
+    dueDate: 'Zahlbar bis',
+    paymentTermDays: 'Zahlungsziel in Tagen',
+    total: 'Betrag',
+    introText: 'Einleitungstext',
+    outroText: 'Schlusstext',
+    insertTemplate: 'Baustein einfügen',
+    textHint:
+      'Der eingefügte Text gehört ab dann zu dieser Rechnung und ändert sich nicht mehr mit ' +
+      'dem Baustein.',
+
+    lines: 'Positionen',
+    lineDescription: 'Bezeichnung',
+    lineFeeCode: 'Ziffer',
+    lineDate: 'Datum',
+    lineQuantity: 'Menge',
+    lineUnitPrice: 'Einzelpreis',
+    lineAmount: 'Betrag',
+    lineRemove: 'Position entfernen',
+    lineMoveUp: 'Nach oben',
+    lineMoveDown: 'Nach unten',
+    addFreeLine: 'Freie Position',
+
+    billable: 'Offene Positionen',
+    billableEmpty: 'Für diesen Kontakt ist nichts offen.',
+    billableHint:
+      'Positionen aus Vorgängen, die auf keiner aktiven Rechnung stehen. ' +
+      'Eine stornierte Rechnung gibt ihre Positionen wieder frei.',
+    addSelected: 'Ausgewählte übernehmen',
+
+    save: 'Speichern',
+    saving: 'Wird gespeichert …',
+    saved: 'Rechnung gespeichert.',
+    saveFailed: 'Die Rechnung konnte nicht gespeichert werden.',
+    created: 'Entwurf angelegt.',
+    preview: 'Vorschau',
+    previewHint: 'Wird nur angezeigt und nirgends gespeichert.',
+    download: 'Dokument öffnen',
+    discard: 'Entwurf verwerfen',
+    discardTitle: 'Entwurf verwerfen?',
+    discardBody:
+      'Der Entwurf wird gelöscht. Er hat noch keine Nummer, es entsteht also keine Lücke. ' +
+      'Die Positionen werden wieder frei.',
+    discarded: 'Entwurf verworfen.',
+
+    finalize: 'Festschreiben',
+    finalizeTitle: 'Rechnung festschreiben?',
+    finalizeBody:
+      'Die Rechnung erhält ihre Nummer, das PDF wird erzeugt und abgelegt. Danach lässt sich ' +
+      'nichts mehr ändern — weder Betrag noch Text noch Empfänger. Eine Korrektur ist nur ' +
+      'noch über eine Stornorechnung möglich.',
+    finalizeConfirm: 'Endgültig festschreiben',
+    finalized: 'Rechnung festgeschrieben.',
+    finalizeFailed: 'Die Rechnung konnte nicht festgeschrieben werden.',
+
+    settingsTitle: 'Rechnungsstellung',
+    numberRanges: 'Nummernkreise',
+    numberRangeHint:
+      'Die Rechnungsnummer wird beim Festschreiben vergeben und danach nie wieder geändert. ' +
+      'Zum Jahreswechsel setzen Sie das Präfix auf das neue Jahr und den nächsten Wert ' +
+      'zurück auf 1.',
+    numberRangeCodes: {
+      invoice: 'Rechnungen',
+      contact: 'Kontaktnummern',
+    },
+    prefix: 'Präfix',
+    padding: 'Stellen',
+    nextValue: 'Nächste Nummer',
+    nextNumberPreview: 'Nächste Nummer wäre',
+    numberRangeSaved: 'Nummernkreis gespeichert.',
+    numberRangeMissing:
+      'Für Rechnungen ist noch kein Nummernkreis eingerichtet. Ohne ihn lässt sich keine ' +
+      'Rechnung festschreiben.',
+
+    templates: 'Textbausteine',
+    templateKind: 'Art',
+    templateKinds: { intro: 'Einleitung', outro: 'Schluss' },
+    templateName: 'Name',
+    templateBody: 'Text',
+    templateDefault: 'Standard',
+    templateDefaultHint: 'Wird bei einer neuen Rechnung vorbelegt.',
+    templatePaidVariant: 'Variante „bereits bezahlt"',
+    templatePaidVariantHint:
+      'Nur für Schlusstexte. Wird verwendet, sobald die Aktion „Betrag erhalten" dazukommt.',
+    templateActive: 'Aktiv',
+    templateNew: 'Neuer Baustein',
+    templateSaved: 'Baustein gespeichert.',
+    templateRemoved: 'Baustein gelöscht.',
+    templateEmpty: 'Noch keine Textbausteine.',
+
+    letterhead: 'Rechnungsvorlage',
+    letterheadHint:
+      'Ein PDF mit Ihrem Briefkopf. Eine Seite trägt jede Seite der Rechnung; bei zwei Seiten ' +
+      'trägt Seite 1 die erste und Seite 2 alle weiteren. Der Inhalt wird darübergelegt.',
+    letterheadUpload: 'Vorlage hochladen',
+    letterheadShow: 'Hinterlegte Vorlage ansehen',
+    letterheadUploaded: 'Vorlage gespeichert.',
+    letterheadNone: 'Keine Vorlage hinterlegt — Rechnungen drucken auf weißem Grund.',
+  },
   actions: {
     recheck: 'Erneut prüfen',
     retry: 'Erneut versuchen',

@@ -18,6 +18,7 @@ import {
   serviceGroupItem,
 } from '../db/schema.js'
 import { newId } from '../id.js'
+import { blockingInvoiceLines } from './billable.js'
 
 /**
  * Activities, their positions, and the calendar entry that usually comes with
@@ -35,6 +36,35 @@ export class UnknownServiceError extends Error {
     super('activity references a service that does not exist in this tenant')
     this.name = 'UnknownServiceError'
   }
+}
+
+/**
+ * Removing an activity item that is already on an invoice.
+ *
+ * Carries the invoice number so the message can say which document is in the
+ * way. A draft counts too: its line would go with the cascade and the draft
+ * would quietly lose a position.
+ */
+export class BilledItemError extends Error {
+  readonly itemDescription: string
+  readonly invoiceNumber: string | null
+
+  constructor(itemDescription: string, invoiceNumber: string | null) {
+    super(`activity item "${itemDescription}" is on invoice ${invoiceNumber ?? '(draft)'}`)
+    this.name = 'BilledItemError'
+    this.itemDescription = itemDescription
+    this.invoiceNumber = invoiceNumber
+  }
+}
+
+async function assertNotBilled(
+  tx: Transaction,
+  tenantId: string,
+  activityItemIds: readonly string[],
+): Promise<void> {
+  const blocking = await blockingInvoiceLines(tx, tenantId, activityItemIds)
+  const first = blocking[0]
+  if (first) throw new BilledItemError(first.description, first.invoiceNumber)
 }
 
 /** Deleting an activity that documentation hangs on. See the note at
@@ -205,16 +235,16 @@ async function resolveItems(
 /**
  * Brings the stored positions in line with the submitted ones, in place.
  *
- * Rows are updated, not replaced: from slice 6 `invoice_line.activity_item_id`
- * points at exactly these ids, and delete-and-insert would cut an invoice off
- * from what it was raised for.
+ * Rows are updated, not replaced: `invoice_line.activity_item_id` points at
+ * exactly these ids, and delete-and-insert would cut an invoice off from what
+ * it was raised for.
  *
- * The deletion below is the part that needs guarding once invoices exist. A
- * position that appears on a finalized, non-cancelled invoice must not vanish
- * — that would take away the invoice's record of origin and undercut rule 6.
- * Slice 6 gives `invoice_line.activity_item_id` an `ON DELETE RESTRICT` and
- * adds a check here that refuses with a readable message before deleting. See
- * WORKPLAN.md, slice 6.
+ * Removing a position is checked against that first. An item on an invoice
+ * must not vanish — the invoice would lose its record of origin and rule 6
+ * (billed items are immutable) would be undercut. The `ON DELETE RESTRICT` on
+ * `invoice_line.activity_item_id` refuses it in the database as well, even
+ * from psql; this check exists so the answer names what is in the way instead
+ * of being a foreign key violation.
  */
 async function syncItems(
   tx: Transaction,
@@ -239,6 +269,7 @@ async function syncItems(
 
   const removed = [...existingIds].filter((id) => !keptIds.has(id))
   if (removed.length > 0) {
+    await assertNotBilled(tx, tenantId, removed)
     await tx.delete(activityItem).where(inArray(activityItem.id, removed))
   }
 
@@ -468,6 +499,18 @@ export async function deleteActivity(
       .limit(1)
 
     if (attached) throw new ActivityHasNotesError()
+
+    // Same reasoning as in `syncItems`: the cascade below would take the items
+    // with it, and an item on an invoice must not disappear.
+    const items = await tx
+      .select({ id: activityItem.id })
+      .from(activityItem)
+      .where(eq(activityItem.activityId, id))
+    await assertNotBilled(
+      tx,
+      tenantId,
+      items.map((row) => row.id),
+    )
 
     // Items go with it through `on delete cascade`.
     await tx.delete(activity).where(and(eq(activity.tenantId, tenantId), eq(activity.id, id)))

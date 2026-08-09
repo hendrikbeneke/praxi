@@ -8,10 +8,13 @@ import { appointmentsRoute } from './routes/appointments.js'
 import { authRoute } from './routes/auth.js'
 import { contactsRoute } from './routes/contacts.js'
 import { healthRoute } from './routes/health.js'
+import { invoicesRoute } from './routes/invoices.js'
 import { notesRoute } from './routes/notes.js'
+import { numberRangesRoute } from './routes/number-ranges.js'
 import { serviceGroupsRoute } from './routes/service-groups.js'
 import { servicesRoute } from './routes/services.js'
 import { settingsRoute } from './routes/settings.js'
+import { textTemplatesRoute } from './routes/text-templates.js'
 
 const app = new Hono<AppEnv>()
 
@@ -35,6 +38,9 @@ const routes = app
   .route('/api/activities', activitiesRoute)
   .route('/api/appointments', appointmentsRoute)
   .route('/api/notes', notesRoute)
+  .route('/api/invoices', invoicesRoute)
+  .route('/api/text-templates', textTemplatesRoute)
+  .route('/api/number-ranges', numberRangesRoute)
 
 export { app }
 export type AppType = typeof routes

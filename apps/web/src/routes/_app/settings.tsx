@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import type { z } from 'zod'
+import { InvoiceSettings } from '@/components/invoice-settings'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -237,6 +238,13 @@ function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      {/* Outside the form on purpose: these save on their own and have
+          nothing to do with the practice master data above. */}
+      <div className="mt-8">
+        <h2 className="mb-4 font-semibold text-lg">{strings.invoice.settingsTitle}</h2>
+        <InvoiceSettings />
+      </div>
     </>
   )
 }

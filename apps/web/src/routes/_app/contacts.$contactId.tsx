@@ -4,11 +4,13 @@ import {
   formatBerlinDate,
   formatBerlinTime,
   formatContactName,
+  formatEuro,
   type Note,
   occupiesSlot,
+  toBerlinDate,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Archive, ArchiveRestore, ArrowLeft, Plus, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -36,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { activityListQueryOptions } from '@/lib/activities'
 import { ApiError } from '@/lib/api'
 import { contactQueryOptions, setContactArchived, updateContact } from '@/lib/contacts'
+import { createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
@@ -163,9 +166,8 @@ function ContactDetailPage() {
           <ContactNotes contactId={contactId} />
         </TabsContent>
 
-        {/* Present but empty — this fills up in slice 6. */}
         <TabsContent value="invoices" className="pt-6">
-          <p className="text-muted-foreground text-sm">{strings.placeholder.comingSoon}</p>
+          <ContactInvoices contactId={contactId} />
         </TabsContent>
       </Tabs>
     </>
@@ -203,6 +205,74 @@ function ContactActivities({ contactId }: { contactId: string }) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
+    </>
+  )
+}
+
+/**
+ * The contact's invoices, plus the shortcut that starts a draft from whatever
+ * is still open for them. The draft is created empty and filled on its own
+ * page — the billable picker lives there, where the lines are edited.
+ */
+function ContactInvoices({ contactId }: { contactId: string }) {
+  const navigate = useNavigate()
+  const invoices = useQuery(invoiceListQueryOptions({ contactId }))
+
+  const create = useMutation({
+    mutationFn: () =>
+      createInvoice({
+        contactId,
+        invoiceDate: toBerlinDate(new Date().toISOString()),
+        activityItemIds: [],
+      }),
+    onSuccess: (draft) => {
+      toast.success(strings.invoice.created)
+      void navigate({ to: '/invoices/$invoiceId', params: { invoiceId: draft.id } })
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
+    },
+  })
+
+  const rows = invoices.data ?? []
+
+  return (
+    <>
+      <div className="mb-4 flex justify-end">
+        <Button onClick={() => create.mutate()} disabled={create.isPending}>
+          <Plus className="size-4" aria-hidden />
+          {strings.invoice.create}
+        </Button>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {invoices.isPending ? strings.status.loading : strings.invoice.empty}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((entry) => (
+            <li key={entry.id}>
+              <Link
+                to="/invoices/$invoiceId"
+                params={{ invoiceId: entry.id }}
+                className="flex flex-wrap items-baseline gap-x-3 rounded-md border px-4 py-3 hover:bg-accent/50"
+              >
+                <span className="font-medium">
+                  {entry.number ?? strings.invoice.statuses.draft}
+                </span>
+                <span className="text-muted-foreground text-sm tabular-nums">
+                  {formatBerlinDate(`${entry.invoiceDate}T12:00:00Z`)}
+                </span>
+                <Badge variant={entry.status === 'draft' ? 'outline' : 'secondary'}>
+                  {strings.invoice.statuses[entry.status]}
+                </Badge>
+                <span className="ml-auto tabular-nums">{formatEuro(entry.totalCents)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   )
 }

@@ -22,7 +22,8 @@
     "db:seed": "pnpm --filter @praxi/server db:seed",
     "db:seed:services": "pnpm --filter @praxi/server db:seed:services",
     "db:studio": "pnpm --filter @praxi/server db:studio",
-    "files:orphans": "pnpm --filter @praxi/server files:orphans"
+    "files:orphans": "pnpm --filter @praxi/server files:orphans",
+    "invoices:verify": "pnpm --filter @praxi/server invoices:verify"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.7",

@@ -77,6 +77,56 @@ export const messages = {
       'In diesem Zeitraum liegt bereits ein Termin. Bitte wählen Sie eine andere Zeit — ' +
       'oder sagen Sie den bestehenden Termin ab, dann wird der Platz frei.',
   },
+  invoice: {
+    notFound: 'Diese Rechnung existiert nicht.',
+    notADraft: 'Diese Rechnung ist bereits festgeschrieben und kann nicht mehr geändert werden.',
+    empty: 'Eine Rechnung braucht mindestens eine Position.',
+    numberTaken:
+      'Diese Rechnungsnummer ist bereits vergeben. Bitte korrigieren Sie den Nummernkreis ' +
+      'in den Einstellungen.',
+    itemAlreadyBilled: 'Mindestens eine der gewählten Positionen steht bereits auf einer Rechnung.',
+    /** Names what is in the way — a bare "not possible" leaves the
+     *  practitioner hunting for the invoice. */
+    billedItemBlocksDelete: (item: string, invoiceNumber: string | null) =>
+      `Die Position „${item}" steht auf ` +
+      (invoiceNumber ? `Rechnung ${invoiceNumber}` : 'einem Rechnungsentwurf') +
+      ' und kann nicht entfernt werden. Stornieren Sie die Rechnung ' +
+      'beziehungsweise verwerfen Sie den Entwurf, wenn die Position wieder frei werden soll.',
+    templateMissing: 'Es ist keine Rechnungsvorlage hinterlegt.',
+    templateNotAPdf: 'Die Vorlage muss eine PDF-Datei sein.',
+    templateEmpty: 'Die Vorlage enthält keine Seite.',
+    templateTooManyPages:
+      'Die Vorlage darf höchstens zwei Seiten haben: Seite 1 trägt die erste Seite, ' +
+      'Seite 2 alle weiteren.',
+    pdfMissing:
+      'Das Dokument zu dieser Rechnung liegt nicht mehr auf der Festplatte. ' +
+      'Eine festgeschriebene Rechnung wird nicht neu erzeugt — stornieren Sie sie und ' +
+      'stellen Sie eine neue aus.',
+  },
+  /** The German text on the invoice PDF itself. */
+  pdf: {
+    title: 'Rechnung',
+    draft: 'Entwurf',
+    invoiceNumber: 'Rechnungsnummer',
+    invoiceDate: 'Rechnungsdatum',
+    dueDate: 'Zahlbar bis',
+    contactNumber: 'Kundennummer',
+    position: 'Pos.',
+    dateOfService: 'Datum',
+    description: 'Leistung',
+    feeCode: 'Ziffer',
+    quantity: 'Menge',
+    unitPrice: 'Einzelpreis',
+    amount: 'Betrag',
+    total: 'Gesamtbetrag',
+    page: 'Seite',
+  },
+  textTemplate: {
+    notFound: 'Dieser Textbaustein existiert nicht.',
+    nameTaken: 'Ein Textbaustein dieser Art mit diesem Namen existiert bereits.',
+    defaultTaken: 'Es gibt bereits einen Standardbaustein dieser Art.',
+    paidVariantTaken: 'Es gibt bereits einen Baustein für die bezahlte Variante.',
+  },
   numberRange: {
     missing:
       'Für diesen Nummernkreis ist kein Startwert hinterlegt. ' +

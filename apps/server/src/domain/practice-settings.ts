@@ -2,6 +2,7 @@ import type { PracticeSettings, PracticeSettingsInput } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { practiceSettings } from '../db/schema.js'
+import type { FileStore } from './file-store.js'
 
 const columns = {
   id: practiceSettings.id,
@@ -50,4 +51,45 @@ export async function updatePracticeSettings(
     .returning(columns)
 
   return row ?? null
+}
+
+/**
+ * The uploaded letterhead, or `null` when none is configured — which is a
+ * normal state: the application is usable before a template exists, the
+ * invoice then simply prints on blank paper.
+ *
+ * A configured template whose file has gone missing is *not* a normal state
+ * and throws, because silently falling back to blank paper would produce an
+ * invoice without the practice's identity on it.
+ */
+export async function loadInvoiceTemplate(
+  database: Database,
+  tenantId: string,
+  store: FileStore,
+): Promise<Uint8Array | null> {
+  const [row] = await database
+    .select({ path: practiceSettings.invoiceTemplatePath })
+    .from(practiceSettings)
+    .where(eq(practiceSettings.tenantId, tenantId))
+    .limit(1)
+
+  if (!row?.path) return null
+  return store.read(row.path)
+}
+
+/** Where the letterhead lives, relative to the data root. One per tenant, so a
+ *  new upload replaces the old file rather than piling up. */
+export function invoiceTemplatePath(tenantId: string): string {
+  return `templates/${tenantId}/invoice-template.pdf`
+}
+
+export async function setInvoiceTemplatePath(
+  database: Database,
+  tenantId: string,
+  path: string,
+): Promise<void> {
+  await database
+    .update(practiceSettings)
+    .set({ invoiceTemplatePath: path })
+    .where(eq(practiceSettings.tenantId, tenantId))
 }

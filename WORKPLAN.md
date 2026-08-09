@@ -12,7 +12,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 3 | Services and service groups | **done** |
 | 4 | Activities and appointments | **done** |
 | 5 | Notes, files, locking | **done** |
-| 6 | Invoices: draft, finalize, PDF | todo |
+| 6 | Invoices: draft, finalize, PDF | **done** |
 | 7 | Cancellation invoices | todo |
 | 8 | Payments and receivables | todo |
 | 9 | Google Calendar sync | todo |
@@ -393,18 +393,7 @@ Found while building:
 See CLAUDE.md rules 8, 9, 10 and 11.
 
 - Tables `invoice`, `invoice_line`, `number_range`, `text_template`, plus the immutability trigger for finalized invoices and the guard on `activity_item` referenced by a finalized invoice
-- **Carried over from slice 4 — do not lose this.** `syncItems` in
-  `domain/activity.ts` deletes activity items that an edit no longer submits.
-  Once `invoice_line.activity_item_id` exists, an item that appears on a
-  finalized, non-cancelled invoice must not be deletable: the invoice would
-  lose its record of origin and rule 6 (billed items are immutable) would be
-  undercut. Two things are needed, and neither is optional:
-  1. `invoice_line.activity_item_id` gets `ON DELETE RESTRICT`, so the database
-     refuses even from psql.
-  2. `syncItems` checks for referencing invoice lines *before* deleting and
-     refuses with a readable German message naming what is in the way. The same
-     guard belongs on `deleteActivity`.
-  There is a comment at `syncItems` pointing here; remove it once this is done.
+- Carried over from slice 4 and done: `invoice_line.activity_item_id` has `ON DELETE RESTRICT`, and `syncItems` and `deleteActivity` refuse before the foreign key does, naming the invoice.
 - `domain/number-range.ts` (reusing the slice-2 counter): editable `next_value`, collision check on assignment with a clear error
 - `domain/finalize-invoice.ts`: number, line snapshots, text snapshots, `recipient_snapshot`, total, PDF, hash, status
 - Billable query per CLAUDE.md rule 6, including the cancelled-invoice exclusion — write the test for that case before the implementation
@@ -416,6 +405,95 @@ See CLAUDE.md rules 8, 9, 10 and 11.
 - Tests: number assignment including concurrency and collision, snapshotting, trigger blocks changes to finalized invoices, totals
 
 **Done when:** a finalized invoice has a number, a PDF on disk with a stored hash, correct DIN 5008 placement on the template, and cannot be modified.
+
+After this slice: UI and theme pass with Claude Design before continuing with slice 7.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`invoice.number` is text, frozen**, with `number_prefix` and `number_value`
+  stored next to it. Deriving the display from prefix and padding on read would
+  let a later padding change rewrite numbers that have already been issued. The
+  unique key is `(tenant_id, number_prefix, number_value)` and not
+  `(tenant_id, number_value)`: rule 8 resets the range every year, so value 1
+  exists once per year and the narrower key would have rejected the first
+  invoice of every new year — in production, at the turn of the year. What the
+  two columns are actually for is gap detection without string surgery.
+- **Billable means: on no active, *real* invoice.** Three conditions, each of
+  which loses money or breaks a rule if left out — `status <> 'cancelled'`,
+  `type <> 'cancellation_invoice'`, and drafts count as claimed. The middle one
+  is the subtle one: a cancellation invoice repeats the original's
+  `activity_item_id` so the document shows what it takes back, and it is itself
+  finalized and not cancelled, so without excluding its type cancelling would
+  leave the items claimed forever — the opposite of rule 9. The same condition
+  sits in `protect_billed_activity_item`. Written and tested now although
+  cancelling arrives in slice 7; the test covers all three cases.
+- **The number range is never created on demand.** `invoice` is set up by hand
+  in the settings, because it may continue a numbering from the previous
+  system. No production path lowers `next_value` or hands a number back — a
+  discarded draft never held one, and there is no reset endpoint. The manual
+  maintenance is the single exception and says so in a comment.
+- **The preview renders into memory.** No file, no path, no hash; a test counts
+  the directory before and after.
+- **The PDF is written inside the transaction.** The file system knows no
+  rollback, so one failure mode has to be accepted: in this order a crash can
+  only leave an orphaned file, which `pnpm invoices:verify` finds. The other
+  way round it would leave a finalized invoice without a document, and that is
+  not repairable — a PDF rendered later is a different document, and the stored
+  `pdf_hash` would no longer match. A `catch` unlinks the file and rethrows,
+  and the path is recorded *before* the write so a half-written file is cleaned
+  up too.
+- **One update, not two.** The obvious shape — snapshot first, hash after the
+  render — is forbidden by the `invoice_draft_fields` check constraint, and
+  rightly: a row mid-finalization would be a draft carrying a number. So the
+  invoice is assembled in memory, rendered, and stored by the single statement
+  that also sets `status = 'finalized'`. There is no moment at which a
+  half-finalized row exists, not even inside the transaction.
+- **The PDF is pinned, not excluded from comparison.** `/CreationDate`,
+  `/ModificationDate`, `/Producer` and `/Creator` are all set from the invoice
+  date, never from the clock, on both layers. The document is therefore a pure
+  function of the stored data, the preview is byte-identical to what is later
+  filed, and the test compares two complete renders by hash instead of
+  excluding bytes — which would have hidden any other source of variance.
+  Standard Helvetica, so no font file is embedded and nothing is fetched.
+- **No template reference on the invoice.** Picking a text block copies its
+  body into `intro_text` / `outro_text`, where it stays adjustable for that one
+  invoice. A foreign key to a mutable table on a row that becomes immutable
+  would need `ON DELETE SET NULL`, which is an UPDATE the trigger refuses —
+  the same trap as the notes in slice 5.
+- **`pnpm invoices:verify`** checks existence and SHA-256 for every finalized
+  invoice, and deliberately has no re-render mode: the right answer to a
+  missing document is cancel and reissue, which is a bookkeeping act.
+- **Deferred, consistently with earlier slices:** `cancels_invoice_id` and
+  `cancelled_by_invoice_id` arrive in slice 7 with the code that fills them
+  (the enum value `cancelled` exists now, because the billable query needs it);
+  "Betrag erhalten" arrives in slice 8 with the `payment` table, since it also
+  records a payment — `is_paid_variant` on the text block is built now;
+  `letter_template_path` waits for a letter module.
+
+Found while building:
+
+- **drizzle-kit ordered migration 0013 wrongly** again — the same class of
+  problem as 0010: note's foreign key before the unique constraint it
+  references. Reordered by hand before the file had ever run.
+- **The check constraint caught a design mistake of mine.** The two-update
+  finalize order that seemed obvious would have produced a draft carrying a
+  number, which `invoice_draft_fields` forbids. The constraint was right and
+  the plan was wrong; the single-statement version is both simpler and
+  stronger.
+- **pdf-lib rewrites metadata on `save()` *and* on `load()`.** `save()` stamps
+  `/Producer` and `/ModificationDate` from the wall clock unless
+  `updateMetadata: false` is passed — which would have made the determinism
+  test fail at random, since a PDF date has second precision and two renders in
+  the same second still match. `load()` does the same to the in-memory
+  document, which is how the test first appeared to accuse the renderer of
+  something it had not done. Both are now passed explicitly, with the reason at
+  the constant.
+- **A cancellation invoice cannot insert its lines while finalized** — the
+  `protect_finalized_invoice_line` trigger refuses, and
+  `invoice_draft_fields` refuses a draft that already carries a number. Slice 7
+  therefore has to use the same shape as `finalizeInvoice`: rows first as a
+  draft, then one update that finalizes. The test that builds a cancellation
+  document by hand already does it that way.
 
 ## Slice 7 — Cancellation invoices
 

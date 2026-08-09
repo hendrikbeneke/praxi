@@ -301,8 +301,10 @@ practice_settings     tenant_id uuid not null unique -> tenant(id),
                       bank_name, iban, bic                   (text, nullable)
                       default_payment_term_days integer not null default 14
                         check (between 0 and 365)
-                      -- invoice_template_path / letter_template_path are added
-                      -- in slice 6, together with the upload that fills them.
+                      invoice_template_path text            (slice 6, relative
+                        -- to DATA_DIR, null until a letterhead is uploaded)
+                      -- letter_template_path waits for a letter module —
+                      -- nothing on spec.
 
 -- as built (slice 1)
 app_user              tenant_id uuid not null -> tenant(id),
@@ -602,16 +604,19 @@ note_file             tenant_id uuid not null -> tenant(id),
                       -- trigger protect_locked_note_file fires on INSERT too;
                       -- set_updated_at; RLS created and disabled.
 
-text_template         tenant_id, kind (intro|outro), name, body,
-                      is_default, is_paid_variant
-
 -- as built (slice 2), extended in slice 6
 number_range          tenant_id uuid not null -> tenant(id),
                       code text not null,
-                      next_value integer not null check (>= 1)
+                      next_value integer not null check (>= 1),
+                      prefix text not null default ''
+                        check (~ '^[A-Za-z0-9._-]*$'),   -- the number becomes
+                        -- a file name under data/invoices/{year}/
+                      padding integer not null default 1 check (between 1 and 12)
                       unique (tenant_id, code)
-                      -- prefix and padding arrive in slice 6 with the UI that
-                      -- fills them; they are invoice concerns only.
+                      --
+                      -- Maintained by hand in the settings, which is the only
+                      -- place next_value may move backwards. The yearly reset
+                      -- lives there too: new prefix, next_value back to 1.
                       --
                       -- domain/counter.ts holds a whitelist of codes whose row
                       -- may be created on demand, starting at 1 — currently
@@ -620,20 +625,97 @@ number_range          tenant_id uuid not null -> tenant(id),
                       -- may continue a numbering from the previous system, so
                       -- starting at 1 would reissue existing numbers.
 
-invoice               tenant_id, contact_id,
-                      type (invoice|cancellation_invoice),
-                      number (nullable), status (draft|finalized|cancelled),
-                      invoice_date, payment_term_days,
-                      recipient_snapshot (jsonb),
-                      intro_text, outro_text,
-                      total_cents,
-                      pdf_path, pdf_hash, finalized_at,
-                      cancels_invoice_id, cancelled_by_invoice_id
+-- as built (slice 6)
+invoice               tenant_id uuid not null -> tenant(id),
+                      contact_id uuid not null,
+                      type invoice_type not null default 'invoice'   (pgEnum:
+                        -- invoice | cancellation_invoice)
+                      status invoice_status not null default 'draft' (pgEnum:
+                        -- draft | finalized | cancelled)
+                      number text,                    -- the document number,
+                        -- formatted and frozen at finalization. Text, not
+                        -- derived from prefix and padding on read: changing
+                        -- the padding later must never rewrite a number that
+                        -- has already been issued.
+                      number_prefix text, number_value integer,
+                        -- frozen alongside it. The prefix is part of the
+                        -- unique key because rule 8 resets the range every
+                        -- year, so value 1 exists once per year and
+                        -- unique (tenant_id, number_value) would reject the
+                        -- first invoice of each new year. What the two are
+                        -- really for is gap detection: "is a number missing
+                        -- in RH-2026 between 1 and 47" stays a query.
+                      invoice_date date not null,
+                      payment_term_days integer not null
+                        check (between 0 and 365),
+                      recipient_snapshot jsonb,       -- formatContactName(),
+                        -- the same function the screen uses
+                      intro_text, outro_text          (text, nullable)
+                        -- plain text, not a reference to a text_template: a
+                        -- foreign key to a mutable table on an immutable row
+                        -- would need ON DELETE SET NULL, which is an UPDATE
+                        -- the trigger refuses. Picking a template fills these.
+                      total_cents integer not null default 0,
+                      pdf_path text, pdf_hash text,   -- relative to DATA_DIR
+                      finalized_at timestamptz
+                      foreign key (contact_id, tenant_id)
+                        -> contact (id, tenant_id)
+                      unique (id, tenant_id),
+                      unique (tenant_id, number),
+                      unique (tenant_id, number_prefix, number_value)
+                      index (contact_id, invoice_date),
+                      index (tenant_id, status, invoice_date)
+                      check invoice_draft_fields (a draft has no number, no
+                        -- document and no finalized_at; anything else has all
+                        -- of them plus a recipient_snapshot)
+                      check invoice_pdf_hash_shape, invoice_payment_term_range,
+                      check invoice_number_value_positive
+                      -- trigger protect_finalized_invoice (migration 0014):
+                      -- after finalization only `status` may change, and the
+                      -- row cannot be deleted. Slice 7 replaces it to let
+                      -- cancelled_by_invoice_id through and adds that column
+                      -- together with cancels_invoice_id.
 
-invoice_line          tenant_id, invoice_id, position,
-                      activity_item_id (nullable),
-                      description, fee_code, date_of_service,
-                      quantity, unit_price_cents, amount_cents
+-- as built (slice 6)
+invoice_line          tenant_id uuid not null -> tenant(id),
+                      invoice_id uuid not null,
+                      position integer not null,
+                      activity_item_id uuid,          -- record of origin, null
+                        -- for a free line typed by hand
+                      description text not null,      -- copied
+                      fee_code text,                  -- copied
+                      date_of_service date,
+                      quantity integer not null check (> 0),
+                      unit_price_cents integer not null,   -- no sign
+                        -- restriction, like activity_item
+                      amount_cents integer not null generated always as
+                        (quantity * unit_price_cents) stored
+                      foreign key (invoice_id, tenant_id)
+                        -> invoice (id, tenant_id) on delete cascade
+                      foreign key (activity_item_id, tenant_id)
+                        -> activity_item (id, tenant_id) on delete restrict
+                        -- an item on an invoice must not be able to disappear;
+                        -- syncItems checks first so the message names it
+                      unique (invoice_id, activity_item_id),
+                      index (invoice_id, position),
+                      index (activity_item_id) where not null
+                      -- trigger protect_finalized_invoice_line, on INSERT too
+
+-- as built (slice 6)
+text_template         tenant_id uuid not null -> tenant(id),
+                      kind text_template_kind not null   (pgEnum: intro|outro)
+                      name text not null, body text not null,
+                      is_default boolean not null default false,
+                      is_paid_variant boolean not null default false,
+                      active boolean not null default true
+                      unique (tenant_id, kind, name)
+                      unique index (tenant_id, kind) where is_default,
+                      unique index (tenant_id) where is_paid_variant
+                      check text_template_paid_is_outro
+                      -- No invoice ever references a template: picking one
+                      -- copies its body onto the draft. The paid variant is
+                      -- used by the "Betrag erhalten" action, which arrives in
+                      -- slice 8 with the payment table.
 
 payment               tenant_id, invoice_id, paid_on, amount_cents,
                       method (bank_transfer|card|other), note

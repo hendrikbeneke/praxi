@@ -17,7 +17,11 @@ import type {
   AppointmentStatus,
   ContactKind,
   ContactRole,
+  InvoiceStatus,
+  InvoiceType,
   NoteType,
+  RecipientSnapshot,
+  TextTemplateKind,
 } from '@praxi/shared'
 import { sql } from 'drizzle-orm'
 import {
@@ -27,6 +31,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -79,6 +84,10 @@ export const practiceSettings = pgTable(
     iban: text(),
     bic: text(),
     defaultPaymentTermDays: integer().notNull().default(14),
+    /** The letterhead the invoice content is overlaid onto (rule 11).
+     *  Relative to DATA_DIR, null until one is uploaded. A letter template
+     *  waits for a letter module — nothing on spec. */
+    invoiceTemplatePath: text(),
     ...timestamps,
   },
   (t) => [
@@ -169,11 +178,19 @@ export const numberRange = pgTable(
       .references(() => tenant.id),
     code: text().notNull(),
     nextValue: integer().notNull(),
+    /** Prepended to the padded value. Also the yearly reset (rule 8): before
+     *  the first invoice of a new year the practitioner sets the prefix to the
+     *  new year and `next_value` back to 1. */
+    prefix: text().notNull().default(''),
+    padding: integer().notNull().default(1),
     ...timestamps,
   },
   (t) => [
     unique('number_range_tenant_code_key').on(t.tenantId, t.code),
     check('number_range_next_value_positive', sql`${t.nextValue} >= 1`),
+    check('number_range_padding_range', sql`${t.padding} between 1 and 12`),
+    // The number becomes a file name under data/invoices/{year}/.
+    check('number_range_prefix_shape', sql`${t.prefix} ~ '^[A-Za-z0-9._-]*$'`),
   ],
 )
 
@@ -733,5 +750,178 @@ export const noteFile = pgTable(
       'note_file_path_relative',
       sql`${t.storagePath} !~ '^/' and ${t.storagePath} !~ '\\.\\.'`,
     ),
+  ],
+)
+
+export const textTemplateKind = pgEnum('text_template_kind', ['intro', 'outro'])
+
+/**
+ * Intro and outro blocks for invoices. Picking one fills the draft's text;
+ * no invoice ever references a template, so editing one here changes nothing
+ * that already exists.
+ */
+export const textTemplate = pgTable(
+  'text_template',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    kind: textTemplateKind().notNull().$type<TextTemplateKind>(),
+    name: text().notNull(),
+    body: text().notNull(),
+    isDefault: boolean().notNull().default(false),
+    /** The outro for an invoice settled on the spot. The action that uses it
+     *  arrives in slice 8 together with the `payment` table. */
+    isPaidVariant: boolean().notNull().default(false),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    unique('text_template_tenant_kind_name_key').on(t.tenantId, t.kind, t.name),
+    // An invoice has a top and a bottom; there is no paid variant of an intro.
+    check('text_template_paid_is_outro', sql`not ${t.isPaidVariant} or ${t.kind} = 'outro'`),
+    uniqueIndex('text_template_default_key').on(t.tenantId, t.kind).where(sql`${t.isDefault}`),
+    uniqueIndex('text_template_paid_key').on(t.tenantId).where(sql`${t.isPaidVariant}`),
+  ],
+)
+
+export const invoiceType = pgEnum('invoice_type', ['invoice', 'cancellation_invoice'])
+export const invoiceStatus = pgEnum('invoice_status', ['draft', 'finalized', 'cancelled'])
+
+/**
+ * Everything here is a snapshot, because everything it was built from stays
+ * editable: services, texts, the contact's address. A finalized invoice has to
+ * render identically for the whole retention period, which is why the PDF is
+ * served from disk and never re-rendered on request (CLAUDE.md rule 9).
+ *
+ * After finalization the row is immutable except for `status`, enforced by the
+ * `protect_finalized_invoice` trigger in migration 0014. Payments live in
+ * their own table from slice 8 and never touch this row.
+ *
+ * `cancels_invoice_id` and `cancelled_by_invoice_id` arrive in slice 7 with
+ * the code that fills them; the trigger is replaced there to let the second
+ * one through.
+ */
+export const invoice = pgTable(
+  'invoice',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    contactId: uuid().notNull(),
+    type: invoiceType().notNull().default('invoice').$type<InvoiceType>(),
+    status: invoiceStatus().notNull().default('draft').$type<InvoiceStatus>(),
+    /**
+     * The document number, formatted and frozen at finalization. Stored as
+     * text rather than derived from prefix and padding on read: changing the
+     * padding later must never rewrite a number that has already been issued.
+     */
+    number: text(),
+    /**
+     * The prefix and the raw counter value the number was built from, frozen
+     * alongside it.
+     *
+     * The prefix is part of the unique key because rule 8 resets the range
+     * every year — new prefix, `next_value` back to 1 — so value 1 exists once
+     * per year and `unique (tenant_id, number_value)` would reject the first
+     * invoice of every new year. Uniqueness of the document is carried by
+     * `number` anyway; what these two columns are really for is gap detection:
+     * "is a number missing in RH-2026 between 1 and 47" stays a query instead
+     * of becoming string surgery.
+     */
+    numberPrefix: text(),
+    numberValue: integer(),
+    invoiceDate: date({ mode: 'string' }).notNull(),
+    paymentTermDays: integer().notNull(),
+    recipientSnapshot: jsonb().$type<RecipientSnapshot>(),
+    introText: text(),
+    outroText: text(),
+    totalCents: integer().notNull().default(0),
+    /** Relative to DATA_DIR, like every stored path. */
+    pdfPath: text(),
+    pdfHash: text(),
+    finalizedAt: timestamp({ withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.contactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'invoice_contact_tenant_fk',
+    }),
+    unique('invoice_id_tenant_key').on(t.id, t.tenantId),
+    unique('invoice_number_key').on(t.tenantId, t.number),
+    unique('invoice_number_value_key').on(t.tenantId, t.numberPrefix, t.numberValue),
+    index('invoice_contact_idx').on(t.contactId, t.invoiceDate),
+    index('invoice_tenant_status_idx').on(t.tenantId, t.status, t.invoiceDate),
+    // A draft has no number and no document; anything else has both.
+    check(
+      'invoice_draft_fields',
+      sql`(${t.status} = 'draft'
+             and ${t.number} is null and ${t.numberValue} is null
+             and ${t.numberPrefix} is null and ${t.pdfPath} is null
+             and ${t.pdfHash} is null and ${t.finalizedAt} is null)
+          or (${t.status} <> 'draft'
+             and ${t.number} is not null and ${t.numberValue} is not null
+             and ${t.numberPrefix} is not null and ${t.pdfPath} is not null
+             and ${t.pdfHash} is not null and ${t.finalizedAt} is not null
+             and ${t.recipientSnapshot} is not null)`,
+    ),
+    check('invoice_pdf_hash_shape', sql`${t.pdfHash} is null or ${t.pdfHash} ~ '^[0-9a-f]{64}$'`),
+    check('invoice_number_value_positive', sql`${t.numberValue} is null or ${t.numberValue} >= 1`),
+    check('invoice_payment_term_range', sql`${t.paymentTermDays} between 0 and 365`),
+  ],
+)
+
+/**
+ * One line of an invoice, snapshotted from the activity item it came from.
+ *
+ * `activity_item_id` is kept as the record of origin and holds the item with
+ * `ON DELETE RESTRICT`: an item that appears on an invoice must not be able to
+ * disappear, or the invoice loses what it was raised for (CLAUDE.md rule 6).
+ * `syncItems` in `domain/activity.ts` checks for that before deleting and
+ * refuses with something readable.
+ */
+export const invoiceLine = pgTable(
+  'invoice_line',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    invoiceId: uuid().notNull(),
+    position: integer().notNull(),
+    /** Null for a free line typed by hand. */
+    activityItemId: uuid(),
+    description: text().notNull(),
+    feeCode: text(),
+    dateOfService: date({ mode: 'string' }),
+    quantity: integer().notNull().default(1),
+    unitPriceCents: integer().notNull(),
+    /** Generated, so the line sum cannot drift from its own factors. Declared
+     *  NOT NULL because it never can be — both factors are. */
+    amountCents: integer().generatedAlwaysAs(sql`"quantity" * "unit_price_cents"`).notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.invoiceId, t.tenantId],
+      foreignColumns: [invoice.id, invoice.tenantId],
+      name: 'invoice_line_invoice_tenant_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.activityItemId, t.tenantId],
+      foreignColumns: [activityItem.id, activityItem.tenantId],
+      name: 'invoice_line_activity_item_tenant_fk',
+    }).onDelete('restrict'),
+    // At most once per invoice. Across invoices the billable query rules.
+    unique('invoice_line_item_once_key').on(t.invoiceId, t.activityItemId),
+    index('invoice_line_invoice_idx').on(t.invoiceId, t.position),
+    index('invoice_line_activity_item_idx')
+      .on(t.activityItemId)
+      .where(sql`${t.activityItemId} is not null`),
+    check('invoice_line_quantity_positive', sql`${t.quantity} > 0`),
   ],
 )
