@@ -3,6 +3,8 @@ import type { AppEnv } from './context.js'
 import { errorHandler, notFoundHandler } from './middleware/error.js'
 import { sameOrigin } from './middleware/origin.js'
 import { requestLog } from './middleware/request-log.js'
+import { activitiesRoute } from './routes/activities.js'
+import { appointmentsRoute } from './routes/appointments.js'
 import { authRoute } from './routes/auth.js'
 import { contactsRoute } from './routes/contacts.js'
 import { healthRoute } from './routes/health.js'
@@ -29,6 +31,8 @@ const routes = app
   .route('/api/contacts', contactsRoute)
   .route('/api/services', servicesRoute)
   .route('/api/service-groups', serviceGroupsRoute)
+  .route('/api/activities', activitiesRoute)
+  .route('/api/appointments', appointmentsRoute)
 
 export { app }
 export type AppType = typeof routes

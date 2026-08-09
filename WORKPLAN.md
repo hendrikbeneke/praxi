@@ -10,7 +10,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 1 | Tenant, user, login, practice settings | **done** |
 | 2 | Contacts and roles | **done** |
 | 3 | Services and service groups | **done** |
-| 4 | Activities and appointments | todo |
+| 4 | Activities and appointments | **done** |
 | 5 | Notes, files, locking | todo |
 | 6 | Invoices: draft, finalize, PDF | todo |
 | 7 | Cancellation invoices | todo |
@@ -242,6 +242,67 @@ ALTER TABLE appointment ADD CONSTRAINT appointment_no_overlap
 
 **Done when:** I can book an appointment with services, change the catalogue afterwards without the booking changing, and mark a no-show with an Ausfallhonorar.
 
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`appointment.contact_id` is NOT NULL**, against the sketch. Every
+  appointment here belongs to an activity for a contact, and slice 9's private
+  blockers arrive from Google as read-only intervals that are never stored — a
+  nullable column nothing can fill is the same dead weight as the template
+  paths would have been in slice 1. A local "block time" feature later is one
+  migration.
+- **The `google_*` columns wait for slice 9.**
+- **`activity.duration_min` stays**, nullable and purely descriptive. Redundant
+  while there is an appointment, but an activity documented afterwards has no
+  calendar entry to take a length from. Nothing derives from it.
+- **Items are copied on the server.** The submitted union is `service` (the
+  domain copies out of the catalogue), `group` (resolved into individual items,
+  no group id stored) or `custom` (taken as given). The client could copy
+  itself — it has the catalogue loaded — but then a rule-5 core rule would sit
+  in a form and be untestable.
+- **`activity_item` rows are stable across an edit**, updated in place rather
+  than replaced, because slice 6 points `invoice_line.activity_item_id` at
+  them. `custom` therefore carries an optional `id`.
+- **`ON DELETE SET NULL (appointment_id)` with the column list.** Without it
+  Postgres nulls every column of the key, `tenant_id` included, and the delete
+  fails against `NOT NULL`.
+- **`unit_price_cents` has no sign restriction**, unlike the catalogue. Rule 5
+  grants discounts by leaving this price free, so a negative one-off line is
+  the intended route.
+- **The overlap constraint**: `tstzrange` is half-open, so back-to-back slots
+  do not clash; `no_show` keeps the slot, only a cancellation releases it; it
+  applies to all of time, past included. All three are written at the
+  constraint in migration 0009 and covered by tests.
+- **`activity.type` and `appointment.status` are `text` with a named check
+  constraint**, per the Conventions rule — both are marked `?` in CLAUDE.md.
+- **No standalone appointment creation.** Appointments come into being with
+  their activity; the appointment routes read a range and move or restatus one
+  entry.
+
+Added on review, and worth keeping: **the composite foreign key carries
+`contact_id`**, so an activity of one contact cannot hold the appointment of
+another. Verified in a throwaway database before writing the migration that
+`ON DELETE SET NULL (appointment_id)` works on a three-column key — it does,
+and only `appointment_id` is nulled.
+
+Found while building:
+
+- **drizzle-kit cannot express the `SET NULL` column list.** Migration 0008
+  emitted a bare `ON DELETE SET NULL`, which would have failed at runtime;
+  0009 replaces the constraint under the same name so drizzle's snapshot still
+  matches the TypeScript schema and no phantom drift appears. Note that
+  `db:generate` diffs the schema against its own snapshot and never looks at
+  the database — which is exactly why the pre-launch baseline has to come from
+  `pg_dump`.
+- **`Date.parse` is not a validator.** V8 answers `Date.parse('gestern:00Z')`
+  with 1 January 2000 rather than `NaN`, and rolls `2026-02-31` over to 3
+  March. `packages/shared/src/datetime.ts` checks the shape with a pattern and
+  compares the round trip; a `Number.isNaN` guard alone let both through.
+- The slice-3 test asserting that nothing outside the catalogue references a
+  service caught `activity_item.service_id` and failed. That reference is the
+  record of origin rule 5 explicitly allows, so the test was narrowed to what
+  the rule actually protects — no reference to a service *group* — plus an
+  explicit allow-list for service references.
+
 ## Slice 5 — Notes, files, locking
 
 The most rule-heavy slice. See CLAUDE.md rule 7.
@@ -261,6 +322,18 @@ The most rule-heavy slice. See CLAUDE.md rule 7.
 See CLAUDE.md rules 8, 9, 10 and 11.
 
 - Tables `invoice`, `invoice_line`, `number_range`, `text_template`, plus the immutability trigger for finalized invoices and the guard on `activity_item` referenced by a finalized invoice
+- **Carried over from slice 4 — do not lose this.** `syncItems` in
+  `domain/activity.ts` deletes activity items that an edit no longer submits.
+  Once `invoice_line.activity_item_id` exists, an item that appears on a
+  finalized, non-cancelled invoice must not be deletable: the invoice would
+  lose its record of origin and rule 6 (billed items are immutable) would be
+  undercut. Two things are needed, and neither is optional:
+  1. `invoice_line.activity_item_id` gets `ON DELETE RESTRICT`, so the database
+     refuses even from psql.
+  2. `syncItems` checks for referencing invoice lines *before* deleting and
+     refuses with a readable German message naming what is in the way. The same
+     guard belongs on `deleteActivity`.
+  There is a comment at `syncItems` pointing here; remove it once this is done.
 - `domain/number-range.ts` (reusing the slice-2 counter): editable `next_value`, collision check on assignment with a clear error
 - `domain/finalize-invoice.ts`: number, line snapshots, text snapshots, `recipient_snapshot`, total, PDF, hash, status
 - Billable query per CLAUDE.md rule 6, including the cancelled-invoice exclusion — write the test for that case before the implementation

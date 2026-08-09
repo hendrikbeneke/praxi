@@ -36,6 +36,19 @@ export const messages = {
     groupNameTaken: 'Eine Leistungsgruppe mit diesem Namen existiert bereits.',
     unknownService: 'Die Gruppe verweist auf eine Leistung, die es nicht gibt.',
   },
+  activity: {
+    notFound: 'Dieser Vorgang existiert nicht.',
+    unknownService: 'Eine der Positionen verweist auf eine Leistung, die es nicht gibt.',
+    unknownServiceGroup:
+      'Diese Leistungsgruppe existiert nicht oder enthält keine Leistungen. ' +
+      'Bitte prüfen Sie den Katalog.',
+  },
+  appointment: {
+    notFound: 'Dieser Termin existiert nicht.',
+    overlap:
+      'In diesem Zeitraum liegt bereits ein Termin. Bitte wählen Sie eine andere Zeit — ' +
+      'oder sagen Sie den bestehenden Termin ab, dann wird der Platz frei.',
+  },
   numberRange: {
     missing:
       'Für diesen Nummernkreis ist kein Startwert hinterlegt. ' +

@@ -12,7 +12,7 @@
  * before it is stored, so `returning` still sees the new value.
  */
 
-import type { ContactKind, ContactRole } from '@praxi/shared'
+import type { ActivityType, AppointmentStatus, ContactKind, ContactRole } from '@praxi/shared'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -393,5 +393,166 @@ export const serviceGroupItem = pgTable(
     unique('service_group_item_group_service_key').on(t.serviceGroupId, t.serviceId),
     index('service_group_item_group_idx').on(t.serviceGroupId, t.position),
     check('service_group_item_quantity_positive', sql`${t.quantity} > 0`),
+  ],
+)
+
+/**
+ * The calendar entry. Separate from the activity and optional: the foreign key
+ * sits on `activity`, because the appointment knows nothing about business
+ * logic (CLAUDE.md rule 6).
+ *
+ * `contact_id` is `not null`, unlike the original sketch. Every appointment
+ * here belongs to an activity for a contact, and the private blockers of
+ * slice 9 arrive from Google as read-only intervals that are never stored — a
+ * nullable column nothing can fill would just be a dead one.
+ */
+export const appointment = pgTable(
+  'appointment',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    contactId: uuid().notNull(),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    /** Descriptive only — it does not gate billing (rule 6). It does decide
+     *  whether the slot stays occupied; see the exclusion constraint in
+     *  migration 0009. */
+    status: text().notNull().default('planned').$type<AppointmentStatus>(),
+    title: text(),
+    note: text(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.contactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'appointment_contact_tenant_fk',
+    }),
+    /**
+     * Target of the composite foreign key on `activity`. Carrying `contact_id`
+     * through makes it impossible for an activity of one contact to hold the
+     * appointment of another.
+     */
+    unique('appointment_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
+    index('appointment_tenant_starts_idx').on(t.tenantId, t.startsAt),
+    check(
+      'appointment_status_check',
+      sql`${t.status} in ('planned', 'confirmed', 'attended', 'cancelled', 'cancelled_late', 'no_show')`,
+    ),
+    check('appointment_ends_after_starts', sql`${t.endsAt} > ${t.startsAt}`),
+  ],
+)
+
+/**
+ * A dated event where services were rendered — the record of what happened,
+ * and the primary place to correct it (CLAUDE.md rule 6).
+ */
+export const activity = pgTable(
+  'activity',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    contactId: uuid().notNull(),
+    type: text().notNull().$type<ActivityType>(),
+    occurredAt: timestamp({ withTimezone: true }).notNull(),
+    /** Descriptive only, and nothing is derived from it. Redundant while there
+     *  is an appointment, but an activity documented afterwards has no
+     *  calendar entry to take a length from. */
+    durationMin: integer(),
+    appointmentId: uuid(),
+    title: text(),
+    internalNote: text(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.contactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'activity_contact_tenant_fk',
+    }),
+    /**
+     * Three columns, not two: `contact_id` travels along so the appointment
+     * cannot belong to a different contact than the activity does.
+     *
+     * The real constraint in the database is
+     * `ON DELETE SET NULL (appointment_id)` — see migration 0009. drizzle-kit
+     * cannot express the column list, and a bare `SET NULL` on a three-column
+     * key would null `tenant_id` too and fail. `onDelete('set null')` stays
+     * here so intent and snapshot line up; 0009 replaces the constraint under
+     * the same name.
+     */
+    foreignKey({
+      columns: [t.appointmentId, t.contactId, t.tenantId],
+      foreignColumns: [appointment.id, appointment.contactId, appointment.tenantId],
+      name: 'activity_appointment_contact_tenant_fk',
+    }).onDelete('set null'),
+    // Nulls do not collide in Postgres, so any number of activities may have
+    // no appointment at all.
+    unique('activity_appointment_key').on(t.appointmentId),
+    unique('activity_id_tenant_key').on(t.id, t.tenantId),
+    index('activity_tenant_occurred_idx').on(t.tenantId, t.occurredAt),
+    index('activity_contact_idx').on(t.contactId, t.occurredAt),
+    check('activity_type_check', sql`${t.type} in ('session', 'talk', 'consultation', 'other')`),
+    check('activity_duration_positive', sql`${t.durationMin} is null or ${t.durationMin} > 0`),
+  ],
+)
+
+/**
+ * One rendered service within an activity. Description, fee code, price and
+ * duration are **copied** from the catalogue at entry time; `service_id`
+ * remains only as a record of origin and means nothing for price or text
+ * afterwards (CLAUDE.md rule 5).
+ *
+ * These rows are stable: slice 6 points `invoice_line.activity_item_id` at
+ * them, so editing an activity updates rows in place rather than replacing
+ * them.
+ */
+export const activityItem = pgTable(
+  'activity_item',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    activityId: uuid().notNull(),
+    position: integer().notNull(),
+    serviceId: uuid(),
+    description: text().notNull(),
+    feeCode: text(),
+    quantity: integer().notNull().default(1),
+    /**
+     * No sign restriction here, unlike `service.default_price_cents`. Rule 5
+     * handles discounts by leaving this price free, so a negative one-off line
+     * is the intended way to grant one.
+     */
+    unitPriceCents: integer().notNull(),
+    durationMin: integer(),
+    /** False for a session that did not happen: the item stays, because it
+     *  documents that one was planned, and an Ausfallhonorar is added next to
+     *  it (rule 6). */
+    billable: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.activityId, t.tenantId],
+      foreignColumns: [activity.id, activity.tenantId],
+      name: 'activity_item_activity_tenant_fk',
+    }).onDelete('cascade'),
+    // No cascade: services are never deleted, only deactivated.
+    foreignKey({
+      columns: [t.serviceId, t.tenantId],
+      foreignColumns: [service.id, service.tenantId],
+      name: 'activity_item_service_tenant_fk',
+    }),
+    // Target of invoice_line's composite foreign key in slice 6.
+    unique('activity_item_id_tenant_key').on(t.id, t.tenantId),
+    index('activity_item_activity_idx').on(t.activityId, t.position),
+    check('activity_item_quantity_positive', sql`${t.quantity} > 0`),
+    check('activity_item_duration_positive', sql`${t.durationMin} is null or ${t.durationMin} > 0`),
   ],
 )

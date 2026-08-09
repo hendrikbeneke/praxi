@@ -433,23 +433,86 @@ service_group_item    tenant_id uuid not null -> tenant(id),
                       -- This is the only table in the schema that may hold a
                       -- service_group_id (rule 5).
 
-activity              tenant_id, contact_id, type (?session|talk|consultation|other),
-                      occurred_at, duration_min,
-                      appointment_id (nullable, unique),
-                      title, internal_note
+-- as built (slice 4)
+activity              tenant_id uuid not null -> tenant(id),
+                      contact_id uuid not null,
+                      type text not null check in
+                        ('session','talk','consultation','other'),
+                      occurred_at timestamptz not null,
+                      duration_min integer check (null or > 0)
+                        -- descriptive only, nothing is derived from it;
+                        -- redundant while there is an appointment, but an
+                        -- activity documented afterwards has no other length
+                      appointment_id uuid,
+                      title, internal_note                      (text, nullable)
+                      foreign key (contact_id, tenant_id)
+                        -> contact (id, tenant_id)
+                      foreign key (appointment_id, contact_id, tenant_id)
+                        -> appointment (id, contact_id, tenant_id)
+                        on delete set null (appointment_id)
+                        -- three columns so the appointment cannot belong to a
+                        -- different contact than the activity. The column list
+                        -- (PG 15+) is essential: a bare SET NULL would null
+                        -- tenant_id too. drizzle-kit cannot express it, so
+                        -- migration 0009 replaces the constraint by hand.
+                      unique (appointment_id)                   -- nulls do not
+                        -- collide, so any number may have no calendar entry
+                      unique (id, tenant_id)
+                      index (tenant_id, occurred_at), index (contact_id, occurred_at)
 
-activity_item         tenant_id, activity_id, position,
-                      service_id (nullable),
-                      description, fee_code,
-                      quantity, unit_price_cents, duration_min,
-                      billable (default true)
+-- as built (slice 4)
+activity_item         tenant_id uuid not null -> tenant(id),
+                      activity_id uuid not null,
+                      position integer not null                 -- sort order,
+                        -- rewritten from the array index on save
+                      service_id uuid                           -- record of
+                        -- origin only; means nothing for price or text (rule 5)
+                      description text not null,                -- copied
+                      fee_code text,                            -- copied
+                      quantity integer not null default 1 check (> 0),
+                      unit_price_cents integer not null         -- copied, then
+                        -- free. No sign restriction, unlike the catalogue: a
+                        -- negative one-off line is how rule 5 grants a discount
+                      duration_min integer check (null or > 0), -- copied
+                      billable boolean not null default true
+                      foreign key (activity_id, tenant_id)
+                        -> activity (id, tenant_id) on delete cascade
+                      foreign key (service_id, tenant_id)
+                        -> service (id, tenant_id)               -- no cascade
+                      unique (id, tenant_id)                     -- target of
+                        -- invoice_line's foreign key in slice 6
+                      index (activity_id, position)
+                      -- Rows are stable across an edit: `syncItems` updates in
+                      -- place rather than replacing, because slice 6 points
+                      -- invoice_line.activity_item_id at these ids.
 
-appointment           tenant_id, contact_id (nullable),
-                      starts_at, ends_at,
-                      status (?planned|confirmed|attended|cancelled|
-                              cancelled_late|no_show),
-                      title, note,
-                      google_event_id, google_etag, last_pushed_at
+-- as built (slice 4), extended in slice 9
+appointment           tenant_id uuid not null -> tenant(id),
+                      contact_id uuid not null                  -- NOT null,
+                        -- against the sketch: every appointment belongs to an
+                        -- activity for a contact, and slice 9's private
+                        -- blockers arrive from Google as read-only intervals
+                        -- that are never stored
+                      starts_at timestamptz not null,
+                      ends_at timestamptz not null check (> starts_at),
+                      status text not null default 'planned' check in
+                        ('planned','confirmed','attended','cancelled',
+                         'cancelled_late','no_show'),
+                      title, note                               (text, nullable)
+                      foreign key (contact_id, tenant_id)
+                        -> contact (id, tenant_id)
+                      unique (id, contact_id, tenant_id)        -- target of
+                        -- activity's three-column foreign key
+                      index (tenant_id, starts_at)
+                      EXCLUDE USING gist (tenant_id WITH =,
+                        tstzrange(starts_at, ends_at) WITH &&)
+                        WHERE (status NOT IN ('cancelled','cancelled_late'))
+                        -- migration 0009, needs btree_gist. tstzrange is
+                        -- half-open, so back-to-back slots do not clash.
+                        -- no_show still occupies the time; only a cancellation
+                        -- releases it. Violations are SQLSTATE 23P01.
+                      -- google_event_id / google_etag / last_pushed_at come in
+                      -- slice 9 with the sync that fills them.
 
 note                  tenant_id, contact_id, activity_id (nullable),
                       note_date, type (?general|session|file|correspondence|

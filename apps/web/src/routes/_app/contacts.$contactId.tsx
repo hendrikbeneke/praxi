@@ -1,8 +1,18 @@
-import { type ContactInput, formatContactName } from '@praxi/shared'
+import {
+  type Activity,
+  type ContactInput,
+  formatBerlinDate,
+  formatBerlinTime,
+  formatContactName,
+  occupiesSlot,
+} from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, ArrowLeft } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, Plus } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { ActivityDialog } from '@/components/activity-dialog'
+import { ActivityList } from '@/components/activity-list'
 import { ContactForm } from '@/components/contact-form'
 import { PageHeader } from '@/components/page-header'
 import {
@@ -19,6 +29,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { activityListQueryOptions } from '@/lib/activities'
 import { ApiError } from '@/lib/api'
 import { contactQueryOptions, setContactArchived, updateContact } from '@/lib/contacts'
 import { strings } from '@/lib/strings'
@@ -135,13 +146,100 @@ function ContactDetailPage() {
           />
         </TabsContent>
 
-        {/* Present but empty — these fill up in slices 4, 5 and 6. */}
-        {(['notes', 'activities', 'appointments', 'invoices'] as const).map((tab) => (
+        <TabsContent value="activities" className="pt-6">
+          <ContactActivities contactId={contactId} />
+        </TabsContent>
+
+        <TabsContent value="appointments" className="pt-6">
+          <ContactAppointments contactId={contactId} />
+        </TabsContent>
+
+        {/* Present but empty — these fill up in slices 5 and 6. */}
+        {(['notes', 'invoices'] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="pt-6">
             <p className="text-muted-foreground text-sm">{strings.placeholder.comingSoon}</p>
           </TabsContent>
         ))}
       </Tabs>
     </>
+  )
+}
+
+function ContactActivities({ contactId }: { contactId: string }) {
+  const activities = useQuery(activityListQueryOptions({ contactId }))
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [edited, setEdited] = useState<Activity | undefined>()
+
+  function open(activity?: Activity) {
+    setEdited(activity)
+    setDialogOpen(true)
+  }
+
+  return (
+    <>
+      <div className="mb-4 flex justify-end">
+        <Button onClick={() => open()}>
+          <Plus className="size-4" aria-hidden />
+          {strings.activity.create}
+        </Button>
+      </div>
+
+      <ActivityList
+        activities={activities.data ?? []}
+        onOpen={open}
+        emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
+      />
+
+      <ActivityDialog
+        activity={edited}
+        contactId={contactId}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    </>
+  )
+}
+
+/**
+ * The calendar entries of this contact, taken from their activities rather
+ * than from a second endpoint — an appointment always belongs to one.
+ */
+function ContactAppointments({ contactId }: { contactId: string }) {
+  const activities = useQuery(activityListQueryOptions({ contactId }))
+
+  const entries = (activities.data ?? [])
+    .filter((activity) => activity.appointment !== null)
+    .map((activity) => ({ activity, appointment: activity.appointment }))
+
+  if (activities.isPending) {
+    return <p className="text-muted-foreground text-sm">{strings.status.loading}</p>
+  }
+
+  if (entries.length === 0) {
+    return <p className="text-muted-foreground text-sm">{strings.appointment.empty}</p>
+  }
+
+  return (
+    <ul className="space-y-2">
+      {entries.map(({ activity, appointment }) =>
+        appointment ? (
+          <li
+            key={appointment.id}
+            className="flex flex-wrap items-baseline gap-x-3 rounded-md border px-4 py-3"
+          >
+            <span className="font-medium">{formatBerlinDate(appointment.startsAt)}</span>
+            <span className="text-muted-foreground text-sm tabular-nums">
+              {formatBerlinTime(appointment.startsAt)}–{formatBerlinTime(appointment.endsAt)}
+            </span>
+            <Badge variant={occupiesSlot(appointment.status) ? 'outline' : 'secondary'}>
+              {strings.appointment.status[appointment.status]}
+            </Badge>
+            {activity.title && (
+              <span className="text-muted-foreground text-sm">{activity.title}</span>
+            )}
+          </li>
+        ) : null,
+      )}
+    </ul>
   )
 }

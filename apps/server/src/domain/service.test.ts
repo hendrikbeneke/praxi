@@ -292,27 +292,49 @@ describe('service groups', () => {
 
 describe('the catalogue holds no live references', () => {
   /**
-   * CLAUDE.md rule 5: a service is a template. Nothing outside the catalogue
-   * stores a group id, and this slice adds no path from a service to anything
-   * that was already entered. The check is structural — if a later slice adds
-   * such a column, this test is where it should be reconsidered.
+   * "No table ever stores a reference to a group" (CLAUDE.md rule 5). A group
+   * is a selection helper that is resolved at entry time, so renaming or
+   * emptying one can never reach back into what was entered from it.
+   *
+   * A reference to a *service* is a different matter and explicitly allowed:
+   * `activity_item.service_id` records where a position came from and means
+   * nothing for its price or text — the values were copied. Slice 4 added it,
+   * and this test was narrowed to the rule it actually protects.
    */
-  it('is referenced only from service_group_item', async () => {
+  it('lets nothing outside the catalogue reference a service group', async () => {
+    const referencing = await db().execute<{ table_name: string }>(`
+      select distinct tc.table_name
+      from information_schema.table_constraints tc
+      join information_schema.constraint_column_usage ccu
+        on ccu.constraint_name = tc.constraint_name
+      where tc.constraint_type = 'FOREIGN KEY'
+        and ccu.table_name = 'service_group'
+        and tc.table_name <> 'service_group_item'
+    `)
+
+    expect([...referencing]).toEqual([])
+  })
+
+  it('allows a service to be referenced only as a record of origin', async () => {
     const referencing = await db().execute<{ table_name: string; column_name: string }>(`
-      select distinct
-        tc.table_name,
-        kcu.column_name
+      select distinct tc.table_name, kcu.column_name
       from information_schema.table_constraints tc
       join information_schema.key_column_usage kcu
         on kcu.constraint_name = tc.constraint_name
       join information_schema.constraint_column_usage ccu
         on ccu.constraint_name = tc.constraint_name
       where tc.constraint_type = 'FOREIGN KEY'
-        and ccu.table_name in ('service', 'service_group')
-        and tc.table_name <> 'service_group_item'
+        and ccu.table_name = 'service'
+        and kcu.column_name = 'service_id'
+      order by 1
     `)
 
-    expect([...referencing]).toEqual([])
+    // Anything new appearing here has to be weighed against rule 5 before it
+    // is added to the list.
+    expect([...referencing].map((row) => row.table_name)).toEqual([
+      'activity_item',
+      'service_group_item',
+    ])
   })
 
   it('does not change an existing group entry when the catalogue is edited', async () => {
