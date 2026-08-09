@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
+import { ContactPicker } from '@/components/contact-picker'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -156,6 +156,7 @@ export function ActivityDialog({
   const services = useQuery({ ...serviceListQueryOptions(false), enabled: open })
   const groups = useQuery({ ...serviceGroupListQueryOptions(false), enabled: open })
 
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const [type, setType] = useState<ActivityType>('session')
   const [occurredAtLocal, setOccurredAtLocal] = useState('')
   const [durationText, setDurationText] = useState('')
@@ -174,6 +175,7 @@ export function ActivityDialog({
 
     if (activity) {
       const start = toBerlinDateTimeLocal(activity.occurredAt)
+      setSelectedContactId(activity.contactId)
       setType(activity.type)
       setOccurredAtLocal(start)
       setDurationText(activity.durationMin === null ? '' : String(activity.durationMin))
@@ -192,6 +194,7 @@ export function ActivityDialog({
     }
 
     const start = startsAtLocal ?? toBerlinDateTimeLocal(new Date().toISOString())
+    setSelectedContactId(contactId ?? null)
     setType('session')
     setOccurredAtLocal(start)
     setDurationText('')
@@ -202,9 +205,12 @@ export function ActivityDialog({
     setEndsAtLocal(addMinutesToLocal(start, DEFAULT_DURATION_MIN))
     setStatus('planned')
     setAppointmentNote('')
-  }, [open, activity, startsAtLocal])
+  }, [open, activity, contactId, startsAtLocal])
 
-  const targetContactId = activity?.contactId ?? contactId
+  /** Fixed for an existing activity, and fixed when the dialog was opened from
+   *  a contact. Only the calendar leaves the choice open. */
+  const contactLocked = activity !== undefined || contactId !== undefined
+  const targetContactId = selectedContactId
 
   const mutation = useMutation({
     mutationFn: (input: ActivityInput) =>
@@ -319,6 +325,16 @@ export function ActivityDialog({
 
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-6">
+            <div className="sm:col-span-6">
+              <Label htmlFor={`${formId}-contact`}>{strings.activity.contact}</Label>
+              <ContactPicker
+                inputId={`${formId}-contact`}
+                value={targetContactId ?? null}
+                locked={contactLocked}
+                onChange={setSelectedContactId}
+              />
+            </div>
+
             <div className="sm:col-span-2">
               <Label htmlFor={`${formId}-type`}>{strings.activity.type}</Label>
               <Select value={type} onValueChange={(value) => setType(value as ActivityType)}>
@@ -646,7 +662,9 @@ export function ActivityDialog({
             </p>
           </section>
 
-          {!targetContactId && <Badge variant="secondary">{strings.activity.contact} fehlt</Badge>}
+          {targetContactId === null && (
+            <p className="text-muted-foreground text-sm">{strings.activity.contactRequired}</p>
+          )}
         </div>
 
         <DialogFooter>
