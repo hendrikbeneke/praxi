@@ -9,6 +9,7 @@
 import { loadEnvFile } from '../../env.js'
 import { closeDatabase, db } from '../client.js'
 import { seedBase } from './base.js'
+import { seedContactTypes } from './contact-types.js'
 import { seedServices } from './services.js'
 
 loadEnvFile()
@@ -16,6 +17,7 @@ loadEnvFile()
 try {
   const database = db()
   const tenantId = await seedBase(database)
+  await seedContactTypes(database, tenantId)
   await seedServices(database, tenantId)
   console.info('seed complete')
 } catch (error) {

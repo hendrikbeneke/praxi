@@ -54,6 +54,68 @@ export const strings = {
     saveFailed: 'Die Praxisstammdaten konnten nicht gespeichert werden.',
     loadFailed: 'Die Praxisstammdaten konnten nicht geladen werden.',
   },
+  contactType: {
+    title: 'Rollen und Beziehungen',
+    description:
+      'Welche Rollen ein Kontakt haben kann und welche Beziehungen zwischen zwei Kontakten ' +
+      'möglich sind.',
+
+    tabRoles: 'Rollen',
+    tabRelations: 'Beziehungen',
+    showInactive: 'Inaktive anzeigen',
+
+    code: 'Kürzel',
+    codeHint:
+      'Technisches Kürzel, klein geschrieben, ohne Leerzeichen. Es steht mit dem Anlegen fest ' +
+      'und lässt sich später nicht mehr ändern.',
+    label: 'Bezeichnung',
+    labelForward: 'Bezeichnung in der Akte des ersten Kontakts',
+    labelInverse: 'Bezeichnung in der Akte des zweiten Kontakts',
+    /** The direction convention, in one sentence, where it is decided. */
+    directionHint:
+      'Der erste Kontakt ist der, in dessen Akte der Sachverhalt eine Eigenschaft dieses ' +
+      'Kontakts ist — das Kind hat einen Sorgeberechtigten, der Patient hat einen ' +
+      'Rechnungsempfänger. Der zweite Kontakt ist das Gegenüber.',
+    symmetric: 'Gilt in beide Richtungen gleich',
+    symmetricHint:
+      'Zum Beispiel „Ehepartner von“. Dann entfällt die zweite Bezeichnung, und beide Akten ' +
+      'zeigen dieselbe.',
+    exclusive: 'Höchstens einmal pro Kontakt',
+    exclusiveHint:
+      'Zum Beispiel der Rechnungsempfänger: ein Kontakt hat höchstens einen — umgekehrt darf ' +
+      'ein Rechnungsempfänger für mehrere Kontakte zuständig sein.',
+    showAsTab: 'Als Reiter in der Kontaktliste',
+    sortOrder: 'Reihenfolge',
+    active: 'Aktiv',
+    systemBadge: 'System',
+    inactive: 'Inaktiv',
+    exclusiveBadge: 'Nur einmal',
+    symmetricBadge: 'Beidseitig',
+    systemHint:
+      'Auf diesem Eintrag baut die Software auf. Er lässt sich umbenennen, aber nicht löschen, ' +
+      'und sein Kürzel bleibt, wie es ist.',
+    moveUp: 'Nach oben',
+    moveDown: 'Nach unten',
+
+    createRole: 'Neue Rolle',
+    createRoleTitle: 'Rolle anlegen',
+    editRoleTitle: 'Rolle bearbeiten',
+    createRelation: 'Neue Beziehungsart',
+    createRelationTitle: 'Beziehungsart anlegen',
+    editRelationTitle: 'Beziehungsart bearbeiten',
+
+    emptyRoles: 'Keine Rollen vorhanden.',
+    emptyRelations: 'Keine Beziehungsarten vorhanden.',
+    saved: 'Eintrag gespeichert.',
+    deleted: 'Eintrag gelöscht.',
+    saveFailed: 'Der Eintrag konnte nicht gespeichert werden.',
+    deleteFailed: 'Der Eintrag konnte nicht gelöscht werden.',
+    deleteTitle: 'Eintrag löschen?',
+    deleteBody:
+      'Der Eintrag verschwindet aus der Auswahl. Solange er noch verwendet wird, lässt er sich ' +
+      'nicht löschen — setzen Sie ihn dann auf inaktiv.',
+    loadFailed: 'Rollen und Beziehungsarten konnten nicht geladen werden.',
+  },
   validation: {
     required: 'Dieses Feld ist erforderlich.',
     email: 'Bitte eine gültige E-Mail-Adresse eingeben.',
@@ -75,7 +137,6 @@ export const strings = {
     /** Never in the URL — a search term here is usually a patient's name. */
     searchHint: 'Der Suchbegriff wird nicht in der Adresszeile gespeichert.',
     showArchived: 'Archivierte anzeigen',
-    allRoles: 'Alle Rollen',
     empty: 'Keine Kontakte vorhanden.',
     emptyFiltered: 'Kein Kontakt passt zu dieser Suche.',
     countOf: (shown: number, total: number) => `${shown} von ${total} angezeigt`,
@@ -89,16 +150,33 @@ export const strings = {
     kindImmutable: 'Die Art kann nachträglich nicht geändert werden.',
 
     roleLabel: 'Rollen',
-    role: {
-      patient: 'Patient',
-      prospect: 'Interessent',
-      participant: 'Teilnehmer',
-      guardian: 'Sorgeberechtigt',
-      billing_recipient: 'Rechnungsempfänger',
-      other: 'Sonstige',
-    },
-    roleSince: 'seit',
+    /** The labels themselves come from `contact_role_type` — the practitioner
+     *  maintains them in the settings, so there is nothing to translate here. */
+    roleHint: 'Die Rollen selbst pflegen Sie in den Einstellungen.',
+    moreRoles: 'Weitere Rollen',
+    roleInactive: 'inaktiv',
+    allRolesTab: 'Alle',
     noRoles: 'Keine Rolle zugewiesen',
+
+    relations: 'Beziehungen',
+    relationsHint:
+      'Beziehungen verbinden zwei Kontakte und erscheinen in beiden Akten — jeweils mit ' +
+      'der passenden Beschriftung.',
+    relationsEmpty: 'Keine Beziehungen hinterlegt.',
+    relationAdd: 'Beziehung hinzufügen',
+    relationKind: 'Art der Beziehung',
+    relationOther: 'Kontakt',
+    relationSave: 'Hinzufügen',
+    relationAdded: 'Beziehung hinzugefügt.',
+    relationRemoved: 'Beziehung entfernt.',
+    relationRemove: 'Entfernen',
+    relationRemoveTitle: 'Beziehung entfernen?',
+    relationRemoveBody:
+      'Die Beziehung verschwindet aus beiden Akten. Die Kontakte selbst bleiben unverändert.',
+    relationFailed: 'Die Beziehung konnte nicht gespeichert werden.',
+    relationNoTypes:
+      'Es sind keine Beziehungsarten hinterlegt. Sie legen sie in den Einstellungen an.',
+    relationSaveFirst: 'Beziehungen können hinterlegt werden, sobald der Kontakt gespeichert ist.',
 
     columns: {
       number: 'Nr.',
@@ -540,6 +618,9 @@ export const strings = {
     recheck: 'Erneut prüfen',
     retry: 'Erneut versuchen',
     back: 'Zurück',
+    save: 'Speichern',
+    cancel: 'Abbrechen',
+    delete: 'Löschen',
   },
   status: {
     loading: 'Wird geladen …',

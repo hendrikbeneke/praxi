@@ -94,17 +94,17 @@ async function rolesFor(reader: DbReader, contactIds: string[]) {
   const rows = await reader
     .select({
       contactId: contactRole.contactId,
-      role: contactRole.role,
+      roleCode: contactRole.roleCode,
       since: contactRole.since,
     })
     .from(contactRole)
     .where(inArray(contactRole.contactId, contactIds))
-    .orderBy(asc(contactRole.role))
+    .orderBy(asc(contactRole.roleCode))
 
   const byContact = new Map<string, Contact['roles']>()
   for (const row of rows) {
     const list = byContact.get(row.contactId) ?? []
-    list.push({ role: row.role, since: row.since })
+    list.push({ roleCode: row.roleCode, since: row.since })
     byContact.set(row.contactId, list)
   }
   return byContact
@@ -124,28 +124,28 @@ async function replaceRoles(
   roles: ContactRoleInput[],
 ): Promise<void> {
   const existing = await tx
-    .select({ id: contactRole.id, role: contactRole.role, since: contactRole.since })
+    .select({ id: contactRole.id, roleCode: contactRole.roleCode, since: contactRole.since })
     .from(contactRole)
     .where(eq(contactRole.contactId, contactId))
 
-  const wanted = new Set(roles.map((entry) => entry.role))
-  const removed = existing.filter((row) => !wanted.has(row.role)).map((row) => row.role)
+  const wanted = new Set(roles.map((entry) => entry.roleCode))
+  const removed = existing.filter((row) => !wanted.has(row.roleCode)).map((row) => row.roleCode)
 
   if (removed.length > 0) {
     await tx
       .delete(contactRole)
-      .where(and(eq(contactRole.contactId, contactId), inArray(contactRole.role, removed)))
+      .where(and(eq(contactRole.contactId, contactId), inArray(contactRole.roleCode, removed)))
   }
 
   for (const entry of roles) {
-    const current = existing.find((row) => row.role === entry.role)
+    const current = existing.find((row) => row.roleCode === entry.roleCode)
 
     if (!current) {
       await tx.insert(contactRole).values({
         id: newId(),
         tenantId,
         contactId,
-        role: entry.role,
+        roleCode: entry.roleCode,
         since: entry.since,
       })
     } else if (current.since !== entry.since) {
@@ -208,12 +208,12 @@ export async function listContacts(
     if (matches) filters.push(matches)
   }
 
-  if (query.role) {
+  if (query.roleCode) {
     filters.push(
       sql`exists (
         select 1 from ${contactRole}
          where ${contactRole.contactId} = ${contact.id}
-           and ${contactRole.role} = ${query.role}
+           and ${contactRole.roleCode} = ${query.roleCode}
       )`,
     )
   }

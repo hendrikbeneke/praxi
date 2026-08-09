@@ -28,6 +28,35 @@ export const messages = {
     kindImmutable:
       'Die Art des Kontakts — Person oder Organisation — kann nachträglich nicht geändert werden. ' +
       'Legen Sie stattdessen einen neuen Kontakt an.',
+    unknownRole: 'Diese Rolle gibt es nicht. Bitte prüfen Sie die Rollen in den Einstellungen.',
+    unknownRelationType:
+      'Diese Art von Beziehung gibt es nicht oder sie ist nicht aktiv. ' +
+      'Bitte prüfen Sie die Beziehungsarten in den Einstellungen.',
+    selfRelation: 'Ein Kontakt kann keine Beziehung zu sich selbst haben.',
+    relationExists: 'Diese Beziehung zwischen den beiden Kontakten besteht bereits.',
+    relationExclusive:
+      'Für diesen Kontakt ist bereits eine Beziehung dieser Art hinterlegt. ' +
+      'Bitte entfernen Sie zuerst die bestehende.',
+    relationContactMissing: 'Der gewählte Kontakt existiert nicht.',
+    relationNotFound: 'Diese Beziehung existiert nicht.',
+  },
+  contactType: {
+    notFound: 'Dieser Eintrag existiert nicht.',
+    codeTaken: 'Dieses Kürzel ist bereits vergeben.',
+    // A system entry is one the software itself depends on — `patient` above
+    // all. The label stays editable, which is what the message points at.
+    systemNotDeletable:
+      'Dieser Eintrag gehört fest zum System und kann nicht gelöscht werden. ' +
+      'Sie können ihn umbenennen oder auf inaktiv setzen.',
+    roleInUse:
+      'Diese Rolle ist noch Kontakten zugeordnet und kann nicht gelöscht werden. ' +
+      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr vergeben werden soll.',
+    relationInUse:
+      'Diese Beziehungsart wird noch verwendet und kann nicht gelöscht werden. ' +
+      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr vergeben werden soll.',
+    exclusiveConflict:
+      'Diese Beziehungsart lässt sich nicht auf „nur einmal pro Kontakt" umstellen: ' +
+      'es gibt bereits Kontakte mit mehreren Beziehungen dieser Art.',
   },
   service: {
     notFound: 'Diese Leistung existiert nicht.',

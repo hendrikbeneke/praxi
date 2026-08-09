@@ -27,7 +27,10 @@ The practice does not only treat patients. It also sells courses, exam preparati
 | Behandler | `practitioner` | an `app_user` acting as practitioner |
 | Kontakt | `contact` | the generic party — person or organization |
 | Kontaktnummer | `contact_number` | sequential, every contact gets one |
-| Rolle | `contact_role` | patient, prospect, participant, guardian, billing recipient |
+| Rolle | `contact_role` | a property of one contact — patient, prospect, participant |
+| Rollentyp | `contact_role_type` | the configurable catalogue of roles |
+| Beziehung | `contact_relation` | connects two contacts — guardian, billing recipient |
+| Beziehungstyp | `contact_relation_type` | the configurable catalogue of relations |
 | Patient | a `contact` with role `patient` | never its own table |
 | Vorgang | `activity` | a dated event where services were rendered |
 | Vorgangsposition | `activity_item` | one rendered service within an activity |
@@ -155,15 +158,25 @@ Formatted amounts are never persisted and never cross the API boundary. Cents as
 
 All timestamps `timestamptz`, stored in UTC. Display and input in `Europe/Berlin`. Pure dates (date of birth, invoice date, date of service, payment date) as `date`, not timestamps.
 
-### 4. Contacts, kinds and roles
+### 4. Contacts, kinds, roles and relations
 
 `contact.kind` is `person` or `organization`. It is structural, decides which fields apply, and never changes.
 
-Roles are separate and multiple: a contact can be a prospect who becomes a patient, a parent who is both guardian and billing recipient, a company that is a customer. Roles live in `contact_role`, never in a single type column on `contact`.
+**A role is a property of one contact.** Roles are multiple: a prospect who becomes a patient, someone who is both a patient and a course participant. They live in `contact_role`, never in a single type column on `contact`.
+
+**A relation connects two contacts** and means nothing without the counterpart — a guardian, a billing recipient. Relations live in `contact_relation`, as **one row per fact**: both records show it, each with its own label. Two rows for one relation could drift apart.
+
+Both sets are **configurable**. `contact_role_type` and `contact_relation_type` are catalogues the practitioner maintains, because the roles this practice needs are not known up front. Neither is an enum and neither is a check constraint; a composite foreign key carrying `tenant_id` is what validates an assignment.
+
+Entries flagged `is_system` are the ones **logic may depend on**. They cannot be deleted and their `code` cannot change — enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger. Everything about how they read stays editable: label, order, `active`, `show_as_tab`. `is_system` appears in no input schema; only the seed sets it. A `code` is fixed for every entry, system or not: it is the handle other rows point at.
+
+**Direction of a relation**: `from` is the contact in whose record the fact is a property *of that contact*, `to` is the counterpart. A child is the `from` of `guardian`, a patient is the `from` of `billing_recipient`. This is not cosmetic — `is_exclusive` is enforced per `from_contact_id`, so with the convention exclusivity always reads as "this contact has at most one X", and the next exclusive type needs no fresh thinking. `parent_of` is the deliberate exception: with kinship neither side owns the fact, and "Elternteil von / Kind von" is the more common reading direction.
+
+`label_forward` is what the `from` contact's record says about the `to` contact, `label_inverse` the other way round. A symmetric type has no inverse label and reads the same from both sides; it is still stored once, with the ends in a fixed order so the reverse duplicate collides.
 
 Every contact gets a sequential `contact_number` on creation, regardless of role. There is no separate patient number.
 
-Confidentiality follows the role, not the table: professional secrecy under § 203 StGB and the pseudonymization towards Google apply to contacts holding the `patient` role. A company booking a talk is not a confidential relationship.
+Confidentiality follows the role, not the table: professional secrecy under § 203 StGB and the pseudonymization towards Google apply to contacts holding the role whose type is the **system entry with `code = 'patient'`** — not to a label that happens to read "Patient". A company booking a talk is not a confidential relationship.
 
 ### 5. Services are templates, never live references
 
@@ -369,23 +382,105 @@ contact               tenant_id uuid not null -> tenant(id),
                                         salutation/title/first_name/
                                         last_name/date_of_birth null)
 
--- as built (slice 2)
+-- as built (slice 6.5)
+contact_role_type     tenant_id uuid not null -> tenant(id),
+                      code text not null,                       -- the handle
+                        -- logic points at; fixed once the row exists, for every
+                        -- entry, because contact_role references it
+                      label text not null,
+                      is_system boolean not null default false, -- not
+                        -- deletable, code frozen; set by the seed alone and
+                        -- present in no input schema
+                      show_as_tab boolean not null default false,
+                        -- the contact list gives this role a tab of its own;
+                        -- the rest stay reachable through the dropdown beside
+                      sort_order integer not null default 0,
+                      active boolean not null default true
+                      unique (tenant_id, code)                  -- also the
+                        -- target of contact_role's composite foreign key
+                      index on (tenant_id, sort_order, label)
+                      check contact_role_type_code_shape
+                        (^[a-z][a-z0-9_]{0,39}$)
+                      -- trigger protect_system_type (migration 0017) refuses
+                      -- DELETE and any change to code or is_system on a system
+                      -- row; set_updated_at; RLS created and disabled.
+
+-- as built (slice 6.5)
+contact_relation_type tenant_id uuid not null -> tenant(id),
+                      code text not null,
+                      label_forward text not null,              -- what the
+                        -- `from` record says about the `to` contact
+                      label_inverse text,                       -- and the
+                        -- other way round; null exactly when symmetric
+                      is_symmetric boolean not null default false,
+                      is_exclusive boolean not null default false,
+                        -- at most one per from_contact_id — which is why the
+                        -- direction convention in rule 4 exists
+                      is_system boolean not null default false,
+                      sort_order integer not null default 0,
+                      active boolean not null default true
+                      unique (tenant_id, code),
+                      index on (tenant_id, sort_order, label_forward)
+                      check contact_relation_type_code_shape,
+                      check contact_relation_type_inverse_label (
+                        (label_inverse is not null) = (not is_symmetric))
+                      -- same two triggers and RLS as contact_role_type
+
+-- as built (slice 2), rebuilt in slice 6.5
 contact_role          tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null,
-                      role text not null,
+                      role_code text not null,
                       since date                                (nullable — when
                         -- an old contact is entered afterwards the start date
-                        -- often cannot be reconstructed)
-                      check contact_role_role_check (role in (
-                        'patient','prospect','participant',
-                        'guardian','billing_recipient','other'))
-                        -- text + named check rather than an enum, because this
-                        -- set is expected to change; see Conventions
+                        -- often cannot be reconstructed. Set to today when the
+                        -- role is ticked; the form does not show it.)
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id) on delete cascade
-                      unique (contact_id, role)                 -- also serves
+                      foreign key (role_code, tenant_id)
+                        -> contact_role_type (code, tenant_id)
+                        on update restrict on delete restrict
+                        -- composite, so a role type of another tenant cannot
+                        -- be assigned. Nothing to cascade on update: a code
+                        -- never changes.
+                      unique (contact_id, role_code)            -- also serves
                         -- lookups by contact and the cascade check
-                      index on (tenant_id, role)                -- role filter
+                      index on (tenant_id, role_code)           -- role filter
+
+-- as built (slice 6.5)
+contact_relation      tenant_id uuid not null -> tenant(id),
+                      from_contact_id uuid not null,            -- the contact
+                        -- the fact belongs to; see rule 4
+                      to_contact_id uuid not null,
+                      relation_code text not null,
+                      since date,
+                      exclusive boolean not null default false
+                        -- a mirror of contact_relation_type.is_exclusive,
+                        -- written ONLY by the trigger
+                        -- contact_relation_set_exclusive. It exists because a
+                        -- partial index cannot read a second table, and
+                        -- exclusivity has to be a database guarantee. Never
+                        -- written by application code, never in a payload.
+                      foreign key (from_contact_id, tenant_id)
+                        -> contact (id, tenant_id) on delete cascade,
+                      foreign key (to_contact_id, tenant_id)
+                        -> contact (id, tenant_id) on delete cascade,
+                      foreign key (relation_code, tenant_id)
+                        -> contact_relation_type (code, tenant_id)
+                        on update restrict on delete restrict
+                      unique (from_contact_id, to_contact_id, relation_code)
+                      unique index contact_relation_exclusive_key
+                        on (from_contact_id, relation_code) where exclusive
+                        -- if relations ever gain an end date, narrow this to
+                        -- the ones still running
+                      index on (to_contact_id)                  -- the other
+                        -- end; both records show the relation
+                      check contact_relation_not_self
+                      -- A directed relation may additionally exist in the
+                      -- opposite direction — nonsense in content, but a
+                      -- constraint against it costs more than the case is
+                      -- worth. For a symmetric type the domain normalizes the
+                      -- ends, so the reverse duplicate collides with the
+                      -- unique key above.
 
 -- as built (slice 3)
 service               tenant_id uuid not null -> tenant(id),
@@ -754,7 +849,7 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
 - Conventional Commits, in English, one commit per slice.
 
-**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `contact_role.role`, `activity.type`, `appointment.status`, `note.type`. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
+**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.type`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_code` and `contact_relation.relation_code` point at a catalogue table through a composite foreign key (rule 4). `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 
 **`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
 

@@ -1,12 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  type Contact,
-  type ContactInput,
-  type ContactKind,
-  type ContactRole,
-  contactKinds,
-  contactRoles,
-} from '@praxi/shared'
+import { type Contact, type ContactInput, type ContactKind, contactKinds } from '@praxi/shared'
+import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -22,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { roleTypeListQueryOptions } from '@/lib/contact-types'
 import { strings } from '@/lib/strings'
 
 /**
@@ -53,10 +48,12 @@ const contactFormSchema = z
     email: z.union([z.literal(''), z.email().max(160)]),
     phone: z.string().trim().max(40),
     internalNote: z.string().trim().max(4000),
+    // Only the roles the contact actually holds. The checkbox list is drawn
+    // from the catalogue, which is loaded separately — a role type that is
+    // added tomorrow must show up without this form knowing about it.
     roles: z.array(
       z.object({
-        role: z.enum(contactRoles),
-        selected: z.boolean(),
+        roleCode: z.string(),
         since: z.union([z.literal(''), z.iso.date()]),
       }),
     ),
@@ -78,9 +75,10 @@ type ContactFormOutput = z.output<typeof contactFormSchema>
 const emptyToNull = (value: string) => (value === '' ? null : value)
 
 function toContactInput(values: ContactFormOutput): ContactInput {
-  const roles = values.roles
-    .filter((entry) => entry.selected)
-    .map((entry) => ({ role: entry.role, since: emptyToNull(entry.since) }))
+  const roles = values.roles.map((entry) => ({
+    roleCode: entry.roleCode,
+    since: emptyToNull(entry.since),
+  }))
 
   const shared = {
     vatId: emptyToNull(values.vatId),
@@ -119,8 +117,6 @@ function todayInBerlin(): string {
 }
 
 function toFormValues(contact: Contact | undefined): ContactFormValues {
-  const assigned = new Map(contact?.roles.map((entry) => [entry.role, entry.since]) ?? [])
-
   return {
     kind: contact?.kind ?? 'person',
     salutation: contact?.salutation ?? '',
@@ -138,11 +134,8 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     email: contact?.email ?? '',
     phone: contact?.phone ?? '',
     internalNote: contact?.internalNote ?? '',
-    roles: contactRoles.map((role) => ({
-      role,
-      selected: assigned.has(role),
-      since: assigned.get(role) ?? '',
-    })),
+    roles:
+      contact?.roles.map((entry) => ({ roleCode: entry.roleCode, since: entry.since ?? '' })) ?? [],
   }
 }
 
@@ -163,6 +156,16 @@ export function ContactForm({
   const kind = form.watch('kind') as ContactKind
   const roles = form.watch('roles')
   const errors = form.formState.errors
+
+  /**
+   * Inactive types are loaded as well, but only shown where the contact
+   * already holds one — otherwise saving would silently drop a role that is
+   * simply no longer offered.
+   */
+  const types = useQuery(roleTypeListQueryOptions(true))
+  const roleTypes = (types.data ?? []).filter(
+    (type) => type.active || roles.some((entry) => entry.roleCode === type.code),
+  )
 
   return (
     <form
@@ -273,32 +276,36 @@ export function ContactForm({
           <CardTitle>{strings.contact.roleLabel}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          {roles.map((entry, index) => (
-            <div key={entry.role} className="flex items-center gap-3">
-              <Checkbox
-                id={`role-${entry.role}`}
-                checked={entry.selected}
-                onCheckedChange={(checked) => {
-                  const selected = checked === true
-                  form.setValue(`roles.${index}.selected`, selected)
-                  // Suggest today when a role is ticked; clearing the tick
-                  // leaves the date alone so it comes back on re-tick.
-                  if (selected && !entry.since) {
-                    form.setValue(`roles.${index}.since`, todayInBerlin())
-                  }
-                }}
-              />
-              <Label htmlFor={`role-${entry.role}`} className="w-44 shrink-0 font-normal">
-                {strings.contact.role[entry.role as ContactRole]}
-              </Label>
-              <Input
-                type="date"
-                aria-label={`${strings.contact.role[entry.role as ContactRole]} ${strings.contact.roleSince}`}
-                disabled={!entry.selected}
-                {...form.register(`roles.${index}.since`)}
-              />
-            </div>
-          ))}
+          {roleTypes.length === 0 && (
+            <p className="text-muted-foreground text-sm">{strings.contact.roleHint}</p>
+          )}
+          {roleTypes.map((type) => {
+            const checked = roles.some((entry) => entry.roleCode === type.code)
+            return (
+              <div key={type.code} className="flex items-center gap-3">
+                <Checkbox
+                  id={`role-${type.code}`}
+                  checked={checked}
+                  onCheckedChange={(value) => {
+                    // "seit" is recorded but not shown: on the day a role is
+                    // ticked, today is the only sensible answer, and a date
+                    // field per role turned the section into a form of its own.
+                    form.setValue(
+                      'roles',
+                      value === true
+                        ? [...roles, { roleCode: type.code, since: todayInBerlin() }]
+                        : roles.filter((entry) => entry.roleCode !== type.code),
+                      { shouldDirty: true },
+                    )
+                  }}
+                />
+                <Label htmlFor={`role-${type.code}`} className="font-normal">
+                  {type.label}
+                  {!type.active && ` (${strings.contact.roleInactive})`}
+                </Label>
+              </div>
+            )
+          })}
         </CardContent>
       </Card>
 

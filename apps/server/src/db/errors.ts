@@ -42,6 +42,22 @@ export function uniqueViolationConstraint(error: unknown): string | null {
   return typeof driver.constraint_name === 'string' ? driver.constraint_name : ''
 }
 
+/** SQLSTATE 23503. */
+const FOREIGN_KEY_VIOLATION = '23503'
+
+/**
+ * The name of the violated foreign key, or `null` if this is a different
+ * error. Reported both ways round: a row pointing at something that does not
+ * exist, and a row that cannot be deleted because something still points at
+ * it.
+ */
+export function foreignKeyViolationConstraint(error: unknown): string | null {
+  const driver = driverError(error)
+  if (!driver || driver.code !== FOREIGN_KEY_VIOLATION) return null
+
+  return typeof driver.constraint_name === 'string' ? driver.constraint_name : ''
+}
+
 /** True when two appointments would occupy the same slot — the
  *  `appointment_no_overlap` exclusion constraint from migration 0009. */
 export function isOverlapViolation(error: unknown): boolean {

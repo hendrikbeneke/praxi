@@ -1,9 +1,14 @@
-import { contactInputSchema, contactListQuerySchema } from '@praxi/shared'
+import {
+  contactInputSchema,
+  contactListQuerySchema,
+  contactRelationInputSchema,
+} from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
+import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import {
   ContactKindChangeError,
   createContact,
@@ -12,6 +17,13 @@ import {
   setContactArchived,
   updateContact,
 } from '../domain/contact.js'
+import {
+  addRelation,
+  deleteRelation,
+  listRelations,
+  SelfRelationError,
+  UnknownRelationTypeError,
+} from '../domain/contact-relation.js'
 import { MissingNumberRangeError } from '../domain/counter.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -35,6 +47,29 @@ function translate(error: unknown): never {
   }
   if (error instanceof MissingNumberRangeError) {
     throw new HTTPException(409, { message: messages.numberRange.missing })
+  }
+  if (error instanceof UnknownRelationTypeError) {
+    throw new HTTPException(409, { message: messages.contact.unknownRelationType })
+  }
+  if (error instanceof SelfRelationError) {
+    throw new HTTPException(409, { message: messages.contact.selfRelation })
+  }
+
+  const unique = uniqueViolationConstraint(error)
+  if (unique === 'contact_relation_pair_key') {
+    throw new HTTPException(409, { message: messages.contact.relationExists })
+  }
+  if (unique === 'contact_relation_exclusive_key') {
+    throw new HTTPException(409, { message: messages.contact.relationExclusive })
+  }
+
+  const foreignKey = foreignKeyViolationConstraint(error)
+  // A role code that does not name a role type of this tenant.
+  if (foreignKey === 'contact_role_type_fk') {
+    throw new HTTPException(409, { message: messages.contact.unknownRole })
+  }
+  if (foreignKey === 'contact_relation_from_fk' || foreignKey === 'contact_relation_to_fk') {
+    throw new HTTPException(409, { message: messages.contact.relationContactMissing })
   }
   throw error
 }
@@ -96,3 +131,41 @@ export const contactsRoute = new Hono<AppEnv>()
     )
     return restored ? c.json(restored) : notFound()
   })
+
+  /**
+   * Relations hang off the contact rather than travelling in its payload: they
+   * involve a second contact and act immediately, and the record they are
+   * entered from may be either end. The same reasoning as the note
+   * attachments in slice 5.
+   */
+  .get('/:contactId/relations', validate('param', contactParam), async (c) => {
+    return c.json(await listRelations(db(), tenantId(c), c.req.valid('param').contactId))
+  })
+
+  .post(
+    '/:contactId/relations',
+    validate('param', contactParam),
+    validate('json', contactRelationInputSchema),
+    async (c) => {
+      const created = await addRelation(
+        db(),
+        tenantId(c),
+        c.req.valid('param').contactId,
+        c.req.valid('json'),
+      ).catch(translate)
+
+      if (!created) throw new HTTPException(404, { message: messages.contact.notFound })
+      return c.json(created, 201)
+    },
+  )
+
+  .delete(
+    '/:contactId/relations/:relationId',
+    validate('param', contactParam.extend({ relationId: z.uuid() })),
+    async (c) => {
+      const param = c.req.valid('param')
+      const deleted = await deleteRelation(db(), tenantId(c), param.contactId, param.relationId)
+      if (!deleted) throw new HTTPException(404, { message: messages.contact.relationNotFound })
+      return c.body(null, 204)
+    },
+  )

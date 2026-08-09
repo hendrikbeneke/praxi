@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { ActivityDialog } from '@/components/activity-dialog'
 import { ActivityList } from '@/components/activity-list'
 import { ContactForm } from '@/components/contact-form'
+import { ContactRelations } from '@/components/contact-relations'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteDialog } from '@/components/note-dialog'
 import { NoteList } from '@/components/note-list'
@@ -143,7 +144,7 @@ function ContactDetailPage() {
           <TabsTrigger value="invoices">{strings.contact.tabs.invoices}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="master" className="pt-6">
+        <TabsContent value="master" className="space-y-6 pt-6">
           {/* `key` remounts the form when the server's version changes, so the
               fields show what was actually stored. */}
           <ContactForm
@@ -152,6 +153,11 @@ function ContactDetailPage() {
             onSubmit={(input) => save.mutate(input)}
             pending={save.isPending}
           />
+
+          {/* Below the form, not inside it: a relation saves on its own. */}
+          <div className="max-w-3xl">
+            <ContactRelations contactId={contactId} />
+          </div>
         </TabsContent>
 
         <TabsContent value="activities" className="pt-6">

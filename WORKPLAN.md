@@ -13,6 +13,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 4 | Activities and appointments | **done** |
 | 5 | Notes, files, locking | **done** |
 | 6 | Invoices: draft, finalize, PDF | **done** |
+| 6.5 | Roles and relations | **done** |
 | 7 | Cancellation invoices | todo |
 | 8 | Payments and receivables | todo |
 | 9 | Google Calendar sync | todo |
@@ -494,6 +495,80 @@ Found while building:
   therefore has to use the same shape as `finalizeInvoice`: rows first as a
   draft, then one update that finalizes. The test that builds a cancellation
   document by hand already does it that way.
+
+## Slice 6.5 — Roles and relations
+
+Inserted between 6 and 7. `contact_role` mixed up two different things: a role
+is a property of one contact, while a guardian or a billing recipient is a
+relation to another one and means nothing without the counterpart. Both sets
+are configurable from now on. See CLAUDE.md rule 4.
+
+- Tables `contact_role_type`, `contact_relation_type`, `contact_relation`;
+  `contact_role.role` becomes `role_code` with a composite foreign key instead
+  of its check constraint
+- `domain/contact-type.ts` for both catalogues, `domain/contact-relation.ts`
+  for the relations
+- Settings section "Rollen und Beziehungen"; roles in the contact form come
+  from the catalogue; relations section on the contact record; role tabs on the
+  contact list
+- Seed: system entries `patient`, `guardian`, `billing_recipient`, plus
+  `prospect`, `participant`, `parent_of`, `spouse_of` as ordinary ones
+
+**Done when:** I can add a role type of my own, mark a relation as exclusive,
+and see the same relation from both records with the matching label.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **The direction of a relation follows a rule, not the individual type**:
+  `from` is the contact in whose record the fact is a property of that contact.
+  `is_exclusive` is enforced per `from_contact_id`, so exclusivity then always
+  reads as "this contact has at most one X" and the next exclusive type needs
+  no fresh thinking. `billing_recipient` therefore points patient → payer, and
+  the code is `guardian` rather than `guardian_of`, because the name must not
+  contradict the direction. `parent_of` is the deliberate exception, with the
+  reason written at `contact_relation_type` and in rule 4.
+- **`is_exclusive` is mirrored onto the row** as `contact_relation.exclusive`,
+  written only by a trigger. A partial unique index cannot read a second table,
+  and exclusivity has to be a guarantee rather than a check the application
+  remembers. Switching a type to exclusive rewrites its relations, so the index
+  itself rejects the change when a contact already holds two — that check comes
+  for free and is what makes the mirror worth having.
+- **A symmetric type is stored once**, with the ends in a fixed order, so the
+  same fact entered from the other side collides with
+  `contact_relation_pair_key`. A directed type may exist in both directions;
+  that is nonsense in content, but a constraint against it costs more than the
+  case is worth.
+- **`code` is fixed for every catalogue entry**, not only for system ones. It
+  is the handle other rows point at, the update schemas do not carry one, and
+  the foreign keys therefore need no `ON UPDATE CASCADE`. A typo is fixed by
+  deleting the unused entry.
+- **System entries are guarded twice**: `domain/contact-type.ts` refuses so the
+  message is readable, `protect_system_type` refuses so it also holds for
+  anything that goes around the domain — including clearing `is_system`, which
+  would otherwise be a one-step way around the guard. `is_system` appears in no
+  input schema; only the seed sets it.
+- **`show_as_tab` decides prominence, not availability.** The contact list
+  shows a tab per flagged role and keeps the rest in a "Weitere Rollen"
+  dropdown, so no role becomes unfilterable and the bar stays short.
+- **"seit" is recorded but not shown.** On the day a role is ticked, today is
+  the only sensible answer, and a date field per role turned the section into a
+  form of its own.
+- **Relations act immediately** and do not travel in the contact's payload:
+  half of a relation belongs to a record that is not being edited. Same
+  reasoning as the note attachments in slice 5.
+- **The old assignments `guardian`, `billing_recipient` and `other` were
+  deleted** by migration 0017, agreed beforehand: the first two are relations
+  now, and there is no production database.
+
+Found while building:
+
+- **drizzle-kit cannot see a rename without a TTY**, and non-interactively it
+  errors out rather than choosing. Answering it with the default emitted
+  ADD COLUMN `role_code` / DROP COLUMN `role`, which would have thrown every
+  assigned role away; migration 0016 was corrected to a RENAME by hand before
+  it had ever run. The foreign key to the new catalogue moved to 0017 for the
+  same reason as always: it can only exist once the data is in place, and the
+  snapshot describes the state after both files.
 
 ## Slice 7 — Cancellation invoices
 

@@ -1,5 +1,6 @@
 import type { Database } from '../db/client.js'
 import { appUser, practiceSettings, tenant } from '../db/schema.js'
+import { seedContactTypes } from '../db/seed/contact-types.js'
 import { hashPassword } from '../domain/auth.js'
 import { newId } from '../id.js'
 
@@ -8,9 +9,16 @@ import { newId } from '../id.js'
  * realistic person ever appears in this repository.
  */
 
+/**
+ * The role and relation types come with the tenant, from the same function the
+ * seed uses. A tenant without them is not a state the application can reach —
+ * `contact_role` points at `contact_role_type`, so a contact could not even
+ * hold the `patient` role.
+ */
 export async function createTenant(database: Database, name = 'Testmandant'): Promise<string> {
   const id = newId()
   await database.insert(tenant).values({ id, name })
+  await seedContactTypes(database, id)
   return id
 }
 

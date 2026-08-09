@@ -39,7 +39,7 @@ beforeEach(async () => {
     email: null,
     phone: null,
     internalNote: null,
-    roles: [{ role: 'patient', since: null }],
+    roles: [{ roleCode: 'patient', since: null }],
   })
   contactId = created.id
 })

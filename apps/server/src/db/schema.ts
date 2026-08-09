@@ -16,7 +16,6 @@ import type {
   ActivityType,
   AppointmentStatus,
   ContactKind,
-  ContactRole,
   InvoiceStatus,
   InvoiceType,
   NoteType,
@@ -248,7 +247,8 @@ export const contact = pgTable(
   },
   (t) => [
     unique('contact_tenant_number_key').on(t.tenantId, t.contactNumber),
-    // Referenced by the composite foreign key on `contact_role`.
+    // Referenced by the composite foreign keys on `contact_role`,
+    // `contact_relation`, `activity`, `note` and `invoice`.
     unique('contact_id_tenant_key').on(t.id, t.tenantId),
     index('contact_tenant_sort_idx').on(t.tenantId, t.sortName),
     check('contact_number_positive', sql`${t.contactNumber} >= 1`),
@@ -275,12 +275,99 @@ export const contact = pgTable(
 )
 
 /**
+ * The catalogue of roles. Configurable, because the practice does not only
+ * treat patients and the set of roles it needs is not known up front
+ * (CLAUDE.md rule 4).
+ *
+ * `is_system` marks the entries logic may depend on — currently `patient`
+ * alone, which is what professional secrecy and the pseudonymization towards
+ * Google key off. Such an entry cannot be deleted and its `code` cannot
+ * change; the trigger `protect_system_type` in migration 0017 enforces that,
+ * and `domain/contact-type.ts` refuses before it. The label stays editable.
+ */
+export const contactRoleType = pgTable(
+  'contact_role_type',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    code: text().notNull(),
+    label: text().notNull(),
+    isSystem: boolean().notNull().default(false),
+    /** The contact list gives this role a tab of its own; the rest stay
+     *  reachable through the dropdown beside it. */
+    showAsTab: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(0),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    // Also the target of the composite foreign key on `contact_role`, so a
+    // role type of another tenant cannot be referenced.
+    unique('contact_role_type_tenant_code_key').on(t.tenantId, t.code),
+    index('contact_role_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
+    check('contact_role_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
+  ],
+)
+
+/**
+ * The catalogue of relations between two contacts (CLAUDE.md rule 4).
+ *
+ * ## Direction
+ *
+ * `from` is the contact in whose record the fact is a property *of that
+ * contact*, `to` is the counterpart. A patient is the `from` of
+ * `billing_recipient`; a child is the `from` of `guardian`.
+ *
+ * That convention exists because `is_exclusive` is enforced per
+ * `from_contact_id`: with it, exclusivity always reads as "this contact has at
+ * most one X". Without it the direction would decide what the flag means, and
+ * the next exclusive type would have to be thought through from scratch.
+ *
+ * `parent_of` is the deliberate exception — with kinship neither side owns the
+ * fact, and "Elternteil von / Kind von" is the more common reading direction.
+ *
+ * `label_forward` is what the `from` contact's record says about the `to`
+ * contact, `label_inverse` the other way round. A symmetric type has no
+ * inverse label and reads the same from both sides.
+ */
+export const contactRelationType = pgTable(
+  'contact_relation_type',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    code: text().notNull(),
+    labelForward: text().notNull(),
+    labelInverse: text(),
+    isSymmetric: boolean().notNull().default(false),
+    isExclusive: boolean().notNull().default(false),
+    isSystem: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(0),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    unique('contact_relation_type_tenant_code_key').on(t.tenantId, t.code),
+    index('contact_relation_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.labelForward),
+    check('contact_relation_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
+    check(
+      'contact_relation_type_inverse_label',
+      sql`(${t.labelInverse} is not null) = (not ${t.isSymmetric})`,
+    ),
+  ],
+)
+
+/**
  * Roles live here rather than in a column on `contact`, because a contact
  * holds several at once and they come and go over time (CLAUDE.md rule 4).
  *
- * `role` is `text` with a named check constraint, not an enum: this set is
- * expected to change, and a check constraint is replaced with DROP/ADD in one
- * migration. The allowed values are defined once, in `packages/shared`.
+ * `role_code` points at `contact_role_type` through a composite foreign key
+ * carrying `tenant_id`, so a role type of another tenant cannot be assigned.
+ * `ON UPDATE RESTRICT` needs nothing to cascade: a code is set when the type
+ * is created and never changes.
  */
 export const contactRole = pgTable(
   'contact_role',
@@ -290,7 +377,7 @@ export const contactRole = pgTable(
       .notNull()
       .references(() => tenant.id),
     contactId: uuid().notNull(),
-    role: text().notNull().$type<ContactRole>(),
+    roleCode: text().notNull(),
     since: date({ mode: 'string' }),
     ...timestamps,
   },
@@ -300,13 +387,83 @@ export const contactRole = pgTable(
       foreignColumns: [contact.id, contact.tenantId],
       name: 'contact_role_contact_tenant_fk',
     }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.roleCode, t.tenantId],
+      foreignColumns: [contactRoleType.code, contactRoleType.tenantId],
+      name: 'contact_role_type_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
     // Also serves lookups by contact — contact_id is the leading column.
-    unique('contact_role_contact_role_key').on(t.contactId, t.role),
-    index('contact_role_tenant_role_idx').on(t.tenantId, t.role),
-    check(
-      'contact_role_role_check',
-      sql`${t.role} in ('patient', 'prospect', 'participant', 'guardian', 'billing_recipient', 'other')`,
-    ),
+    unique('contact_role_contact_role_key').on(t.contactId, t.roleCode),
+    index('contact_role_tenant_role_idx').on(t.tenantId, t.roleCode),
+  ],
+)
+
+/**
+ * One relation, stored once. Both records show it: the `from` contact through
+ * the forward label, the `to` contact through the inverse one. Storing it
+ * twice would let the two copies drift apart.
+ *
+ * A directed relation may additionally exist in the opposite direction. That
+ * is nonsense in content, but a constraint against it costs more than the case
+ * is worth. For a **symmetric** type it would be the same fact twice, so
+ * `domain/contact-relation.ts` normalizes the direction and the reverse
+ * duplicate then collides with `contact_relation_pair_key`.
+ */
+export const contactRelation = pgTable(
+  'contact_relation',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    fromContactId: uuid().notNull(),
+    toContactId: uuid().notNull(),
+    relationCode: text().notNull(),
+    since: date({ mode: 'string' }),
+    /**
+     * A mirror of `contact_relation_type.is_exclusive`, written **only** by
+     * the trigger `contact_relation_set_exclusive` (migration 0017). It exists
+     * because the partial unique index below cannot read a second table.
+     * Never set from application code, and never part of an API payload — the
+     * type is the single source of truth.
+     */
+    exclusive: boolean().notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.fromContactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'contact_relation_from_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.toContactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'contact_relation_to_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.relationCode, t.tenantId],
+      foreignColumns: [contactRelationType.code, contactRelationType.tenantId],
+      name: 'contact_relation_type_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
+    unique('contact_relation_pair_key').on(t.fromContactId, t.toContactId, t.relationCode),
+    /**
+     * At most one relation of an exclusive type per `from` contact.
+     *
+     * If relations ever gain an end date, this index has to be narrowed to the
+     * ones still running (`where exclusive and until is null`) — otherwise a
+     * relation that ended years ago blocks the new one forever.
+     */
+    uniqueIndex('contact_relation_exclusive_key')
+      .on(t.fromContactId, t.relationCode)
+      .where(sql`${t.exclusive}`),
+    // The other end: both records show the relation.
+    index('contact_relation_to_idx').on(t.toContactId),
+    check('contact_relation_not_self', sql`${t.fromContactId} <> ${t.toContactId}`),
   ],
 )
 

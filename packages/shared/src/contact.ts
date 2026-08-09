@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { typeCodeSchema } from './contact-role-type.js'
 import { optionalText, requiredText } from './field.js'
 
 /**
@@ -11,29 +12,19 @@ export type ContactKind = z.infer<typeof contactKindSchema>
 
 /**
  * Roles are separate from `kind` and there can be several per contact: a
- * prospect who becomes a patient, a parent who is both guardian and billing
- * recipient (CLAUDE.md rule 4).
+ * prospect who becomes a patient, someone who is both a patient and a course
+ * participant (CLAUDE.md rule 4).
  *
- * Stored as `text` with a named check constraint rather than as an enum —
- * this set is expected to change, and a check constraint is replaced with
- * DROP/ADD in one migration. This list is the single definition; the Drizzle
- * column type is derived from it.
+ * The set is configurable — `roleCode` points at a `contact_role_type` of the
+ * same tenant and is validated by a composite foreign key, not by an enum or a
+ * check constraint. Anything that needs a counterpart to mean something is not
+ * a role but a relation; see `contact-relation.ts`.
  */
-export const contactRoles = [
-  'patient',
-  'prospect',
-  'participant',
-  'guardian',
-  'billing_recipient',
-  'other',
-] as const
-export const contactRoleSchema = z.enum(contactRoles)
-export type ContactRole = z.infer<typeof contactRoleSchema>
 
 /** `since` may be unknown — when an old contact is entered afterwards, the
  *  date the role started often cannot be reconstructed. */
 export const contactRoleInputSchema = z.object({
-  role: contactRoleSchema,
+  roleCode: typeCodeSchema,
   since: z.iso.date().nullable().default(null),
 })
 
@@ -41,9 +32,9 @@ export type ContactRoleInput = z.infer<typeof contactRoleInputSchema>
 
 const rolesField = z
   .array(contactRoleInputSchema)
-  .max(contactRoles.length)
+  .max(50)
   .default([])
-  .refine((roles) => new Set(roles.map((entry) => entry.role)).size === roles.length, {
+  .refine((roles) => new Set(roles.map((entry) => entry.roleCode)).size === roles.length, {
     message: 'duplicate role',
   })
 
@@ -121,7 +112,7 @@ export const contactSchema = z.object({
   phone: z.string().nullable(),
   internalNote: z.string().nullable(),
   archivedAt: z.iso.datetime().nullable(),
-  roles: z.array(z.object({ role: contactRoleSchema, since: z.string().nullable() })),
+  roles: z.array(z.object({ roleCode: z.string(), since: z.string().nullable() })),
 })
 
 export type Contact = z.infer<typeof contactSchema>
@@ -136,7 +127,7 @@ export type Contact = z.infer<typeof contactSchema>
  */
 export const contactListQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
-  role: contactRoleSchema.optional(),
+  roleCode: typeCodeSchema.optional(),
   includeArchived: z
     .enum(['true', 'false'])
     .default('false')

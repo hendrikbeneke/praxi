@@ -1,10 +1,10 @@
-import type { Contact, ContactInput, ContactRole } from '@praxi/shared'
+import type { Contact, ContactInput } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
 export type ContactListParams = {
   q?: string | undefined
-  role?: ContactRole | undefined
+  roleCode?: string | undefined
   includeArchived?: boolean
   limit?: number
   offset?: number
@@ -24,7 +24,7 @@ export const contactListQueryOptions = (params: ContactListParams) =>
       const res = await api.api.contacts.$get({
         query: {
           ...(params.q ? { q: params.q } : {}),
-          ...(params.role ? { role: params.role } : {}),
+          ...(params.roleCode ? { roleCode: params.roleCode } : {}),
           includeArchived: params.includeArchived ? 'true' : 'false',
           ...(params.limit === undefined ? {} : { limit: String(params.limit) }),
           ...(params.offset === undefined ? {} : { offset: String(params.offset) }),

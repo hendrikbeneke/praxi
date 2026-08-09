@@ -6,6 +6,7 @@ import { requestLog } from './middleware/request-log.js'
 import { activitiesRoute } from './routes/activities.js'
 import { appointmentsRoute } from './routes/appointments.js'
 import { authRoute } from './routes/auth.js'
+import { contactRelationTypesRoute, contactRoleTypesRoute } from './routes/contact-types.js'
 import { contactsRoute } from './routes/contacts.js'
 import { healthRoute } from './routes/health.js'
 import { invoicesRoute } from './routes/invoices.js'
@@ -33,6 +34,8 @@ const routes = app
   .route('/api/auth', authRoute)
   .route('/api/settings', settingsRoute)
   .route('/api/contacts', contactsRoute)
+  .route('/api/contact-role-types', contactRoleTypesRoute)
+  .route('/api/contact-relation-types', contactRelationTypesRoute)
   .route('/api/services', servicesRoute)
   .route('/api/service-groups', serviceGroupsRoute)
   .route('/api/activities', activitiesRoute)
