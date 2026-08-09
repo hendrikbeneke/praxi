@@ -26,6 +26,16 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
+  /**
+   * Where uploaded files and generated PDFs live. Outside the web root, never
+   * served statically (CLAUDE.md rule 12). Relative values are resolved
+   * against the repository root, so the default works from `src/` and `dist/`
+   * alike; an absolute path moves the whole store somewhere else — a mounted
+   * volume on a server, for instance — without touching a single stored path,
+   * because `note_file.storage_path` is relative to this directory.
+   */
+  DATA_DIR: z.string().min(1).default('apps/server/data'),
+
   // Read by `pnpm db:seed` only, therefore optional here — the server must
   // start without them. The seed validates them itself and refuses to run on
   // a missing or empty password.

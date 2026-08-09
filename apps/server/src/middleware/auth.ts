@@ -1,3 +1,4 @@
+import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from '../context.js'
@@ -31,3 +32,12 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
 
   await next()
 })
+
+/** The signed-in user's id, for the columns that record who wrote something —
+ *  `note.created_by` and `note.locked_by`. Same reasoning as `tenantId()`: it
+ *  comes from the session, never from the request. */
+export function userId(c: Context<AppEnv>): string {
+  const user = c.get('user')
+  if (!user) throw new HTTPException(401, { message: messages.auth.notSignedIn })
+  return user.id
+}

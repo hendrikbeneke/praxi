@@ -8,6 +8,7 @@ import { appointmentsRoute } from './routes/appointments.js'
 import { authRoute } from './routes/auth.js'
 import { contactsRoute } from './routes/contacts.js'
 import { healthRoute } from './routes/health.js'
+import { notesRoute } from './routes/notes.js'
 import { serviceGroupsRoute } from './routes/service-groups.js'
 import { servicesRoute } from './routes/services.js'
 import { settingsRoute } from './routes/settings.js'
@@ -33,6 +34,7 @@ const routes = app
   .route('/api/service-groups', serviceGroupsRoute)
   .route('/api/activities', activitiesRoute)
   .route('/api/appointments', appointmentsRoute)
+  .route('/api/notes', notesRoute)
 
 export { app }
 export type AppType = typeof routes

@@ -12,7 +12,13 @@
  * before it is stored, so `returning` still sees the new value.
  */
 
-import type { ActivityType, AppointmentStatus, ContactKind, ContactRole } from '@praxi/shared'
+import type {
+  ActivityType,
+  AppointmentStatus,
+  ContactKind,
+  ContactRole,
+  NoteType,
+} from '@praxi/shared'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -494,6 +500,9 @@ export const activity = pgTable(
     // no appointment at all.
     unique('activity_appointment_key').on(t.appointmentId),
     unique('activity_id_tenant_key').on(t.id, t.tenantId),
+    // Target of note's three-column foreign key, so a note cannot hang on the
+    // activity of a different contact.
+    unique('activity_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
     index('activity_tenant_occurred_idx').on(t.tenantId, t.occurredAt),
     index('activity_contact_idx').on(t.contactId, t.occurredAt),
     check('activity_type_check', sql`${t.type} in ('session', 'talk', 'consultation', 'other')`),
@@ -554,5 +563,175 @@ export const activityItem = pgTable(
     index('activity_item_activity_idx').on(t.activityId, t.position),
     check('activity_item_quantity_positive', sql`${t.quantity} > 0`),
     check('activity_item_duration_positive', sql`${t.durationMin} is null or ${t.durationMin} > 0`),
+  ],
+)
+
+/**
+ * Documentation. Freely editable until locked; after that neither the note nor
+ * its files can be changed or deleted, enforced by the `protect_locked_note`
+ * trigger in migration 0011 and not only in application code (CLAUDE.md
+ * rule 7). There is no unlock path — not for admins, not via a flag, not via a
+ * maintenance script.
+ *
+ * A locked note is corrected by supplementing it: a new note of type
+ * `addendum` with `corrects_note_id` pointing at the locked one.
+ *
+ * *Why: § 630f BGB requires corrections to remain traceable with the original
+ * content recognizable. Lock plus append-only addenda satisfies this without a
+ * full change log.*
+ */
+export const note = pgTable(
+  'note',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    contactId: uuid().notNull(),
+    activityId: uuid(),
+    /** The day being documented — not necessarily the day of writing, which is
+     *  `created_at`. Both go into the content hash. */
+    noteDate: date({ mode: 'string' }).notNull(),
+    type: text().notNull().$type<NoteType>(),
+    /** Named `text` rather than `body` because CLAUDE.md rule 7 spells the
+     *  canonical serialization with that key, and the two lining up is worth
+     *  more than avoiding `text text`. */
+    text: text().notNull(),
+    createdBy: uuid().notNull(),
+    lockedAt: timestamp({ withTimezone: true }),
+    lockedBy: uuid(),
+    /** SHA-256 over the canonical serialization — see `domain/note-hash.ts`.
+     *  Null until locked. */
+    contentHash: text(),
+    /** The `content_hash` of the previously locked note of the same contact;
+     *  null for the first link. */
+    prevHash: text(),
+    correctsNoteId: uuid(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.contactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'note_contact_tenant_fk',
+    }),
+    /**
+     * Restrict, not set null: nulling `activity_id` is an UPDATE, and on a
+     * locked note the trigger would reject it — deleting an activity would
+     * fail with "locked note is immutable". `deleteActivity` checks for notes
+     * beforehand and refuses with something readable instead.
+     */
+    foreignKey({
+      columns: [t.activityId, t.contactId, t.tenantId],
+      foreignColumns: [activity.id, activity.contactId, activity.tenantId],
+      name: 'note_activity_contact_tenant_fk',
+    }).onDelete('restrict'),
+    // Three columns again: an addendum cannot correct another contact's note.
+    foreignKey({
+      columns: [t.correctsNoteId, t.contactId, t.tenantId],
+      foreignColumns: [t.id, t.contactId, t.tenantId],
+      name: 'note_corrects_contact_tenant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.createdBy, t.tenantId],
+      foreignColumns: [appUser.id, appUser.tenantId],
+      name: 'note_created_by_tenant_fk',
+    }),
+    foreignKey({
+      columns: [t.lockedBy, t.tenantId],
+      foreignColumns: [appUser.id, appUser.tenantId],
+      name: 'note_locked_by_tenant_fk',
+    }),
+    unique('note_id_tenant_key').on(t.id, t.tenantId),
+    unique('note_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
+    index('note_contact_date_idx').on(t.contactId, t.noteDate, t.createdAt),
+    index('note_activity_idx').on(t.activityId),
+    index('note_corrects_idx').on(t.correctsNoteId),
+    /**
+     * The chain stays linear. Two locks running at the same moment would both
+     * read the same tail and both write its hash into `prev_hash`, forking the
+     * chain into two branches that each verify fine on their own — the one
+     * failure this mechanism must not have. The unique index turns that race
+     * into an error instead. Nulls do not collide, hence the second index
+     * below for the head.
+     *
+     * Do not drop these as "unused". Nothing reads them; they exist to make a
+     * state unreachable.
+     */
+    uniqueIndex('note_chain_link_key')
+      .on(t.contactId, t.prevHash)
+      .where(sql`${t.prevHash} is not null`),
+    /** …and a contact has exactly one first link, for the same reason. */
+    uniqueIndex('note_chain_head_key')
+      .on(t.contactId)
+      .where(sql`${t.lockedAt} is not null and ${t.prevHash} is null`),
+    check(
+      'note_type_check',
+      sql`${t.type} in ('general', 'session', 'document', 'correspondence', 'addendum', 'other')`,
+    ),
+    // Locked means all three set, unlocked means none of them.
+    check(
+      'note_lock_fields',
+      sql`(${t.lockedAt} is null and ${t.lockedBy} is null and ${t.contentHash} is null)
+          or (${t.lockedAt} is not null and ${t.lockedBy} is not null and ${t.contentHash} is not null)`,
+    ),
+    check('note_prev_hash_requires_lock', sql`${t.prevHash} is null or ${t.lockedAt} is not null`),
+    check(
+      'note_hash_shape',
+      sql`(${t.contentHash} is null or ${t.contentHash} ~ '^[0-9a-f]{64}$')
+          and (${t.prevHash} is null or ${t.prevHash} ~ '^[0-9a-f]{64}$')`,
+    ),
+    check(
+      'note_addendum_target',
+      sql`(${t.type} = 'addendum') = (${t.correctsNoteId} is not null)`,
+    ),
+    check(
+      'note_addendum_not_self',
+      sql`${t.correctsNoteId} is null or ${t.correctsNoteId} <> ${t.id}`,
+    ),
+  ],
+)
+
+/**
+ * An attachment. Cascading on delete is safe precisely because a locked note
+ * cannot be deleted: the cascade only ever reaches notes that are still open.
+ *
+ * `storage_path` is relative to the data root, never absolute — otherwise
+ * moving the practice to a server would be a data migration. The bytes live
+ * outside the web root and are served only through an authenticated route
+ * (CLAUDE.md rule 12).
+ */
+export const noteFile = pgTable(
+  'note_file',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    noteId: uuid().notNull(),
+    /** As uploaded, for display only. Never a path segment: a file name is
+     *  clinical content and has no business in a directory listing. */
+    fileName: text().notNull(),
+    /** What the bytes actually are, not what the upload claimed. */
+    mimeType: text().notNull(),
+    sizeBytes: integer().notNull(),
+    storagePath: text().notNull(),
+    sha256: text().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.noteId, t.tenantId],
+      foreignColumns: [note.id, note.tenantId],
+      name: 'note_file_note_tenant_fk',
+    }).onDelete('cascade'),
+    unique('note_file_storage_path_key').on(t.tenantId, t.storagePath),
+    index('note_file_note_idx').on(t.noteId),
+    check('note_file_size_positive', sql`${t.sizeBytes} > 0`),
+    check('note_file_sha256_shape', sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'note_file_path_relative',
+      sql`${t.storagePath} !~ '^/' and ${t.storagePath} !~ '\\.\\.'`,
+    ),
   ],
 )

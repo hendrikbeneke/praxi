@@ -14,7 +14,7 @@ const UNIQUE_VIOLATION = '23505'
  *  one, so the name identifies it. */
 const EXCLUSION_VIOLATION = '23P01'
 
-type PostgresError = { code?: unknown; constraint_name?: unknown }
+type PostgresError = { code?: unknown; constraint_name?: unknown; message?: unknown }
 
 /**
  * Drizzle wraps driver errors in a `DrizzleQueryError` whose message is the
@@ -47,4 +47,23 @@ export function uniqueViolationConstraint(error: unknown): string | null {
 export function isOverlapViolation(error: unknown): boolean {
   const driver = driverError(error)
   return driver?.code === EXCLUSION_VIOLATION
+}
+
+/** SQLSTATE P0001 — `RAISE EXCEPTION` from PL/pgSQL, which is how the
+ *  `protect_locked_note` triggers refuse. */
+const RAISE_EXCEPTION = 'P0001'
+
+/**
+ * The message a trigger raised, or `null` for anything else.
+ *
+ * Unlike the messages this module otherwise keeps hidden, these are ours: they
+ * come from `RAISE EXCEPTION` in a migration we wrote and carry no row values.
+ * Used by the tests to assert that the *database* refused, not the domain code
+ * — the wrapper Drizzle throws says only which SQL failed.
+ */
+export function raisedMessage(error: unknown): string | null {
+  const driver = driverError(error)
+  if (!driver || driver.code !== RAISE_EXCEPTION) return null
+
+  return typeof driver.message === 'string' ? driver.message : ''
 }

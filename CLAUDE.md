@@ -214,12 +214,14 @@ BEGIN
   IF OLD.locked_at IS NOT NULL THEN
     RAISE EXCEPTION 'locked note is immutable';
   END IF;
-  RETURN NEW;
+  RETURN coalesce(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
 ```
 
-as `BEFORE UPDATE OR DELETE`, plus an equivalent guard on `note_file` checking its parent note.
+as `BEFORE UPDATE OR DELETE`, plus an equivalent guard on `note_file` checking its parent note — that one also on `INSERT`, or a file could be attached to a note whose hash was already formed.
+
+`coalesce(NEW, OLD)` rather than `NEW`: in a `BEFORE DELETE` trigger `NEW` is NULL, and a `BEFORE` row trigger returning NULL **silently cancels the operation**. With plain `RETURN NEW` deleting an *unlocked* note reports success and changes nothing. Found in slice 5, corrected in migration `0012`.
 
 A locked note cannot be corrected, only supplemented: a new note of type `addendum` with `corrects_note_id` pointing at the locked one. Addenda render indented beneath the note they correct, labelled as an addendum with their own date. There is no unlock path — not for admins, not via a flag, not via a maintenance script.
 
@@ -514,15 +516,91 @@ appointment           tenant_id uuid not null -> tenant(id),
                       -- google_event_id / google_etag / last_pushed_at come in
                       -- slice 9 with the sync that fills them.
 
-note                  tenant_id, contact_id, activity_id (nullable),
-                      note_date, type (?general|session|file|correspondence|
-                                       addendum|other),
-                      text, created_by,
-                      locked_at, locked_by,
-                      content_hash, prev_hash, corrects_note_id
+-- as built (slice 5)
+note                  tenant_id uuid not null -> tenant(id),
+                      contact_id uuid not null,
+                      activity_id uuid,                         (nullable)
+                      note_date date not null,                  -- the day
+                        -- documented, not the day of writing; both go into the
+                        -- hash
+                      type text not null check in ('general','session',
+                        'document','correspondence','addendum','other')
+                        -- `document`, not the sketch's `file`: a note of type
+                        -- "file" next to a table `note_file` reads as if it
+                        -- were the attachment itself
+                      text text not null,                       -- named `text`
+                        -- and not `body`, so the column and the key in the
+                        -- canonical serialization of rule 7 line up
+                      created_by uuid not null,
+                      locked_at timestamptz, locked_by uuid,
+                      content_hash text, prev_hash text,        -- 64 hex,
+                        -- null until locked; prev_hash also null at the head
+                      corrects_note_id uuid
+                      foreign key (contact_id, tenant_id)
+                        -> contact (id, tenant_id)
+                      foreign key (activity_id, contact_id, tenant_id)
+                        -> activity (id, contact_id, tenant_id)
+                        on delete restrict                      -- NOT set null:
+                        -- that is an UPDATE, and on a locked note the trigger
+                        -- would turn deleting an activity into "locked note is
+                        -- immutable". deleteActivity checks first and refuses
+                        -- readably. `activity` gained
+                        -- unique (id, contact_id, tenant_id) for this key.
+                      foreign key (corrects_note_id, contact_id, tenant_id)
+                        -> note (id, contact_id, tenant_id) on delete restrict
+                        -- three columns so an addendum cannot correct another
+                        -- contact's note
+                      foreign key (created_by, tenant_id)
+                        -> app_user (id, tenant_id)
+                      foreign key (locked_by, tenant_id)
+                        -> app_user (id, tenant_id)
+                      unique (id, tenant_id),
+                      unique (id, contact_id, tenant_id)
+                      index (contact_id, note_date, created_at),
+                      index (activity_id), index (corrects_note_id)
+                      unique index note_chain_link_key
+                        on (contact_id, prev_hash) where prev_hash is not null
+                      unique index note_chain_head_key
+                        on (contact_id) where locked_at is not null
+                                         and prev_hash is null
+                        -- Both keep the chain linear: two locks at the same
+                        -- instant would read the same tail and fork it into
+                        -- two branches that each verify fine on their own.
+                        -- Nothing queries them; they make a state unreachable.
+                        -- COMMENT ON INDEX says so in the database too.
+                      check note_lock_fields (locked_at, locked_by and
+                        content_hash are all set or all null)
+                      check note_prev_hash_requires_lock,
+                      check note_hash_shape (^[0-9a-f]{64}$)
+                      check note_addendum_target (
+                        (type = 'addendum') = (corrects_note_id is not null))
+                      check note_addendum_not_self
+                      -- triggers protect_locked_note (migration 0011, fixed in
+                      -- 0012) and set_updated_at; RLS created and disabled.
 
-note_file             tenant_id, note_id, file_name, mime_type, size_bytes,
-                      storage_path, sha256
+-- as built (slice 5)
+note_file             tenant_id uuid not null -> tenant(id),
+                      note_id uuid not null,
+                      file_name text not null,                  -- as uploaded,
+                        -- for display only — never a path segment, a file name
+                        -- is clinical content (rule 12)
+                      mime_type text not null,                  -- detected from
+                        -- the bytes, not taken from the upload
+                      size_bytes integer not null check (> 0),
+                      storage_path text not null,               -- relative to
+                        -- DATA_DIR: files/{contactId}/{noteId}/{fileId}.{ext}.
+                        -- Absolute would make a move to a server a data
+                        -- migration.
+                      sha256 text not null check (^[0-9a-f]{64}$)
+                      foreign key (note_id, tenant_id)
+                        -> note (id, tenant_id) on delete cascade
+                        -- safe precisely because a locked note cannot be
+                        -- deleted: the cascade only reaches open ones
+                      unique (tenant_id, storage_path),
+                      index (note_id)
+                      check note_file_path_relative (no leading /, no ..)
+                      -- trigger protect_locked_note_file fires on INSERT too;
+                      -- set_updated_at; RLS created and disabled.
 
 text_template         tenant_id, kind (intro|outro), name, body,
                       is_default, is_paid_variant

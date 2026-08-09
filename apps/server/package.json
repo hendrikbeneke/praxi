@@ -18,7 +18,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed/run.ts",
     "db:seed:services": "tsx src/db/seed/run-services.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "files:orphans": "tsx src/scripts/files-orphans.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.0",

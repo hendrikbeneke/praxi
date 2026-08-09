@@ -43,6 +43,34 @@ export const messages = {
       'Diese Leistungsgruppe existiert nicht oder enthält keine Leistungen. ' +
       'Bitte prüfen Sie den Katalog.',
   },
+  note: {
+    notFound: 'Diese Notiz existiert nicht.',
+    locked:
+      'Diese Notiz ist gesperrt und kann nicht mehr geändert werden. ' +
+      'Ergänzen Sie sie stattdessen durch einen Nachtrag.',
+    alreadyLocked: 'Diese Notiz ist bereits gesperrt.',
+    addendumTargetMissing: 'Die Notiz, die ergänzt werden soll, existiert nicht.',
+    addendumTargetUnlocked:
+      'Ein Nachtrag ist nur zu einer gesperrten Notiz möglich. ' +
+      'Eine offene Notiz können Sie direkt bearbeiten.',
+    addendumTypeFixed:
+      'Ob eine Notiz ein Nachtrag ist, steht mit dem Anlegen fest und lässt sich nicht ändern.',
+    chainForked:
+      'Diese Notiz konnte nicht gesperrt werden, weil zeitgleich eine andere gesperrt wurde. ' +
+      'Bitte versuchen Sie es erneut.',
+    fileMissing: 'Es wurde keine Datei übermittelt.',
+    fileTooLarge: 'Die Datei ist zu groß. Erlaubt sind höchstens 25 MB.',
+    fileTypeNotAccepted:
+      'Dieser Dateityp wird nicht angenommen. Möglich sind PDF sowie die Bildformate ' +
+      'JPEG, PNG, WebP, HEIC und TIFF.',
+    fileNotFound: 'Diese Datei existiert nicht.',
+    fileGone:
+      'Die Datei ist nicht mehr auf der Festplatte. Bitte prüfen Sie die Dokumentation ' +
+      'dieses Kontakts.',
+    activityHasNotes:
+      'Zu diesem Vorgang gibt es Notizen. Bitte lösen Sie die Notizen zuerst vom Vorgang ' +
+      'oder löschen Sie sie, bevor Sie den Vorgang löschen.',
+  },
   appointment: {
     notFound: 'Dieser Termin existiert nicht.',
     overlap:

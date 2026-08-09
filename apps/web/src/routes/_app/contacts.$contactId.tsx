@@ -4,16 +4,20 @@ import {
   formatBerlinDate,
   formatBerlinTime,
   formatContactName,
+  type Note,
   occupiesSlot,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, ArrowLeft, Plus } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, Plus, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ActivityDialog } from '@/components/activity-dialog'
 import { ActivityList } from '@/components/activity-list'
 import { ContactForm } from '@/components/contact-form'
+import { NoteChainDialog } from '@/components/note-chain-dialog'
+import { NoteDialog } from '@/components/note-dialog'
+import { NoteList } from '@/components/note-list'
 import { PageHeader } from '@/components/page-header'
 import {
   AlertDialog,
@@ -32,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { activityListQueryOptions } from '@/lib/activities'
 import { ApiError } from '@/lib/api'
 import { contactQueryOptions, setContactArchived, updateContact } from '@/lib/contacts'
+import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
 export const Route = createFileRoute('/_app/contacts/$contactId')({
@@ -154,12 +159,14 @@ function ContactDetailPage() {
           <ContactAppointments contactId={contactId} />
         </TabsContent>
 
-        {/* Present but empty — these fill up in slices 5 and 6. */}
-        {(['notes', 'invoices'] as const).map((tab) => (
-          <TabsContent key={tab} value={tab} className="pt-6">
-            <p className="text-muted-foreground text-sm">{strings.placeholder.comingSoon}</p>
-          </TabsContent>
-        ))}
+        <TabsContent value="notes" className="pt-6">
+          <ContactNotes contactId={contactId} />
+        </TabsContent>
+
+        {/* Present but empty — this fills up in slice 6. */}
+        <TabsContent value="invoices" className="pt-6">
+          <p className="text-muted-foreground text-sm">{strings.placeholder.comingSoon}</p>
+        </TabsContent>
       </Tabs>
     </>
   )
@@ -196,6 +203,59 @@ function ContactActivities({ contactId }: { contactId: string }) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
+    </>
+  )
+}
+
+function ContactNotes({ contactId }: { contactId: string }) {
+  const notes = useQuery(noteListQueryOptions({ contactId }))
+
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [edited, setEdited] = useState<Note | undefined>()
+  const [corrects, setCorrects] = useState<Note | undefined>()
+  const [chainOpen, setChainOpen] = useState(false)
+
+  function open(note?: Note, addendumTo?: Note) {
+    setEdited(note)
+    setCorrects(addendumTo)
+    setDialogOpen(true)
+  }
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={() => setChainOpen(true)}>
+          <ShieldCheck className="size-4" aria-hidden />
+          {strings.note.chainCheck}
+        </Button>
+        <Button onClick={() => open()}>
+          <Plus className="size-4" aria-hidden />
+          {strings.note.create}
+        </Button>
+      </div>
+
+      <NoteList
+        notes={notes.data ?? []}
+        emptyText={notes.isPending ? strings.status.loading : strings.note.empty}
+        onEdit={(note) => open(note)}
+        onAddendum={(note) => open(undefined, note)}
+      />
+
+      <NoteDialog
+        contactId={contactId}
+        note={edited}
+        correctsNote={corrects}
+        open={dialogOpen}
+        onOpenChange={(next) => {
+          setDialogOpen(next)
+          if (!next) {
+            setEdited(undefined)
+            setCorrects(undefined)
+          }
+        }}
+      />
+
+      <NoteChainDialog contactId={contactId} open={chainOpen} onOpenChange={setChainOpen} />
     </>
   )
 }

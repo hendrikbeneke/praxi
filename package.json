@@ -21,7 +21,8 @@
     "db:migrate": "pnpm --filter @praxi/server db:migrate",
     "db:seed": "pnpm --filter @praxi/server db:seed",
     "db:seed:services": "pnpm --filter @praxi/server db:seed:services",
-    "db:studio": "pnpm --filter @praxi/server db:studio"
+    "db:studio": "pnpm --filter @praxi/server db:studio",
+    "files:orphans": "pnpm --filter @praxi/server files:orphans"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.7",

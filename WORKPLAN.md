@@ -11,7 +11,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 2 | Contacts and roles | **done** |
 | 3 | Services and service groups | **done** |
 | 4 | Activities and appointments | **done** |
-| 5 | Notes, files, locking | todo |
+| 5 | Notes, files, locking | **done** |
 | 6 | Invoices: draft, finalize, PDF | todo |
 | 7 | Cancellation invoices | todo |
 | 8 | Payments and receivables | todo |
@@ -316,6 +316,77 @@ The most rule-heavy slice. See CLAUDE.md rule 7.
 - Tests: chain across several notes, tamper detection, trigger blocks updates to locked rows and their files, addendum flow
 
 **Done when:** I can document a session, attach a file, lock it, supplement it with an addendum, and the verification reports a manually tampered row as broken.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **The canonical serialization is frozen and documented in full** at
+  `domain/note-hash.ts`: six keys, alphabetically sorted, no whitespace, UTF-8,
+  `createdAt` at millisecond precision because that is what the driver returns
+  from a `timestamptz`, file hashes sorted ascending, no Unicode normalization.
+  The sort is *executed* (`JSON.stringify(value, [...keys].sort())`) so a
+  reordered object literal cannot shift it. `note-hash.test.ts` pins both the
+  exact string and a hard-coded digest; if it fails, the format changed and the
+  code is wrong, not the expectation. A future field needs a second hash
+  version, never an edit to this one.
+- **`note.type` is `document`, not the sketch's `file`** — a note of type
+  "file" next to a table `note_file` reads as if it were the attachment.
+- **Files and the lock**: the hash covers the files as they are at the moment
+  of locking. `lockNote` and `addFile` both take `SELECT … FOR UPDATE` on the
+  note row, so an upload cannot slip between reading the files and writing
+  `locked_at`. The `note_file` trigger fires on **INSERT** as well — without
+  that, a file could hang on a locked note and appear in no hash at all.
+- **Layout** `files/{contactId}/{noteId}/{fileId}.{ext}`, `storage_path` stored
+  **relative** to `DATA_DIR` so a move to a server is a copy plus one variable.
+  No path segment comes from user input, and the uploaded name is never one:
+  a file name is clinical content (rule 12) and lives only in `file_name`.
+  `domain/file-store.ts` asserts containment under the root anyway.
+- **Orphans**: rows are committed first, bytes removed second — a leftover file
+  is recoverable garbage, a row pointing at a missing file is data loss. The
+  failure is logged with ids only, and `pnpm files:orphans` lists what is
+  unreferenced (`--delete` removes it). Uploads go the other way: row inserted,
+  bytes written, commit last, so a full disk rolls back cleanly.
+- **`verifyChain` reads the file bytes by default** and the UI never turns that
+  off; `{ checkFiles: false }` exists as a parameter for a later, larger
+  installation. The report separates **content** (the row was altered),
+  **link** (the chain was cut) and **file** (bytes swapped or missing) and
+  names each note by date and id, because the three have different causes.
+- **Two partial unique indexes** — `note_chain_link_key` and
+  `note_chain_head_key` — make a forked chain unreachable. Nothing queries
+  them; `COMMENT ON INDEX` says so in the database so a future cleanup does not
+  drop them as unused.
+- **`note.activity_id` is `ON DELETE RESTRICT`**, not set null: nulling is an
+  UPDATE, and on a locked note the trigger would answer "locked note is
+  immutable" when someone deletes an activity. `deleteActivity` checks first
+  and refuses with something readable. `activity` gained
+  `unique (id, contact_id, tenant_id)` as the target of the three-column key.
+- **Uploads are sniffed, not believed**: PDF, JPEG, PNG, WebP, HEIC, TIFF by
+  magic bytes, 25 MB, and the stored `mime_type` is the detected one. Downloads
+  always send `nosniff` and a sandbox CSP, and only those types may render
+  inline.
+- **Attachments are managed on a saved note.** The everyday order is write,
+  save, attach, lock; allowing an upload before the first save would need a
+  second code path with a half-created note.
+
+Found while building:
+
+- **The trigger in CLAUDE.md rule 7 silently cancelled every delete.** It ended
+  with `RETURN NEW`, and in a `BEFORE DELETE` trigger `NEW` is NULL — a BEFORE
+  row trigger returning NULL cancels the operation with no error at all. So
+  deleting an *unlocked* note reported success and left the row in place; the
+  locked case only worked because it raises before reaching the return.
+  Migration `0012` replaces the function with `RETURN coalesce(NEW, OLD)`, and
+  the snippet in CLAUDE.md is corrected.
+- **drizzle-kit ordered migration 0010 wrongly**, emitting note's three-column
+  foreign key before the `unique (id, contact_id, tenant_id)` on `activity`
+  that it references. Moved by hand before the file had ever run.
+- **Asserting on a trigger's message needs the cause chain**, the same trap as
+  slice 3: `rejects.toThrow(/locked note is immutable/)` fails even though the
+  trigger fired, because Drizzle's own message is only the failed SQL.
+  `db/errors.ts` gained `raisedMessage()` for SQLSTATE P0001, and the tests use
+  it — otherwise the assertion would have passed for any failure whatsoever.
+  The trigger tests deliberately go around `domain/` and write to the table
+  directly, including the combination that matters: attach a file, lock the
+  note, then try to update and delete the file.
 
 ## Slice 6 — Invoices: draft, finalize, PDF
 

@@ -71,6 +71,27 @@
       "when": 1786228413269,
       "tag": "0009_appointment_overlap_and_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786263181881,
+      "tag": "0010_talented_mentor",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786263182881,
+      "tag": "0011_note_locking_and_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786263183881,
+      "tag": "0012_protect_locked_note_return_old",
+      "breakpoints": true
     }
   ]
 }

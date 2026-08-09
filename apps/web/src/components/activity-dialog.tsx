@@ -7,6 +7,7 @@ import {
   activityTypes,
   addMinutesToLocal,
   appointmentStatuses,
+  formatBerlinDate,
   formatEuro,
   formatEuroAmount,
   fromBerlinDateTimeLocal,
@@ -23,6 +24,7 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -45,6 +47,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { createActivity, updateActivity } from '@/lib/activities'
 import { ApiError } from '@/lib/api'
+import { noteListQueryOptions } from '@/lib/notes'
 import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/services'
 import { strings } from '@/lib/strings'
 
@@ -686,6 +689,8 @@ export function ActivityDialog({
             )}
           </section>
 
+          {activity && <ActivityNotes activityId={activity.id} />}
+
           <section>
             <Label htmlFor={`${formId}-note`}>{strings.activity.internalNote}</Label>
             <Textarea
@@ -715,5 +720,52 @@ export function ActivityDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The documentation written for this activity, read-only.
+ *
+ * Notes are written and locked on the contact's Notizen tab — this is here so
+ * that opening a session shows what was recorded for it without hunting for
+ * it. Editing from inside a dialog that is itself a form would mean a second
+ * dialog on top of the first, for no gain.
+ */
+function ActivityNotes({ activityId }: { activityId: string }) {
+  const notes = useQuery(noteListQueryOptions({ activityId }))
+  const rows = notes.data ?? []
+
+  return (
+    <section>
+      <p className="font-medium text-sm">{strings.note.title}</p>
+
+      {rows.length === 0 ? (
+        <p className="mt-1 text-muted-foreground text-sm">
+          {notes.isPending ? strings.status.loading : strings.note.empty}
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {rows.map((entry) => (
+            <li key={entry.id} className="rounded-md border px-3 py-2">
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <span className="text-sm">{formatBerlinDate(`${entry.noteDate}T12:00:00Z`)}</span>
+                <Badge variant="outline">{strings.note.types[entry.type]}</Badge>
+                {entry.lockedAt !== null && (
+                  <Badge variant="secondary">{strings.note.lockedBadge}</Badge>
+                )}
+                {entry.files.length > 0 && (
+                  <span className="text-muted-foreground text-xs">
+                    {entry.files.length} {strings.note.files}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-muted-foreground text-sm">
+                {entry.text}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

@@ -6,6 +6,7 @@ import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { isOverlapViolation } from '../db/errors.js'
 import {
+  ActivityHasNotesError,
   createActivity,
   deleteActivity,
   getActivity,
@@ -28,6 +29,9 @@ function notFound(): never {
 /** The rules live in `domain/activity.ts`; this only decides how they reach
  *  the client. */
 function translate(error: unknown): never {
+  if (error instanceof ActivityHasNotesError) {
+    throw new HTTPException(409, { message: messages.note.activityHasNotes })
+  }
   if (error instanceof UnknownServiceError) {
     throw new HTTPException(409, { message: messages.activity.unknownService })
   }
@@ -74,6 +78,8 @@ export const activitiesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:activityId', validate('param', activityParam), async (c) => {
-    const deleted = await deleteActivity(db(), tenantId(c), c.req.valid('param').activityId)
+    const deleted = await deleteActivity(db(), tenantId(c), c.req.valid('param').activityId).catch(
+      translate,
+    )
     return deleted ? c.body(null, 204) : notFound()
   })

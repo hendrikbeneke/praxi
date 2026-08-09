@@ -324,6 +324,98 @@ export const strings = {
     moved: 'Termin verschoben.',
     moveFailed: 'Der Termin konnte nicht verschoben werden.',
   },
+  note: {
+    title: 'Notizen',
+    create: 'Neue Notiz',
+    createTitle: 'Notiz anlegen',
+    editTitle: 'Notiz bearbeiten',
+    addendumTitle: 'Nachtrag schreiben',
+    empty: 'Noch keine Notizen.',
+
+    noteDate: 'Datum',
+    type: 'Art',
+    types: {
+      general: 'Allgemein',
+      session: 'Sitzung',
+      document: 'Dokument',
+      correspondence: 'Korrespondenz',
+      addendum: 'Nachtrag',
+      other: 'Sonstiges',
+    },
+    text: 'Text',
+    activity: 'Zum Vorgang',
+    activityNone: 'Kein Vorgang',
+    writtenBy: 'Verfasst von',
+
+    save: 'Speichern',
+    saving: 'Wird gespeichert …',
+    cancel: 'Abbrechen',
+    created: 'Notiz angelegt.',
+    saved: 'Notiz gespeichert.',
+    saveFailed: 'Die Notiz konnte nicht gespeichert werden.',
+    edit: 'Bearbeiten',
+    remove: 'Löschen',
+    removeTitle: 'Notiz löschen?',
+    removeBody:
+      'Die Notiz und ihre Anhänge werden gelöscht. Das lässt sich nicht rückgängig machen.',
+    removed: 'Notiz gelöscht.',
+
+    /** The one action in this application that cannot be taken back. Say so
+     *  plainly — CLAUDE.md rule 7. */
+    lock: 'Sperren',
+    lockTitle: 'Notiz sperren?',
+    lockBody:
+      'Nach dem Sperren lässt sich diese Notiz nie wieder ändern oder löschen — auch nicht ' +
+      'von Ihnen, auch nicht über die Datenbank. Angehängte Dateien ebenso wenig, und es ' +
+      'kann keine weitere Datei mehr hinzukommen. Korrekturen sind danach nur noch als ' +
+      'Nachtrag möglich, der sichtbar unter der Notiz steht.',
+    lockConfirm: 'Endgültig sperren',
+    locked: 'Notiz gesperrt.',
+    lockFailed: 'Die Notiz konnte nicht gesperrt werden.',
+    lockedBadge: 'Gesperrt',
+    lockedAt: 'Gesperrt am',
+    openBadge: 'Offen',
+    addendum: 'Nachtrag',
+    addendumTo: 'Nachtrag zu',
+    writeAddendum: 'Nachtrag',
+
+    files: 'Anhänge',
+    filesEmpty: 'Keine Anhänge.',
+    fileAdd: 'Datei anhängen',
+    fileUploading: 'Wird hochgeladen …',
+    fileAdded: 'Datei angehängt.',
+    fileFailed: 'Die Datei konnte nicht angehängt werden.',
+    fileRemove: 'Datei entfernen',
+    fileRemoved: 'Datei entfernt.',
+    fileOpen: 'Öffnen',
+    fileDownload: 'Herunterladen',
+    fileHint:
+      'PDF sowie JPEG, PNG, WebP, HEIC und TIFF, höchstens 25 MB. ' +
+      'Anhänge sind Teil der Notiz und werden beim Sperren mit festgeschrieben.',
+    filesAfterSave: 'Dateien lassen sich anhängen, sobald die Notiz gespeichert ist.',
+
+    chainCheck: 'Dokumentation prüfen',
+    chainTitle: 'Prüfung der Dokumentation',
+    chainRunning: 'Wird geprüft …',
+    chainEmpty: 'Für diesen Kontakt ist noch keine Notiz gesperrt.',
+    chainOk: 'Alles in Ordnung.',
+    chainOkBody: (count: number) =>
+      `${count} gesperrte ${count === 1 ? 'Notiz' : 'Notizen'} geprüft, einschließlich der ` +
+      'angehängten Dateien. Keine Abweichung.',
+    chainBroken: 'Es gibt Abweichungen.',
+    chainBrokenBody:
+      'Bitte sichern Sie den aktuellen Stand und klären Sie die Ursache, bevor Sie ' +
+      'weiterarbeiten.',
+    chainContentBroken:
+      'Der Inhalt weicht von der gespeicherten Prüfsumme ab — die Zeile wurde nach dem ' +
+      'Sperren verändert.',
+    chainLinkBroken:
+      'Die Kette ist an dieser Stelle unterbrochen — davor wurde eine Notiz entfernt oder ' +
+      'eingefügt.',
+    chainFileMismatch: 'Der Inhalt dieser Datei weicht ab.',
+    chainFileMissing: 'Diese Datei liegt nicht mehr auf der Festplatte.',
+    chainEntryOk: 'unverändert',
+  },
   actions: {
     recheck: 'Erneut prüfen',
     retry: 'Erneut versuchen',

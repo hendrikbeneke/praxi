@@ -9,7 +9,14 @@ import type {
 } from '@praxi/shared'
 import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
-import { activity, activityItem, appointment, service, serviceGroupItem } from '../db/schema.js'
+import {
+  activity,
+  activityItem,
+  appointment,
+  note,
+  service,
+  serviceGroupItem,
+} from '../db/schema.js'
 import { newId } from '../id.js'
 
 /**
@@ -27,6 +34,15 @@ export class UnknownServiceError extends Error {
   constructor() {
     super('activity references a service that does not exist in this tenant')
     this.name = 'UnknownServiceError'
+  }
+}
+
+/** Deleting an activity that documentation hangs on. See the note at
+ *  `deleteActivity` for why this is a refusal rather than a detach. */
+export class ActivityHasNotesError extends Error {
+  constructor() {
+    super('activity still has notes attached')
+    this.name = 'ActivityHasNotesError'
   }
 }
 
@@ -437,6 +453,21 @@ export async function deleteActivity(
       .limit(1)
 
     if (!existing) return false
+
+    /**
+     * Notes hold the activity with `ON DELETE RESTRICT`, so the database would
+     * refuse anyway — but with a foreign key violation rather than something
+     * readable. Restrict rather than set null on purpose: nulling the column
+     * is an UPDATE, and on a locked note that would come back as "locked note
+     * is immutable", which describes neither the cause nor the way out.
+     */
+    const [attached] = await tx
+      .select({ id: note.id })
+      .from(note)
+      .where(and(eq(note.tenantId, tenantId), eq(note.activityId, id)))
+      .limit(1)
+
+    if (attached) throw new ActivityHasNotesError()
 
     // Items go with it through `on delete cascade`.
     await tx.delete(activity).where(and(eq(activity.tenantId, tenantId), eq(activity.id, id)))
