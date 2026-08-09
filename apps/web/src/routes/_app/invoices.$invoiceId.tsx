@@ -45,6 +45,7 @@ import {
   deleteInvoice,
   finalizeInvoice,
   invoiceQueryOptions,
+  numberRangeListQueryOptions,
   pdfUrl,
   previewUrl,
   textTemplateListQueryOptions,
@@ -113,6 +114,7 @@ function InvoiceDetailPage() {
 
   const { data: invoice } = useQuery(invoiceQueryOptions(invoiceId))
   const templates = useQuery(textTemplateListQueryOptions)
+  const ranges = useQuery(numberRangeListQueryOptions)
   const formId = useId()
 
   const [invoiceDate, setInvoiceDate] = useState('')
@@ -122,6 +124,13 @@ function InvoiceDetailPage() {
   const [lines, setLines] = useState<DraftLine[]>([])
 
   const isDraft = invoice?.status === 'draft'
+  /**
+   * Without a configured range there is no number to assign, so finalizing
+   * cannot work. Said here rather than only in the settings: otherwise the
+   * whole invoice gets built and the refusal arrives on the last click.
+   */
+  const hasNumberRange = (ranges.data ?? []).some((range) => range.code === 'invoice')
+  const canFinalize = isDraft && hasNumberRange && !ranges.isPending
 
   useEffect(() => {
     if (!invoice) return
@@ -136,8 +145,14 @@ function InvoiceDetailPage() {
     await queryClient.invalidateQueries({ queryKey: ['invoices'] })
   }
 
+  /**
+   * `silent` is for the save that finalizing does first. Reporting "saved"
+   * there is worse than saying nothing: the practitioner pressed Festschreiben,
+   * and a success message next to a failed finalization reads as if the
+   * document had been issued.
+   */
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (_options: { silent?: boolean } = {}) =>
       updateInvoice(invoiceId, {
         invoiceDate,
         paymentTermDays,
@@ -145,9 +160,9 @@ function InvoiceDetailPage() {
         outroText: outroText.trim() === '' ? null : outroText.trim(),
         lines: lines.map(toInput),
       }),
-    onSuccess: async () => {
+    onSuccess: async (_data, options) => {
       await invalidate()
-      toast.success(strings.invoice.saved)
+      if (!options.silent) toast.success(strings.invoice.saved)
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
@@ -450,15 +465,27 @@ function InvoiceDetailPage() {
           onInsert={insertTemplate}
         />
 
+        {isDraft && !hasNumberRange && !ranges.isPending && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
+            {strings.invoice.numberRangeMissing}{' '}
+            <Link className="underline underline-offset-2" to="/settings">
+              {strings.nav.settings}
+            </Link>
+          </p>
+        )}
+
         {isDraft && (
           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            <Button onClick={() => save.mutate({})} disabled={save.isPending}>
               {save.isPending ? strings.invoice.saving : strings.invoice.save}
             </Button>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" disabled={finalize.isPending || lines.length === 0}>
+                <Button
+                  variant="outline"
+                  disabled={finalize.isPending || lines.length === 0 || !canFinalize}
+                >
                   <FileCheck2 className="size-4" aria-hidden />
                   {strings.invoice.finalize}
                 </Button>
@@ -473,8 +500,16 @@ function InvoiceDetailPage() {
                   <AlertDialogAction
                     onClick={async () => {
                       // Save first: finalizing snapshots what is stored, not
-                      // what is on screen.
-                      await save.mutateAsync()
+                      // what is on screen. Silently — `save` reports its own
+                      // failure, and a "saved" toast here would sit next to a
+                      // failed finalization and contradict it.
+                      try {
+                        await save.mutateAsync({ silent: true })
+                      } catch {
+                        // Already reported by the mutation's onError; the
+                        // point of catching is not to finalize unsaved data.
+                        return
+                      }
                       finalize.mutate()
                     }}
                   >
