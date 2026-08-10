@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { NoteFiles } from '@/components/note-files'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Button } from '@/components/ui/button'
 import {
@@ -149,7 +150,7 @@ export function NoteDialog({
           )}
         </DialogHeader>
 
-        <fieldset disabled={!editing} className="space-y-4">
+        <ReadModeFieldset disabled={!editing} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor={`${formId}-date`}>{strings.note.noteDate}</Label>
@@ -217,7 +218,7 @@ export function NoteDialog({
           ) : (
             <p className="text-muted-foreground text-sm">{strings.note.filesAfterSave}</p>
           )}
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing ? (
           <DialogFooter>

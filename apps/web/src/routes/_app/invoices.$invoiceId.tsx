@@ -21,6 +21,7 @@ import {
   FileCheck2,
   FileText,
   Mail,
+  Pencil,
   Plus,
   Wallet,
   X,
@@ -141,8 +142,17 @@ function InvoiceDetailPage() {
   const [outroText, setOutroText] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([])
   const [sendOpen, setSendOpen] = useState(false)
+  /**
+   * A draft opens in read mode and editing is a deliberate step, like every
+   * other detail view (CLAUDE.md, read mode first). It is also what makes the
+   * preview honest: in read mode what is on screen *is* what is stored, so the
+   * document cannot show something else than the page.
+   */
+  const [editing, setEditing] = useState(false)
 
   const isDraft = invoice?.status === 'draft'
+  /** A finalized invoice is immutable, so only a draft can ever get here. */
+  const canEdit = isDraft && editing
   /** Only a finalized invoice can be cancelled — not a draft, which is
    *  discarded, and not a cancellation document (rule 9). */
   const canCancel =
@@ -164,18 +174,23 @@ function InvoiceDetailPage() {
     setLines(invoice.lines.map(fromStored))
   }, [invoice])
 
+  /** Leaving edit mode without saving takes the stored invoice back. */
+  function discardEdits() {
+    if (!invoice) return
+    setInvoiceDate(invoice.invoiceDate)
+    setPaymentTermDays(invoice.paymentTermDays)
+    setIntroText(invoice.introText ?? '')
+    setOutroText(invoice.outroText ?? '')
+    setLines(invoice.lines.map(fromStored))
+    setEditing(false)
+  }
+
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['invoices'] })
   }
 
-  /**
-   * `silent` is for the save that finalizing does first. Reporting "saved"
-   * there is worse than saying nothing: the practitioner pressed Festschreiben,
-   * and a success message next to a failed finalization reads as if the
-   * document had been issued.
-   */
   const save = useMutation({
-    mutationFn: (_options: { silent?: boolean } = {}) =>
+    mutationFn: () =>
       updateInvoice(invoiceId, {
         invoiceDate,
         paymentTermDays,
@@ -183,9 +198,10 @@ function InvoiceDetailPage() {
         outroText: outroText.trim() === '' ? null : outroText.trim(),
         lines: lines.map(toInput),
       }),
-    onSuccess: async (_data, options) => {
+    onSuccess: async () => {
+      setEditing(false)
       await invalidate()
-      if (!options.silent) toast.success(strings.invoice.saved)
+      toast.success(strings.invoice.saved)
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
@@ -209,6 +225,11 @@ function InvoiceDetailPage() {
    * Finalizing, with or without settling in the same transaction. One mutation
    * for both, because it is one operation on the server too.
    *
+   * It is offered in read mode only, which is what lets it be a single call.
+   * Finalizing snapshots what is *stored*, so as long as the screen could
+   * differ from that it had to save first and swallow the success message of
+   * that save; that detour went with the edit step.
+   *
    * When the invoice was settled but no "already paid" outro block exists, the
    * document still asks for payment — that is said here, once, rather than
    * being discovered on the copy months later.
@@ -231,20 +252,6 @@ function InvoiceDetailPage() {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.finalizeFailed)
     },
   })
-
-  /** Save, then finalize: finalizing snapshots what is stored, not what is on
-   *  screen. Silently — `save` reports its own failure, and a "saved" toast
-   *  would sit next to a failed finalization and contradict it. */
-  async function saveThenFinalize(settle: boolean) {
-    try {
-      await save.mutateAsync({ silent: true })
-    } catch {
-      // Already reported by the mutation's onError; the point of catching is
-      // not to finalize unsaved data.
-      return
-    }
-    finalize.mutate(settle)
-  }
 
   const discard = useMutation({
     mutationFn: () => deleteInvoice(invoiceId),
@@ -328,16 +335,22 @@ function InvoiceDetailPage() {
               </Button>
             )}
 
-            <Button variant="outline" asChild>
-              <a
-                href={isDraft ? previewUrl(invoiceId) : pdfUrl(invoiceId)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <FileText className="size-4" aria-hidden />
-                {isDraft ? strings.invoice.preview : strings.invoice.download}
-              </a>
-            </Button>
+            {/* Read mode only. The preview renders what is stored, and while
+                the draft is being edited that is not what stands on screen —
+                an empty preview beside a filled form is the confusing part,
+                not the missing button. */}
+            {!canEdit && (
+              <Button variant="outline" asChild>
+                <a
+                  href={isDraft ? previewUrl(invoiceId) : pdfUrl(invoiceId)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <FileText className="size-4" aria-hidden />
+                  {isDraft ? strings.invoice.preview : strings.invoice.download}
+                </a>
+              </Button>
+            )}
 
             <Button variant="ghost" asChild>
               <Link to="/invoices">
@@ -360,7 +373,7 @@ function InvoiceDetailPage() {
               id={`${formId}-date`}
               type="date"
               className="mt-2"
-              disabled={!isDraft}
+              disabled={!canEdit}
               value={invoiceDate}
               onChange={(event) => setInvoiceDate(event.target.value)}
             />
@@ -373,7 +386,7 @@ function InvoiceDetailPage() {
               min={0}
               max={365}
               className="mt-2"
-              disabled={!isDraft}
+              disabled={!canEdit}
               value={paymentTermDays}
               onChange={(event) => setPaymentTermDays(Number(event.target.value) || 0)}
             />
@@ -395,7 +408,7 @@ function InvoiceDetailPage() {
           label={strings.invoice.introText}
           value={introText}
           onChange={setIntroText}
-          disabled={!isDraft}
+          disabled={!canEdit}
           templates={(templates.data ?? []).filter((t) => t.kind === 'intro' && t.active)}
           onInsert={insertTemplate}
         />
@@ -403,7 +416,7 @@ function InvoiceDetailPage() {
         <section>
           <div className="flex items-center justify-between">
             <p className="font-medium text-sm">{strings.invoice.lines}</p>
-            {isDraft && (
+            {canEdit && (
               <Button
                 type="button"
                 variant="outline"
@@ -443,7 +456,7 @@ function InvoiceDetailPage() {
                       <Input
                         id={`${line.key}-description`}
                         className="mt-1"
-                        disabled={!isDraft}
+                        disabled={!canEdit}
                         value={line.description}
                         onChange={(event) => patch(index, { description: event.target.value })}
                       />
@@ -456,7 +469,7 @@ function InvoiceDetailPage() {
                         id={`${line.key}-date`}
                         type="date"
                         className="mt-1"
-                        disabled={!isDraft}
+                        disabled={!canEdit}
                         value={line.dateOfService}
                         onChange={(event) => patch(index, { dateOfService: event.target.value })}
                       />
@@ -468,7 +481,7 @@ function InvoiceDetailPage() {
                       <Input
                         id={`${line.key}-fee`}
                         className="mt-1"
-                        disabled={!isDraft}
+                        disabled={!canEdit}
                         value={line.feeCode}
                         onChange={(event) => patch(index, { feeCode: event.target.value })}
                       />
@@ -482,7 +495,7 @@ function InvoiceDetailPage() {
                         type="number"
                         min={1}
                         className="mt-1"
-                        disabled={!isDraft}
+                        disabled={!canEdit}
                         value={line.quantity}
                         onChange={(event) =>
                           patch(index, {
@@ -499,7 +512,7 @@ function InvoiceDetailPage() {
                         id={`${line.key}-price`}
                         inputMode="decimal"
                         className="mt-1"
-                        disabled={!isDraft}
+                        disabled={!canEdit}
                         value={line.priceText}
                         onChange={(event) => patch(index, { priceText: event.target.value })}
                       />
@@ -510,7 +523,7 @@ function InvoiceDetailPage() {
                     <span className="text-muted-foreground text-sm tabular-nums">
                       {formatEuro((parseEuroAmount(line.priceText) ?? 0) * line.quantity)}
                     </span>
-                    {isDraft && (
+                    {canEdit && (
                       <div className="ml-auto flex items-center gap-1">
                         <Button
                           type="button"
@@ -554,14 +567,14 @@ function InvoiceDetailPage() {
           )}
         </section>
 
-        {isDraft && <BillablePicker contactId={invoice.contactId} onAdd={setLines} />}
+        {canEdit && <BillablePicker contactId={invoice.contactId} onAdd={setLines} />}
 
         <TextBlock
           id={`${formId}-outro`}
           label={strings.invoice.outroText}
           value={outroText}
           onChange={setOutroText}
-          disabled={!isDraft}
+          disabled={!canEdit}
           templates={(templates.data ?? []).filter((t) => t.kind === 'outro' && t.active)}
           onInsert={insertTemplate}
         />
@@ -590,10 +603,25 @@ function InvoiceDetailPage() {
           </p>
         )}
 
-        {isDraft && (
+        {/* Editing: only the two buttons that leave it again. Issuing a
+            document from a form that has unsaved changes in it is the state
+            this whole step exists to remove. */}
+        {canEdit && (
           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-            <Button onClick={() => save.mutate({})} disabled={save.isPending}>
+            <Button onClick={() => save.mutate()} disabled={save.isPending}>
               {save.isPending ? strings.invoice.saving : strings.invoice.save}
+            </Button>
+            <Button variant="ghost" onClick={discardEdits} disabled={save.isPending}>
+              {strings.actions.cancel}
+            </Button>
+          </div>
+        )}
+
+        {isDraft && !editing && (
+          <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+            <Button onClick={() => setEditing(true)}>
+              <Pencil className="size-4" aria-hidden />
+              {strings.actions.edit}
             </Button>
 
             <AlertDialog>
@@ -613,7 +641,7 @@ function InvoiceDetailPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void saveThenFinalize(false)}>
+                  <AlertDialogAction onClick={() => finalize.mutate(false)}>
                     {strings.invoice.finalizeConfirm}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -640,7 +668,7 @@ function InvoiceDetailPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void saveThenFinalize(true)}>
+                  <AlertDialogAction onClick={() => finalize.mutate(true)}>
                     {strings.payment.settleConfirm}
                   </AlertDialogAction>
                 </AlertDialogFooter>

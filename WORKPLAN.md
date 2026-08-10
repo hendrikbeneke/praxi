@@ -950,3 +950,37 @@ Found while building:
   breaks no rule about network calls.
 - The one non-additive change in the slice is that move of the secret store.
   Everything else is new tables, new files and two derived fields.
+
+## After slice 10 — four corrections
+
+No schema, no migration, no domain change. Recorded because two of them
+overturn an earlier decision and one is a finding nobody can see by reading.
+
+- **The invoice draft opens in read mode**, like every other detail view. The
+  slice-6 exception — "a draft is not a record to read" — was mine and did not
+  hold up in daily use. Two things fell out with it: the preview, which renders
+  what is *stored* and therefore came out empty on an unsaved draft, is now
+  offered in read mode only, where the screen and the database cannot differ;
+  and `saveThenFinalize` is gone. That detour existed solely because the two
+  could differ, and it had to swallow the success message of its own save so it
+  would not sit next to a failed finalization. One special path removed by a
+  step that was owed anyway.
+- **"Neue Rechnung" in the invoice list**, not only from a contact's record.
+  The only thing missing on that way is the recipient, so the dialog asks for
+  exactly that and reuses `ContactPicker`; same call, same landing place.
+- **`ReadModeFieldset` replaces the plain `<fieldset disabled>`.** The finding:
+  a disabled fieldset disables its form controls, and what that suppresses is
+  the **click** — but Radix' `Select` opens on `pointerdown`, which is still
+  delivered to a disabled control. Nine dropdowns in seven dialogs looked
+  disabled, were not focusable, and still opened and accepted a choice that was
+  then never saved. A dropdown that silently does nothing is bad; one that says
+  something was changed and drops it is worse. The state now lives in a context
+  that `ui/select.tsx` reads. Nine explicit `disabled` attributes would have
+  been a rule to remember at the tenth dropdown; this is a property of the
+  component. Popover, Checkbox and Tabs were checked and need nothing — they
+  act on click or mousedown. `DropdownMenu` and combobox primitives would need
+  the same context and are not used anywhere yet.
+- **Links stay reachable inside a read-mode fieldset.** Downloading a file from
+  a locked note in read mode is right, and the rule it stands for is the one to
+  apply to any new control: reading is allowed in read mode. Anything that
+  changes the record belongs inside the fieldset.

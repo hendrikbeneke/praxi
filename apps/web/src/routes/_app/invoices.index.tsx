@@ -8,7 +8,10 @@ import {
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Plus } from 'lucide-react'
+import { useState } from 'react'
 import { z } from 'zod'
+import { NewInvoiceDialog } from '@/components/new-invoice-dialog'
 import { PageHeader } from '@/components/page-header'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import { Badge } from '@/components/ui/badge'
@@ -47,12 +50,22 @@ function InvoiceListPage() {
   const navigate = useNavigate({ from: Route.fullPath })
   const invoices = useQuery(invoiceListQueryOptions({ status: search.status }))
   const today = toBerlinDate(new Date().toISOString())
+  const [createOpen, setCreateOpen] = useState(false)
 
   const rows = invoices.data ?? []
 
   return (
     <>
-      <PageHeader title={strings.invoice.title} description={strings.invoice.description} />
+      <PageHeader
+        title={strings.invoice.title}
+        description={strings.invoice.description}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            {strings.invoice.create}
+          </Button>
+        }
+      />
 
       <div className="mb-4 flex flex-wrap gap-1">
         {FILTERS.map((status) => (
@@ -151,6 +164,8 @@ function InvoiceListPage() {
           </Table>
         </div>
       )}
+
+      <NewInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </>
   )
 }

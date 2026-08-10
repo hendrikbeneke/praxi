@@ -29,6 +29,7 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
 import { PaymentStatusBadge } from '@/components/payment-status'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -498,7 +499,7 @@ export function ActivityDialog({
 
         {/* Read mode until asked otherwise — the list opens this dialog on a
             row click, so most of the time it is opened to look at something. */}
-        <fieldset disabled={!editing} className="space-y-6">
+        <ReadModeFieldset disabled={!editing} className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-6">
             <div className="sm:col-span-6">
               <Label htmlFor={`${formId}-contact`}>{strings.activity.contact}</Label>
@@ -892,7 +893,7 @@ export function ActivityDialog({
           {targetContactId === null && (
             <p className="text-muted-foreground text-sm">{strings.activity.contactRequired}</p>
           )}
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing ? (
           <DialogFooter>

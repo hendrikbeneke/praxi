@@ -10,6 +10,7 @@ import { Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { CheckboxField, DeleteButton, OrderButtons } from '@/components/catalogue-controls'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -265,7 +266,7 @@ function ActivityTypeDialog({
           <DialogDescription>{strings.activityType.presetHint}</DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={!editing} className="space-y-4">
+        <ReadModeFieldset disabled={!editing} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="activity-type-code">{strings.activityType.code}</Label>
@@ -369,7 +370,7 @@ function ActivityTypeDialog({
             checked={values.active}
             onChange={(checked) => setValues({ ...values, active: checked })}
           />
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing ? (
           <DialogFooter>

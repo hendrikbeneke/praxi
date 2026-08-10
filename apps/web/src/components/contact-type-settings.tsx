@@ -9,6 +9,7 @@ import { Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { CheckboxField, DeleteButton, OrderButtons } from '@/components/catalogue-controls'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -232,7 +233,7 @@ function RoleTypeDialog({
           <DialogDescription>{strings.contactType.codeHint}</DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={!editing} className="space-y-4">
+        <ReadModeFieldset disabled={!editing} className="space-y-4">
           <div>
             <Label htmlFor="role-code">{strings.contactType.code}</Label>
             <Input
@@ -268,7 +269,7 @@ function RoleTypeDialog({
             checked={values.active}
             onChange={(checked) => setValues({ ...values, active: checked })}
           />
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing ? (
           <DialogFooter>
@@ -476,7 +477,7 @@ function RelationTypeDialog({
           <DialogDescription>{strings.contactType.directionHint}</DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={!editing} className="space-y-4">
+        <ReadModeFieldset disabled={!editing} className="space-y-4">
           <div>
             <Label htmlFor="relation-code">{strings.contactType.code}</Label>
             <Input
@@ -532,7 +533,7 @@ function RelationTypeDialog({
             checked={values.active}
             onChange={(checked) => setValues({ ...values, active: checked })}
           />
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing ? (
           <DialogFooter>

@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -162,7 +163,7 @@ function SmtpAccount() {
           <p className="text-muted-foreground text-sm">{strings.mail.notConfigured}</p>
         )}
 
-        <fieldset disabled={!editing} className="grid gap-4 sm:grid-cols-2">
+        <ReadModeFieldset disabled={!editing} className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor={`${formId}-host`}>{strings.mail.host}</Label>
             <Input
@@ -269,7 +270,7 @@ function SmtpAccount() {
               onChange={(event) => setForm((f) => ({ ...f, fromName: event.target.value }))}
             />
           </div>
-        </fieldset>
+        </ReadModeFieldset>
 
         <div className="flex flex-wrap items-center gap-2">
           {editing ? (
@@ -448,7 +449,7 @@ function EmailTemplateForm({
 
   return (
     <div className="space-y-4 rounded-md border p-4">
-      <fieldset disabled={!editing} className="space-y-4">
+      <ReadModeFieldset disabled={!editing} className="space-y-4">
         <div>
           <Label htmlFor={`${formId}-name`}>{strings.mail.templateName}</Label>
           <Input
@@ -508,7 +509,7 @@ function EmailTemplateForm({
             </Label>
           </div>
         </div>
-      </fieldset>
+      </ReadModeFieldset>
 
       <div className="flex gap-2">
         {editing ? (

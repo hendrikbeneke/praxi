@@ -746,6 +746,8 @@ export const strings = {
     title: 'Rechnungen',
     description: 'Entwürfe, festgeschriebene Rechnungen und ihre Dokumente.',
     create: 'Neue Rechnung',
+    createHint: 'Für welchen Kontakt? Die Positionen kommen danach im Entwurf dazu.',
+    createConfirm: 'Entwurf anlegen',
     empty: 'Noch keine Rechnungen.',
     emptyDraft: 'Diese Rechnung hat noch keine Position.',
 

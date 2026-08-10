@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -119,7 +120,7 @@ export function ServiceGroupDialog({
           <DialogDescription>{strings.service.groupHint}</DialogDescription>
         </DialogHeader>
 
-        <fieldset disabled={!editing} className="space-y-5">
+        <ReadModeFieldset disabled={!editing} className="space-y-5">
           <div>
             <Label htmlFor="group-name">{strings.service.groupName}</Label>
             <Input
@@ -262,7 +263,7 @@ export function ServiceGroupDialog({
             </div>
             <p className="mt-1 text-muted-foreground text-xs">{strings.service.activeHint}</p>
           </div>
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing ? (
           <DialogFooter>

@@ -13,6 +13,7 @@ import { GoogleSettings } from '@/components/google-settings'
 import { InvoiceSettings } from '@/components/invoice-settings'
 import { MailSettings } from '@/components/mail-settings'
 import { PageHeader } from '@/components/page-header'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -122,7 +123,7 @@ function SettingsPage() {
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
         noValidate
       >
-        <fieldset disabled={!editing} className="space-y-6">
+        <ReadModeFieldset disabled={!editing} className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>{strings.settings.sectionPractice}</CardTitle>
@@ -253,7 +254,7 @@ function SettingsPage() {
               />
             </CardContent>
           </Card>
-        </fieldset>
+        </ReadModeFieldset>
 
         {editing && (
           <div className="flex justify-end gap-2">

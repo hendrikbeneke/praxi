@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileUp, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -136,7 +137,7 @@ function NumberRangeForm({
     <div className="rounded-md border p-4">
       <p className="font-medium text-sm">{strings.invoice.numberRangeCodes[code]}</p>
 
-      <fieldset disabled={!editing} className="mt-3 grid gap-4 sm:grid-cols-4">
+      <ReadModeFieldset disabled={!editing} className="mt-3 grid gap-4 sm:grid-cols-4">
         <div>
           <Label htmlFor={`${formId}-prefix`}>{strings.invoice.prefix}</Label>
           <Input
@@ -173,7 +174,7 @@ function NumberRangeForm({
           <span className="font-medium text-sm">{strings.invoice.nextNumberPreview}</span>
           <p className="mt-3 font-mono text-sm">{formatNumber(prefix, padding, nextValue)}</p>
         </div>
-      </fieldset>
+      </ReadModeFieldset>
 
       {editing ? (
         <div className="mt-4 flex gap-2">
@@ -402,7 +403,7 @@ function TextTemplateForm({
 
   return (
     <div className="space-y-4 rounded-md border p-4">
-      <fieldset disabled={!editing} className="space-y-4">
+      <ReadModeFieldset disabled={!editing} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor={`${formId}-kind`}>{strings.invoice.templateKind}</Label>
@@ -502,7 +503,7 @@ function TextTemplateForm({
         {input.kind === 'outro' && (
           <p className="text-muted-foreground text-xs">{strings.invoice.templatePaidVariantHint}</p>
         )}
-      </fieldset>
+      </ReadModeFieldset>
 
       <div className="flex gap-2">
         {editing ? (

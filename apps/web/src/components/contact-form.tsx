@@ -9,6 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -178,7 +179,7 @@ export function ContactForm({
       onSubmit={form.handleSubmit((values) => onSubmit(toContactUpdate(values), values.roles))}
       noValidate
     >
-      <fieldset disabled={!editing} className="space-y-6">
+      <ReadModeFieldset disabled={!editing} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{strings.contact.sectionName}</CardTitle>
@@ -387,7 +388,7 @@ export function ContactForm({
             <p className="mt-1 text-muted-foreground text-xs">{strings.contact.internalNoteHint}</p>
           </CardContent>
         </Card>
-      </fieldset>
+      </ReadModeFieldset>
 
       {editing && (
         <div className="flex justify-end gap-2">

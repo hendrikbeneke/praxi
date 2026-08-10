@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -142,7 +143,7 @@ export function ServiceDialog({
           onSubmit={form.handleSubmit((values) => mutation.mutate(toServiceInput(values)))}
           noValidate
         >
-          <fieldset disabled={!editing} className="grid gap-4 sm:grid-cols-6">
+          <ReadModeFieldset disabled={!editing} className="grid gap-4 sm:grid-cols-6">
             <div className="sm:col-span-6">
               <Label htmlFor="description">{strings.service.serviceDescription}</Label>
               <Input
@@ -218,7 +219,7 @@ export function ServiceDialog({
               </div>
               <p className="mt-1 text-muted-foreground text-xs">{strings.service.activeHint}</p>
             </div>
-          </fieldset>
+          </ReadModeFieldset>
         </form>
 
         {editing ? (
