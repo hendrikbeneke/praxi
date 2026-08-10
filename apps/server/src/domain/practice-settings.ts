@@ -19,6 +19,21 @@ const columns = {
   iban: practiceSettings.iban,
   bic: practiceSettings.bic,
   defaultPaymentTermDays: practiceSettings.defaultPaymentTermDays,
+  invoiceTemplatePath: practiceSettings.invoiceTemplatePath,
+}
+
+type SettingsRow = Omit<PracticeSettings, 'invoiceTemplateSet'> & {
+  invoiceTemplatePath: string | null
+}
+
+/**
+ * The stored path becomes a yes-or-no on the way out; the path itself never
+ * leaves the server. Both the read and the write go through here, so a saved
+ * form cannot answer with less than a loaded one — the screen replaces its
+ * cached copy with the response of the PUT.
+ */
+function toSettings({ invoiceTemplatePath: path, ...rest }: SettingsRow): PracticeSettings {
+  return { ...rest, invoiceTemplateSet: path !== null }
 }
 
 /**
@@ -36,7 +51,7 @@ export async function getPracticeSettings(
     .where(eq(practiceSettings.tenantId, tenantId))
     .limit(1)
 
-  return row ?? null
+  return row ? toSettings(row) : null
 }
 
 export async function updatePracticeSettings(
@@ -50,7 +65,7 @@ export async function updatePracticeSettings(
     .where(eq(practiceSettings.tenantId, tenantId))
     .returning(columns)
 
-  return row ?? null
+  return row ? toSettings(row) : null
 }
 
 /**

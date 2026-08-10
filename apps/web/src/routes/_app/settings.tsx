@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { type PracticeSettings, practiceSettingsInputSchema } from '@praxi/shared'
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Pencil } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -19,16 +19,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError, api, apiError } from '@/lib/api'
+import { practiceSettingsQueryOptions } from '@/lib/settings'
 import { strings } from '@/lib/strings'
-
-const practiceSettingsQueryOptions = queryOptions({
-  queryKey: ['settings'],
-  queryFn: async (): Promise<PracticeSettings> => {
-    const res = await api.api.settings.$get()
-    if (!res.ok) throw await apiError(res)
-    return res.json()
-  },
-})
 
 export const Route = createFileRoute('/_app/settings')({
   loader: ({ context }) => context.queryClient.ensureQueryData(practiceSettingsQueryOptions),

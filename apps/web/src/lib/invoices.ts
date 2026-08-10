@@ -173,3 +173,14 @@ export async function uploadInvoiceTemplate(file: File): Promise<{ pages: number
 }
 
 export const invoiceTemplateUrl = '/api/settings/invoice-template'
+
+/** How many pages the stored letterhead has, `null` when there is none. Asked
+ *  separately from the settings, because only the file can answer it. */
+export const invoiceTemplatePagesQueryOptions = queryOptions({
+  queryKey: ['settings', 'invoice-template-pages'],
+  queryFn: async (): Promise<number | null> => {
+    const res = await api.api.settings['invoice-template'].pages.$get()
+    if (!res.ok) throw await apiError(res)
+    return (await res.json()).pages
+  },
+})

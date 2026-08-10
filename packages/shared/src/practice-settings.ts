@@ -50,6 +50,16 @@ export type PracticeSettingsInput = z.infer<typeof practiceSettingsInputSchema>
 
 export const practiceSettingsSchema = practiceSettingsInputSchema.extend({
   id: z.uuid(),
+  /**
+   * Whether a letterhead is stored. Derived from `invoice_template_path`, not
+   * a field of its own and never written from a payload — it exists so the
+   * settings screen can tell "no letterhead yet" from "one is stored" instead
+   * of offering a button that answers 404.
+   *
+   * The path itself stays on the server: it is a location on disk and the
+   * client has no use for it.
+   */
+  invoiceTemplateSet: z.boolean(),
 })
 
 export type PracticeSettings = z.infer<typeof practiceSettingsSchema>

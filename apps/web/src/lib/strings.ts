@@ -844,6 +844,12 @@ export const strings = {
       invoice: 'Rechnungen',
       contact: 'Kontaktnummern',
     },
+    numberRangeNotCreated: 'Noch nicht angelegt',
+    numberRangeCreate: 'Nummernkreis anlegen',
+    numberRangeCreated: 'Nummernkreis angelegt.',
+    numberRangeSelfCreating:
+      'Wird beim ersten Kontakt automatisch angelegt und beginnt bei 1. Sie müssen hier ' +
+      'nichts tun — nur wenn Sie eine bestehende Nummerierung fortsetzen wollen.',
     prefix: 'Präfix',
     padding: 'Stellen',
     nextValue: 'Nächste Nummer',
@@ -874,9 +880,14 @@ export const strings = {
       'Ein PDF mit Ihrem Briefkopf. Eine Seite trägt jede Seite der Rechnung; bei zwei Seiten ' +
       'trägt Seite 1 die erste und Seite 2 alle weiteren. Der Inhalt wird darübergelegt.',
     letterheadUpload: 'Vorlage hochladen',
+    letterheadReplace: 'Vorlage ersetzen',
     letterheadShow: 'Hinterlegte Vorlage ansehen',
     letterheadUploaded: 'Vorlage gespeichert.',
     letterheadNone: 'Keine Vorlage hinterlegt — Rechnungen drucken auf weißem Grund.',
+    letterheadOnePage: 'Einseitig',
+    letterheadTwoPages: 'Zweiseitig',
+    letterheadOnePageHint: 'Diese Seite trägt jede Seite der Rechnung.',
+    letterheadTwoPagesHint: 'Seite 1 trägt die erste Rechnungsseite, Seite 2 alle weiteren.',
   },
   payment: {
     title: 'Zahlungen',

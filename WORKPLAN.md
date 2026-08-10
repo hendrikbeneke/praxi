@@ -984,3 +984,39 @@ overturn an earlier decision and one is a finding nobody can see by reading.
   a locked note in read mode is right, and the rule it stands for is the one to
   apply to any new control: reading is allowed in read mode. Anything that
   changes the record belongs inside the fieldset.
+
+## After slice 10 — forms that claimed a state
+
+One reported symptom, one audit, one rule.
+
+- **The number range settings prefilled a range that did not exist** — a
+  plausible prefix, four digits, next value 1, and a preview reading
+  `2026-0001`. It was believed, and the missing range surfaced on finalizing.
+  Now: empty fields, a visible "Noch nicht angelegt", a button that says
+  "Nummernkreis anlegen", and no preview until there is something to preview.
+  The two numbers are held as text, because a `type="number"` input cannot be
+  empty without falling back to a value the range does not have.
+- **The contact range says that it creates itself.** Without that sentence
+  "noch nicht angelegt" reads as a task and one creates it by hand — which is
+  precisely what the whitelist in `domain/counter.ts` exists to make
+  unnecessary. Still no seed for the invoice range: a silent start at 1 would
+  reissue numbers from the previous system.
+- **The letterhead card was the same mistake in the other disguise.**
+  "Briefbogen anzeigen" stood there unconditionally and answered 404 when none
+  was uploaded — the client had no way to know, because `invoice_template_path`
+  reached no response. Now `GET /api/settings` carries the derived
+  `invoiceTemplateSet`, and `GET /api/settings/invoice-template/pages` answers
+  how many pages it has, so one-page against two-page stays readable without
+  uploading again. The path itself still never leaves the server.
+- Audited alongside and found clean, each for its own reason: Google (nothing
+  is rendered until `connected`), the practice master data (the row always
+  exists; a missing one is a 404, not a blank form), and every catalogue —
+  text blocks, mail templates, roles, relations, activity types — where a form
+  appears only after "Neu" and is titled "anlegen". SMTP was left untouched: it
+  shows empty fields and says "Noch nicht eingerichtet", and port 587 in a
+  visibly empty form is a suggestion, not a claim.
+- The rule this leaves behind is in CLAUDE.md beside *read mode first*: **a
+  form never claims a state that does not exist** — neither through prefilled
+  values nor through a control that leads nowhere. Same family, same reason.
+  Read mode keeps a screen from changing a record by accident; this keeps it
+  from inventing one.

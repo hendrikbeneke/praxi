@@ -84,6 +84,24 @@ export const settingsRoute = new Hono<AppEnv>()
     return c.json({ pages }, 201)
   })
 
+  /**
+   * How many pages the stored letterhead has — one backs every sheet, two put
+   * a different background on the following ones (rule 11). That difference
+   * decides what a second sheet looks like, so it has to be readable without
+   * uploading again.
+   *
+   * `pages: null` means there is nothing stored, or the file behind a stored
+   * path has gone. Both leave the screen saying the same true thing, which is
+   * why this answers rather than throwing: the settings row can say a template
+   * is set, and only the file itself can say it is still there.
+   */
+  .get('/invoice-template/pages', async (c) => {
+    const template = await loadInvoiceTemplate(db(), tenantId(c), fileStore()).catch(() => null)
+    const pages = template ? await assertUsableTemplate(template).catch(() => null) : null
+
+    return c.json({ pages })
+  })
+
   .get('/invoice-template', async (c) => {
     const template = await loadInvoiceTemplate(db(), tenantId(c), fileStore()).catch(() => null)
     if (!template) throw new HTTPException(404, { message: messages.invoice.templateMissing })

@@ -368,7 +368,13 @@ practice_settings     tenant_id uuid not null unique -> tenant(id),
                       default_payment_term_days integer not null default 14
                         check (between 0 and 365)
                       invoice_template_path text            (slice 6, relative
-                        -- to DATA_DIR, null until a letterhead is uploaded)
+                        -- to DATA_DIR, null until a letterhead is uploaded.
+                        -- Never leaves the server: the API answers with the
+                        -- derived boolean `invoiceTemplateSet` instead, filled
+                        -- by getPracticeSettings AND updatePracticeSettings, so
+                        -- a saved form cannot say less than a loaded one. How
+                        -- many pages it has is asked separately — only the file
+                        -- can answer that.)
                       -- letter_template_path waits for a letter module —
                       -- nothing on spec.
                       -- The SMTP account is deliberately NOT here (slice 10):
@@ -1272,6 +1278,17 @@ In practice: a `<ReadModeFieldset disabled={!editing}>` around the fields, `edit
 **Why that is not a plain `<fieldset>`.** A disabled fieldset disables the form controls inside it, and what that suppresses is the **click**. Radix' `Select` opens on `pointerdown`, which is still delivered to a disabled control — so nine dropdowns across seven dialogs looked disabled, were not focusable, and still opened and let a value be picked that was then never saved. `ReadModeFieldset` puts the state into a context that `ui/select.tsx` reads, which makes "a dropdown in read mode cannot be operated" a property of the component instead of an attribute somebody has to remember on the tenth one. Popover, Checkbox and Tabs need nothing — they act on click or mousedown. A `DropdownMenu` or a combobox primitive would need the same context; neither is used yet. The full reasoning stands at the top of `components/read-mode-fieldset.tsx`.
 
 What the fieldset does **not** cover are single decisions that are not a record — ticking a role in the contact header, adding or removing a relation, uploading a file. Those act immediately and have no save button at all. And links stay reachable inside it on purpose: **reading is allowed in read mode**, which is the question to ask of any new control — anything that changes the record belongs inside the fieldset, anything that only shows what is already there does not have to.
+
+**A form never claims a state that does not exist.** Not through prefilled values, and not through a control that leads nowhere. If there is no record behind it, the fields are empty, the screen says so in words, and the button says "anlegen" rather than "Speichern". A derived display — a preview, a computed total, a next number — appears only once there is something to derive it from.
+
+*Why: a form that looks filled is read as a record that exists. The invoice number range was prefilled with a plausible year, four digits and the next value 1, and previewed `2026-0001` — a number stored nowhere. It was believed, and the absence surfaced at the worst moment, on finalizing. The letterhead card was the same mistake wearing the other disguise: "Briefbogen anzeigen" stood there unconditionally, and answered 404 when none was uploaded, because `invoice_template_path` reached no response and the client could not know. A control that leads nowhere is a claim too — it is simply believed for longer.*
+
+This is the same family as **read mode first**, and for the same reason: what is on screen has to be what is stored. Read mode keeps the screen from *changing* the record by accident; this keeps it from *inventing* one. Two consequences worth naming:
+
+- **A number input cannot be empty.** It falls back to something, and whatever it falls back to is a value the record does not have. Where a field may legitimately be blank, hold it as text and parse on submit — that is why `NumberRangeForm` keeps `padding` and `nextValue` as strings.
+- **What the write answers must say as much as what the read answers.** A screen that replaces its cache with the response of a `PUT` will otherwise lose exactly the derived fields the `GET` had — which is why `invoiceTemplateSet` is filled in `getPracticeSettings` *and* `updatePracticeSettings`, and why there is a test that says so.
+
+Defaults in a *creation* form are not this mistake, as long as the screen says plainly that nothing is stored yet: port 587 in an empty, explicitly unconfigured SMTP form is a suggestion, not a claim.
 
 **Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_code`, `contact_relation.relation_code` and `activity.type` point at a catalogue table through a composite foreign key (rules 4 and 6). `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 

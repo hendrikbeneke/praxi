@@ -31,6 +31,7 @@ import { ApiError } from '@/lib/api'
 import {
   createTextTemplate,
   deleteTextTemplate,
+  invoiceTemplatePagesQueryOptions,
   invoiceTemplateUrl,
   numberRangeListQueryOptions,
   saveNumberRange,
@@ -38,6 +39,7 @@ import {
   updateTextTemplate,
   uploadInvoiceTemplate,
 } from '@/lib/invoices'
+import { practiceSettingsQueryOptions } from '@/lib/settings'
 import { strings } from '@/lib/strings'
 
 /**
@@ -91,6 +93,23 @@ function NumberRanges() {
   )
 }
 
+/** Whole numbers only, and only where the field holds one. `''` stays `null`
+ *  so an empty field can never pass for a value. */
+function toNumber(text: string): number | null {
+  if (!/^\d+$/.test(text.trim())) return null
+  const value = Number.parseInt(text, 10)
+  return Number.isSafeInteger(value) ? value : null
+}
+
+/**
+ * One number range, existing or not.
+ *
+ * The two numbers are held as text rather than as numbers, and that is the
+ * whole point of this form: a `type="number"` input cannot be empty without
+ * falling back to something, and anything it falls back to is a value the
+ * range does not have. A range that has not been created must show empty
+ * fields and no preview, because there is no next number to preview.
+ */
 function NumberRangeForm({
   code,
   range,
@@ -101,32 +120,42 @@ function NumberRangeForm({
   onSaved: () => void
 }) {
   const formId = useId()
+  const exists = range !== undefined
+
   const [prefix, setPrefix] = useState('')
-  const [padding, setPadding] = useState(1)
-  const [nextValue, setNextValue] = useState(1)
+  const [paddingText, setPaddingText] = useState('')
+  const [nextValueText, setNextValueText] = useState('')
   /**
    * Read mode first (CLAUDE.md), and nowhere does it matter more: a stray
    * keystroke in `next_value` reissues a number that has already been printed.
    * A range that does not exist yet is being created, so it opens editable.
    */
-  const [editing, setEditing] = useState(range === undefined)
+  const [editing, setEditing] = useState(!exists)
 
   const reset = useCallback(() => {
-    setPrefix(range?.prefix ?? (code === 'invoice' ? `${new Date().getFullYear()}-` : ''))
-    setPadding(range?.padding ?? (code === 'invoice' ? 4 : 1))
-    setNextValue(range?.nextValue ?? 1)
-  }, [range, code])
+    setPrefix(range?.prefix ?? '')
+    setPaddingText(range === undefined ? '' : String(range.padding))
+    setNextValueText(range === undefined ? '' : String(range.nextValue))
+  }, [range])
 
   useEffect(() => {
     reset()
     setEditing(range === undefined)
   }, [reset, range])
 
+  const padding = toNumber(paddingText)
+  const nextValue = toNumber(nextValueText)
+  const complete =
+    padding !== null && padding >= 1 && padding <= 12 && nextValue !== null && nextValue >= 1
+
   const save = useMutation({
-    mutationFn: () => saveNumberRange(code, { prefix, padding, nextValue }),
+    mutationFn: () => {
+      if (padding === null || nextValue === null) throw new Error('incomplete')
+      return saveNumberRange(code, { prefix, padding, nextValue })
+    },
     onSuccess: () => {
       onSaved()
-      toast.success(strings.invoice.numberRangeSaved)
+      toast.success(exists ? strings.invoice.numberRangeSaved : strings.invoice.numberRangeCreated)
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.error.generic)
@@ -135,7 +164,20 @@ function NumberRangeForm({
 
   return (
     <div className="rounded-md border p-4">
-      <p className="font-medium text-sm">{strings.invoice.numberRangeCodes[code]}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-medium text-sm">{strings.invoice.numberRangeCodes[code]}</p>
+        {!exists && <Badge variant="outline">{strings.invoice.numberRangeNotCreated}</Badge>}
+      </div>
+
+      {/* The contact range creates itself at the first contact and starts at 1
+          — said here, because otherwise "noch nicht angelegt" reads as a task,
+          and creating it by hand is exactly what the whitelist in
+          domain/counter.ts exists to make unnecessary. */}
+      {!exists && code === 'contact' && (
+        <p className="mt-2 text-muted-foreground text-sm">
+          {strings.invoice.numberRangeSelfCreating}
+        </p>
+      )}
 
       <ReadModeFieldset disabled={!editing} className="mt-3 grid gap-4 sm:grid-cols-4">
         <div>
@@ -151,34 +193,35 @@ function NumberRangeForm({
           <Label htmlFor={`${formId}-padding`}>{strings.invoice.padding}</Label>
           <Input
             id={`${formId}-padding`}
-            type="number"
-            min={1}
-            max={12}
+            inputMode="numeric"
             className="mt-2"
-            value={padding}
-            onChange={(event) => setPadding(Number(event.target.value) || 1)}
+            value={paddingText}
+            onChange={(event) => setPaddingText(event.target.value)}
           />
         </div>
         <div>
           <Label htmlFor={`${formId}-next`}>{strings.invoice.nextValue}</Label>
           <Input
             id={`${formId}-next`}
-            type="number"
-            min={1}
+            inputMode="numeric"
             className="mt-2"
-            value={nextValue}
-            onChange={(event) => setNextValue(Number(event.target.value) || 1)}
+            value={nextValueText}
+            onChange={(event) => setNextValueText(event.target.value)}
           />
         </div>
         <div>
           <span className="font-medium text-sm">{strings.invoice.nextNumberPreview}</span>
-          <p className="mt-3 font-mono text-sm">{formatNumber(prefix, padding, nextValue)}</p>
+          {/* Only once there is something to preview. An invented number under
+              this label is exactly the claim this form must not make. */}
+          <p className="mt-3 font-mono text-sm">
+            {complete ? formatNumber(prefix, padding, nextValue) : '—'}
+          </p>
         </div>
       </ReadModeFieldset>
 
       {editing ? (
         <div className="mt-4 flex gap-2">
-          {range && (
+          {exists && (
             <Button
               size="sm"
               variant="ghost"
@@ -191,8 +234,12 @@ function NumberRangeForm({
               {strings.actions.cancel}
             </Button>
           )}
-          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-            {save.isPending ? strings.invoice.saving : strings.invoice.save}
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending || !complete}>
+            {save.isPending
+              ? strings.invoice.saving
+              : exists
+                ? strings.invoice.save
+                : strings.invoice.numberRangeCreate}
           </Button>
         </div>
       ) : (
@@ -205,14 +252,30 @@ function NumberRangeForm({
   )
 }
 
+/**
+ * The uploaded letterhead the invoice content is printed onto (rule 11).
+ *
+ * Whether one is stored is read from the server, not remembered from an upload
+ * in this session: "Briefbogen anzeigen" was offered unconditionally and
+ * answered 404 when there was none, which claims a state exactly the way a
+ * prefilled form does — only it is discovered later.
+ *
+ * The page count comes with it and stays visible, because one page against two
+ * decides what the *second* sheet of a long invoice looks like.
+ */
 function Letterhead() {
+  const queryClient = useQueryClient()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [pages, setPages] = useState<number | null>(null)
+  const settings = useQuery(practiceSettingsQueryOptions)
+  const pages = useQuery({
+    ...invoiceTemplatePagesQueryOptions,
+    enabled: settings.data?.invoiceTemplateSet === true,
+  })
 
   const upload = useMutation({
     mutationFn: (file: File) => uploadInvoiceTemplate(file),
-    onSuccess: (result) => {
-      setPages(result.pages)
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
       toast.success(strings.invoice.letterheadUploaded)
     },
     onError: (error) => {
@@ -223,6 +286,10 @@ function Letterhead() {
     },
   })
 
+  /** The settings row can say a template is set; only the file itself can say
+   *  it is still there, and the page count is what answers both. */
+  const stored = settings.data?.invoiceTemplateSet === true && pages.data != null
+
   return (
     <Card>
       <CardHeader>
@@ -230,6 +297,25 @@ function Letterhead() {
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground text-sm">{strings.invoice.letterheadHint}</p>
+
+        <p className="mt-4 text-sm">
+          {stored ? (
+            <>
+              <Badge variant="secondary">
+                {pages.data === 1
+                  ? strings.invoice.letterheadOnePage
+                  : strings.invoice.letterheadTwoPages}
+              </Badge>
+              <span className="ml-2 text-muted-foreground">
+                {pages.data === 1
+                  ? strings.invoice.letterheadOnePageHint
+                  : strings.invoice.letterheadTwoPagesHint}
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">{strings.invoice.letterheadNone}</span>
+          )}
+        </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <input
@@ -248,16 +334,17 @@ function Letterhead() {
             onClick={() => inputRef.current?.click()}
           >
             <FileUp className="size-4" aria-hidden />
-            {strings.invoice.letterheadUpload}
+            {stored ? strings.invoice.letterheadReplace : strings.invoice.letterheadUpload}
           </Button>
 
-          <Button variant="ghost" asChild>
-            <a href={invoiceTemplateUrl} target="_blank" rel="noreferrer">
-              {strings.invoice.letterheadShow}
-            </a>
-          </Button>
-
-          {pages !== null && <Badge variant="secondary">{pages}</Badge>}
+          {/* Only when there is something behind it. */}
+          {stored && (
+            <Button variant="ghost" asChild>
+              <a href={invoiceTemplateUrl} target="_blank" rel="noreferrer">
+                {strings.invoice.letterheadShow}
+              </a>
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
