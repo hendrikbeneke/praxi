@@ -67,8 +67,23 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
   if (!res.ok) throw await apiError(res)
 }
 
-export async function finalizeInvoice(invoiceId: string): Promise<Invoice> {
-  const res = await api.api.invoices[':invoiceId'].finalize.$post({ param: { invoiceId } })
+/**
+ * Finalizing, and optionally settling in the same transaction — "Betrag
+ * erhalten", the card put through right after the session.
+ *
+ * `paidTemplateUsed` comes back false when the invoice was settled but no
+ * outro block for paid invoices is configured. The document then still asks
+ * for payment, and the screen says so rather than letting it be discovered
+ * months later.
+ */
+export async function finalizeInvoice(
+  invoiceId: string,
+  settle = false,
+): Promise<Invoice & { paidTemplateUsed: boolean }> {
+  const res = await api.api.invoices[':invoiceId'].finalize.$post({
+    param: { invoiceId },
+    query: { settle: settle ? 'true' : 'false' },
+  })
   if (!res.ok) throw await apiError(res)
   return res.json()
 }

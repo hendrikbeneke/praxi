@@ -13,10 +13,21 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowLeft, ArrowUp, Ban, FileCheck2, FileText, Plus, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  Ban,
+  FileCheck2,
+  FileText,
+  Plus,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/page-header'
+import { PaymentCard } from '@/components/payment-card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -190,16 +201,46 @@ function InvoiceDetailPage() {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.cancelFailed),
   })
 
+  /**
+   * Finalizing, with or without settling in the same transaction. One mutation
+   * for both, because it is one operation on the server too.
+   *
+   * When the invoice was settled but no "already paid" outro block exists, the
+   * document still asks for payment — that is said here, once, rather than
+   * being discovered on the copy months later.
+   */
   const finalize = useMutation({
-    mutationFn: () => finalizeInvoice(invoiceId),
-    onSuccess: async () => {
+    mutationFn: (settle: boolean) => finalizeInvoice(invoiceId, settle),
+    onSuccess: async (result, settle) => {
       await invalidate()
-      toast.success(strings.invoice.finalized)
+      await queryClient.invalidateQueries({ queryKey: ['receivables'] })
+
+      if (!settle) {
+        toast.success(strings.invoice.finalized)
+      } else if (result.paidTemplateUsed) {
+        toast.success(strings.payment.settled)
+      } else {
+        toast.warning(strings.payment.settledWithoutTemplate, { duration: 12_000 })
+      }
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.finalizeFailed)
     },
   })
+
+  /** Save, then finalize: finalizing snapshots what is stored, not what is on
+   *  screen. Silently — `save` reports its own failure, and a "saved" toast
+   *  would sit next to a failed finalization and contradict it. */
+  async function saveThenFinalize(settle: boolean) {
+    try {
+      await save.mutateAsync({ silent: true })
+    } catch {
+      // Already reported by the mutation's onError; the point of catching is
+      // not to finalize unsaved data.
+      return
+    }
+    finalize.mutate(settle)
+  }
 
   const discard = useMutation({
     mutationFn: () => deleteInvoice(invoiceId),
@@ -512,6 +553,10 @@ function InvoiceDetailPage() {
           onInsert={insertTemplate}
         />
 
+        {/* Only on a document: a draft is not a claim, and the server refuses
+            a payment against one twice over. */}
+        {!isDraft && <PaymentCard invoice={invoice} />}
+
         {isDraft && !hasNumberRange && !ranges.isPending && (
           <p className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
             {strings.invoice.numberRangeMissing}{' '}
@@ -544,23 +589,35 @@ function InvoiceDetailPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={async () => {
-                      // Save first: finalizing snapshots what is stored, not
-                      // what is on screen. Silently — `save` reports its own
-                      // failure, and a "saved" toast here would sit next to a
-                      // failed finalization and contradict it.
-                      try {
-                        await save.mutateAsync({ silent: true })
-                      } catch {
-                        // Already reported by the mutation's onError; the
-                        // point of catching is not to finalize unsaved data.
-                        return
-                      }
-                      finalize.mutate()
-                    }}
-                  >
+                  <AlertDialogAction onClick={() => void saveThenFinalize(false)}>
                     {strings.invoice.finalizeConfirm}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* The card put through right after the session: one transaction
+                that finalizes, records the payment and picks the outro for an
+                invoice that is already settled (rule 9). */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={finalize.isPending || lines.length === 0 || !canFinalize}
+                >
+                  <Wallet className="size-4" aria-hidden />
+                  {strings.payment.settle}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{strings.payment.settleTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>{strings.payment.settleBody}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void saveThenFinalize(true)}>
+                    {strings.payment.settleConfirm}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

@@ -19,6 +19,7 @@ import type {
   InvoiceStatus,
   InvoiceType,
   NoteType,
+  PaymentMethod,
   RecipientSnapshot,
   TextTemplateKind,
 } from '@praxi/shared'
@@ -1039,8 +1040,9 @@ export const textTemplate = pgTable(
     name: text().notNull(),
     body: text().notNull(),
     isDefault: boolean().notNull().default(false),
-    /** The outro for an invoice settled on the spot. The action that uses it
-     *  arrives in slice 8 together with the `payment` table. */
+    /** The outro for an invoice settled on the spot — picked by the "Betrag
+     *  erhalten" action, which finalizes and records the payment in one
+     *  transaction (slice 8). */
     isPaidVariant: boolean().notNull().default(false),
     active: boolean().notNull().default(true),
     ...timestamps,
@@ -1065,7 +1067,7 @@ export const invoiceStatus = pgEnum('invoice_status', ['draft', 'finalized', 'ca
  *
  * After finalization the row is immutable except for `status`, enforced by the
  * `protect_finalized_invoice` trigger in migration 0014. Payments live in
- * their own table from slice 8 and never touch this row.
+ * `payment` and never touch this row (slice 8).
  *
  * `cancels_invoice_id` and `cancelled_by_invoice_id` arrive in slice 7 with
  * the code that fills them; the trigger is replaced there to let the second
@@ -1200,6 +1202,63 @@ export const invoice = pgTable(
     check('invoice_pdf_hash_shape', sql`${t.pdfHash} is null or ${t.pdfHash} ~ '^[0-9a-f]{64}$'`),
     check('invoice_number_value_positive', sql`${t.numberValue} is null or ${t.numberValue} >= 1`),
     check('invoice_payment_term_range', sql`${t.paymentTermDays} between 0 and 365`),
+  ],
+)
+
+export const paymentMethod = pgEnum('payment_method', ['bank_transfer', 'card', 'other'])
+
+/**
+ * What was received on an invoice (CLAUDE.md rule 9).
+ *
+ * Entered by hand, one row per payment; there is no import and no bank
+ * reconciliation. The amount is free, so partial payments and overpayments
+ * exist as facts without a concept of their own, and the invoice status —
+ * open, partly paid, paid, overdue — is **derived from the sum of these rows
+ * and never stored**. `invoicePaymentState()` in `packages/shared` is the only
+ * place that decides it.
+ *
+ * A payment never touches the invoice row: `protect_finalized_invoice` still
+ * freezes everything about a finalized invoice, and this table sits beside it
+ * with a foreign key.
+ */
+export const payment = pgTable(
+  'payment',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    invoiceId: uuid().notNull(),
+    paidOn: date({ mode: 'string' }).notNull(),
+    amountCents: integer().notNull(),
+    method: paymentMethod().notNull().default('bank_transfer').$type<PaymentMethod>(),
+    note: text(),
+    ...timestamps,
+  },
+  (t) => [
+    /**
+     * `RESTRICT`, not `CASCADE`. A finalized invoice cannot be deleted at all
+     * and a draft cannot carry a payment, so there is nothing this key could
+     * legitimately cascade — saying `RESTRICT` states that instead of allowing
+     * a deletion that must not exist.
+     */
+    foreignKey({
+      columns: [t.invoiceId, t.tenantId],
+      foreignColumns: [invoice.id, invoice.tenantId],
+      name: 'payment_invoice_tenant_fk',
+    }).onDelete('restrict'),
+    unique('payment_id_tenant_key').on(t.id, t.tenantId),
+    index('payment_invoice_idx').on(t.invoiceId, t.paidOn),
+    index('payment_tenant_paid_on_idx').on(t.tenantId, t.paidOn),
+    /**
+     * Not zero, but any sign. A negative payment is how a refund is recorded
+     * without inventing a second concept — the same reasoning that leaves
+     * `activity_item.unit_price_cents` free so a discount needs no mechanism
+     * (rule 5). Being able to express a refund at all is worth more than being
+     * protected against a mistyped minus. Zero, on the other hand, is always a
+     * typo: it records nothing and only clutters the invoice.
+     */
+    check('payment_amount_not_zero', sql`${t.amountCents} <> 0`),
   ],
 )
 

@@ -14,6 +14,7 @@ import type { Database, DbReader, Transaction } from '../db/client.js'
 import { contact, invoice, invoiceLine, practiceSettings, textTemplate } from '../db/schema.js'
 import { newId } from '../id.js'
 import { listBillableItems } from './billable.js'
+import { paidCentsByInvoice } from './payment.js'
 
 /**
  * Invoice drafts: creating, editing, discarding. Finalization lives next door
@@ -82,7 +83,10 @@ const lineColumns = {
   amountCents: invoiceLine.amountCents,
 }
 
-type InvoiceRow = Omit<Invoice, 'finalizedAt' | 'lines' | 'contactName' | 'contactNumber'> & {
+type InvoiceRow = Omit<
+  Invoice,
+  'finalizedAt' | 'lines' | 'contactName' | 'contactNumber' | 'paidCents'
+> & {
   finalizedAt: Date | null
 }
 
@@ -122,10 +126,14 @@ async function loadLines(reader: DbReader, invoiceIds: readonly string[]) {
 function toInvoice(
   row: InvoiceRow & { contactName: string; contactNumber: number },
   lines: InvoiceLine[],
+  paidCents: number,
 ): Invoice {
   return {
     ...row,
     finalizedAt: row.finalizedAt?.toISOString() ?? null,
+    // Derived, never stored (rule 9). What the number *means* is decided by
+    // `invoicePaymentState()` in packages/shared and nowhere else.
+    paidCents,
     lines,
   }
 }
@@ -182,15 +190,17 @@ export async function listInvoices(
     .limit(query.limit)
     .offset(query.offset)
 
-  const lines = await loadLines(
-    database,
-    rows.map((row) => row.id),
-  )
+  const ids = rows.map((row) => row.id)
+  const [lines, paid] = await Promise.all([
+    loadLines(database, ids),
+    paidCentsByInvoice(database, tenantId, ids),
+  ])
 
   return rows.map((row) =>
     toInvoice(
       { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
       lines.get(row.id) ?? [],
+      paid.get(row.id) ?? 0,
     ),
   )
 }
@@ -211,9 +221,11 @@ export async function getInvoice(
 
   if (!row) return null
   const lines = await loadLines(reader, [row.id])
+  const paid = await paidCentsByInvoice(reader, tenantId, [row.id])
   return toInvoice(
     { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
     lines.get(row.id) ?? [],
+    paid.get(row.id) ?? 0,
   )
 }
 

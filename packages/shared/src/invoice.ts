@@ -113,6 +113,13 @@ export const invoiceSchema = z.object({
   introText: z.string().nullable(),
   outroText: z.string().nullable(),
   totalCents: z.number().int(),
+  /**
+   * The sum of this invoice's payments (slice 8). Derived, never stored — it
+   * is read back with the invoice so a list can show the payment state without
+   * a second round trip. What that sum *means* is `invoicePaymentState()` in
+   * `payment.ts`, which is the only place the status is decided.
+   */
+  paidCents: z.number().int(),
   pdfHash: z.string().nullable(),
   finalizedAt: z.iso.datetime().nullable(),
   /**

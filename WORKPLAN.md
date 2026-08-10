@@ -16,7 +16,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 6.5 | Roles and relations | **done** |
 | 7 | Cancellation invoices | **done** |
 | 7.5 | Activity types and the status split | **done** |
-| 8 | Payments and receivables | todo |
+| 8 | Payments and receivables | **done** |
 | 9 | Google Calendar sync | todo |
 | 10 | Sending invoices by email | todo |
 
@@ -720,6 +720,65 @@ Found while building:
 - Tests: partial payment, overpayment, due date arithmetic
 
 **Done when:** the receivables view answers "who still owes what" at a glance.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`amount_cents <> 0`, not `> 0`.** A negative payment records a refund
+  without inventing a second concept — the same reasoning that leaves
+  `activity_item.unit_price_cents` free so a discount needs no mechanism. Being
+  able to express a refund at all is worth more than being protected against a
+  mistyped minus; zero records nothing and is always a typo. The reasoning sits
+  on the constraint, in the schema and via `COMMENT ON CONSTRAINT`.
+- **`overdue` is a second axis, not a status.** An invoice can be partly paid
+  *and* overdue at the same time, and a sixth status would have made
+  `invoicePaymentState` keep one of the two quiet. So the status is one of
+  open / partially_paid / paid / overpaid / cancelled / cancellation, and
+  `daysOverdue` travels beside it. The receivables view still has a "Fällig"
+  button — as a filter, where the two axes do not collide.
+- **Overpayment is its own status**, not `paid`. "More came in than was asked
+  for" is something the practitioner has to see, and folding it into `paid`
+  would hide it. The filter counts it as settled, because it is.
+- **`settle` is a parameter of `finalizeInvoice`**, not a function beside it.
+  It is the same transaction with two extra steps, and one of them has an order
+  that is only correct in one place: the paid-variant outro has to replace the
+  text **before** the render, or the stored text and the printed document
+  disagree — and the PDF is never re-rendered. A missing paid-variant template
+  does not stop it; the answer carries `paidTemplateUsed` so the screen can say
+  the document still asks for payment, once, rather than letting that be found
+  on the copy months later.
+- **A draft cannot be paid**, guarded twice. It is not a claim: no number, no
+  document, no date it falls due. A check constraint cannot express it because
+  the status lives in a second table, so `domain/payment.ts` refuses for the
+  message and the `payment_requires_finalized_invoice` trigger makes the state
+  unreachable — the same shape as the mirrored `exclusive` flag in slice 6.5.
+- **Cancelling leaves payments standing.** A cancelled invoice is never open,
+  whatever was paid on it, and the cancellation document is not a claim either;
+  both fall out of the open items through the status rule rather than through a
+  `WHERE` clause, which is what makes the test worth having. Refunding is a step
+  outside this software — or a negative payment on the original.
+- **The receivables filter is applied in memory**, on the result of
+  `invoicePaymentState`, not rewritten as SQL. A second definition of the status
+  rule would eventually disagree with the first, and this view is the answer to
+  "what is still open". A practice's invoices fit in memory many times over;
+  when they no longer do, the fix is a materialized view, not a copy of the rule.
+- **`invoice.paidCents` travels with the invoice** so a list can show the state
+  without a second round trip — one grouped query in `listInvoices`, never an
+  n+1, because that is the shape that eventually tempts someone to cache a total
+  on the invoice row.
+- **The two provisionals from slice 6 are gone**: the contact record's invoice
+  block now shows what is really open and how much of it is overdue, and the
+  "Zahlungen werden noch nicht erfasst" caveat and the comment above the
+  function went with them.
+
+Found while building:
+
+- `finalizeInvoice` now answers with two things, so every caller had to change.
+  The tests go through `finalizeDocument()` in `test/fixtures.ts`, which reduces
+  it back to the document; only the settle tests call the real one.
+- The status rule is pure and lives in `packages/shared`, which is why its test
+  needs no database: eleven cases including the due-date boundary run in
+  milliseconds, and the two database tests then only check that the real rows
+  reach it.
 
 ## Slice 9 — Google Calendar sync
 

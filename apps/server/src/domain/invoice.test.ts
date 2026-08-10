@@ -17,12 +17,12 @@ import {
 } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { createTenant, createUser } from '../test/fixtures.js'
+import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import { BilledItemError, createActivity, deleteActivity, updateActivity } from './activity.js'
 import { listBillableItems } from './billable.js'
 import { cancelInvoice } from './cancel-invoice.js'
 import { FileStore } from './file-store.js'
-import { finalizeInvoice, pdfPathFor } from './finalize-invoice.js'
+import { pdfPathFor } from './finalize-invoice.js'
 import {
   createInvoice,
   deleteInvoice,
@@ -178,7 +178,7 @@ describe('billable items', () => {
     it('offers it again once that invoice is cancelled', async () => {
       await makeActivityWithItem()
       const draft = await draftFromBillable()
-      await finalizeInvoice(db(), tenantId, store, draft.id, render)
+      await finalizeDocument(db(), tenantId, store, draft.id, render)
 
       expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(0)
 
@@ -280,7 +280,7 @@ describe('drafts', () => {
       activityItemIds: [],
     })
 
-    await expect(finalizeInvoice(db(), tenantId, store, draft.id, render)).rejects.toBeInstanceOf(
+    await expect(finalizeDocument(db(), tenantId, store, draft.id, render)).rejects.toBeInstanceOf(
       InvoiceEmptyError,
     )
   })
@@ -291,7 +291,7 @@ describe('finalizing', () => {
     await makeActivityWithItem()
     const draft = await draftFromBillable()
 
-    const finalized = await finalizeInvoice(db(), tenantId, store, draft.id, render)
+    const finalized = await finalizeDocument(db(), tenantId, store, draft.id, render)
     if (!finalized) throw new Error('not finalized')
 
     expect(finalized.status).toBe('finalized')
@@ -310,10 +310,10 @@ describe('finalizing', () => {
 
   it('keeps the counter moving forward', async () => {
     await makeActivityWithItem()
-    await finalizeInvoice(db(), tenantId, store, (await draftFromBillable()).id, render)
+    await finalizeDocument(db(), tenantId, store, (await draftFromBillable()).id, render)
 
     await makeActivityWithItem()
-    const second = await finalizeInvoice(
+    const second = await finalizeDocument(
       db(),
       tenantId,
       store,
@@ -329,14 +329,14 @@ describe('finalizing', () => {
     await makeActivityWithItem()
     const draft = await draftFromBillable()
 
-    await expect(finalizeInvoice(db(), tenantId, store, draft.id, render)).rejects.toThrow(
+    await expect(finalizeDocument(db(), tenantId, store, draft.id, render)).rejects.toThrow(
       /No number range configured/,
     )
   })
 
   it('refuses a number that is already issued', async () => {
     await makeActivityWithItem()
-    await finalizeInvoice(db(), tenantId, store, (await draftFromBillable()).id, render)
+    await finalizeDocument(db(), tenantId, store, (await draftFromBillable()).id, render)
 
     // The yearly reset, done wrong: back to a value that was already used.
     await upsertNumberRange(db(), tenantId, 'invoice', {
@@ -347,7 +347,7 @@ describe('finalizing', () => {
 
     await makeActivityWithItem()
     const draft = await draftFromBillable()
-    await expect(finalizeInvoice(db(), tenantId, store, draft.id, render)).rejects.toThrow(
+    await expect(finalizeDocument(db(), tenantId, store, draft.id, render)).rejects.toThrow(
       /already been issued/,
     )
   })
@@ -362,7 +362,7 @@ describe('finalizing', () => {
     const draft = await draftFromBillable()
 
     await expect(
-      finalizeInvoice(db(), tenantId, store, draft.id, async () => {
+      finalizeDocument(db(), tenantId, store, draft.id, async () => {
         throw new Error('render exploded')
       }),
     ).rejects.toThrow('render exploded')
@@ -391,7 +391,7 @@ describe('finalizing', () => {
     }
 
     await expect(
-      finalizeInvoice(db(), tenantId, new FlakyStore(storeRoot), draft.id, render),
+      finalizeDocument(db(), tenantId, new FlakyStore(storeRoot), draft.id, render),
     ).rejects.toThrow('disk went away')
 
     const [range] = await db().select().from(numberRange).where(eq(numberRange.code, 'invoice'))
@@ -403,7 +403,7 @@ describe('finalizing', () => {
 
   it('does not change a finalized invoice when the catalogue or the contact does', async () => {
     await makeActivityWithItem()
-    const finalized = await finalizeInvoice(
+    const finalized = await finalizeDocument(
       db(),
       tenantId,
       store,
@@ -434,7 +434,7 @@ describe('the database refuses on its own', () => {
 
   it('blocks changing or deleting a finalized invoice', async () => {
     await makeActivityWithItem()
-    const finalized = await finalizeInvoice(
+    const finalized = await finalizeDocument(
       db(),
       tenantId,
       store,
@@ -475,7 +475,7 @@ describe('the database refuses on its own', () => {
 
   it('blocks touching the lines of a finalized invoice', async () => {
     await makeActivityWithItem()
-    const finalized = await finalizeInvoice(
+    const finalized = await finalizeDocument(
       db(),
       tenantId,
       store,
@@ -499,7 +499,7 @@ describe('the database refuses on its own', () => {
   it('blocks changing a billed activity item', async () => {
     const activity = await makeActivityWithItem()
     const itemId = activity.items[0]?.id ?? ''
-    await finalizeInvoice(db(), tenantId, store, (await draftFromBillable()).id, render)
+    await finalizeDocument(db(), tenantId, store, (await draftFromBillable()).id, render)
 
     const { activityItem } = await import('../db/schema.js')
     expect(
@@ -511,7 +511,7 @@ describe('the database refuses on its own', () => {
 
   it('refuses to modify a finalized invoice through the domain as well', async () => {
     await makeActivityWithItem()
-    const finalized = await finalizeInvoice(
+    const finalized = await finalizeDocument(
       db(),
       tenantId,
       store,
@@ -568,7 +568,7 @@ describe('an activity item that is on an invoice', () => {
 
   it('names the invoice it is on', async () => {
     const activity = await makeActivityWithItem()
-    await finalizeInvoice(db(), tenantId, store, (await draftFromBillable()).id, render)
+    await finalizeDocument(db(), tenantId, store, (await draftFromBillable()).id, render)
 
     const error = await deleteActivity(db(), tenantId, activity.id).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(BilledItemError)

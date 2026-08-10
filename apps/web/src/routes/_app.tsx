@@ -9,6 +9,7 @@ import {
   Settings,
   Stethoscope,
   Users,
+  Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -40,6 +41,7 @@ const navigation = [
   { to: '/appointments', label: strings.nav.appointments, icon: CalendarDays },
   { to: '/activities', label: strings.nav.activities, icon: ClipboardList },
   { to: '/invoices', label: strings.nav.invoices, icon: FileText },
+  { to: '/receivables', label: strings.nav.receivables, icon: Wallet },
   { to: '/services', label: strings.nav.services, icon: Stethoscope },
   { to: '/settings', label: strings.nav.settings, icon: Settings },
 ] as const

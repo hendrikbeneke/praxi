@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto'
-import type { Invoice } from '@praxi/shared'
+import type { Invoice, PaymentMethod } from '@praxi/shared'
 import { formatNumber, sumLines } from '@praxi/shared'
 import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
-import { invoice, invoiceLine, numberRange } from '../db/schema.js'
+import { invoice, invoiceLine, numberRange, payment, textTemplate } from '../db/schema.js'
+import { newId } from '../id.js'
 import { nextNumber } from './counter.js'
 import type { FileStore } from './file-store.js'
 import {
@@ -57,9 +58,42 @@ import { assertNumberFree } from './number-range.js'
  * That also settles a second problem: `status` has to move last anyway,
  * because once the row is finalized `protect_finalized_invoice` refuses every
  * further change — including writing its own hash.
+ *
+ * ## "Betrag erhalten"
+ *
+ * The card is put through right after the session and the invoice is handed
+ * over settled. That is `settle`, and it is a parameter rather than a second
+ * function beside this one: it is the *same* transaction with two extra steps,
+ * and a copy of this file for two of them would be the copy that drifts.
+ *
+ * The order matters and is only correct in one place, which is the second
+ * reason it lives here: the outro has to be replaced **before** the render, or
+ * the stored text and the printed document say different things. The invoice
+ * would then ask for payment by a date on a document that was paid on the
+ * spot, and the PDF is never re-rendered.
+ *
+ * A missing `is_paid_variant` template does not stop it. An outro block is a
+ * setting, and "card was taken, print the invoice" must not fail on one; the
+ * route reports back whether the text was found so the client can say so.
  */
 
 export const INVOICE_RANGE_CODE = 'invoice'
+
+/** Finalize and record payment of the full amount in one transaction. */
+export type SettleOptions = {
+  method: PaymentMethod
+  /** Dated to the invoice date, not to the clock: the money changed hands
+   *  when the document says it did. */
+  paidOn?: string
+}
+
+export type FinalizeResult = {
+  invoice: Invoice
+  /** False when `settle` was asked for and no `is_paid_variant` outro block is
+   *  configured. The invoice is finalized and paid either way — this is what
+   *  lets the client say that the document still asks for payment. */
+  paidTemplateUsed: boolean
+}
 
 export async function finalizeInvoice(
   database: Database,
@@ -67,8 +101,10 @@ export async function finalizeInvoice(
   store: FileStore,
   invoiceId: string,
   renderPdf: (invoice: Invoice) => Promise<Uint8Array>,
-): Promise<Invoice | null> {
+  settle?: SettleOptions,
+): Promise<FinalizeResult | null> {
   let writtenPath: string | null = null
+  let paidTemplateUsed = false
 
   try {
     const finalized = await database.transaction(async (tx) => {
@@ -110,6 +146,31 @@ export async function finalizeInvoice(
       const contactRow = await loadContactRow(tx, tenantId, draft.contactId)
       if (!contactRow) throw new Error('invoice references a contact that does not exist')
 
+      /**
+       * 1b — the outro for an invoice that is being settled on the spot, if
+       * one is configured. Before the render, or the document and the row
+       * would disagree; missing is not an error, only reported back.
+       */
+      let outroText = draft.outroText
+      if (settle) {
+        const [paidVariant] = await tx
+          .select({ body: textTemplate.body })
+          .from(textTemplate)
+          .where(
+            and(
+              eq(textTemplate.tenantId, tenantId),
+              eq(textTemplate.isPaidVariant, true),
+              eq(textTemplate.active, true),
+            ),
+          )
+          .limit(1)
+
+        if (paidVariant) {
+          outroText = paidVariant.body
+          paidTemplateUsed = true
+        }
+      }
+
       // 2 — the finished document, in memory. What is rendered is exactly
       // what is stored.
       const recipientSnapshot = recipientSnapshotOf(contactRow)
@@ -117,6 +178,7 @@ export async function finalizeInvoice(
       const snapshot: Invoice = {
         ...draft,
         status: 'finalized',
+        outroText,
         number: formatted,
         numberPrefix: prefix,
         numberValue: value,
@@ -140,6 +202,7 @@ export async function finalizeInvoice(
           numberPrefix: prefix,
           numberValue: value,
           recipientSnapshot,
+          outroText,
           totalCents: snapshot.totalCents,
           finalizedAt,
           pdfPath: path,
@@ -148,12 +211,31 @@ export async function finalizeInvoice(
         })
         .where(eq(invoice.id, invoiceId))
 
+      /**
+       * 5 — the payment, and only now: `payment_requires_finalized_invoice`
+       * refuses one against a draft, and until the statement above the row
+       * still was one. Over the full amount, dated to the invoice — all of it
+       * correctable afterwards, like any other payment.
+       */
+      if (settle) {
+        await tx.insert(payment).values({
+          id: newId(),
+          tenantId,
+          invoiceId,
+          paidOn: settle.paidOn ?? snapshot.invoiceDate,
+          amountCents: snapshot.totalCents,
+          method: settle.method,
+        })
+      }
+
       return true
     })
 
-    return finalized ? getInvoice(database, tenantId, invoiceId) : null
+    if (!finalized) return null
+    const stored = await getInvoice(database, tenantId, invoiceId)
+    return stored ? { invoice: stored, paidTemplateUsed } : null
   } catch (error) {
-    // 5 — the transaction rolled back, so the file it wrote points at nothing.
+    // 6 — the transaction rolled back, so the file it wrote points at nothing.
     if (writtenPath) await store.remove(writtenPath).catch(() => {})
     throw error
   }

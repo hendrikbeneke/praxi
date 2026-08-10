@@ -1,8 +1,16 @@
-import { dueDate, formatBerlinDate, formatEuro, type InvoiceStatus } from '@praxi/shared'
+import {
+  dueDate,
+  formatBerlinDate,
+  formatEuro,
+  type InvoiceStatus,
+  invoicePaymentState,
+  toBerlinDate,
+} from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { PageHeader } from '@/components/page-header'
+import { PaymentStatusBadge } from '@/components/payment-status'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +46,7 @@ function InvoiceListPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const invoices = useQuery(invoiceListQueryOptions({ status: search.status }))
+  const today = toBerlinDate(new Date().toISOString())
 
   const rows = invoices.data ?? []
 
@@ -72,6 +81,7 @@ function InvoiceListPage() {
                 <TableHead>{strings.invoice.invoiceDate}</TableHead>
                 <TableHead>{strings.invoice.dueDate}</TableHead>
                 <TableHead>{strings.invoice.statusLabel}</TableHead>
+                <TableHead>{strings.invoice.paymentState}</TableHead>
                 <TableHead className="text-right">{strings.invoice.total}</TableHead>
               </TableRow>
             </TableHeader>
@@ -120,6 +130,17 @@ function InvoiceListPage() {
                     <Badge variant={entry.status === 'draft' ? 'outline' : 'secondary'}>
                       {strings.invoice.statuses[entry.status]}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {/* What the payments make of it — derived from them and
+                        never stored. A draft is not a claim, so it has none. */}
+                    {entry.status === 'draft' ? (
+                      '—'
+                    ) : (
+                      <PaymentStatusBadge
+                        state={invoicePaymentState(entry, entry.paidCents, today)}
+                      />
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatEuro(entry.totalCents)}

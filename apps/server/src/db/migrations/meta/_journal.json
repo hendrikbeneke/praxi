@@ -155,6 +155,20 @@
       "when": 1786351733826,
       "tag": "0021_activity_types_and_status_split",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786359372142,
+      "tag": "0022_condemned_vertigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786359373142,
+      "tag": "0023_payment_trigger_and_rls",
+      "breakpoints": true
     }
   ]
 }

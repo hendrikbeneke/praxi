@@ -272,9 +272,15 @@ After finalization the invoice row is immutable except for `status` and `cancell
 
 In the PDF and the UI the document is titled **"Stornorechnung"** or **"Rechnungskorrektur"**, never **"Gutschrift"**. In German VAT law that term means self-billing by the recipient (§ 14 Abs. 2 UStG); misusing it can trigger a tax liability under § 14c UStG.
 
-**Payments** are entered by hand from the invoice. The amount is editable, so partial payments fall out of the model for free; the invoice status (open, partially paid, paid, overdue) is always derived from the sum of payments and never stored.
+**Payments** are entered by hand from the invoice — no import, no bank reconciliation, no payment provider. The amount is editable, so partial payments and overpayments fall out of the model for free, and it may be **negative**: that is how a refund is recorded, without a second concept, the same way a negative `activity_item` price grants a discount. Zero is refused, because it records nothing.
 
-There is a "Betrag erhalten" action on finalization for the common case of payment by card right after the session: one transaction that finalizes, records a payment over the full amount dated to the invoice date with method `card`, and selects the outro template marked as the paid variant. All of it correctable afterwards.
+The payment state — open, partly paid, paid, overpaid — **is always derived from the sum of payments and never stored**. `invoicePaymentState()` in `packages/shared` is the only place that decides it; there is no status column, no cached total and no denormalized flag, and a second place saying what was received would eventually say something else. A payment never touches the invoice row, so the immutability trigger stays untouched, and a **draft cannot be paid at all**: it is not a claim yet, `domain/payment.ts` refuses first for the message and `payment_requires_finalized_invoice` makes it unreachable.
+
+**Being overdue is a second axis, not a status.** An invoice can be partly paid *and* overdue at the same time, and one column would have to keep one of the two quiet. So `daysOverdue` travels beside the status, null when nothing is owed. Payment is owed *by* the due date, so the due date itself is not yet late.
+
+**Cancelling and paying.** A cancelled invoice is never open, whatever was paid on it, and neither is a cancellation document — that is a document with negative amounts, not a claim, and netting it against the original would be a running account, which accounting keeps and this software does not. The payment on a cancelled invoice **stays where it is**: on that day the money did arrive, and deleting the row would be a forgery. Refunding is a step outside this software; where the practitioner wants it visible, a negative payment on the original records it. A paid invoice may be cancelled without a warning — "wrongly billed, money already in" is exactly the case cancelling exists for.
+
+There is a "Betrag erhalten" action on finalization for the common case of payment by card right after the session: one transaction that finalizes, records a payment over the full amount dated to the invoice date with method `card`, and selects the outro template marked as the paid variant. It is a parameter of `finalizeInvoice`, not a second function beside it — the same transaction with two extra steps, and the order is only correct in one place: the outro has to be replaced **before** the render, or the stored text and the printed document disagree. A missing paid-variant template does not stop it; the answer says the text was not found, and the screen says so once rather than letting a document that asks for payment be discovered months later. All of it correctable afterwards.
 
 ### 10. VAT and invoice content
 
@@ -932,8 +938,40 @@ text_template         tenant_id uuid not null -> tenant(id),
                       -- used by the "Betrag erhalten" action, which arrives in
                       -- slice 8 with the payment table.
 
-payment               tenant_id, invoice_id, paid_on, amount_cents,
-                      method (bank_transfer|card|other), note
+-- as built (slice 8)
+payment               tenant_id uuid not null -> tenant(id),
+                      invoice_id uuid not null,
+                      paid_on date not null,                    -- the day the
+                        -- money arrived, not the day it was typed in
+                      amount_cents integer not null,
+                      method payment_method not null
+                        default 'bank_transfer'                 (pgEnum:
+                        -- bank_transfer | card | other)
+                      note text
+                      foreign key (invoice_id, tenant_id)
+                        -> invoice (id, tenant_id) on delete restrict
+                        -- RESTRICT, not CASCADE: a finalized invoice cannot be
+                        -- deleted and a draft cannot carry a payment, so there
+                        -- is nothing to cascade. Saying so beats allowing a
+                        -- deletion that must not exist.
+                      unique (id, tenant_id),
+                      index (invoice_id, paid_on),
+                      index (tenant_id, paid_on)
+                      check payment_amount_not_zero (<> 0)
+                        -- not zero, but ANY sign: a negative payment records a
+                        -- refund without a second concept, the way a negative
+                        -- activity_item price grants a discount (rule 5).
+                        -- Zero records nothing and is always a typo.
+                      -- trigger payment_requires_finalized_invoice (0023),
+                      -- BEFORE INSERT OR UPDATE: a draft cannot be paid. It
+                      -- cannot be a check constraint — the status it depends on
+                      -- lives in a second table — so the domain refuses first
+                      -- for the message and this makes it unreachable.
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- Deliberately absent: any status or total column. What
+                      -- these rows mean is invoicePaymentState() in
+                      -- packages/shared, computed on read and never stored.
 
 google_sync_queue     tenant_id, appointment_id, operation (create|update|delete),
                       attempts, last_error, next_attempt_at

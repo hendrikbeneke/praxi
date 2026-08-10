@@ -12,19 +12,23 @@ import {
   formatEuro,
   formatEuroAmount,
   fromBerlinDateTimeLocal,
+  invoicePaymentState,
   MAX_APPOINTMENT_MINUTES,
   minutesBetween,
   occupiesSlot,
   parseEuroAmount,
   type Service,
   type ServiceGroup,
+  toBerlinDate,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
+import { PaymentStatusBadge } from '@/components/payment-status'
 import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -50,6 +54,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createActivity, updateActivity } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
+import { invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/services'
 import { strings } from '@/lib/strings'
@@ -864,6 +869,10 @@ export function ActivityDialog({
             )}
           </section>
 
+          {activity && (
+            <ActivityInvoices activity={activity} onNavigate={() => onOpenChange(false)} />
+          )}
+
           {activity && <ActivityNotes activityId={activity.id} />}
 
           <section>
@@ -899,6 +908,61 @@ export function ActivityDialog({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The invoices this activity's positions ended up on — the shortcut from the
+ * treatment to the money (CLAUDE.md rule 9).
+ *
+ * It is a link and nothing else: recording a payment happens on the invoice,
+ * so there is exactly one way into it and no second path through the model.
+ *
+ * Resolved on the client from the contact's invoices, by matching
+ * `invoice_line.activity_item_id` against this activity's positions. No new
+ * endpoint for it: that reference is already in the payload, and it is the
+ * same record of origin the billable query reasons about.
+ */
+function ActivityInvoices({
+  activity,
+  onNavigate,
+}: {
+  activity: Activity
+  onNavigate: () => void
+}) {
+  const invoices = useQuery(invoiceListQueryOptions({ contactId: activity.contactId }))
+  const today = toBerlinDate(new Date().toISOString())
+
+  const itemIds = new Set(activity.items.map((item) => item.id))
+  const related = (invoices.data ?? []).filter((entry) =>
+    entry.lines.some((line) => line.activityItemId !== null && itemIds.has(line.activityItemId)),
+  )
+
+  if (related.length === 0) return null
+
+  return (
+    <section>
+      <p className="font-medium text-sm">{strings.invoice.title}</p>
+      <ul className="mt-2 space-y-2">
+        {related.map((entry) => {
+          const state = invoicePaymentState(entry, entry.paidCents, today)
+          return (
+            <li key={entry.id} className="flex flex-wrap items-center gap-3 text-sm">
+              <Link
+                to="/invoices/$invoiceId"
+                params={{ invoiceId: entry.id }}
+                onClick={onNavigate}
+                className="underline underline-offset-4"
+              >
+                {entry.number ?? strings.invoice.statuses.draft}
+              </Link>
+              <span className="tabular-nums">{formatEuro(entry.totalCents)}</span>
+              <PaymentStatusBadge state={state} />
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

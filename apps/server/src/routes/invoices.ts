@@ -43,6 +43,15 @@ import { fileStore } from '../storage.js'
 
 const invoiceParam = z.object({ invoiceId: z.uuid() })
 
+/** "Betrag erhalten": finalize and record payment of the full amount by card,
+ *  dated to the invoice, in one transaction. */
+const finalizeQuery = z.object({
+  settle: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+})
+
 function notFound(): never {
   throw new HTTPException(404, { message: messages.invoice.notFound })
 }
@@ -153,18 +162,38 @@ export const invoicesRoute = new Hono<AppEnv>()
     return pdfResponse(bytes, `${found.number ?? 'Entwurf'}.pdf`, true)
   })
 
-  .post('/:invoiceId/finalize', validate('param', invoiceParam), async (c) => {
-    const tenant = tenantId(c)
-    const finalized = await finalizeInvoice(
-      db(),
-      tenant,
-      fileStore(),
-      c.req.valid('param').invoiceId,
-      (invoice) => render(tenant, invoice),
-    ).catch(translate)
+  /**
+   * Finalizing, optionally settling in the same transaction — the card put
+   * through right after the session (rule 9). `settle` is a query flag rather
+   * than a second route, because it is the same operation with two extra
+   * steps; see `finalizeInvoice`.
+   *
+   * The response carries `paidTemplateUsed` so the client can say when the
+   * invoice was settled but no "already paid" outro block is configured — the
+   * document then still asks for payment, and noticing that months later is
+   * worse than a sentence now.
+   */
+  .post(
+    '/:invoiceId/finalize',
+    validate('param', invoiceParam),
+    validate('query', finalizeQuery),
+    async (c) => {
+      const tenant = tenantId(c)
+      const { settle } = c.req.valid('query')
 
-    return finalized ? c.json(finalized) : notFound()
-  })
+      const finalized = await finalizeInvoice(
+        db(),
+        tenant,
+        fileStore(),
+        c.req.valid('param').invoiceId,
+        (invoice) => render(tenant, invoice),
+        settle ? { method: 'card' } : undefined,
+      ).catch(translate)
+
+      if (!finalized) notFound()
+      return c.json({ ...finalized.invoice, paidTemplateUsed: finalized.paidTemplateUsed })
+    },
+  )
 
   /**
    * Cancelling issues a second document; the original keeps its number and its

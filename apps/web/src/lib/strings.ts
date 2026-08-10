@@ -14,6 +14,7 @@ export const strings = {
     appointments: 'Termine',
     activities: 'Vorgänge',
     invoices: 'Rechnungen',
+    receivables: 'Bezahlübersicht',
     services: 'Leistungen',
     settings: 'Einstellungen',
     signOut: 'Abmelden',
@@ -301,10 +302,9 @@ export const strings = {
     openDraft: 'Zum Rechnungsentwurf',
     invoicesFinalized: (count: number) =>
       count === 1 ? '1 festgeschriebene Rechnung' : `${count} festgeschriebene Rechnungen`,
-    /** Deliberately "fällig seit" and not "überfällig": until slice 8 nothing
-     *  here knows whether an invoice was paid, and the line below says so. */
-    invoicesDue: (count: number) => `${count} fällig seit`,
-    paymentsNotTracked: 'Zahlungen werden noch nicht erfasst.',
+    invoicesOpen: (count: number) => (count === 1 ? '1 offene Rechnung' : `${count} offen`),
+    invoicesSettled: 'Nichts offen.',
+    invoicesOverdue: (count: number) => (count === 1 ? '1 überfällig' : `${count} überfällig`),
     guardianMissing:
       'Dieser Kontakt ist noch nicht volljährig, und es ist niemand als sorgeberechtigt ' +
       'hinterlegt. Sie können das unter „Verknüpfte Kontakte" ergänzen.',
@@ -669,6 +669,7 @@ export const strings = {
     finalized: 'Rechnung festgeschrieben.',
     finalizeFailed: 'Die Rechnung konnte nicht festgeschrieben werden.',
 
+    paymentState: 'Zahlungsstand',
     cancel: 'Stornieren',
     cancelTitle: 'Rechnung stornieren?',
     cancelBody:
@@ -725,6 +726,88 @@ export const strings = {
     letterheadShow: 'Hinterlegte Vorlage ansehen',
     letterheadUploaded: 'Vorlage gespeichert.',
     letterheadNone: 'Keine Vorlage hinterlegt — Rechnungen drucken auf weißem Grund.',
+  },
+  payment: {
+    title: 'Zahlungen',
+    empty: 'Noch keine Zahlung erfasst.',
+    add: 'Zahlung erfassen',
+    addTitle: 'Zahlung erfassen',
+    paidOn: 'Datum',
+    amount: 'Betrag',
+    amountHint: 'In Euro. Ein negativer Betrag erfasst eine Rückzahlung.',
+    method: 'Zahlweg',
+    methods: {
+      bank_transfer: 'Überweisung',
+      card: 'Karte',
+      other: 'Sonstiges',
+    },
+    note: 'Notiz',
+    save: 'Erfassen',
+    saved: 'Zahlung erfasst.',
+    saveFailed: 'Die Zahlung konnte nicht erfasst werden.',
+    remove: 'Zahlung löschen',
+    removed: 'Zahlung gelöscht.',
+    removeTitle: 'Zahlung löschen?',
+    /** Names the amount and the date: with several payments on one invoice it
+     *  is otherwise unclear which one is about to go. */
+    removeBody: (amount: string, date: string) =>
+      `Die Zahlung über ${amount} vom ${date} wird gelöscht. Der Zahlungsstand der Rechnung ` +
+      'ändert sich entsprechend.',
+
+    sumPaid: 'Bezahlt',
+    sumOpen: 'Offen',
+    statuses: {
+      open: 'Offen',
+      partially_paid: 'Teilweise bezahlt',
+      paid: 'Bezahlt',
+      overpaid: 'Überzahlt',
+      cancelled: 'Storniert',
+      cancellation: 'Stornorechnung',
+    },
+    overdueBy: (days: number) => (days === 1 ? 'seit 1 Tag fällig' : `seit ${days} Tagen fällig`),
+    draftNotPayable: 'Ein Entwurf kann nicht bezahlt werden.',
+
+    settle: 'Betrag erhalten',
+    settleTitle: 'Rechnung festschreiben und als bezahlt erfassen?',
+    settleBody:
+      'Die Rechnung wird festgeschrieben, erhält ihre Nummer und ihr PDF — und es wird sofort ' +
+      'eine Zahlung über den vollen Betrag mit Zahlweg „Karte" und dem Rechnungsdatum erfasst. ' +
+      'Ist ein Schlusstext für bezahlte Rechnungen hinterlegt, wird er verwendet. Die Zahlung ' +
+      'lässt sich danach korrigieren oder löschen, die Rechnung nicht mehr.',
+    settleConfirm: 'Festschreiben und bezahlt',
+    settled: 'Festgeschrieben und als bezahlt erfasst.',
+    /** The one thing that would otherwise go unnoticed for months: a document
+     *  that asks for payment although it was settled on the spot. */
+    settledWithoutTemplate:
+      'Festgeschrieben und als bezahlt erfasst. Es ist kein Schlusstext für bezahlte Rechnungen ' +
+      'hinterlegt — das Dokument fordert daher weiterhin zur Zahlung auf. Sie hinterlegen ihn ' +
+      'in den Einstellungen unter „Rechnungsstellung".',
+  },
+  receivable: {
+    title: 'Bezahlübersicht',
+    description: 'Was noch offen ist, und seit wann.',
+    empty: 'Keine Rechnung passt zu diesem Filter.',
+    filters: {
+      open: 'Offen',
+      partially_paid: 'Teilweise bezahlt',
+      paid: 'Bezahlt',
+      overdue: 'Fällig',
+      cancelled: 'Storniert',
+    },
+    all: 'Alle',
+    columns: {
+      number: 'Nummer',
+      contact: 'Empfänger',
+      invoiceDate: 'Rechnungsdatum',
+      dueDate: 'Fällig am',
+      total: 'Betrag',
+      paid: 'Bezahlt',
+      open: 'Offen',
+      status: 'Status',
+      overdue: 'Überfällig',
+    },
+    days: (days: number) => (days === 1 ? '1 Tag' : `${days} Tage`),
+    openTotal: (amount: string) => `Offen insgesamt: ${amount}`,
   },
   actions: {
     recheck: 'Erneut prüfen',

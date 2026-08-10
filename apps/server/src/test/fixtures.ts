@@ -1,8 +1,10 @@
+import type { Invoice } from '@praxi/shared'
 import type { Database } from '../db/client.js'
 import { appUser, practiceSettings, tenant } from '../db/schema.js'
 import { seedActivityTypes } from '../db/seed/activity-types.js'
 import { seedContactTypes } from '../db/seed/contact-types.js'
 import { hashPassword } from '../domain/auth.js'
+import { finalizeInvoice } from '../domain/finalize-invoice.js'
 import { newId } from '../id.js'
 
 /**
@@ -71,4 +73,19 @@ export async function createUser(
   })
 
   return { id, tenantId: options.tenantId, email, password }
+}
+
+/**
+ * `finalizeInvoice` reduced to the document it produced.
+ *
+ * It returns two things since slice 8 — the invoice and whether the
+ * "Betrag erhalten" outro block was found — and almost every test cares only
+ * about the first. The tests that exercise the settle path call
+ * `finalizeInvoice` directly.
+ */
+export async function finalizeDocument(
+  ...args: Parameters<typeof finalizeInvoice>
+): Promise<Invoice | null> {
+  const result = await finalizeInvoice(...args)
+  return result?.invoice ?? null
 }

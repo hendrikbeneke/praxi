@@ -150,6 +150,12 @@ export const messages = {
       'Eine festgeschriebene Rechnung wird nicht neu erzeugt — stornieren Sie sie und ' +
       'stellen Sie eine neue aus.',
   },
+  payment: {
+    notFound: 'Diese Zahlung existiert nicht.',
+    draftNotPayable:
+      'Ein Rechnungsentwurf kann nicht bezahlt werden. ' +
+      'Schreiben Sie die Rechnung zuerst fest.',
+  },
   /** The German text on the invoice PDF itself. */
   pdf: {
     title: 'Rechnung',

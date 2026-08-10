@@ -10,7 +10,7 @@ import { raisedMessage, uniqueViolationConstraint } from '../db/errors.js'
 import { contact, invoice, numberRange, practiceSettings, service } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { createTenant, createUser } from '../test/fixtures.js'
+import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { listBillableItems } from './billable.js'
 import {
@@ -20,7 +20,6 @@ import {
   InvoiceNotFinalizedError,
 } from './cancel-invoice.js'
 import { FileStore } from './file-store.js'
-import { finalizeInvoice } from './finalize-invoice.js'
 import { createInvoice, getInvoice } from './invoice.js'
 import { upsertNumberRange } from './number-range.js'
 
@@ -98,7 +97,7 @@ async function finalizedInvoice(quantity = 1): Promise<Invoice> {
     activityItemIds: items.map((item) => item.id),
   })
 
-  const finalized = await finalizeInvoice(db(), tenantId, store, draft.id, render)
+  const finalized = await finalizeDocument(db(), tenantId, store, draft.id, render)
   if (!finalized) throw new Error('the invoice was not finalized')
   return finalized
 }

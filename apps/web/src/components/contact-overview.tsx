@@ -4,12 +4,12 @@ import {
   activityTypeLabel,
   ageInYears,
   type Contact,
-  dueDate,
   formatBerlinDate,
   formatBerlinDateTime,
   formatEuro,
   formatRelativeBerlin,
   GUARDIAN_RELATION_CODE,
+  invoicePaymentState,
   toBerlinDate,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -324,22 +324,27 @@ function BillableSummary({ contactId }: { contactId: string }) {
 }
 
 /**
- * Invoices, counted.
+ * Invoices, and what is still owed on them.
  *
- * "Fällig seit" is the honest word until slice 8: nothing here knows about
- * payments yet, so an invoice that was settled in cash the same day still
- * counts as due. When the `payment` table arrives this block gets the real
- * status — open, partly paid, paid, overdue — and the caveat below goes.
+ * Every number is derived: `invoicePaymentState()` from the invoice and the
+ * sum of its payments, the same function the invoice screen and the
+ * receivables view go through. Cancelled invoices and cancellation documents
+ * answer with their own state and never count as open.
  */
 function InvoiceSummary({ contactId }: { contactId: string }) {
   const invoices = useQuery(invoiceListQueryOptions({ contactId }))
 
+  const today = toBerlinDate(new Date().toISOString())
   const rows = invoices.data ?? []
   const finalized = rows.filter((invoice) => invoice.status === 'finalized')
-  const today = toBerlinDate(new Date().toISOString())
-  const due = finalized.filter(
-    (invoice) => dueDate(invoice.invoiceDate, invoice.paymentTermDays) < today,
-  )
+
+  const states = finalized.map((invoice) => ({
+    invoice,
+    state: invoicePaymentState(invoice, invoice.paidCents, today),
+  }))
+  const open = states.filter((entry) => entry.state.openCents > 0)
+  const overdue = open.filter((entry) => entry.state.daysOverdue !== null)
+  const openCents = open.reduce((total, entry) => total + entry.state.openCents, 0)
 
   return (
     <Card>
@@ -353,11 +358,23 @@ function InvoiceSummary({ contactId }: { contactId: string }) {
           <>
             <p className="flex flex-wrap items-baseline justify-between gap-2">
               <span>{strings.contact.invoicesFinalized(finalized.length)}</span>
-              {due.length > 0 && (
-                <Badge variant="outline">{strings.contact.invoicesDue(due.length)}</Badge>
+              {overdue.length > 0 && (
+                <Badge variant="destructive">
+                  {strings.contact.invoicesOverdue(overdue.length)}
+                </Badge>
               )}
             </p>
-            <p className="text-muted-foreground text-xs">{strings.contact.paymentsNotTracked}</p>
+
+            {open.length === 0 ? (
+              <p className="text-muted-foreground">{strings.contact.invoicesSettled}</p>
+            ) : (
+              <p className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-muted-foreground">
+                  {strings.contact.invoicesOpen(open.length)}
+                </span>
+                <span className="font-medium tabular-nums">{formatEuro(openCents)}</span>
+              </p>
+            )}
           </>
         )}
       </CardContent>
