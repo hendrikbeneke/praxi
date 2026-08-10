@@ -365,6 +365,9 @@ function ContactNotes({ contactId }: { contactId: string }) {
         contactId={contactId}
         note={edited}
         correctsNote={corrects}
+        // The pencil on a note is already the "edit" step, so it goes straight
+        // in — this is the dialog that gets used every day.
+        startEditing
         open={dialogOpen}
         onOpenChange={(next) => {
           setDialogOpen(next)

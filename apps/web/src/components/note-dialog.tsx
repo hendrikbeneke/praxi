@@ -46,6 +46,7 @@ export function NoteDialog({
   note,
   correctsNote,
   activityId,
+  startEditing = false,
   open,
   onOpenChange,
 }: {
@@ -56,6 +57,12 @@ export function NoteDialog({
   correctsNote?: Note | undefined
   /** Pre-selected when the dialog is opened from an activity. */
   activityId?: string | undefined
+  /**
+   * Set by a control that already means "edit" — the pencil on a note. Every
+   * other way into a record opens it in read mode (CLAUDE.md, read mode
+   * first), which is what the default gives.
+   */
+  startEditing?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -71,15 +78,14 @@ export function NoteDialog({
 
   const isAddendum = correctsNote !== undefined || note?.correctsNoteId != null
   /** A new note or an addendum has nothing to read yet, so it starts
-   *  editable; an existing note opens in read mode (CLAUDE.md, read mode
-   *  first). Attachments sit inside the same fieldset — uploading or removing
-   *  one changes the note, and downloading a file is a link, which a disabled
-   *  fieldset leaves alone. */
+   *  editable; an existing one follows the way in. Attachments sit inside the
+   *  same fieldset — uploading or removing one changes the note, and
+   *  downloading a file is a link, which a disabled fieldset leaves alone. */
   const [editing, setEditing] = useState(true)
 
   useEffect(() => {
     if (!open) return
-    setEditing(note === undefined)
+    setEditing(note === undefined || startEditing)
 
     if (note) {
       setNoteDate(note.noteDate)
@@ -93,7 +99,7 @@ export function NoteDialog({
     setType(correctsNote ? 'addendum' : 'session')
     setText('')
     setSelectedActivity(activityId ?? correctsNote?.activityId ?? NO_ACTIVITY)
-  }, [open, note, correctsNote, activityId])
+  }, [open, note, correctsNote, activityId, startEditing])
 
   const mutation = useMutation({
     mutationFn: async (): Promise<Note> => {
