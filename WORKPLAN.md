@@ -813,7 +813,12 @@ Only once everything above is in daily use. Design constraint: **Google never re
   and starts depending on the token, which cannot answer with anything else.
   The comment on the scope list names the concrete temptation ("otherwise we
   cannot show the calendar names") and its answer
-  (`calendar.calendarlist.readonly` shows names and no content).
+  (`calendar.calendarlist.readonly` shows names and no content). No identity
+  scope either — `openid email` was in the list until it was noticed that the
+  primary calendar's id *is* the account address, so it bought a second consent
+  line for data already in hand. `google/oauth.test.ts` asserts the list
+  exactly, because a promise that lives only in a comment is one refactor away
+  from being gone.
 - **`upsert` / `delete`, not create/update/delete.** The state of the
   appointment *at push time* decides, not the one at enqueue time, so three
   edits in a row are one call. A released slot goes out as a cancelled event

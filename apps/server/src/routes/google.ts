@@ -16,19 +16,14 @@ import {
   disconnect,
   getStatus,
   saveConnection,
+  setAccountEmail,
   setCalendar,
   setFreebusyCalendars,
 } from '../domain/google-connection.js'
 import { listConflicts, resolveConflict } from '../domain/google-sync.js'
 import { openGoogleApi } from '../google/api.js'
-import { isAuthFailure } from '../google/client.js'
-import {
-  beginAuthorization,
-  exchangeCode,
-  fetchAccountEmail,
-  oauthConfigured,
-  takeFlow,
-} from '../google/oauth.js'
+import { createGoogleApi, isAuthFailure } from '../google/client.js'
+import { beginAuthorization, exchangeCode, oauthConfigured, takeFlow } from '../google/oauth.js'
 import { syncNow } from '../google/worker.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
@@ -72,6 +67,24 @@ function callbackPage(title: string, body: string): string {
 }
 
 /**
+ * The account's own address, read from the calendar list with the access token
+ * the exchange just produced. The primary calendar is named after the account,
+ * which is why no identity scope is requested.
+ *
+ * Best effort in every sense: a failure here must not cost the connection that
+ * was just established.
+ */
+async function primaryCalendarAddress(accessToken: string): Promise<string | null> {
+  try {
+    const api = createGoogleApi({ accessToken: async () => accessToken })
+    const calendars = await api.listCalendars()
+    return calendars.find((calendar) => calendar.primary)?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * The OAuth callback, mounted before the auth middleware on purpose: it
  * authenticates through the single-use `state` it issued, because the session
  * cookie does not travel to `127.0.0.1`.
@@ -92,10 +105,18 @@ const callbackRoute = new Hono<AppEnv>().get(
 
     try {
       const tokens = await exchangeCode(query.code, flow.verifier)
-      const email = await fetchAccountEmail(tokens.accessToken)
+      /**
+       * The account address comes from the calendar list, not from an identity
+       * scope: the primary calendar's id *is* the account's address, so
+       * `openid email` would have bought a second consent line for something
+       * already in hand. Best effort — a connection without it works, the
+       * settings then simply show no address, and `GET /calendars` fills it in
+       * the next time the picker is opened.
+       */
+      const accountEmail = await primaryCalendarAddress(tokens.accessToken)
       await saveConnection(db(), flow.tenantId, {
         refreshToken: tokens.refreshToken,
-        accountEmail: email,
+        accountEmail,
       })
     } catch (error) {
       logger().warn({ tenantId: flow.tenantId }, 'google oauth exchange failed')
@@ -142,7 +163,14 @@ export const googleRoute = new Hono<AppEnv>()
   .get('/calendars', async (c) => {
     const api = await openGoogleApi(db(), tenantId(c)).catch(translate)
     if (!api) throw new HTTPException(409, { message: messages.google.notConnected })
-    return c.json(await api.listCalendars().catch(translate))
+
+    const calendars = await api.listCalendars().catch(translate)
+    // Self-healing: if the address was not learned at connect time — offline
+    // then, say — this is the same data arriving anyway, at no extra call.
+    const primary = calendars.find((calendar) => calendar.primary)
+    if (primary) await setAccountEmail(db(), tenantId(c), primary.id)
+
+    return c.json(calendars)
   })
 
   .put('/calendar', validate('json', googleCalendarSelectionSchema), async (c) => {

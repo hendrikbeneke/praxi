@@ -99,6 +99,25 @@ export async function getStatus(database: Database, tenantId: string): Promise<G
   }
 }
 
+/**
+ * The connected account's own address, learned from the primary calendar.
+ *
+ * Written rather than requested: no identity scope is asked for, because the
+ * primary calendar's id already is that address (see `GOOGLE_SCOPES`). Never
+ * fails the caller — it is a label in the settings, not a fact anything
+ * depends on.
+ */
+export async function setAccountEmail(
+  database: Database,
+  tenantId: string,
+  accountEmail: string,
+): Promise<void> {
+  await database
+    .update(googleConnection)
+    .set({ accountEmail })
+    .where(eq(googleConnection.tenantId, tenantId))
+}
+
 export async function setCalendar(
   database: Database,
   tenantId: string,

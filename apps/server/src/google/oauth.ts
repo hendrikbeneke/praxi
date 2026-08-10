@@ -15,7 +15,6 @@ import { type Fetcher, GoogleApiError } from './client.js'
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 const REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke'
-const USERINFO_ENDPOINT = 'https://openidconnect.googleapis.com/v1/userinfo'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────
@@ -33,16 +32,19 @@ const USERINFO_ENDPOINT = 'https://openidconnect.googleapis.com/v1/userinfo'
  * appointment titles, and there is no feature in this software that needs one.
  *
  * `calendar.events` is scoped to events and is what writes the practice
- * calendar and reads the return channel; `openid email` is only there so the
- * settings can say which account is connected.
+ * calendar and reads the return channel.
+ *
+ * There is deliberately no `openid` and no `email` either. They were here so
+ * the settings could say which account is connected — but the primary entry of
+ * the calendar list *is* that address, so asking for an identity scope bought
+ * a second consent line for something we already have. Three scopes, all three
+ * about calendars, nothing about who the practitioner is.
  * ─────────────────────────────────────────────────────────────────────────
  */
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.freebusy',
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
-  'openid',
-  'email',
 ] as const
 
 /** True when client id, secret and the encryption key are all present. Without
@@ -208,24 +210,6 @@ export async function refreshAccessToken(
   return {
     accessToken: parsed.access_token,
     expiresInSec: typeof parsed.expires_in === 'number' ? parsed.expires_in : 3600,
-  }
-}
-
-/** The practitioner's own address, so the settings can say which account is
- *  connected. Best effort — a connection without it works. */
-export async function fetchAccountEmail(
-  accessToken: string,
-  doFetch: Fetcher = fetch,
-): Promise<string | null> {
-  try {
-    const response = await doFetch(USERINFO_ENDPOINT, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    })
-    if (!response.ok) return null
-    const body = (await response.json()) as { email?: unknown }
-    return typeof body.email === 'string' ? body.email : null
-  } catch {
-    return null
   }
 }
 
