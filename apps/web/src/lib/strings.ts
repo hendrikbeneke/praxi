@@ -609,6 +609,19 @@ export const strings = {
     finalized: 'Rechnung festgeschrieben.',
     finalizeFailed: 'Die Rechnung konnte nicht festgeschrieben werden.',
 
+    cancel: 'Stornieren',
+    cancelTitle: 'Rechnung stornieren?',
+    cancelBody:
+      'Es entsteht eine Stornorechnung mit eigener Nummer und negativen Beträgen. Die ' +
+      'ursprüngliche Rechnung bleibt unverändert erhalten, und ihre Positionen werden wieder ' +
+      'abrechenbar. Rückgängig machen lässt sich das nicht.',
+    cancelConfirm: 'Stornorechnung ausstellen',
+    cancelled: 'Stornorechnung ausgestellt.',
+    cancelFailed: 'Die Rechnung konnte nicht storniert werden.',
+    /** Both directions of the link, wherever a document is shown. */
+    cancelledBy: 'Storniert durch',
+    cancels: 'Storno zu',
+
     settingsTitle: 'Rechnungsstellung',
     numberRanges: 'Nummernkreise',
     numberRangeHint:

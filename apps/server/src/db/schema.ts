@@ -1000,6 +1000,20 @@ export const invoice = pgTable(
     pdfPath: text(),
     pdfHash: text(),
     finalizedAt: timestamp({ withTimezone: true }),
+    /**
+     * The two ends of a cancellation (CLAUDE.md rule 9): the cancellation
+     * document points at the invoice it takes back, the original points at the
+     * document that took it back.
+     *
+     * Both are stored although either would do. The redundancy keeps every
+     * query one join deep instead of a union of two — and it is not left to
+     * discipline: the partial unique indexes below make a second reference
+     * impossible, and the deferred constraint trigger
+     * `invoice_cancellation_pair` (migration 0019) refuses at commit if the
+     * two sides do not name each other.
+     */
+    cancelsInvoiceId: uuid(),
+    cancelledByInvoiceId: uuid(),
     ...timestamps,
   },
   (t) => [
@@ -1007,6 +1021,16 @@ export const invoice = pgTable(
       columns: [t.contactId, t.tenantId],
       foreignColumns: [contact.id, contact.tenantId],
       name: 'invoice_contact_tenant_fk',
+    }),
+    foreignKey({
+      columns: [t.cancelsInvoiceId, t.tenantId],
+      foreignColumns: [t.id, t.tenantId],
+      name: 'invoice_cancels_fk',
+    }),
+    foreignKey({
+      columns: [t.cancelledByInvoiceId, t.tenantId],
+      foreignColumns: [t.id, t.tenantId],
+      name: 'invoice_cancelled_by_fk',
     }),
     unique('invoice_id_tenant_key').on(t.id, t.tenantId),
     unique('invoice_number_key').on(t.tenantId, t.number),
@@ -1025,6 +1049,42 @@ export const invoice = pgTable(
              and ${t.numberPrefix} is not null and ${t.pdfPath} is not null
              and ${t.pdfHash} is not null and ${t.finalizedAt} is not null
              and ${t.recipientSnapshot} is not null)`,
+    ),
+    /** Each invoice is cancelled at most once, and each cancellation document
+     *  takes back exactly one invoice. This is what makes a second
+     *  cancellation unreachable rather than merely refused. */
+    uniqueIndex('invoice_cancels_key')
+      .on(t.cancelsInvoiceId)
+      .where(sql`${t.cancelsInvoiceId} is not null`),
+    uniqueIndex('invoice_cancelled_by_key')
+      .on(t.cancelledByInvoiceId)
+      .where(sql`${t.cancelledByInvoiceId} is not null`),
+    // A cancellation document takes back exactly one invoice; an ordinary
+    // invoice takes back none.
+    check(
+      'invoice_cancellation_target',
+      sql`(${t.type} = 'cancellation_invoice') = (${t.cancelsInvoiceId} is not null)`,
+    ),
+    /**
+     * `cancelled` is not a status of its own: it exists only because a
+     * cancellation document exists. Together with `invoice_draft_fields`,
+     * which demands a number and a document of everything that is not a
+     * draft, this also settles that a draft can never be cancelled — a
+     * discarded draft is deleted, and no gap arises because it never held a
+     * number (rule 8).
+     *
+     * A cancellation invoice is never itself cancelled: rule 9 says cancel the
+     * whole invoice and write a new one.
+     */
+    check(
+      'invoice_cancelled_state',
+      sql`(${t.status} = 'cancelled') = (${t.cancelledByInvoiceId} is not null)
+          and (${t.cancelledByInvoiceId} is null or ${t.type} = 'invoice')`,
+    ),
+    check(
+      'invoice_cancellation_not_self',
+      sql`${t.cancelsInvoiceId} is distinct from ${t.id}
+          and ${t.cancelledByInvoiceId} is distinct from ${t.id}`,
     ),
     check('invoice_pdf_hash_shape', sql`${t.pdfHash} is null or ${t.pdfHash} ~ '^[0-9a-f]{64}$'`),
     check('invoice_number_value_positive', sql`${t.numberValue} is null or ${t.numberValue} >= 1`),

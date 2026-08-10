@@ -14,7 +14,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 5 | Notes, files, locking | **done** |
 | 6 | Invoices: draft, finalize, PDF | **done** |
 | 6.5 | Roles and relations | **done** |
-| 7 | Cancellation invoices | todo |
+| 7 | Cancellation invoices | **done** |
 | 8 | Payments and receivables | todo |
 | 9 | Google Calendar sync | todo |
 | 10 | Sending invoices by email | todo |
@@ -581,6 +581,49 @@ See CLAUDE.md rule 9.
 - Tests: amounts negate the original, references on both rows, no double cancellation, items reappear in the billable list
 
 **Done when:** cancelling produces a correct second document, leaves the original untouched apart from its reference, and returns the items to the billable pool.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **Both directions are stored** — `cancels_invoice_id` on the document,
+  `cancelled_by_invoice_id` on the original — although either alone would do.
+  The redundancy keeps every query one join deep, and it is not left to
+  discipline: two partial unique indexes stop a second reference, and the
+  **deferred constraint trigger** `invoice_cancellation_pair` refuses at COMMIT
+  if the two ends do not name each other. Deferred is the whole point — the
+  document is written before the original is updated, so during the transaction
+  the pair is legitimately incomplete.
+- **`cancelled` is not a status one can set.** `invoice_cancelled_state` ties it
+  to the reference, so status and link move in one statement or not at all.
+  Together with `invoice_draft_fields`, which demands a number and a document of
+  everything that is not a draft, this also settles that a draft can never be
+  cancelled — it is discarded, and leaves no gap because it never held a number.
+- **The trigger was replaced, not extended.** `cancels_invoice_id` joins the
+  frozen columns; `cancelled_by_invoice_id` may be written once, from null,
+  never back and never to another invoice. There is no un-cancelling.
+- **The same shape as `finalizeInvoice`**, and for the reason slice 6 found: a
+  finished cancellation invoice cannot be written row by row, because
+  `protect_finalized_invoice_line` refuses a line under anything but a draft and
+  `invoice_draft_fields` refuses a draft with a number. Rows first as a draft,
+  the document assembled in memory, rendered, one statement that stores and
+  finalizes it. The file is written inside the transaction, with a `catch` that
+  unlinks — no second path.
+- **The price carries the sign, not the quantity.**
+  `invoice_line_quantity_positive` forbids a negative quantity;
+  `unit_price_cents` has deliberately never had a sign restriction, and
+  `amount_cents` is generated from the two.
+- **Intro and outro stay empty**, and no templates of their own. The original's
+  outro asks for payment by a date, which is wrong on a document that takes the
+  demand back. The VAT note that rule 10 puts there is the strongest case
+  against copying: carrying a tax statement onto a document it was not written
+  for is closer to inventing one than omitting it is. What the document does
+  carry is a generated line naming the invoice it cancels — part of the
+  document, like the title, and living in `messages.pdf`.
+- **One number range for both document types** (rule 8), so the sequence is
+  continuous across a cancellation rather than running beside it. There is no
+  "Zahlbar bis" on a cancellation.
+- **The slice-6 test that faked a cancellation was moved onto the real path.**
+  That is what the anticipation in slice 6 was for; the billable query now
+  proves itself against a document that actually exists.
 
 ## Slice 8 — Payments and receivables
 

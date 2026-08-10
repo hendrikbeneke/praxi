@@ -20,6 +20,7 @@ import { renderInvoicePdf } from '../pdf/render.js'
 import { createTenant, createUser } from '../test/fixtures.js'
 import { BilledItemError, createActivity, deleteActivity, updateActivity } from './activity.js'
 import { listBillableItems } from './billable.js'
+import { cancelInvoice } from './cancel-invoice.js'
 import { FileStore } from './file-store.js'
 import { finalizeInvoice, pdfPathFor } from './finalize-invoice.js'
 import {
@@ -167,6 +168,12 @@ describe('billable items', () => {
       expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(0)
     })
 
+    /**
+     * Both exclusions in one go, through the real path: an item on a cancelled
+     * invoice is billable again, even though the cancellation document repeats
+     * its `activity_item_id` and is itself finalized and not cancelled. Take
+     * the type exclusion out of `domain/billable.ts` and this test fails.
+     */
     it('offers it again once that invoice is cancelled', async () => {
       await makeActivityWithItem()
       const draft = await draftFromBillable()
@@ -174,73 +181,13 @@ describe('billable items', () => {
 
       expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(0)
 
-      // What slice 7 will do. Only `status` may move on a finalized invoice.
-      await db().update(invoice).set({ status: 'cancelled' }).where(eq(invoice.id, draft.id))
+      const cancellation = await cancelInvoice(db(), tenantId, store, draft.id, render)
 
-      expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(1)
-    })
-
-    it('does not let the cancellation invoice claim the item instead', async () => {
-      await makeActivityWithItem()
-      const draft = await draftFromBillable()
-      await finalizeInvoice(db(), tenantId, store, draft.id, render)
-      const lines = await db().select().from(invoiceLine)
-      const itemId = lines[0]?.activityItemId ?? null
-
-      await db().update(invoice).set({ status: 'cancelled' }).where(eq(invoice.id, draft.id))
-
-      // The cancellation document repeats the same activity_item_id so it can
-      // show what it takes back. It is finalized and not cancelled, so without
-      // the type exclusion it would claim the item forever.
-      //
-      // Built in the same shape slice 7 will have to use: rows first while the
-      // invoice is still a draft, then one update that finalizes it. The
-      // triggers leave no other way — `protect_finalized_invoice_line` refuses
-      // an INSERT under a finalized invoice, and `invoice_draft_fields` refuses
-      // a draft that already carries a number.
-      const cancellationId = newId()
-      await db().insert(invoice).values({
-        id: cancellationId,
-        tenantId,
-        contactId,
-        type: 'cancellation_invoice',
-        invoiceDate: INVOICE_DATE,
-        paymentTermDays: 14,
-      })
-      await db().insert(invoiceLine).values({
-        id: newId(),
-        tenantId,
-        invoiceId: cancellationId,
-        position: 0,
-        activityItemId: itemId,
-        description: 'Erstgespräch',
-        quantity: 1,
-        unitPriceCents: -13_500,
-      })
-      await db()
-        .update(invoice)
-        .set({
-          status: 'finalized',
-          number: 'RH-2026-002',
-          numberPrefix: 'RH-2026-',
-          numberValue: 2,
-          recipientSnapshot: {
-            contactNumber: 1,
-            name: 'Erika Testperson',
-            contactPerson: null,
-            street: null,
-            postalCode: null,
-            city: null,
-            country: 'DE',
-            vatId: null,
-          },
-          totalCents: -13_500,
-          pdfPath: 'invoices/2026/RH-2026-002.pdf',
-          pdfHash: 'a'.repeat(64),
-          finalizedAt: new Date(),
-        })
-        .where(eq(invoice.id, cancellationId))
-
+      // The document does carry the item — that is how it shows what it takes
+      // back — and the item is free all the same.
+      expect(cancellation?.lines[0]?.activityItemId).toBe(
+        (await db().select().from(invoiceLine))[0]?.activityItemId,
+      )
       expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(1)
     })
   })
@@ -505,8 +452,24 @@ describe('the database refuses on its own', () => {
       'finalized invoice cannot be deleted',
     )
 
-    // The one column that may still move — this is what cancelling does.
-    await db().update(invoice).set({ status: 'cancelled' }).where(eq(invoice.id, finalized.id))
+    /**
+     * `status` on its own no longer moves either: since slice 7,
+     * `invoice_cancelled_state` ties `cancelled` to the reference to the
+     * document that did the cancelling. The pair is what is allowed, and
+     * `cancelInvoice` is the only thing that writes it.
+     *
+     * `refusal` throws when a query goes through, so this asserts refusal; it
+     * answers `null` because a check constraint raised it rather than a
+     * trigger.
+     */
+    expect(
+      await refusal(
+        db().update(invoice).set({ status: 'cancelled' }).where(eq(invoice.id, finalized.id)),
+      ),
+    ).toBeNull()
+
+    const cancellation = await cancelInvoice(db(), tenantId, store, finalized.id, render)
+    expect(cancellation?.cancelsInvoiceId).toBe(finalized.id)
   })
 
   it('blocks touching the lines of a finalized invoice', async () => {

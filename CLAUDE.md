@@ -765,11 +765,45 @@ invoice               tenant_id uuid not null -> tenant(id),
                         -- of them plus a recipient_snapshot)
                       check invoice_pdf_hash_shape, invoice_payment_term_range,
                       check invoice_number_value_positive
-                      -- trigger protect_finalized_invoice (migration 0014):
-                      -- after finalization only `status` may change, and the
-                      -- row cannot be deleted. Slice 7 replaces it to let
-                      -- cancelled_by_invoice_id through and adds that column
-                      -- together with cancels_invoice_id.
+                      --
+                      -- added in slice 7, both directions of a cancellation:
+                      cancels_invoice_id uuid,      -- on the cancellation doc
+                      cancelled_by_invoice_id uuid  -- on the original
+                      foreign key (cancels_invoice_id, tenant_id)
+                        -> invoice (id, tenant_id),
+                      foreign key (cancelled_by_invoice_id, tenant_id)
+                        -> invoice (id, tenant_id)
+                      unique index invoice_cancels_key
+                        on (cancels_invoice_id) where not null,
+                      unique index invoice_cancelled_by_key
+                        on (cancelled_by_invoice_id) where not null
+                        -- these two are what make a double cancellation
+                        -- unreachable; the domain refuses first so the message
+                        -- is a sentence and not a constraint name
+                      check invoice_cancellation_target (
+                        (type = 'cancellation_invoice')
+                          = (cancels_invoice_id is not null))
+                      check invoice_cancelled_state (
+                        (status = 'cancelled')
+                          = (cancelled_by_invoice_id is not null)
+                        and (cancelled_by_invoice_id is null
+                             or type = 'invoice'))
+                        -- `cancelled` is not a status of its own: it exists
+                        -- because a cancellation document exists. With
+                        -- invoice_draft_fields, which demands a number and a
+                        -- document of everything that is not a draft, this
+                        -- also settles that a draft can never be cancelled.
+                      check invoice_cancellation_not_self
+                      -- trigger protect_finalized_invoice (0014, replaced in
+                      -- 0019): after finalization the row cannot be deleted
+                      -- and only `status` and `cancelled_by_invoice_id` may
+                      -- change — the latter once, from null, never back.
+                      -- trigger invoice_cancellation_pair (0019), a CONSTRAINT
+                      -- TRIGGER, DEFERRABLE INITIALLY DEFERRED: at COMMIT the
+                      -- two ends must name each other. Deferred on purpose —
+                      -- the document is written before the original is
+                      -- updated, so the pair is legitimately incomplete during
+                      -- the transaction.
 
 -- as built (slice 6)
 invoice_line          tenant_id uuid not null -> tenant(id),

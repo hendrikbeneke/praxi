@@ -127,6 +127,13 @@ export const messages = {
     templateTooManyPages:
       'Die Vorlage darf höchstens zwei Seiten haben: Seite 1 trägt die erste Seite, ' +
       'Seite 2 alle weiteren.',
+    notFinalized:
+      'Nur eine festgeschriebene Rechnung kann storniert werden. ' +
+      'Einen Entwurf verwerfen Sie stattdessen.',
+    alreadyCancelled: 'Diese Rechnung wurde bereits storniert.',
+    cancellationNotCancellable:
+      'Eine Stornorechnung kann nicht storniert werden. ' +
+      'Stellen Sie stattdessen eine neue Rechnung aus.',
     pdfMissing:
       'Das Dokument zu dieser Rechnung liegt nicht mehr auf der Festplatte. ' +
       'Eine festgeschriebene Rechnung wird nicht neu erzeugt — stornieren Sie sie und ' +
@@ -135,6 +142,12 @@ export const messages = {
   /** The German text on the invoice PDF itself. */
   pdf: {
     title: 'Rechnung',
+    /** Rule 9: "Stornorechnung", never "Gutschrift". In German VAT law that
+     *  word means self-billing by the recipient (§ 14 Abs. 2 UStG), and using
+     *  it wrongly can create a tax liability under § 14c UStG. */
+    cancellationTitle: 'Stornorechnung',
+    cancellationNumber: 'Stornonummer',
+    cancels: (number: string) => `Storno zur Rechnung ${number}.`,
     draft: 'Entwurf',
     invoiceNumber: 'Rechnungsnummer',
     invoiceDate: 'Rechnungsdatum',

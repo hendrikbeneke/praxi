@@ -28,6 +28,10 @@ const invoice: Invoice = {
   numberValue: 1,
   invoiceDate: '2026-08-09',
   paymentTermDays: 14,
+  cancelsInvoiceId: null,
+  cancelsInvoiceNumber: null,
+  cancelledByInvoiceId: null,
+  cancelledByInvoiceNumber: null,
   recipientSnapshot: {
     contactNumber: 1,
     name: 'Erika Testperson',

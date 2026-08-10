@@ -11,7 +11,7 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowLeft, ArrowUp, FileCheck2, FileText, Plus, X } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Ban, FileCheck2, FileText, Plus, X } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/page-header'
@@ -42,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ApiError } from '@/lib/api'
 import {
   billableQueryOptions,
+  cancelInvoice,
   deleteInvoice,
   finalizeInvoice,
   invoiceQueryOptions,
@@ -124,6 +125,10 @@ function InvoiceDetailPage() {
   const [lines, setLines] = useState<DraftLine[]>([])
 
   const isDraft = invoice?.status === 'draft'
+  /** Only a finalized invoice can be cancelled — not a draft, which is
+   *  discarded, and not a cancellation document (rule 9). */
+  const canCancel =
+    invoice?.status === 'finalized' && invoice.type === 'invoice' && !invoice.cancelledByInvoiceId
   /**
    * Without a configured range there is no number to assign, so finalizing
    * cannot work. Said here rather than only in the settings: otherwise the
@@ -167,6 +172,19 @@ function InvoiceDetailPage() {
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
     },
+  })
+
+  const cancel = useMutation({
+    mutationFn: () => cancelInvoice(invoiceId),
+    onSuccess: async (cancellation) => {
+      await invalidate()
+      toast.success(strings.invoice.cancelled)
+      // Straight to the new document: that is what one wants to look at, and
+      // it is the thing that was just issued.
+      void navigate({ to: '/invoices/$invoiceId', params: { invoiceId: cancellation.id } })
+    },
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : strings.invoice.cancelFailed),
   })
 
   const finalize = useMutation({
@@ -230,6 +248,29 @@ function InvoiceDetailPage() {
               {strings.invoice.statuses[invoice.status]}
             </Badge>
 
+            {canCancel && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={cancel.isPending}>
+                    <Ban className="size-4" aria-hidden />
+                    {strings.invoice.cancel}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{strings.invoice.cancelTitle}</AlertDialogTitle>
+                    <AlertDialogDescription>{strings.invoice.cancelBody}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => cancel.mutate()}>
+                      {strings.invoice.cancelConfirm}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
             <Button variant="outline" asChild>
               <a
                 href={isDraft ? previewUrl(invoiceId) : pdfUrl(invoiceId)}
@@ -250,6 +291,9 @@ function InvoiceDetailPage() {
           </div>
         }
       />
+
+      {/* The other end of the cancellation, from whichever side is open. */}
+      <CancellationLink invoice={invoice} />
 
       <div className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-4">
@@ -682,5 +726,31 @@ function BillablePicker({
         {strings.invoice.addSelected}
       </Button>
     </section>
+  )
+}
+
+/**
+ * The link between an invoice and the document that took it back. Shown on
+ * both, because from either side the other one is the thing you next want to
+ * open (rule 9).
+ */
+function CancellationLink({ invoice }: { invoice: Invoice }) {
+  const target = invoice.cancelledByInvoiceId ?? invoice.cancelsInvoiceId
+  const number = invoice.cancelledByInvoiceNumber ?? invoice.cancelsInvoiceNumber
+  if (!target || !number) return null
+
+  const label = invoice.cancelledByInvoiceId ? strings.invoice.cancelledBy : strings.invoice.cancels
+
+  return (
+    <p className="mb-4 text-sm">
+      <span className="text-muted-foreground">{label} </span>
+      <Link
+        className="underline underline-offset-2"
+        to="/invoices/$invoiceId"
+        params={{ invoiceId: target }}
+      >
+        {number}
+      </Link>
+    </p>
   )
 }

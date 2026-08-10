@@ -75,6 +75,14 @@ export async function finalizeInvoice(invoiceId: string): Promise<Invoice> {
 
 /** Rendered on demand and never stored — the draft's document does not exist
  *  until it is finalized. */
+/** Issues the second document; the original keeps everything but its status
+ *  and gains the reference. What comes back is the cancellation. */
+export async function cancelInvoice(invoiceId: string): Promise<Invoice> {
+  const res = await api.api.invoices[':invoiceId'].cancel.$post({ param: { invoiceId } })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
 export function previewUrl(invoiceId: string): string {
   return `/api/invoices/${invoiceId}/preview`
 }

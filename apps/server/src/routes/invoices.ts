@@ -12,6 +12,12 @@ import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import { listBillableItems } from '../domain/billable.js'
+import {
+  CancellationNotCancellableError,
+  cancelInvoice,
+  InvoiceAlreadyCancelledError,
+  InvoiceNotFinalizedError,
+} from '../domain/cancel-invoice.js'
 import { MissingNumberRangeError } from '../domain/counter.js'
 import { finalizeInvoice } from '../domain/finalize-invoice.js'
 import {
@@ -42,6 +48,15 @@ function notFound(): never {
 }
 
 function translate(error: unknown): never {
+  if (error instanceof InvoiceNotFinalizedError) {
+    throw new HTTPException(409, { message: messages.invoice.notFinalized })
+  }
+  if (error instanceof InvoiceAlreadyCancelledError) {
+    throw new HTTPException(409, { message: messages.invoice.alreadyCancelled })
+  }
+  if (error instanceof CancellationNotCancellableError) {
+    throw new HTTPException(409, { message: messages.invoice.cancellationNotCancellable })
+  }
   if (error instanceof InvoiceNotADraftError) {
     throw new HTTPException(409, { message: messages.invoice.notADraft })
   }
@@ -149,6 +164,25 @@ export const invoicesRoute = new Hono<AppEnv>()
     ).catch(translate)
 
     return finalized ? c.json(finalized) : notFound()
+  })
+
+  /**
+   * Cancelling issues a second document; the original keeps its number and its
+   * PDF and only gains a status and a reference (rule 9). What comes back is
+   * the cancellation document, because that is what the practitioner wants to
+   * look at next.
+   */
+  .post('/:invoiceId/cancel', validate('param', invoiceParam), async (c) => {
+    const tenant = tenantId(c)
+    const cancellation = await cancelInvoice(
+      db(),
+      tenant,
+      fileStore(),
+      c.req.valid('param').invoiceId,
+      (invoice) => render(tenant, invoice),
+    ).catch(translate)
+
+    return cancellation ? c.json(cancellation) : notFound()
   })
 
   /** The stored document, served from disk and never re-rendered (rule 9). */

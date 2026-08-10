@@ -9,6 +9,7 @@ import type {
 } from '@praxi/shared'
 import { formatContactName, sumLines } from '@praxi/shared'
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import { contact, invoice, invoiceLine, practiceSettings, textTemplate } from '../db/schema.js'
 import { newId } from '../id.js'
@@ -57,7 +58,17 @@ const invoiceColumns = {
   totalCents: invoice.totalCents,
   pdfHash: invoice.pdfHash,
   finalizedAt: invoice.finalizedAt,
+  cancelsInvoiceId: invoice.cancelsInvoiceId,
+  cancelledByInvoiceId: invoice.cancelledByInvoiceId,
 }
+
+/**
+ * The other end of a cancellation, joined in for its number alone. A list
+ * filtered by status may not contain the counterpart at all, so the client
+ * cannot resolve the link from the rows it was given.
+ */
+const cancels = alias(invoice, 'cancels_invoice')
+const cancelledBy = alias(invoice, 'cancelled_by_invoice')
 
 const lineColumns = {
   id: invoiceLine.id,
@@ -121,6 +132,8 @@ function toInvoice(
 
 const withContact = {
   ...invoiceColumns,
+  cancelsInvoiceNumber: cancels.number,
+  cancelledByInvoiceNumber: cancelledBy.number,
   contactKind: contact.kind,
   contactTitle: contact.title,
   contactFirstName: contact.firstName,
@@ -162,6 +175,8 @@ export async function listInvoices(
     .select(withContact)
     .from(invoice)
     .innerJoin(contact, eq(contact.id, invoice.contactId))
+    .leftJoin(cancels, eq(cancels.id, invoice.cancelsInvoiceId))
+    .leftJoin(cancelledBy, eq(cancelledBy.id, invoice.cancelledByInvoiceId))
     .where(and(...filters))
     .orderBy(desc(invoice.invoiceDate), desc(invoice.createdAt))
     .limit(query.limit)
@@ -189,6 +204,8 @@ export async function getInvoice(
     .select(withContact)
     .from(invoice)
     .innerJoin(contact, eq(contact.id, invoice.contactId))
+    .leftJoin(cancels, eq(cancels.id, invoice.cancelsInvoiceId))
+    .leftJoin(cancelledBy, eq(cancelledBy.id, invoice.cancelledByInvoiceId))
     .where(and(eq(invoice.tenantId, tenantId), eq(invoice.id, id)))
     .limit(1)
 

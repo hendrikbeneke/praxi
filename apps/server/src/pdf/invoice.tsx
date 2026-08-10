@@ -129,10 +129,21 @@ function AddressBlock({ recipient }: { recipient: RecipientSnapshot }) {
 }
 
 function InfoBlock({ invoice, labels }: { invoice: Invoice; labels: PdfLabels }) {
+  const cancellation = invoice.type === 'cancellation_invoice'
+
   const rows: [string, string][] = [
-    [labels.invoiceNumber, invoice.number ?? labels.draft],
+    [
+      cancellation ? labels.cancellationNumber : labels.invoiceNumber,
+      invoice.number ?? labels.draft,
+    ],
     [labels.invoiceDate, formatDate(invoice.invoiceDate)],
-    [labels.dueDate, formatDate(dueDate(invoice.invoiceDate, invoice.paymentTermDays))],
+    // No payment date on a document that takes the demand back.
+    ...(cancellation
+      ? []
+      : ([[labels.dueDate, formatDate(dueDate(invoice.invoiceDate, invoice.paymentTermDays))]] as [
+          string,
+          string,
+        ][])),
     [labels.contactNumber, String(invoice.recipientSnapshot?.contactNumber ?? '')],
   ]
 
@@ -152,6 +163,11 @@ function InfoBlock({ invoice, labels }: { invoice: Invoice; labels: PdfLabels })
  *  language split stays visible: `messages.ts` owns them. */
 export type PdfLabels = {
   title: string
+  /** "Stornorechnung" — never "Gutschrift", which in German VAT law means
+   *  self-billing by the recipient (CLAUDE.md rule 9). */
+  cancellationTitle: string
+  cancellationNumber: string
+  cancels: (number: string) => string
   draft: string
   invoiceNumber: string
   invoiceDate: string
@@ -179,10 +195,11 @@ export function InvoiceDocument({
   timestamp: Date
 }) {
   const recipient = invoice.recipientSnapshot
+  const title = invoice.type === 'cancellation_invoice' ? labels.cancellationTitle : labels.title
 
   return (
     <Document
-      title={`${labels.title} ${invoice.number ?? ''}`.trim()}
+      title={`${title} ${invoice.number ?? ''}`.trim()}
       producer="praxi"
       creator="praxi"
       creationDate={timestamp}
@@ -198,8 +215,15 @@ export function InvoiceDocument({
         <InfoBlock invoice={invoice} labels={labels} />
 
         <Text style={styles.title}>
-          {labels.title} {invoice.number ?? ''}
+          {title} {invoice.number ?? ''}
         </Text>
+
+        {/* A cancellation carries no intro or outro text — see the reasoning
+            at `cancelInvoice`. What it does say is which invoice it takes
+            back, and that is generated, not a text block. */}
+        {invoice.cancelsInvoiceNumber && (
+          <Text style={styles.paragraph}>{labels.cancels(invoice.cancelsInvoiceNumber)}</Text>
+        )}
 
         {invoice.introText && <Text style={styles.paragraph}>{invoice.introText}</Text>}
 

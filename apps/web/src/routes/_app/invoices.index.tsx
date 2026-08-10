@@ -91,6 +91,23 @@ function InvoiceListPage() {
                         {strings.invoice.types.cancellation_invoice}
                       </Badge>
                     )}
+
+                    {/* Both directions of the link, each pointing at the other
+                        document (rule 9). */}
+                    {entry.cancelledByInvoiceId && entry.cancelledByInvoiceNumber && (
+                      <CounterpartLink
+                        label={strings.invoice.cancelledBy}
+                        invoiceId={entry.cancelledByInvoiceId}
+                        number={entry.cancelledByInvoiceNumber}
+                      />
+                    )}
+                    {entry.cancelsInvoiceId && entry.cancelsInvoiceNumber && (
+                      <CounterpartLink
+                        label={strings.invoice.cancels}
+                        invoiceId={entry.cancelsInvoiceId}
+                        number={entry.cancelsInvoiceNumber}
+                      />
+                    )}
                   </TableCell>
                   <TableCell>{entry.contactName}</TableCell>
                   <TableCell className="tabular-nums">{formatDate(entry.invoiceDate)}</TableCell>
@@ -114,5 +131,28 @@ function InvoiceListPage() {
         </div>
       )}
     </>
+  )
+}
+
+function CounterpartLink({
+  label,
+  invoiceId,
+  number,
+}: {
+  label: string
+  invoiceId: string
+  number: string
+}) {
+  return (
+    <span className="ml-2 whitespace-nowrap text-muted-foreground text-xs">
+      {label}{' '}
+      <Link
+        className="underline underline-offset-2"
+        to="/invoices/$invoiceId"
+        params={{ invoiceId }}
+      >
+        {number}
+      </Link>
+    </span>
   )
 }

@@ -127,6 +127,20 @@
       "when": 1786309562391,
       "tag": "0017_contact_types_triggers_and_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786348677938,
+      "tag": "0018_chief_morgan_stark",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786348678938,
+      "tag": "0019_cancellation_triggers",
+      "breakpoints": true
     }
   ]
 }

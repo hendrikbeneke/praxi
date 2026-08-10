@@ -115,6 +115,17 @@ export const invoiceSchema = z.object({
   totalCents: z.number().int(),
   pdfHash: z.string().nullable(),
   finalizedAt: z.iso.datetime().nullable(),
+  /**
+   * The two ends of a cancellation, both stored (CLAUDE.md rule 9): the
+   * cancellation document points at the invoice it takes back, the original
+   * points at the document that took it back. The numbers travel with them so
+   * a list can print the link without looking the other row up — with a status
+   * filter the counterpart may not even be in the response.
+   */
+  cancelsInvoiceId: z.uuid().nullable(),
+  cancelsInvoiceNumber: z.string().nullable(),
+  cancelledByInvoiceId: z.uuid().nullable(),
+  cancelledByInvoiceNumber: z.string().nullable(),
   lines: z.array(invoiceLineSchema),
 })
 
