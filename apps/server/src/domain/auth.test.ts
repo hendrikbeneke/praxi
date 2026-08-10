@@ -87,7 +87,7 @@ describe('login', () => {
 
   beforeEach(async () => {
     tenantId = await createTenant(db())
-    user = await createUser(db(), { tenantId, email: 'behandler@example.invalid' })
+    user = await createUser(db(), { tenantId, email: 'behandler@praxi.invalid' })
   })
 
   it('opens a session and returns the user', async () => {
@@ -96,7 +96,7 @@ describe('login', () => {
     expect(result).not.toBeNull()
     expect(result?.user).toEqual({
       id: user.id,
-      email: 'behandler@example.invalid',
+      email: 'behandler@praxi.invalid',
       name: 'Test Behandler',
     })
     expect(result?.tenantId).toBe(tenantId)
@@ -123,7 +123,7 @@ describe('login', () => {
   it('rejects an unknown email address', async () => {
     const result = await login(
       db(),
-      { email: 'niemand@example.invalid', password: user.password },
+      { email: 'niemand@praxi.invalid', password: user.password },
       T0,
     )
 
@@ -133,7 +133,7 @@ describe('login', () => {
   it('rejects a deactivated user even with the right password', async () => {
     const inactive = await createUser(db(), {
       tenantId,
-      email: 'inaktiv@example.invalid',
+      email: 'inaktiv@praxi.invalid',
       active: false,
     })
 

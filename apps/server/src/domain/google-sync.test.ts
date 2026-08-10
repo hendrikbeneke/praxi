@@ -33,7 +33,7 @@ import {
  * to answer — the same reason `google/payload.test.ts` exists one level down.
  */
 
-const CALENDAR_ID = 'praxis@example.invalid'
+const CALENDAR_ID = 'praxis@praxi.invalid'
 
 let tenantId: string
 let contactId: string
@@ -129,7 +129,7 @@ async function connect(): Promise<void> {
   await db().insert(googleConnection).values({
     id: newId(),
     tenantId,
-    accountEmail: 'praxis@example.invalid',
+    accountEmail: 'praxis@praxi.invalid',
     refreshTokenCipher: 'not-a-real-token',
     keyFingerprint: '0123456789abcdef',
     calendarId: CALENDAR_ID,

@@ -326,6 +326,14 @@ Everything else follows from "projection":
 - **The return channel applies `starts_at`, `ends_at` and cancelled, and nothing else.** Our own write is recognised by its ETag. An event created in Google directly is ignored — we cannot invent the contact it would belong to.
 - **Changed on both sides is never merged.** A merge invents a third version nobody chose. The appointment gets a conflict row, its pending push is held back, and the practitioner picks a side in the calendar — where scheduling happens, not in the settings.
 
+### 14. Sending mail (slice 10, not built yet)
+
+Two constraints are settled before the slice starts, because both are cheap now and expensive to retrofit.
+
+**The SMTP transport is a parameter**, exactly as the Google API handle is in rule 13. Nothing in `domain/` opens a connection itself, and no test — not one — talks to a mail server, a mail catcher or `localhost`. The tests assert the **assembled message**: recipient, subject, body, the attached PDF and its name. What a fake transport returns proves nothing about what would have gone out.
+
+**The test send has exactly one possible recipient: the configured sender address.** It is not a field on a form, not a parameter of the route, and not overridable — the address is read from the practice settings and the request carries no recipient at all. A button whose whole purpose is "does the configuration work" must not double as a way to send a patient's invoice to a mistyped address. Sending to a contact is a separate action with a separate confirmation, and it takes its address from the contact record.
+
 ## Target data model
 
 **This is a sketch, not a contract.** It exists so you keep the whole system in view and do not design an early slice in a way that breaks a later one. It is not the final schema.
@@ -1139,6 +1147,8 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - Tests are mandatory for everything in `domain/`. UI and simple CRUD routes need none.
 - Do not add optimizations, caching or short-circuits that were not asked for. If you think one is warranted, propose it separately instead of building it in.
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
+- **No test calls out to a service.** Not to an external host, not to `localhost`, not to a mail catcher — Google, SMTP, anything. The one deliberate exception is Postgres: the domain layer is tested against a real database because triggers and constraints *are* the rules being tested, and that is a local dependency the repository sets up itself. Everything else is a **parameter** — the shape `google/client.ts` established in slice 9: the transport is injected, and the tests assert on the *assembled request* rather than on what a mock chose to answer. A test that needs a service running somewhere is a test that fails for reasons that have nothing to do with the code.
+- **Addresses in tests, fixtures and seeds use `praxi.invalid`** — `beispiel.test` where a second domain is genuinely needed. Both TLDs are reserved by RFC 2606 and guaranteed never to resolve. Not `example.com`: it is reserved too and accepts no mail, but it *exists in the DNS*, and an address that takes a second thought to classify does not belong in a fixture. The same goes for URLs — `https://www.praxi.invalid`, not a domain that resolves.
 - Conventional Commits, in English, one commit per slice.
 
 **Read mode first.** Detail views and dialogs open in read mode. Editing is a deliberate step: the user presses "Bearbeiten", the fields become editable, and "Speichern" / "Abbrechen" appear. Never open a record with editable fields. The exception is creating a new record — there is nothing to read yet, so the form is editable from the start.

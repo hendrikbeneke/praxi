@@ -871,4 +871,16 @@ Purely additive; nothing earlier depends on it.
 - Send the finalized PDF as an attachment to the contact's email address, with a configurable subject and body template
 - Sending is never automatic and never part of finalization
 
+Settled before the slice starts (CLAUDE.md rule 14):
+
+- **The SMTP transport is a parameter**, the shape slice 9 established for the
+  Google API handle. No test opens a connection — not to a server, not to a
+  mail catcher, not to `localhost`. The tests assert the assembled message:
+  recipient, subject, body, attachment and its file name.
+- **The test send goes to the configured sender address and nowhere else.** No
+  recipient field on the form, no recipient in the request body — the address
+  is read from the practice settings. A button that exists to check the
+  configuration must not be a way to send an invoice somewhere by accident.
+- Addresses in tests, fixtures and seeds are `praxi.invalid`.
+
 **Done when:** I can send a finalized invoice from the app and see when it went where.

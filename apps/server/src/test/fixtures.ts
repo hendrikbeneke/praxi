@@ -60,7 +60,7 @@ export async function createUser(
   },
 ): Promise<TestUser> {
   const id = newId()
-  const email = options.email ?? `test.user.${id.slice(0, 8)}@example.invalid`
+  const email = options.email ?? `test.user.${id.slice(0, 8)}@praxi.invalid`
   const password = options.password ?? 'correct horse battery staple'
 
   await database.insert(appUser).values({
