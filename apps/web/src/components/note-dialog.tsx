@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { NoteFiles } from '@/components/note-files'
+import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -69,9 +70,16 @@ export function NoteDialog({
   const [selectedActivity, setSelectedActivity] = useState<string>(NO_ACTIVITY)
 
   const isAddendum = correctsNote !== undefined || note?.correctsNoteId != null
+  /** A new note or an addendum has nothing to read yet, so it starts
+   *  editable; an existing note opens in read mode (CLAUDE.md, read mode
+   *  first). Attachments sit inside the same fieldset — uploading or removing
+   *  one changes the note, and downloading a file is a link, which a disabled
+   *  fieldset leaves alone. */
+  const [editing, setEditing] = useState(true)
 
   useEffect(() => {
     if (!open) return
+    setEditing(note === undefined)
 
     if (note) {
       setNoteDate(note.noteDate)
@@ -131,7 +139,7 @@ export function NoteDialog({
           )}
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={!editing} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor={`${formId}-date`}>{strings.note.noteDate}</Label>
@@ -199,20 +207,24 @@ export function NoteDialog({
           ) : (
             <p className="text-muted-foreground text-sm">{strings.note.filesAfterSave}</p>
           )}
-        </div>
+        </fieldset>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            {strings.note.cancel}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || noteDate === '' || text.trim() === ''}
-          >
-            {mutation.isPending ? strings.note.saving : strings.note.save}
-          </Button>
-        </DialogFooter>
+        {editing ? (
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {strings.note.cancel}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending || noteDate === '' || text.trim() === ''}
+            >
+              {mutation.isPending ? strings.note.saving : strings.note.save}
+            </Button>
+          </DialogFooter>
+        ) : (
+          <ReadModeFooter onClose={() => onOpenChange(false)} onEdit={() => setEditing(true)} />
+        )}
       </DialogContent>
     </Dialog>
   )

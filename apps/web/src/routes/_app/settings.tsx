@@ -2,7 +2,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { type PracticeSettings, practiceSettingsInputSchema } from '@praxi/shared'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { Pencil } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import type { z } from 'zod'
@@ -69,6 +70,8 @@ function SettingsPage() {
     defaultValues: settings ? toFormValues(settings) : undefined,
   })
 
+  const [editing, setEditing] = useState(false)
+
   const { reset } = form
   // After a save the server's normalization (trimmed text, upper-cased IBAN)
   // is the truth; show that rather than what was typed.
@@ -84,6 +87,7 @@ function SettingsPage() {
     },
     onSuccess: (saved) => {
       queryClient.setQueryData(practiceSettingsQueryOptions.queryKey, saved)
+      setEditing(false)
       toast.success(strings.settings.saved)
     },
     onError: (error) => {
@@ -95,149 +99,178 @@ function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={strings.settings.title} description={strings.settings.description} />
+      <PageHeader
+        title={strings.settings.title}
+        description={strings.settings.description}
+        actions={
+          !editing && (
+            <Button variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="size-4" aria-hidden />
+              {strings.actions.edit}
+            </Button>
+          )
+        }
+      />
 
+      {/* The practice master data is read far more often than it is changed,
+          so the page opens read-only (CLAUDE.md, read mode first). */}
       <form
         className="max-w-3xl space-y-6"
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
         noValidate
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionPractice}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <Field
-              id="practiceName"
-              label={strings.settings.practiceName}
-              error={errors.practiceName && strings.validation.required}
-              {...form.register('practiceName')}
-            />
-            <Field
-              id="taxNumber"
-              label={strings.settings.taxNumber}
-              error={errors.taxNumber && strings.validation.tooLong}
-              {...form.register('taxNumber')}
-            />
-          </CardContent>
-        </Card>
+        <fieldset disabled={!editing} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.settings.sectionPractice}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <Field
+                id="practiceName"
+                label={strings.settings.practiceName}
+                error={errors.practiceName && strings.validation.required}
+                {...form.register('practiceName')}
+              />
+              <Field
+                id="taxNumber"
+                label={strings.settings.taxNumber}
+                error={errors.taxNumber && strings.validation.tooLong}
+                {...form.register('taxNumber')}
+              />
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionAddress}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-6">
-            <Field
-              className="sm:col-span-6"
-              id="street"
-              label={strings.settings.street}
-              error={errors.street && strings.validation.tooLong}
-              {...form.register('street')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="postalCode"
-              label={strings.settings.postalCode}
-              error={errors.postalCode && strings.validation.tooLong}
-              {...form.register('postalCode')}
-            />
-            <Field
-              className="sm:col-span-4"
-              id="city"
-              label={strings.settings.city}
-              error={errors.city && strings.validation.tooLong}
-              {...form.register('city')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="country"
-              label={strings.settings.country}
-              error={errors.country && strings.validation.country}
-              {...form.register('country')}
-            />
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.settings.sectionAddress}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-6">
+              <Field
+                className="sm:col-span-6"
+                id="street"
+                label={strings.settings.street}
+                error={errors.street && strings.validation.tooLong}
+                {...form.register('street')}
+              />
+              <Field
+                className="sm:col-span-2"
+                id="postalCode"
+                label={strings.settings.postalCode}
+                error={errors.postalCode && strings.validation.tooLong}
+                {...form.register('postalCode')}
+              />
+              <Field
+                className="sm:col-span-4"
+                id="city"
+                label={strings.settings.city}
+                error={errors.city && strings.validation.tooLong}
+                {...form.register('city')}
+              />
+              <Field
+                className="sm:col-span-2"
+                id="country"
+                label={strings.settings.country}
+                error={errors.country && strings.validation.country}
+                {...form.register('country')}
+              />
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionContact}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field
-              id="phone"
-              label={strings.settings.phone}
-              type="tel"
-              error={errors.phone && strings.validation.tooLong}
-              {...form.register('phone')}
-            />
-            <Field
-              id="email"
-              label={strings.settings.email}
-              type="email"
-              error={errors.email && strings.validation.email}
-              {...form.register('email')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="website"
-              label={strings.settings.website}
-              error={errors.website && strings.validation.tooLong}
-              {...form.register('website')}
-            />
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.settings.sectionContact}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id="phone"
+                label={strings.settings.phone}
+                type="tel"
+                error={errors.phone && strings.validation.tooLong}
+                {...form.register('phone')}
+              />
+              <Field
+                id="email"
+                label={strings.settings.email}
+                type="email"
+                error={errors.email && strings.validation.email}
+                {...form.register('email')}
+              />
+              <Field
+                className="sm:col-span-2"
+                id="website"
+                label={strings.settings.website}
+                error={errors.website && strings.validation.tooLong}
+                {...form.register('website')}
+              />
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionBanking}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field
-              className="sm:col-span-2"
-              id="bankName"
-              label={strings.settings.bankName}
-              error={errors.bankName && strings.validation.tooLong}
-              {...form.register('bankName')}
-            />
-            <Field
-              id="iban"
-              label={strings.settings.iban}
-              error={errors.iban && strings.validation.iban}
-              {...form.register('iban')}
-            />
-            <Field
-              id="bic"
-              label={strings.settings.bic}
-              error={errors.bic && strings.validation.tooLong}
-              {...form.register('bic')}
-            />
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.settings.sectionBanking}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field
+                className="sm:col-span-2"
+                id="bankName"
+                label={strings.settings.bankName}
+                error={errors.bankName && strings.validation.tooLong}
+                {...form.register('bankName')}
+              />
+              <Field
+                id="iban"
+                label={strings.settings.iban}
+                error={errors.iban && strings.validation.iban}
+                {...form.register('iban')}
+              />
+              <Field
+                id="bic"
+                label={strings.settings.bic}
+                error={errors.bic && strings.validation.tooLong}
+                {...form.register('bic')}
+              />
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionInvoicing}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Field
-              className="max-w-40"
-              id="defaultPaymentTermDays"
-              label={strings.settings.defaultPaymentTermDays}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={365}
-              error={errors.defaultPaymentTermDays && strings.validation.paymentTerm}
-              {...form.register('defaultPaymentTermDays')}
-            />
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.settings.sectionInvoicing}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Field
+                className="max-w-40"
+                id="defaultPaymentTermDays"
+                label={strings.settings.defaultPaymentTermDays}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={365}
+                error={errors.defaultPaymentTermDays && strings.validation.paymentTerm}
+                {...form.register('defaultPaymentTermDays')}
+              />
+            </CardContent>
+          </Card>
+        </fieldset>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? strings.settings.saving : strings.settings.save}
-          </Button>
-        </div>
+        {editing && (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={mutation.isPending}
+              onClick={() => {
+                // Back to what is stored, which is what "Abbrechen" means.
+                if (settings) reset(toFormValues(settings))
+                setEditing(false)
+              }}
+            >
+              {strings.actions.cancel}
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? strings.settings.saving : strings.settings.save}
+            </Button>
+          </div>
+        )}
       </form>
 
       {/* Outside the form on purpose: these save on their own and have

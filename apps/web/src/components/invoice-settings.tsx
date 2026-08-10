@@ -9,8 +9,8 @@ import {
   textTemplateKinds,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileUp, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { FileUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -103,12 +103,23 @@ function NumberRangeForm({
   const [prefix, setPrefix] = useState('')
   const [padding, setPadding] = useState(1)
   const [nextValue, setNextValue] = useState(1)
+  /**
+   * Read mode first (CLAUDE.md), and nowhere does it matter more: a stray
+   * keystroke in `next_value` reissues a number that has already been printed.
+   * A range that does not exist yet is being created, so it opens editable.
+   */
+  const [editing, setEditing] = useState(range === undefined)
 
-  useEffect(() => {
+  const reset = useCallback(() => {
     setPrefix(range?.prefix ?? (code === 'invoice' ? `${new Date().getFullYear()}-` : ''))
     setPadding(range?.padding ?? (code === 'invoice' ? 4 : 1))
     setNextValue(range?.nextValue ?? 1)
   }, [range, code])
+
+  useEffect(() => {
+    reset()
+    setEditing(range === undefined)
+  }, [reset, range])
 
   const save = useMutation({
     mutationFn: () => saveNumberRange(code, { prefix, padding, nextValue }),
@@ -125,7 +136,7 @@ function NumberRangeForm({
     <div className="rounded-md border p-4">
       <p className="font-medium text-sm">{strings.invoice.numberRangeCodes[code]}</p>
 
-      <div className="mt-3 grid gap-4 sm:grid-cols-4">
+      <fieldset disabled={!editing} className="mt-3 grid gap-4 sm:grid-cols-4">
         <div>
           <Label htmlFor={`${formId}-prefix`}>{strings.invoice.prefix}</Label>
           <Input
@@ -162,11 +173,33 @@ function NumberRangeForm({
           <span className="font-medium text-sm">{strings.invoice.nextNumberPreview}</span>
           <p className="mt-3 font-mono text-sm">{formatNumber(prefix, padding, nextValue)}</p>
         </div>
-      </div>
+      </fieldset>
 
-      <Button className="mt-4" size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-        {save.isPending ? strings.invoice.saving : strings.invoice.save}
-      </Button>
+      {editing ? (
+        <div className="mt-4 flex gap-2">
+          {range && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={save.isPending}
+              onClick={() => {
+                reset()
+                setEditing(false)
+              }}
+            >
+              {strings.actions.cancel}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? strings.invoice.saving : strings.invoice.save}
+          </Button>
+        </div>
+      ) : (
+        <Button className="mt-4" size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <Pencil className="size-4" aria-hidden />
+          {strings.actions.edit}
+        </Button>
+      )}
     </div>
   )
 }
@@ -351,6 +384,9 @@ function TextTemplateForm({
         }
       : EMPTY_TEMPLATE,
   )
+  /** Clicking a template's name opens it; a new one is being written, an
+   *  existing one is being looked at (CLAUDE.md, read mode first). */
+  const [editing, setEditing] = useState(template === null)
 
   const save = useMutation({
     mutationFn: () =>
@@ -366,115 +402,133 @@ function TextTemplateForm({
 
   return (
     <div className="space-y-4 rounded-md border p-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label htmlFor={`${formId}-kind`}>{strings.invoice.templateKind}</Label>
-          <Select
-            value={input.kind}
-            onValueChange={(value) =>
-              setInput((current) => ({
-                ...current,
-                kind: value as TextTemplateKind,
-                // The paid variant only exists for an outro; the check
-                // constraint says so too.
-                isPaidVariant: value === 'outro' ? current.isPaidVariant : false,
-              }))
-            }
-          >
-            <SelectTrigger id={`${formId}-kind`} className="mt-2 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {textTemplateKinds.map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {strings.invoice.templateKinds[kind]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <fieldset disabled={!editing} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor={`${formId}-kind`}>{strings.invoice.templateKind}</Label>
+            <Select
+              value={input.kind}
+              onValueChange={(value) =>
+                setInput((current) => ({
+                  ...current,
+                  kind: value as TextTemplateKind,
+                  // The paid variant only exists for an outro; the check
+                  // constraint says so too.
+                  isPaidVariant: value === 'outro' ? current.isPaidVariant : false,
+                }))
+              }
+            >
+              <SelectTrigger id={`${formId}-kind`} className="mt-2 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {textTemplateKinds.map((kind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {strings.invoice.templateKinds[kind]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div>
-          <Label htmlFor={`${formId}-name`}>{strings.invoice.templateName}</Label>
-          <Input
-            id={`${formId}-name`}
-            className="mt-2"
-            value={input.name}
-            onChange={(event) => setInput((current) => ({ ...current, name: event.target.value }))}
-          />
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor={`${formId}-body`}>{strings.invoice.templateBody}</Label>
-        <Textarea
-          id={`${formId}-body`}
-          rows={4}
-          className="mt-2"
-          value={input.body}
-          onChange={(event) => setInput((current) => ({ ...current, body: event.target.value }))}
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-6">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${formId}-default`}
-            checked={input.isDefault}
-            onCheckedChange={(checked) =>
-              setInput((current) => ({ ...current, isDefault: checked === true }))
-            }
-          />
-          <Label htmlFor={`${formId}-default`} className="font-normal">
-            {strings.invoice.templateDefault}
-          </Label>
-        </div>
-
-        {input.kind === 'outro' && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${formId}-paid`}
-              checked={input.isPaidVariant}
-              onCheckedChange={(checked) =>
-                setInput((current) => ({ ...current, isPaidVariant: checked === true }))
+          <div>
+            <Label htmlFor={`${formId}-name`}>{strings.invoice.templateName}</Label>
+            <Input
+              id={`${formId}-name`}
+              className="mt-2"
+              value={input.name}
+              onChange={(event) =>
+                setInput((current) => ({ ...current, name: event.target.value }))
               }
             />
-            <Label htmlFor={`${formId}-paid`} className="font-normal">
-              {strings.invoice.templatePaidVariant}
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor={`${formId}-body`}>{strings.invoice.templateBody}</Label>
+          <Textarea
+            id={`${formId}-body`}
+            rows={4}
+            className="mt-2"
+            value={input.body}
+            onChange={(event) => setInput((current) => ({ ...current, body: event.target.value }))}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-6">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${formId}-default`}
+              checked={input.isDefault}
+              onCheckedChange={(checked) =>
+                setInput((current) => ({ ...current, isDefault: checked === true }))
+              }
+            />
+            <Label htmlFor={`${formId}-default`} className="font-normal">
+              {strings.invoice.templateDefault}
             </Label>
           </div>
-        )}
 
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${formId}-active`}
-            checked={input.active}
-            onCheckedChange={(checked) =>
-              setInput((current) => ({ ...current, active: checked === true }))
-            }
-          />
-          <Label htmlFor={`${formId}-active`} className="font-normal">
-            {strings.invoice.templateActive}
-          </Label>
+          {input.kind === 'outro' && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`${formId}-paid`}
+                checked={input.isPaidVariant}
+                onCheckedChange={(checked) =>
+                  setInput((current) => ({ ...current, isPaidVariant: checked === true }))
+                }
+              />
+              <Label htmlFor={`${formId}-paid`} className="font-normal">
+                {strings.invoice.templatePaidVariant}
+              </Label>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${formId}-active`}
+              checked={input.active}
+              onCheckedChange={(checked) =>
+                setInput((current) => ({ ...current, active: checked === true }))
+              }
+            />
+            <Label htmlFor={`${formId}-active`} className="font-normal">
+              {strings.invoice.templateActive}
+            </Label>
+          </div>
         </div>
-      </div>
 
-      <p className="text-muted-foreground text-xs">{strings.invoice.templateDefaultHint}</p>
-      {input.kind === 'outro' && (
-        <p className="text-muted-foreground text-xs">{strings.invoice.templatePaidVariantHint}</p>
-      )}
+        <p className="text-muted-foreground text-xs">{strings.invoice.templateDefaultHint}</p>
+        {input.kind === 'outro' && (
+          <p className="text-muted-foreground text-xs">{strings.invoice.templatePaidVariantHint}</p>
+        )}
+      </fieldset>
 
       <div className="flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => save.mutate()}
-          disabled={save.isPending || input.name.trim() === '' || input.body.trim() === ''}
-        >
-          {save.isPending ? strings.invoice.saving : strings.invoice.save}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
-          {strings.note.cancel}
-        </Button>
+        {editing ? (
+          <>
+            <Button
+              size="sm"
+              onClick={() => save.mutate()}
+              disabled={save.isPending || input.name.trim() === '' || input.body.trim() === ''}
+            >
+              {save.isPending ? strings.invoice.saving : strings.invoice.save}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onCancel}>
+              {strings.actions.cancel}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="size-4" aria-hidden />
+              {strings.actions.edit}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onCancel}>
+              {strings.actions.close}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

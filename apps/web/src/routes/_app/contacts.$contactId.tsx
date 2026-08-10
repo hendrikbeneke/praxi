@@ -175,7 +175,7 @@ function ContactDetailPage() {
             {!editing && (
               <Button variant="outline" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" aria-hidden />
-                {strings.contact.edit}
+                {strings.actions.edit}
               </Button>
             )}
           </div>

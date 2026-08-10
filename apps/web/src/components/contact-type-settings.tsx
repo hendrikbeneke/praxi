@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { ReadModeFooter } from '@/components/read-mode-footer'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -226,6 +227,9 @@ function RoleTypeDialog({
       ? toRoleValues(type)
       : { code: '', label: '', showAsTab: false, sortOrder: 100, active: true },
   )
+  /** A new entry has nothing to read; an existing one opens in read mode
+   *  (CLAUDE.md, read mode first). */
+  const [editing, setEditing] = useState(type === undefined)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -237,7 +241,7 @@ function RoleTypeDialog({
           <DialogDescription>{strings.contactType.codeHint}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={!editing} className="space-y-4">
           <div>
             <Label htmlFor="role-code">{strings.contactType.code}</Label>
             <Input
@@ -273,19 +277,23 @@ function RoleTypeDialog({
             checked={values.active}
             onChange={(checked) => setValues({ ...values, active: checked })}
           />
-        </div>
+        </fieldset>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            {strings.actions.cancel}
-          </Button>
-          <Button
-            disabled={pending || values.code.trim() === '' || values.label.trim() === ''}
-            onClick={() => onSubmit(values)}
-          >
-            {strings.actions.save}
-          </Button>
-        </DialogFooter>
+        {editing ? (
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose}>
+              {strings.actions.cancel}
+            </Button>
+            <Button
+              disabled={pending || values.code.trim() === '' || values.label.trim() === ''}
+              onClick={() => onSubmit(values)}
+            >
+              {strings.actions.save}
+            </Button>
+          </DialogFooter>
+        ) : (
+          <ReadModeFooter onClose={onClose} onEdit={() => setEditing(true)} />
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -453,6 +461,7 @@ function RelationTypeDialog({
           active: true,
         },
   )
+  const [editing, setEditing] = useState(type === undefined)
 
   /** A symmetric type has no second label — the check constraint says so, and
    *  the field disappears rather than being sent empty. */
@@ -474,7 +483,7 @@ function RelationTypeDialog({
           <DialogDescription>{strings.contactType.directionHint}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={!editing} className="space-y-4">
           <div>
             <Label htmlFor="relation-code">{strings.contactType.code}</Label>
             <Input
@@ -530,16 +539,20 @@ function RelationTypeDialog({
             checked={values.active}
             onChange={(checked) => setValues({ ...values, active: checked })}
           />
-        </div>
+        </fieldset>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            {strings.actions.cancel}
-          </Button>
-          <Button disabled={pending || !complete} onClick={() => onSubmit(values)}>
-            {strings.actions.save}
-          </Button>
-        </DialogFooter>
+        {editing ? (
+          <DialogFooter>
+            <Button variant="ghost" onClick={onClose}>
+              {strings.actions.cancel}
+            </Button>
+            <Button disabled={pending || !complete} onClick={() => onSubmit(values)}>
+              {strings.actions.save}
+            </Button>
+          </DialogFooter>
+        ) : (
+          <ReadModeFooter onClose={onClose} onEdit={() => setEditing(true)} />
+        )}
       </DialogContent>
     </Dialog>
   )

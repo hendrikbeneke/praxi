@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { formatEuroAmount, parseEuroAmount, type Service, type ServiceInput } from '@praxi/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -96,11 +97,17 @@ export function ServiceDialog({
     defaultValues: toFormValues(service),
   })
 
+  /** A new service has nothing to read, so it starts editable; an existing one
+   *  opens in read mode (CLAUDE.md, read mode first). */
+  const [editing, setEditing] = useState(true)
+
   const { reset } = form
   // The dialog stays mounted between openings, so the fields have to be put
   // back to what is being edited each time it opens.
   useEffect(() => {
-    if (open) reset(toFormValues(service))
+    if (!open) return
+    reset(toFormValues(service))
+    setEditing(service === undefined)
   }, [open, service, reset])
 
   const mutation = useMutation({
@@ -132,95 +139,100 @@ export function ServiceDialog({
 
         <form
           id="service-form"
-          className="grid gap-4 sm:grid-cols-6"
           onSubmit={form.handleSubmit((values) => mutation.mutate(toServiceInput(values)))}
           noValidate
         >
-          <div className="sm:col-span-6">
-            <Label htmlFor="description">{strings.service.serviceDescription}</Label>
-            <Input
-              id="description"
-              className="mt-2"
-              aria-invalid={errors.description ? true : undefined}
-              {...form.register('description')}
-            />
-            {errors.description && (
-              <p className="mt-1 text-destructive text-sm">{strings.validation.required}</p>
-            )}
-          </div>
-
-          <div className="sm:col-span-2">
-            <Label htmlFor="shortCode">{strings.service.shortCode}</Label>
-            <Input id="shortCode" className="mt-2" {...form.register('shortCode')} />
-            <p className="mt-1 text-muted-foreground text-xs">{strings.service.shortCodeHint}</p>
-          </div>
-
-          <div className="sm:col-span-4">
-            <Label htmlFor="feeCode">{strings.service.feeCode}</Label>
-            <Input id="feeCode" className="mt-2" {...form.register('feeCode')} />
-          </div>
-
-          <div className="sm:col-span-3">
-            <Label htmlFor="price">{strings.service.price}</Label>
-            <div className="mt-2 flex items-center gap-2">
+          <fieldset disabled={!editing} className="grid gap-4 sm:grid-cols-6">
+            <div className="sm:col-span-6">
+              <Label htmlFor="description">{strings.service.serviceDescription}</Label>
               <Input
-                id="price"
-                inputMode="decimal"
-                aria-invalid={errors.price ? true : undefined}
-                {...form.register('price')}
+                id="description"
+                className="mt-2"
+                aria-invalid={errors.description ? true : undefined}
+                {...form.register('description')}
               />
-              <span className="text-muted-foreground text-sm">€</span>
+              {errors.description && (
+                <p className="mt-1 text-destructive text-sm">{strings.validation.required}</p>
+              )}
             </div>
-            {errors.price ? (
-              <p className="mt-1 text-destructive text-sm">{strings.validation.amount}</p>
-            ) : (
-              <p className="mt-1 text-muted-foreground text-xs">{strings.service.priceHint}</p>
-            )}
-          </div>
 
-          <div className="sm:col-span-3">
-            <Label htmlFor="duration">{strings.service.duration}</Label>
-            <div className="mt-2 flex items-center gap-2">
-              <Input
-                id="duration"
-                type="number"
-                min={1}
-                max={24 * 60}
-                aria-invalid={errors.duration ? true : undefined}
-                {...form.register('duration')}
-              />
-              <span className="whitespace-nowrap text-muted-foreground text-sm">
-                {strings.service.durationMinutes}
-              </span>
+            <div className="sm:col-span-2">
+              <Label htmlFor="shortCode">{strings.service.shortCode}</Label>
+              <Input id="shortCode" className="mt-2" {...form.register('shortCode')} />
+              <p className="mt-1 text-muted-foreground text-xs">{strings.service.shortCodeHint}</p>
             </div>
-            {errors.duration && (
-              <p className="mt-1 text-destructive text-sm">{strings.validation.duration}</p>
-            )}
-          </div>
 
-          <div className="sm:col-span-6">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="active"
-                checked={form.watch('active')}
-                onCheckedChange={(checked) => form.setValue('active', checked === true)}
-              />
-              <Label htmlFor="active" className="font-normal">
-                {strings.service.active}
-              </Label>
+            <div className="sm:col-span-4">
+              <Label htmlFor="feeCode">{strings.service.feeCode}</Label>
+              <Input id="feeCode" className="mt-2" {...form.register('feeCode')} />
             </div>
-            <p className="mt-1 text-muted-foreground text-xs">{strings.service.activeHint}</p>
-          </div>
+
+            <div className="sm:col-span-3">
+              <Label htmlFor="price">{strings.service.price}</Label>
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  id="price"
+                  inputMode="decimal"
+                  aria-invalid={errors.price ? true : undefined}
+                  {...form.register('price')}
+                />
+                <span className="text-muted-foreground text-sm">€</span>
+              </div>
+              {errors.price ? (
+                <p className="mt-1 text-destructive text-sm">{strings.validation.amount}</p>
+              ) : (
+                <p className="mt-1 text-muted-foreground text-xs">{strings.service.priceHint}</p>
+              )}
+            </div>
+
+            <div className="sm:col-span-3">
+              <Label htmlFor="duration">{strings.service.duration}</Label>
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  id="duration"
+                  type="number"
+                  min={1}
+                  max={24 * 60}
+                  aria-invalid={errors.duration ? true : undefined}
+                  {...form.register('duration')}
+                />
+                <span className="whitespace-nowrap text-muted-foreground text-sm">
+                  {strings.service.durationMinutes}
+                </span>
+              </div>
+              {errors.duration && (
+                <p className="mt-1 text-destructive text-sm">{strings.validation.duration}</p>
+              )}
+            </div>
+
+            <div className="sm:col-span-6">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="active"
+                  checked={form.watch('active')}
+                  onCheckedChange={(checked) => form.setValue('active', checked === true)}
+                />
+                <Label htmlFor="active" className="font-normal">
+                  {strings.service.active}
+                </Label>
+              </div>
+              <p className="mt-1 text-muted-foreground text-xs">{strings.service.activeHint}</p>
+            </div>
+          </fieldset>
         </form>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            {strings.service.cancel}
-          </Button>
-          <Button type="submit" form="service-form" disabled={mutation.isPending}>
-            {mutation.isPending ? strings.service.saving : strings.service.save}
-          </Button>
-        </DialogFooter>
+        {editing ? (
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {strings.service.cancel}
+            </Button>
+            <Button type="submit" form="service-form" disabled={mutation.isPending}>
+              {mutation.isPending ? strings.service.saving : strings.service.save}
+            </Button>
+          </DialogFooter>
+        ) : (
+          <ReadModeFooter onClose={() => onOpenChange(false)} onEdit={() => setEditing(true)} />
+        )}
       </DialogContent>
     </Dialog>
   )

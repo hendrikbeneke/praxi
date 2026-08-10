@@ -24,6 +24,7 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
+import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -171,11 +172,15 @@ export function ActivityDialog({
   const [withAppointment, setWithAppointment] = useState(true)
   const [status, setStatus] = useState<AppointmentStatus>('planned')
   const [appointmentNote, setAppointmentNote] = useState('')
+  /** A new activity has nothing to read, so it starts editable; an existing
+   *  one opens in read mode (CLAUDE.md, read mode first). */
+  const [editing, setEditing] = useState(true)
 
   // The dialog stays mounted between openings, so everything is put back each
   // time it opens.
   useEffect(() => {
     if (!open) return
+    setEditing(activity === undefined)
 
     if (activity) {
       const start = toBerlinDateTimeLocal(activity.occurredAt)
@@ -353,7 +358,9 @@ export function ActivityDialog({
           <DialogDescription>{strings.activity.copyHint}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        {/* Read mode until asked otherwise — the list opens this dialog on a
+            row click, so most of the time it is opened to look at something. */}
+        <fieldset disabled={!editing} className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-6">
             <div className="sm:col-span-6">
               <Label htmlFor={`${formId}-contact`}>{strings.activity.contact}</Label>
@@ -708,16 +715,20 @@ export function ActivityDialog({
           {targetContactId === null && (
             <p className="text-muted-foreground text-sm">{strings.activity.contactRequired}</p>
           )}
-        </div>
+        </fieldset>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            {strings.activity.cancel}
-          </Button>
-          <Button type="button" onClick={submit} disabled={mutation.isPending || !canSave}>
-            {mutation.isPending ? strings.activity.saving : strings.activity.save}
-          </Button>
-        </DialogFooter>
+        {editing ? (
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {strings.activity.cancel}
+            </Button>
+            <Button type="button" onClick={submit} disabled={mutation.isPending || !canSave}>
+              {mutation.isPending ? strings.activity.saving : strings.activity.save}
+            </Button>
+          </DialogFooter>
+        ) : (
+          <ReadModeFooter onClose={() => onOpenChange(false)} onEdit={() => setEditing(true)} />
+        )}
       </DialogContent>
     </Dialog>
   )

@@ -238,7 +238,6 @@ export const strings = {
 
     ageYears: (years: number) => `${years} Jahre`,
     editRoles: 'Rollen bearbeiten',
-    edit: 'Bearbeiten',
 
     overviewThread: 'Termine und Vorgänge',
     nextAppointment: 'Nächster Termin',
@@ -673,6 +672,8 @@ export const strings = {
     save: 'Speichern',
     cancel: 'Abbrechen',
     delete: 'Löschen',
+    edit: 'Bearbeiten',
+    close: 'Schließen',
   },
   status: {
     loading: 'Wird geladen …',

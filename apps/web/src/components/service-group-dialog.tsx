@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { ReadModeFooter } from '@/components/read-mode-footer'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -50,9 +51,13 @@ export function ServiceGroupDialog({
   const [active, setActive] = useState(true)
   const [items, setItems] = useState<DraftItem[]>([])
   const [nameTouched, setNameTouched] = useState(false)
+  /** A new group has nothing to read, so it starts editable; an existing one
+   *  opens in read mode (CLAUDE.md, read mode first). */
+  const [editing, setEditing] = useState(true)
 
   useEffect(() => {
     if (!open) return
+    setEditing(group === undefined)
     setName(group?.name ?? '')
     setActive(group?.active ?? true)
     setItems(
@@ -114,7 +119,7 @@ export function ServiceGroupDialog({
           <DialogDescription>{strings.service.groupHint}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <fieldset disabled={!editing} className="space-y-5">
           <div>
             <Label htmlFor="group-name">{strings.service.groupName}</Label>
             <Input
@@ -257,16 +262,20 @@ export function ServiceGroupDialog({
             </div>
             <p className="mt-1 text-muted-foreground text-xs">{strings.service.activeHint}</p>
           </div>
-        </div>
+        </fieldset>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            {strings.service.cancel}
-          </Button>
-          <Button type="button" onClick={submit} disabled={mutation.isPending}>
-            {mutation.isPending ? strings.service.saving : strings.service.save}
-          </Button>
-        </DialogFooter>
+        {editing ? (
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {strings.service.cancel}
+            </Button>
+            <Button type="button" onClick={submit} disabled={mutation.isPending}>
+              {mutation.isPending ? strings.service.saving : strings.service.save}
+            </Button>
+          </DialogFooter>
+        ) : (
+          <ReadModeFooter onClose={() => onOpenChange(false)} onEdit={() => setEditing(true)} />
+        )}
       </DialogContent>
     </Dialog>
   )
