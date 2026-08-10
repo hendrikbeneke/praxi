@@ -14,6 +14,7 @@ import type { Database, DbReader, Transaction } from '../db/client.js'
 import { contact, invoice, invoiceLine, practiceSettings, textTemplate } from '../db/schema.js'
 import { newId } from '../id.js'
 import { listBillableItems } from './billable.js'
+import { lastSendByInvoice } from './invoice-send.js'
 import { paidCentsByInvoice } from './payment.js'
 
 /**
@@ -85,10 +86,19 @@ const lineColumns = {
 
 type InvoiceRow = Omit<
   Invoice,
-  'finalizedAt' | 'lines' | 'contactName' | 'contactNumber' | 'paidCents'
+  | 'finalizedAt'
+  | 'lines'
+  | 'contactName'
+  | 'contactNumber'
+  | 'paidCents'
+  | 'lastSentAt'
+  | 'lastSentTo'
 > & {
   finalizedAt: Date | null
 }
+
+/** The last successful send, derived from `invoice_send` (slice 10). */
+type LastSend = { sentAt: Date; recipient: string } | undefined
 
 /** The recipient as they are right now. Frozen into the invoice at
  *  finalization; `formatContactName` is the same function the screen uses. */
@@ -127,6 +137,7 @@ function toInvoice(
   row: InvoiceRow & { contactName: string; contactNumber: number },
   lines: InvoiceLine[],
   paidCents: number,
+  lastSend: LastSend,
 ): Invoice {
   return {
     ...row,
@@ -134,6 +145,10 @@ function toInvoice(
     // Derived, never stored (rule 9). What the number *means* is decided by
     // `invoicePaymentState()` in packages/shared and nowhere else.
     paidCents,
+    // Same reasoning one slice later: the send log knows when it last went out
+    // and to whom, so there is no column here saying it a second time.
+    lastSentAt: lastSend?.sentAt.toISOString() ?? null,
+    lastSentTo: lastSend?.recipient ?? null,
     lines,
   }
 }
@@ -191,9 +206,10 @@ export async function listInvoices(
     .offset(query.offset)
 
   const ids = rows.map((row) => row.id)
-  const [lines, paid] = await Promise.all([
+  const [lines, paid, sent] = await Promise.all([
     loadLines(database, ids),
     paidCentsByInvoice(database, tenantId, ids),
+    lastSendByInvoice(database, tenantId, ids),
   ])
 
   return rows.map((row) =>
@@ -201,6 +217,7 @@ export async function listInvoices(
       { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
       lines.get(row.id) ?? [],
       paid.get(row.id) ?? 0,
+      sent.get(row.id),
     ),
   )
 }
@@ -222,10 +239,12 @@ export async function getInvoice(
   if (!row) return null
   const lines = await loadLines(reader, [row.id])
   const paid = await paidCentsByInvoice(reader, tenantId, [row.id])
+  const sent = await lastSendByInvoice(reader, tenantId, [row.id])
   return toInvoice(
     { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
     lines.get(row.id) ?? [],
     paid.get(row.id) ?? 0,
+    sent.get(row.id),
   )
 }
 

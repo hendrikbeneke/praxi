@@ -11,6 +11,7 @@ import { ActivityTypeSettings } from '@/components/activity-type-settings'
 import { ContactTypeSettings } from '@/components/contact-type-settings'
 import { GoogleSettings } from '@/components/google-settings'
 import { InvoiceSettings } from '@/components/invoice-settings'
+import { MailSettings } from '@/components/mail-settings'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -294,6 +295,10 @@ function SettingsPage() {
           {strings.activityType.description}
         </p>
         <ActivityTypeSettings />
+      </div>
+
+      <div className="mt-8">
+        <MailSettings />
       </div>
 
       <div className="mt-8">

@@ -22,7 +22,6 @@ import {
 import { listConflicts, resolveConflict } from '../domain/google-sync.js'
 import { openGoogleApi } from '../google/api.js'
 import { isAuthFailure } from '../google/client.js'
-import { TokenKeyMismatchError } from '../google/crypto.js'
 import {
   beginAuthorization,
   exchangeCode,
@@ -36,6 +35,7 @@ import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
+import { SecretKeyMismatchError } from '../secrets.js'
 
 const appointmentParam = z.object({ appointmentId: z.uuid() })
 const callbackQuery = z.object({
@@ -47,7 +47,7 @@ const callbackQuery = z.object({
 /** The two failures that are worth their own sentence rather than a generic
  *  500. Everything else goes through the normal error handler. */
 function translate(error: unknown): never {
-  if (error instanceof TokenKeyMismatchError) {
+  if (error instanceof SecretKeyMismatchError) {
     throw new HTTPException(409, { message: messages.google.keyMismatch })
   }
   if (isAuthFailure(error)) {

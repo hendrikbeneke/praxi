@@ -102,7 +102,7 @@ Calendar API, add an OAuth client of type *Desktop app*, and put its id and
 secret plus a key for the token store into `.env`:
 
 ```bash
-openssl rand -hex 32      # GOOGLE_TOKEN_KEY
+openssl rand -hex 32      # SECRET_KEY
 ```
 
 Then connect under *Einstellungen → Google-Kalender* and pick a practice
@@ -117,6 +117,23 @@ intervals only, and the token's scope (`calendar.freebusy`, never
 
 Pushes go through an outbox, so a failed call never blocks entering or moving
 an appointment — pulling the network cable breaks nothing.
+
+## Sending invoices by mail
+
+Optional and off until configured. The SMTP account is entered under
+*Einstellungen → Mailversand* — it is configuration, not deployment, so it does
+not live in `.env`. The password is encrypted at rest with `SECRET_KEY`, the
+same mechanism as the Google refresh token.
+
+The **test send goes to the configured sender address and nowhere else**. There
+is no field for another address and no parameter that could carry one: a button
+that exists to check the configuration must not double as a way to send an
+invoice somewhere by accident.
+
+Sending is never automatic and never part of finalizing — always a separate
+action, and a draft cannot be sent at all. Every attempt is recorded with time,
+recipient and outcome, failures included; the last successful send is derived
+from that log rather than stored on the invoice.
 
 ## Layout
 

@@ -41,7 +41,7 @@ const envSchema = z.object({
    * except the Google area works, without a single one of them. The settings
    * then say "not set up" rather than offering a button that cannot work.
    *
-   * `GOOGLE_TOKEN_KEY` encrypts the refresh token at rest — 32 bytes as 64 hex
+   * `SECRET_KEY` encrypts the refresh token at rest — 32 bytes as 64 hex
    * characters, generated with `openssl rand -hex 32`. Losing it does not lose
    * data; it costs one reconnect.
    *
@@ -50,7 +50,7 @@ const envSchema = z.object({
    */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
-  GOOGLE_TOKEN_KEY: z
+  SECRET_KEY: z
     .string()
     .regex(/^[0-9a-f]{64}$/, 'must be 64 hex characters')
     .optional(),

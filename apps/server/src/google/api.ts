@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { googleConnection } from '../db/schema.js'
+import { decryptSecret } from '../secrets.js'
 import { createGoogleApi, type Fetcher, type GoogleApi } from './client.js'
-import { decryptToken } from './crypto.js'
 import { oauthConfigured, refreshAccessToken } from './oauth.js'
 
 /**
@@ -31,8 +31,8 @@ export function forgetAccessToken(tenantId: string): void {
  * connection. Both are normal states, not errors — the software is fully
  * usable without Google.
  *
- * A key mismatch is *not* swallowed: `decryptToken` throws
- * `TokenKeyMismatchError`, and the caller turns that into a sentence.
+ * A key mismatch is *not* swallowed: `decryptSecret` throws
+ * `SecretKeyMismatchError`, and the caller turns that into a sentence.
  */
 export async function openGoogleApi(
   database: Database,
@@ -52,7 +52,7 @@ export async function openGoogleApi(
 
   if (!row) return null
 
-  const refreshToken = decryptToken(row.cipher, row.fingerprint)
+  const refreshToken = decryptSecret(row.cipher, row.fingerprint)
   const doFetch = options.fetch
   const nowMs = (options.now ?? new Date()).getTime()
 

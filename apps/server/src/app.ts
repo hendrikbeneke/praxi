@@ -11,7 +11,9 @@ import { contactRelationTypesRoute, contactRoleTypesRoute } from './routes/conta
 import { contactsRoute } from './routes/contacts.js'
 import { googleRoute } from './routes/google.js'
 import { healthRoute } from './routes/health.js'
+import { invoiceSendRoute } from './routes/invoice-send.js'
 import { invoicesRoute } from './routes/invoices.js'
+import { emailTemplatesRoute, smtpRoute } from './routes/mail.js'
 import { notesRoute } from './routes/notes.js'
 import { numberRangesRoute } from './routes/number-ranges.js'
 import { paymentsRoute, receivablesRoute } from './routes/payments.js'
@@ -46,12 +48,15 @@ const routes = app
   .route('/api/appointments', appointmentsRoute)
   .route('/api/notes', notesRoute)
   .route('/api/invoices', invoicesRoute)
-  // Payments hang under their invoice; the two chains share the prefix.
+  // Payments and sending hang under their invoice; the chains share the prefix.
   .route('/api/invoices', paymentsRoute)
+  .route('/api/invoices', invoiceSendRoute)
   .route('/api/receivables', receivablesRoute)
   .route('/api/text-templates', textTemplatesRoute)
   .route('/api/number-ranges', numberRangesRoute)
   .route('/api/google', googleRoute)
+  .route('/api/settings/smtp', smtpRoute)
+  .route('/api/email-templates', emailTemplatesRoute)
 
 export { app }
 export type AppType = typeof routes

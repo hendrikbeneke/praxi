@@ -30,6 +30,7 @@
     "@react-pdf/renderer": "4.5.1",
     "drizzle-orm": "0.45.2",
     "hono": "4.13.1",
+    "nodemailer": "^9.0.5",
     "pdf-lib": "1.17.1",
     "pino": "10.3.1",
     "postgres": "3.4.9",
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@types/node": "26.2.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "19.2.18",
     "drizzle-kit": "0.31.10",
     "pino-pretty": "13.1.3",

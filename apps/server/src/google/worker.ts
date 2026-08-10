@@ -3,9 +3,9 @@ import type { Database } from '../db/client.js'
 import { googleConnection } from '../db/schema.js'
 import { recordSyncError, runSync } from '../domain/google-sync.js'
 import { logger } from '../logger.js'
+import { SecretKeyMismatchError } from '../secrets.js'
 import { openGoogleApi } from './api.js'
 import { isAuthFailure } from './client.js'
-import { TokenKeyMismatchError } from './crypto.js'
 import { oauthConfigured } from './oauth.js'
 
 /**
@@ -60,7 +60,7 @@ async function tick(database: Database): Promise<void> {
           tenantId,
           'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.',
         )
-      } else if (error instanceof TokenKeyMismatchError) {
+      } else if (error instanceof SecretKeyMismatchError) {
         await recordSyncError(
           database,
           tenantId,

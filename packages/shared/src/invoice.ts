@@ -120,6 +120,18 @@ export const invoiceSchema = z.object({
    * `payment.ts`, which is the only place the status is decided.
    */
   paidCents: z.number().int(),
+  /**
+   * The last *successful* send (slice 10). Derived from `invoice_send`, never
+   * stored — the same reasoning as `paidCents` one line up, and the reason
+   * there are no `sent_at` / `sent_to` columns: the log already knows, and a
+   * second place saying when it went out would eventually say something else.
+   *
+   * It also keeps the slice additive. Columns here would have meant widening
+   * the allowlist of `protect_finalized_invoice` (migration 0019), which is
+   * the immutability of a finalized document.
+   */
+  lastSentAt: z.iso.datetime().nullable(),
+  lastSentTo: z.string().nullable(),
   pdfHash: z.string().nullable(),
   finalizedAt: z.iso.datetime().nullable(),
   /**

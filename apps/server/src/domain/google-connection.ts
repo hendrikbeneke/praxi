@@ -10,9 +10,9 @@ import {
 import { forgetAccessToken } from '../google/api.js'
 import type { GoogleApi } from '../google/client.js'
 import { isNotFound } from '../google/client.js'
-import { decryptToken, encryptToken, keyFingerprint, tokenKeyConfigured } from '../google/crypto.js'
 import { oauthConfigured, revokeToken } from '../google/oauth.js'
 import { newId } from '../id.js'
+import { decryptSecret, encryptSecret, keyFingerprint, secretKeyConfigured } from '../secrets.js'
 import { countQueue, listPushedEvents } from './google-sync.js'
 
 /**
@@ -29,7 +29,7 @@ export async function saveConnection(
   tenantId: string,
   input: { refreshToken: string; accountEmail: string | null },
 ): Promise<void> {
-  const { cipher, fingerprint } = encryptToken(input.refreshToken)
+  const { cipher, fingerprint } = encryptSecret(input.refreshToken)
 
   await database
     .insert(googleConnection)
@@ -61,7 +61,7 @@ export async function saveConnection(
 }
 
 export async function getStatus(database: Database, tenantId: string): Promise<GoogleStatus> {
-  const configured = oauthConfigured() && tokenKeyConfigured()
+  const configured = oauthConfigured() && secretKeyConfigured()
 
   const [row] = await database
     .select()
@@ -82,7 +82,7 @@ export async function getStatus(database: Database, tenantId: string): Promise<G
     // A stored token encrypted with a different key than the one configured
     // now. Named rather than left to fail at an authentication tag.
     keyMismatch:
-      row !== undefined && tokenKeyConfigured() && row.keyFingerprint !== keyFingerprint(),
+      row !== undefined && secretKeyConfigured() && row.keyFingerprint !== keyFingerprint(),
     accountEmail: row?.accountEmail ?? null,
     calendarId: row?.calendarId ?? null,
     freebusyCalendarIds: row?.freebusyCalendarIds ?? [],
@@ -222,7 +222,7 @@ export async function disconnect(
  *  cleanup. Revoking is then simply skipped. */
 function decryptTokenSafely(cipher: string, fingerprint: string): string {
   try {
-    return decryptToken(cipher, fingerprint)
+    return decryptSecret(cipher, fingerprint)
   } catch {
     return ''
   }

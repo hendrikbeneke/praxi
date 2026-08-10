@@ -20,12 +20,14 @@ import {
   Ban,
   FileCheck2,
   FileText,
+  Mail,
   Plus,
   Wallet,
   X,
 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { InvoiceSendDialog, InvoiceSendHistory } from '@/components/invoice-send-dialog'
 import { PageHeader } from '@/components/page-header'
 import { PaymentCard } from '@/components/payment-card'
 import {
@@ -41,6 +43,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -137,6 +140,7 @@ function InvoiceDetailPage() {
   const [introText, setIntroText] = useState('')
   const [outroText, setOutroText] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([])
+  const [sendOpen, setSendOpen] = useState(false)
 
   const isDraft = invoice?.status === 'draft'
   /** Only a finalized invoice can be cancelled — not a draft, which is
@@ -313,6 +317,15 @@ function InvoiceDetailPage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            )}
+
+            {/* Sending is never automatic and never part of finalizing — it
+                is its own action, and only on a document. */}
+            {!isDraft && (
+              <Button variant="outline" onClick={() => setSendOpen(true)}>
+                <Mail className="size-4" aria-hidden />
+                {strings.mail.send}
+              </Button>
             )}
 
             <Button variant="outline" asChild>
@@ -557,6 +570,17 @@ function InvoiceDetailPage() {
             a payment against one twice over. */}
         {!isDraft && <PaymentCard invoice={invoice} />}
 
+        {!isDraft && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.mail.history}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InvoiceSendHistory invoiceId={invoiceId} />
+            </CardContent>
+          </Card>
+        )}
+
         {isDraft && !hasNumberRange && !ranges.isPending && (
           <p className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
             {strings.invoice.numberRangeMissing}{' '}
@@ -645,6 +669,8 @@ function InvoiceDetailPage() {
           </div>
         )}
       </div>
+
+      <InvoiceSendDialog invoiceId={invoiceId} open={sendOpen} onOpenChange={setSendOpen} />
     </>
   )
 }

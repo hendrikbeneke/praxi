@@ -187,6 +187,10 @@ export async function cancelInvoice(
         // cancellation invoice has no payment state at all (see
         // `invoicePaymentState`).
         paidCents: 0,
+        // And it has never been sent. Derived from `invoice_send` on every
+        // read (slice 10); on a document being created it is simply empty.
+        lastSentAt: null,
+        lastSentTo: null,
         pdfHash: null,
         finalizedAt: finalizedAt.toISOString(),
         cancelsInvoiceId: invoiceId,

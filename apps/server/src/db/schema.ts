@@ -21,6 +21,7 @@ import type {
   NoteType,
   PaymentMethod,
   RecipientSnapshot,
+  SmtpSecurity,
   SyncConflictReason,
   TextTemplateKind,
 } from '@praxi/shared'
@@ -1496,5 +1497,156 @@ export const appointmentSyncConflict = pgTable(
       'appointment_sync_conflict_ends_after_starts',
       sql`${t.remoteEndsAt} > ${t.remoteStartsAt}`,
     ),
+  ],
+)
+
+/**
+ * The SMTP account invoices are sent from (slice 10). One row per tenant.
+ *
+ * Its own table rather than columns on `practice_settings`, and the reason is
+ * structural: `updatePracticeSettings` writes the whole form object with
+ * `.set(input)`. A password living there would travel to the client and back
+ * on every save of the master data. Kept apart, "the settings response carries
+ * no secret" is a property of the shape rather than something to remember.
+ *
+ * The password is encrypted by `src/secrets.ts` — the same function and the
+ * same key handling as the Google refresh token, not a second mechanism.
+ */
+export const smtpSettings = pgTable(
+  'smtp_settings',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .unique()
+      .references(() => tenant.id),
+    host: text().notNull(),
+    port: integer().notNull(),
+    /**
+     * `starttls` is the common case (587): plain, upgraded before anything is
+     * sent. `tls` is implicit TLS from the first byte (465). `none` exists for
+     * a relay on the same machine.
+     *
+     * Text with a named check, not a `pgEnum`: `none` may well be dropped one
+     * day, and the conventions say not to reach for an enum then.
+     */
+    security: text().notNull().default('starttls').$type<SmtpSecurity>(),
+    username: text(),
+    /** base64 of `iv | tag | ciphertext`, like every stored secret. */
+    passwordCipher: text(),
+    /** First 16 hex of the SHA-256 of the key it was encrypted with, so a
+     *  changed key is named rather than surfacing as a GCM tag failure. */
+    keyFingerprint: text(),
+    /** The sender — and the only address the test send can ever reach
+     *  (CLAUDE.md rule 14). */
+    fromAddress: text().notNull(),
+    fromName: text(),
+    ...timestamps,
+  },
+  (t) => [
+    check('smtp_settings_port_range', sql`${t.port} between 1 and 65535`),
+    check('smtp_settings_security_check', sql`${t.security} in ('starttls', 'tls', 'none')`),
+    check(
+      'smtp_settings_password_pair',
+      sql`(${t.passwordCipher} is null) = (${t.keyFingerprint} is null)`,
+    ),
+    check(
+      'smtp_settings_fingerprint_shape',
+      sql`${t.keyFingerprint} is null or ${t.keyFingerprint} ~ '^[0-9a-f]{16}$'`,
+    ),
+    /** A password without a user name is not a login. */
+    check(
+      'smtp_settings_password_needs_user',
+      sql`${t.passwordCipher} is null or ${t.username} is not null`,
+    ),
+  ],
+)
+
+/**
+ * The subject and body an invoice is sent with.
+ *
+ * Its own table rather than two new values in `text_template_kind`: a subject
+ * and a body are **one** message. Two independent rows of the generic table
+ * could be picked apart — a subject from one template, a body from another —
+ * which is a state that means nothing. `text_template` therefore stays exactly
+ * as it is, and so does the enum that would have needed
+ * `ALTER TYPE … ADD VALUE`.
+ */
+export const emailTemplate = pgTable(
+  'email_template',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    name: text().notNull(),
+    subject: text().notNull(),
+    body: text().notNull(),
+    isDefault: boolean().notNull().default(false),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    unique('email_template_tenant_name_key').on(t.tenantId, t.name),
+    uniqueIndex('email_template_default_key').on(t.tenantId).where(sql`${t.isDefault}`),
+  ],
+)
+
+/**
+ * One send attempt, successful or not (slice 10).
+ *
+ * Failed attempts stay in the list. That is what makes "I tried three times"
+ * answerable, and it is what a synchronous send has instead of a retry
+ * mechanism: sending is an *act*, and an automatic retry would mean possibly
+ * delivering twice with nobody able to tell.
+ *
+ * The recipient and the raw SMTP error live here on purpose. This is a record
+ * inside the protected database, not a log line — rule 12 governs the log
+ * stream, where none of this ever appears.
+ *
+ * There are deliberately no `sent_at` / `sent_to` columns on `invoice`: the
+ * last successful send is *derived* from these rows, exactly as the payment
+ * state is derived from `payment`. Columns there would also have meant
+ * widening the allowlist of `protect_finalized_invoice`.
+ */
+export const invoiceSend = pgTable(
+  'invoice_send',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    invoiceId: uuid().notNull(),
+    /** When the attempt ran, not when it was typed. */
+    sentAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    recipient: text().notNull(),
+    subject: text().notNull(),
+    ok: boolean().notNull(),
+    /** The server's answer, raw. Null exactly when it worked. */
+    error: text(),
+    sentBy: uuid().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    /**
+     * RESTRICT, like `payment`: a finalized invoice cannot be deleted and a
+     * draft cannot be sent, so there is nothing to cascade. Saying so beats
+     * allowing a deletion that must not exist.
+     */
+    foreignKey({
+      columns: [t.invoiceId, t.tenantId],
+      foreignColumns: [invoice.id, invoice.tenantId],
+      name: 'invoice_send_invoice_tenant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.sentBy, t.tenantId],
+      foreignColumns: [appUser.id, appUser.tenantId],
+      name: 'invoice_send_user_tenant_fk',
+    }),
+    index('invoice_send_invoice_idx').on(t.invoiceId, t.sentAt),
+    index('invoice_send_tenant_idx').on(t.tenantId, t.sentAt),
+    /** A failed attempt has to say why; a successful one has nothing to
+     *  explain. */
+    check('invoice_send_error_pair', sql`(not ${t.ok}) = (${t.error} is not null)`),
   ],
 )

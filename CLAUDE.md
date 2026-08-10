@@ -326,13 +326,21 @@ Everything else follows from "projection":
 - **The return channel applies `starts_at`, `ends_at` and cancelled, and nothing else.** Our own write is recognised by its ETag. An event created in Google directly is ignored — we cannot invent the contact it would belong to.
 - **Changed on both sides is never merged.** A merge invents a third version nobody chose. The appointment gets a conflict row, its pending push is held back, and the practitioner picks a side in the calendar — where scheduling happens, not in the settings.
 
-### 14. Sending mail (slice 10, not built yet)
-
-Two constraints are settled before the slice starts, because both are cheap now and expensive to retrofit.
+### 14. Sending mail
 
 **The SMTP transport is a parameter**, exactly as the Google API handle is in rule 13. Nothing in `domain/` opens a connection itself, and no test — not one — talks to a mail server, a mail catcher or `localhost`. The tests assert the **assembled message**: recipient, subject, body, the attached PDF and its name. What a fake transport returns proves nothing about what would have gone out.
 
-**The test send has exactly one possible recipient: the configured sender address.** It is not a field on a form, not a parameter of the route, and not overridable — the address is read from the practice settings and the request carries no recipient at all. A button whose whole purpose is "does the configuration work" must not double as a way to send a patient's invoice to a mistyped address. Sending to a contact is a separate action with a separate confirmation, and it takes its address from the contact record.
+**The test send has exactly one possible recipient: the configured sender address.** It is not a field on a form, not a parameter of the route, and not overridable — `buildTestMail()` takes a sender and a text and has nowhere to put an address, which is the safeguard written as a signature rather than as a rule someone has to remember. A button whose whole purpose is "does the configuration work" must not double as a way to send a patient's invoice to a mistyped address. Sending an invoice is a separate action whose recipient is prefilled from the contact and stays editable.
+
+**Sending is synchronous, and there is no outbox.** That is the deliberate opposite of rule 13, and the difference is not the feedback but what a retry *means*. The Google push projects a fact that already stands locally: repeating it is free and unambiguous, so a timer may decide. A mail is an act — an automatic retry may deliver twice with nobody able to tell, SMTP does not reliably separate greylisting from a hard refusal, and a background attempt that succeeds two hours later leaves the practitioner believing it failed. What takes the place of the retry mechanism is that **every attempt is recorded, successful or not**, and written before the caller hears anything: a client that navigates away loses only its answer.
+
+**Nothing about a message reaches the log stream.** The recipient identifies a patient and the attachment carries names and services, so `nodemailer` is constructed with `logger: false, debug: false` explicitly — left to its default it writes the whole SMTP dialogue, `RCPT TO:` included — and our own log line for a send is an invoice id and an outcome. The recipient, the subject and the raw SMTP error live in `invoice_send`, which is a *record inside the protected database*, not a log line. Rule 12 governs the log; the database of course holds patient data.
+
+**What is sent is what was confirmed.** Placeholders are resolved when the dialog is prepared, never again at send time, so the screen and the message cannot differ. An unknown placeholder is left standing rather than emptied — a silent gap reads as if it were meant that way — and the dialog points at it before anything goes out.
+
+**A draft cannot be sent**, guarded the same way a draft cannot be paid: `domain/invoice-send.ts` refuses first for the message, and the foreign key against a finalized document makes the state unreachable.
+
+Secrets are one mechanism, not two: `src/secrets.ts` (AES-256-GCM, key in `SECRET_KEY`) encrypts the SMTP password and the Google refresh token alike. It lived in `google/crypto.ts` until this slice and moved because it is not Google's.
 
 ## Target data model
 
@@ -363,6 +371,10 @@ practice_settings     tenant_id uuid not null unique -> tenant(id),
                         -- to DATA_DIR, null until a letterhead is uploaded)
                       -- letter_template_path waits for a letter module —
                       -- nothing on spec.
+                      -- The SMTP account is deliberately NOT here (slice 10):
+                      -- updatePracticeSettings writes the whole form object,
+                      -- so a password in this table would travel to the client
+                      -- and back on every save. See smtp_settings.
 
 -- as built (slice 1)
 app_user              tenant_id uuid not null -> tenant(id),
@@ -980,6 +992,102 @@ text_template         tenant_id uuid not null -> tenant(id),
                       -- copies its body onto the draft. The paid variant is
                       -- used by the "Betrag erhalten" action, which arrives in
                       -- slice 8 with the payment table.
+
+-- as built (slice 10)
+smtp_settings         tenant_id uuid not null unique -> tenant(id),
+                      host text not null,
+                      port integer not null check (between 1 and 65535),
+                      security text not null default 'starttls'
+                        check in ('starttls','tls','none'),
+                        -- starttls is the common case (587), tls is implicit
+                        -- TLS from the first byte (465), none is for a relay
+                        -- on the same machine. text + named check, not an
+                        -- enum: `none` may well be dropped one day.
+                      username text,
+                      password_cipher text,                   -- AES-256-GCM,
+                        -- base64(iv|tag|ciphertext), by src/secrets.ts — the
+                        -- same mechanism and the same key as the Google
+                        -- refresh token, never a second one
+                      key_fingerprint text
+                        check (null or ~ '^[0-9a-f]{16}$'),
+                      from_address text not null,             -- the sender,
+                        -- and the ONLY address the test send can reach. Not a
+                        -- form field, not a request parameter (rule 14).
+                      from_name text
+                      check smtp_settings_password_pair (
+                        (password_cipher is null) = (key_fingerprint is null))
+                      check smtp_settings_password_needs_user (
+                        password_cipher is null or username is not null)
+                      -- Its own table rather than columns on practice_settings,
+                      -- and the reason is structural: updatePracticeSettings
+                      -- writes the whole form object with .set(input). Kept
+                      -- apart, "the settings response carries no secret" is a
+                      -- property of the shape rather than something to
+                      -- remember. getSmtpSettings answers with passwordSet and
+                      -- has no password field of any kind.
+                      -- set_updated_at; RLS created and disabled.
+
+-- as built (slice 10)
+email_template        tenant_id uuid not null -> tenant(id),
+                      name text not null,
+                      subject text not null,
+                      body text not null,
+                      is_default boolean not null default false,
+                      active boolean not null default true
+                      unique (tenant_id, name),
+                      unique index email_template_default_key
+                        on (tenant_id) where is_default
+                      -- Its own table rather than two new values in
+                      -- text_template_kind: a subject and a body are ONE
+                      -- message, and two independent rows of the generic table
+                      -- could be picked apart into a state that means nothing.
+                      -- text_template stays untouched, and so does the enum
+                      -- that would have needed ALTER TYPE ... ADD VALUE.
+                      --
+                      -- Placeholders are a closed set — {{number}}, {{date}},
+                      -- {{total}}, {{name}} — resolved when the send dialog is
+                      -- prepared and never again, so the screen and the message
+                      -- cannot differ. An unknown one is left standing and
+                      -- named in the dialog.
+                      -- set_updated_at; RLS created and disabled.
+
+-- as built (slice 10)
+invoice_send          tenant_id uuid not null -> tenant(id),
+                      invoice_id uuid not null,
+                      sent_at timestamptz not null default now(),
+                      recipient text not null,
+                      subject text not null,
+                      ok boolean not null,
+                      error text,                             -- the server's
+                        -- answer, raw. It usually quotes the address, which is
+                        -- correct HERE: this is a record inside the protected
+                        -- database, not a log line (rule 12).
+                      sent_by uuid not null
+                      foreign key (invoice_id, tenant_id)
+                        -> invoice (id, tenant_id) on delete restrict
+                        -- RESTRICT like payment: a finalized invoice cannot be
+                        -- deleted and a draft cannot be sent, so there is
+                        -- nothing to cascade
+                      foreign key (sent_by, tenant_id)
+                        -> app_user (id, tenant_id)
+                      index (invoice_id, sent_at), index (tenant_id, sent_at)
+                      check invoice_send_error_pair (
+                        (not ok) = (error is not null))
+                      --
+                      -- Failed attempts stay. That is what makes "I tried
+                      -- three times" answerable, and it is what a synchronous
+                      -- send has instead of a retry mechanism (rule 14).
+                      --
+                      -- Deliberately absent, on `invoice`: sent_at / sent_to.
+                      -- The last successful send is DERIVED from these rows —
+                      -- lastSendByInvoice(), one grouped query, the same shape
+                      -- as paidCents. Columns there would also have meant
+                      -- widening the allowlist of protect_finalized_invoice,
+                      -- which is the immutability of a finalized document.
+                      -- The message body is not stored: time, recipient,
+                      -- subject and outcome answer the question, and the
+                      -- document itself is the PDF on disk.
+                      -- set_updated_at; RLS created and disabled.
 
 -- as built (slice 8)
 payment               tenant_id uuid not null -> tenant(id),

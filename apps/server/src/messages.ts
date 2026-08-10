@@ -186,17 +186,49 @@ export const messages = {
     defaultTaken: 'Es gibt bereits einen Standardbaustein dieser Art.',
     paidVariantTaken: 'Es gibt bereits einen Baustein für die bezahlte Variante.',
   },
+  smtp: {
+    notConfigured:
+      'Es ist kein Mailkonto hinterlegt. Bitte richten Sie es in den Einstellungen ein.',
+    keyMismatch:
+      'Der hinterlegte Schlüssel passt nicht zum gespeicherten Passwort. ' +
+      'Setzen Sie den ursprünglichen SECRET_KEY zurück oder tragen Sie das Passwort neu ein.',
+    secretKeyMissing:
+      'Ohne SECRET_KEY in der Umgebung kann kein Passwort gespeichert werden. ' +
+      'Siehe .env.example.',
+    saved: 'Mailkonto gespeichert.',
+  },
+  emailTemplate: {
+    notFound: 'Diese Vorlage existiert nicht.',
+    nameTaken: 'Eine Vorlage mit diesem Namen existiert bereits.',
+  },
+  invoiceSend: {
+    draftNotSendable:
+      'Ein Rechnungsentwurf kann nicht versendet werden. ' +
+      'Schreiben Sie die Rechnung zuerst fest.',
+    smtpMissing: 'Es ist kein Mailkonto hinterlegt. Bitte richten Sie es in den Einstellungen ein.',
+    noRecipientAddress:
+      'Für diesen Empfänger ist keine E-Mail-Adresse hinterlegt. ' +
+      'Tragen Sie sie am Kontakt ein oder geben Sie sie im Versandfenster von Hand ein.',
+    templateMissing:
+      'Es ist keine Mailvorlage hinterlegt. Bitte legen Sie in den Einstellungen eine an.',
+    failed: 'Die Mail konnte nicht versendet werden.',
+    /** The test send. It goes to the configured sender and nowhere else. */
+    testSubject: 'Testmail aus der Praxisverwaltung',
+    testBody:
+      'Diese Nachricht bestätigt, dass der Mailversand aus der Praxisverwaltung ' +
+      'funktioniert.\n\nEs ist kein weiteres Zutun nötig.',
+  },
   google: {
     notConfigured:
       'Die Google-Anbindung ist nicht eingerichtet. ' +
-      'Es fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET oder GOOGLE_TOKEN_KEY in der Umgebung.',
+      'Es fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET oder SECRET_KEY in der Umgebung.',
     notConnected: 'Es besteht keine Verbindung zu Google.',
     noCalendar: 'Es ist kein Praxiskalender ausgewählt.',
     // The key changed under a stored token. Nothing is deleted automatically:
     // a key set wrongly by accident must not throw a connection away.
     keyMismatch:
       'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. ' +
-      'Setzen Sie den ursprünglichen GOOGLE_TOKEN_KEY zurück oder verbinden Sie neu.',
+      'Setzen Sie den ursprünglichen SECRET_KEY zurück oder verbinden Sie neu.',
     authExpired: 'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.',
     unreachable: 'Google ist nicht erreichbar. Die Änderung wurde trotzdem gespeichert.',
     stateInvalid:

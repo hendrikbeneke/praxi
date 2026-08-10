@@ -501,6 +501,82 @@ export const strings = {
     moved: 'Termin verschoben.',
     moveFailed: 'Der Termin konnte nicht verschoben werden.',
   },
+  mail: {
+    title: 'Mailversand',
+    description:
+      'Über dieses Konto werden Rechnungen versendet. Das Passwort wird verschlüsselt ' +
+      'gespeichert und niemals zurückgegeben.',
+    host: 'Server',
+    port: 'Port',
+    security: 'Verschlüsselung',
+    securities: {
+      starttls: 'STARTTLS (üblich, Port 587)',
+      tls: 'TLS (Port 465)',
+      none: 'Keine',
+    },
+    username: 'Benutzername',
+    password: 'Passwort',
+    passwordSet: 'Ein Passwort ist hinterlegt.',
+    passwordKeepHint: 'Leer lassen, um das gespeicherte Passwort zu behalten.',
+    passwordClear: 'Passwort entfernen',
+    fromAddress: 'Absenderadresse',
+    fromName: 'Absendername',
+    saved: 'Mailkonto gespeichert.',
+    notConfigured: 'Es ist noch kein Mailkonto hinterlegt.',
+    remove: 'Mailkonto entfernen',
+    removed: 'Mailkonto entfernt.',
+
+    test: 'Testmail senden',
+    /** The safeguard, said out loud where the button is. */
+    testHint:
+      'Die Testmail geht ausschließlich an die Absenderadresse. Eine andere Adresse lässt ' +
+      'sich hier nicht eintragen.',
+    testOk: (recipient: string) => `Testmail an ${recipient} versendet.`,
+    testFailed: 'Die Testmail wurde nicht angenommen.',
+
+    templates: 'Mailvorlagen',
+    templatesHint:
+      'Betreff und Text für den Rechnungsversand. Beides lässt sich vor dem Absenden ' +
+      'noch ändern.',
+    templateName: 'Name',
+    templateSubject: 'Betreff',
+    templateBody: 'Text',
+    templateDefault: 'Standard',
+    templateActive: 'Aktiv',
+    templateNew: 'Neue Vorlage',
+    templateEmpty: 'Noch keine Mailvorlagen.',
+    templateSaved: 'Vorlage gespeichert.',
+    templateRemoved: 'Vorlage gelöscht.',
+    placeholderHint:
+      'Verwendbare Platzhalter: {{number}} Rechnungsnummer, {{date}} Rechnungsdatum, ' +
+      '{{total}} Gesamtbetrag, {{name}} Empfängername.',
+
+    send: 'Per Mail senden',
+    sendTitle: 'Rechnung versenden',
+    sendDescription: 'Die Rechnung geht als PDF-Anhang an diese Adresse.',
+    recipient: 'Empfänger',
+    recipientHint: 'Vorbelegt mit dem Rechnungsempfänger, falls hinterlegt. Änderbar.',
+    subject: 'Betreff',
+    body: 'Text',
+    sending: 'Wird gesendet …',
+    sendNow: 'Senden',
+    sent: (recipient: string) => `Rechnung an ${recipient} versendet.`,
+    sendFailed: 'Die Mail wurde nicht angenommen.',
+    /** Left standing rather than emptied — and pointed at here, so it is
+     *  noticed before the recipient notices it. */
+    unknownPlaceholders: (names: string[]) =>
+      names.length === 1
+        ? `Im Text steht ein unbekannter Platzhalter: {{${names[0]}}}. Er wird unverändert mitgesendet.`
+        : `Im Text stehen unbekannte Platzhalter: ${names.map((name) => `{{${name}}}`).join(', ')}. ` +
+          'Sie werden unverändert mitgesendet.',
+
+    history: 'Versendet',
+    historyEmpty: 'Noch nicht versendet.',
+    historyOk: 'zugestellt an den Server',
+    historyFailed: 'fehlgeschlagen',
+    lastSent: (at: string, recipient: string) => `Zuletzt am ${at} an ${recipient}`,
+    neverSent: 'Noch nicht versendet',
+  },
   google: {
     title: 'Google-Kalender',
     description:
@@ -509,7 +585,7 @@ export const strings = {
       'führende System; der Google-Kalender ist eine Projektion.',
     notConfigured:
       'Nicht eingerichtet. In der Umgebung fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ' +
-      'oder GOOGLE_TOKEN_KEY.',
+      'oder SECRET_KEY.',
     notConnected: 'Nicht verbunden.',
     connectedAs: 'Verbunden als',
     connect: 'Mit Google verbinden',
@@ -530,7 +606,7 @@ export const strings = {
     disconnectRemaining: 'Diese Termine stehen weiterhin in Google und müssen von Hand weg:',
     keyMismatch:
       'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. Setzen Sie den ' +
-      'ursprünglichen GOOGLE_TOKEN_KEY zurück oder verbinden Sie neu.',
+      'ursprünglichen SECRET_KEY zurück oder verbinden Sie neu.',
     practiceCalendar: 'Praxiskalender',
     practiceCalendarHint:
       'Hierhin werden Termine geschrieben. Am besten ein eigener Kalender, kein privater.',

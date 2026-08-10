@@ -47,6 +47,8 @@ const invoice: Invoice = {
   totalCents: 27_000,
   // Not printed — the document says what is owed, not what has arrived.
   paidCents: 0,
+  lastSentAt: null,
+  lastSentTo: null,
   pdfHash: null,
   finalizedAt: '2026-08-09T10:00:00.000Z',
   lines: [

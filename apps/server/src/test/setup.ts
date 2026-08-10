@@ -22,6 +22,16 @@ loadEnvFile()
 process.env.NODE_ENV = 'test'
 process.env.LOG_LEVEL ??= 'fatal'
 
+/**
+ * A fixed key for the secret store (`src/secrets.ts`), so the tests can assert
+ * that an SMTP password is stored encrypted rather than in the clear.
+ *
+ * Local, deterministic, and obviously fake — encryption is arithmetic, not a
+ * service, so testing it needs nothing running. It never leaves this process
+ * and never encrypts anything real.
+ */
+process.env.SECRET_KEY = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
+
 const databaseName = workerDatabaseName()
 const migrationsFolder = fileURLToPath(new URL('../db/migrations', import.meta.url))
 

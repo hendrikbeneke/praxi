@@ -18,7 +18,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 7.5 | Activity types and the status split | **done** |
 | 8 | Payments and receivables | **done** |
 | 9 | Google Calendar sync | **done** |
-| 10 | Sending invoices by email | todo |
+| 10 | Sending invoices by email | **done** |
 
 ---
 
@@ -884,3 +884,60 @@ Settled before the slice starts (CLAUDE.md rule 14):
 - Addresses in tests, fixtures and seeds are `praxi.invalid`.
 
 **Done when:** I can send a finalized invoice from the app and see when it went where.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **Synchronous, no outbox** — the deliberate opposite of slice 9. The
+  difference is not the feedback but what a retry *means*: the Google push
+  projects a fact that already stands locally, so repeating it is free and a
+  timer may decide. A mail is an act. An automatic retry may deliver twice with
+  nobody able to tell, SMTP does not reliably separate greylisting from a hard
+  refusal, and a background attempt succeeding two hours later leaves the
+  practitioner believing it failed. What replaces the retry mechanism is that
+  every attempt is logged, failures included, **written before the caller hears
+  anything** — a client that navigates away loses only its answer.
+- **No `sent_at` / `sent_to` on the invoice.** The original spec asked for
+  them; derived from `invoice_send` instead, one grouped query like
+  `paidCents`. The log already knows, a second place would eventually disagree,
+  and columns there would have meant widening the allowlist of
+  `protect_finalized_invoice` — so the slice stays genuinely additive.
+- **`smtp_settings` is its own table**, not columns on `practice_settings`.
+  `updatePracticeSettings` writes the whole form object with `.set(input)`, so
+  a password living there would travel to the client and back on every save of
+  the master data. Apart, "the settings response carries no secret" is a
+  property of the shape rather than something to remember.
+- **`email_template` is its own table**, not two new values in
+  `text_template_kind`. A subject and a body are one message; two independent
+  rows of a generic table could be picked apart into a state that means
+  nothing. `text_template` and its enum stay untouched.
+- **`buildTestMail()` takes no recipient.** The safeguard from rule 14 written
+  as a signature rather than as a rule to remember — there is nowhere to pass
+  an address, and the test asserts the arity.
+- **nodemailer**, against the hand-written client of slice 9. The line is where
+  the risk changes: seven JSON calls over HTTPS are worth writing yourself, a
+  stateful line protocol with a STARTTLS upgrade, SASL, dot-stuffing, MIME
+  boundaries and RFC 2047 header encoding is not — and MIME assembled wrongly
+  is discovered at the recipient. It has no runtime dependencies and sits
+  behind `MailTransport`, so `domain/` never sees it.
+- **`logger: false, debug: false` explicitly.** Left at its default nodemailer
+  writes the SMTP dialogue to stdout, `RCPT TO:` included, and that address
+  identifies a patient. Our own log line is an invoice id and an outcome; the
+  recipient, the subject and the raw error live in `invoice_send`, which is a
+  record in the protected database and not a log.
+- **Placeholders resolved once**, when the dialog is prepared, so screen and
+  message cannot differ. Unknown ones stay standing rather than being emptied,
+  and both the server and the dialog name them — the dialog re-scans on every
+  keystroke, because the text is editable and one can be typed in by hand.
+- **`GOOGLE_TOKEN_KEY` → `SECRET_KEY`**, and `google/crypto.ts` → `src/secrets.ts`.
+  It is not Google's any more, and a second copy for mail would have been the
+  beginning of two mechanisms that drift. No alias: two names for one thing is
+  ballast whose reason nobody remembers in a year.
+
+Found while building:
+
+- The tests needed a `SECRET_KEY` to assert that the password is stored
+  encrypted. Set to a fixed obviously-fake value in `src/test/setup.ts` —
+  encryption is arithmetic, not a service, so this needs nothing running and
+  breaks no rule about network calls.
+- The one non-additive change in the slice is that move of the secret store.
+  Everything else is new tables, new files and two derived fields.

@@ -183,6 +183,20 @@
       "when": 1786361837197,
       "tag": "0025_google_sync_triggers_and_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786366335872,
+      "tag": "0026_grey_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786366336872,
+      "tag": "0027_mail_triggers_and_rls",
+      "breakpoints": true
     }
   ]
 }
