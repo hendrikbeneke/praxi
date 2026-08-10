@@ -95,6 +95,29 @@ runs files in parallel. The development database is never touched.
 | 3000 | Hono — API always, SPA in production |
 | 55432 | Postgres in Docker |
 
+## Google Calendar
+
+Optional and off until configured. Create a Google Cloud project, enable the
+Calendar API, add an OAuth client of type *Desktop app*, and put its id and
+secret plus a key for the token store into `.env`:
+
+```bash
+openssl rand -hex 32      # GOOGLE_TOKEN_KEY
+```
+
+Then connect under *Einstellungen → Google-Kalender* and pick a practice
+calendar — ideally one of its own, not a private one.
+
+**Google never receives data identifying a patient.** An event carries the
+contact number, the times and one bit of status; there is no description, no
+participants and no invitation. The reasoning is § 203 StGB and sits in full at
+the top of `apps/server/src/google/payload.ts`. The read side asks for busy
+intervals only, and the token's scope (`calendar.freebusy`, never
+`calendar.readonly`) is what makes that a guarantee rather than a promise.
+
+Pushes go through an outbox, so a failed call never blocks entering or moving
+an appointment — pulling the network cable breaks nothing.
+
 ## Layout
 
 ```

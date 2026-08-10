@@ -4,8 +4,9 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { app } from './app.js'
-import { closeDatabase, verifyDatabaseConnection } from './db/client.js'
+import { closeDatabase, db, verifyDatabaseConnection } from './db/client.js'
 import { getEnv, loadEnvFile } from './env.js'
+import { startGoogleWorker } from './google/worker.js'
 import { logger } from './logger.js'
 
 loadEnvFile()
@@ -40,6 +41,14 @@ if (env.NODE_ENV === 'production') {
   )
 }
 
+/**
+ * The outbox worker (slice 9). Returns null without a Google configuration,
+ * which is a normal state — everything except the Google area works without
+ * one. The timer is `unref`ed, so it never holds the process open.
+ */
+const googleWorker = startGoogleWorker(db())
+if (googleWorker) log.info('google calendar sync worker started')
+
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   log.info({ port: info.port, env: env.NODE_ENV }, 'server listening')
 })
@@ -56,6 +65,7 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     log.info({ signal }, 'shutting down')
+    if (googleWorker) clearInterval(googleWorker)
     server.close(() => {
       void closeDatabase().then(() => process.exit(0))
     })

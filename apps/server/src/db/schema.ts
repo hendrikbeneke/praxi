@@ -21,6 +21,7 @@ import type {
   NoteType,
   PaymentMethod,
   RecipientSnapshot,
+  SyncConflictReason,
   TextTemplateKind,
 } from '@praxi/shared'
 import { sql } from 'drizzle-orm'
@@ -687,6 +688,18 @@ export const appointment = pgTable(
     status: text().notNull().default('planned').$type<AppointmentStatus>(),
     title: text(),
     note: text(),
+    /**
+     * The projection towards Google (slice 9). The id is derived from this
+     * row's own id — see `googleEventId()` in `google/payload.ts` — so a lost
+     * answer after a successful insert can never produce a duplicate; the
+     * column records that the event exists, not what it is called.
+     *
+     * The ETag is what tells our own write apart from someone else's when it
+     * comes back through `events.list`. `last_pushed_at` is diagnostics.
+     */
+    googleEventId: text(),
+    googleEtag: text(),
+    lastPushedAt: timestamp({ withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -701,12 +714,24 @@ export const appointment = pgTable(
      * appointment of another.
      */
     unique('appointment_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
+    /** Target of the composite foreign keys from the two slice-9 tables. The
+     *  key above carries `contact_id`, which has nothing to do with either. */
+    unique('appointment_id_tenant_key').on(t.id, t.tenantId),
     index('appointment_tenant_starts_idx').on(t.tenantId, t.startsAt),
     check(
       'appointment_status_check',
       sql`${t.status} in ('requested', 'planned', 'confirmed', 'cancelled', 'cancelled_late')`,
     ),
     check('appointment_ends_after_starts', sql`${t.endsAt} > ${t.startsAt}`),
+    /** The return channel matches on it, so an event belongs to at most one
+     *  appointment. */
+    uniqueIndex('appointment_google_event_key')
+      .on(t.tenantId, t.googleEventId)
+      .where(sql`${t.googleEventId} is not null`),
+    check(
+      'appointment_google_etag_requires_event',
+      sql`${t.googleEtag} is null or ${t.googleEventId} is not null`,
+    ),
   ],
 )
 
@@ -1310,5 +1335,166 @@ export const invoiceLine = pgTable(
       .on(t.activityItemId)
       .where(sql`${t.activityItemId} is not null`),
     check('invoice_line_quantity_positive', sql`${t.quantity} > 0`),
+  ],
+)
+
+/**
+ * The connection to one Google account. Exactly one row per tenant, and
+ * deleting it *is* disconnecting — there is no `connected` flag that could
+ * disagree with whether a token exists.
+ *
+ * The refresh token is stored encrypted (AES-256-GCM, key from the
+ * environment); the access token is never stored at all, it lives in memory
+ * for the hour it is valid. `key_fingerprint` exists so a changed key can be
+ * *named* — "the configured key does not match the stored token" — instead of
+ * surfacing as an authentication tag mismatch nobody can act on.
+ */
+export const googleConnection = pgTable(
+  'google_connection',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .unique()
+      .references(() => tenant.id),
+    /** The practitioner's own account, shown in the settings so it is visible
+     *  which one is connected. Not a patient datum. */
+    accountEmail: text(),
+    /** base64 of `iv | tag | ciphertext`. */
+    refreshTokenCipher: text().notNull(),
+    /** First 16 hex of the SHA-256 of the key it was encrypted with. */
+    keyFingerprint: text().notNull(),
+    /** The practice calendar. Null until one is chosen — and while it is,
+     *  nothing is enqueued at all. */
+    calendarId: text(),
+    /** The calendars asked for busy intervals. Their content is never read:
+     *  the token carries `calendar.freebusy`, not `calendar.readonly`. */
+    freebusyCalendarIds: jsonb().$type<string[]>().notNull().default([]),
+    /** Continuation token for `events.list`. Null forces a full pass, which is
+     *  what Google asks for after it expires (410). */
+    syncToken: text(),
+    lastSyncAt: timestamp({ withTimezone: true }),
+    /** The API's message, as a sentence. Never a payload (rule 12). */
+    lastError: text(),
+    connectedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    ...timestamps,
+  },
+  (t) => [
+    check('google_connection_fingerprint_shape', sql`${t.keyFingerprint} ~ '^[0-9a-f]{16}$'`),
+  ],
+)
+
+/**
+ * The outbox. A row is written in the same transaction as the change it
+ * describes, so a push that cannot go out never blocks entering or moving an
+ * appointment — the software works with the network cable pulled, which is the
+ * normal state when the line is down, not an exception.
+ *
+ * Two operations, not three: `upsert` reads the appointment fresh at push time
+ * and lets its *current* state decide, so three edits in a row are one push,
+ * and an appointment that was cancelled in between goes out as a cancelled
+ * event rather than as a deletion. `delete` exists for the one case where
+ * there is nothing left to read — the appointment itself is gone.
+ */
+export const googleSyncQueue = pgTable(
+  'google_sync_queue',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    /** Null on a `delete`: that instruction has to outlive its appointment. */
+    appointmentId: uuid(),
+    operation: text().notNull().$type<'upsert' | 'delete'>(),
+    /**
+     * Frozen when the row is written. Without it, changing the practice
+     * calendar would send a pending deletion to the wrong calendar and leave
+     * the event standing in the old one.
+     */
+    calendarId: text().notNull(),
+    /** Only on a `delete`, where the appointment can no longer supply it. */
+    googleEventId: text(),
+    attempts: integer().notNull().default(0),
+    /** The API's message. Kept on the row so a permanently failing entry can
+     *  say why, in the settings, instead of only in a log nobody reads. */
+    lastError: text(),
+    nextAttemptAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    ...timestamps,
+  },
+  (t) => [
+    /**
+     * CASCADE is right here precisely because it only ever reaches `upsert`
+     * rows: a push for an appointment that no longer exists is pointless. The
+     * `delete` row carries no appointment id and is untouched by it.
+     */
+    foreignKey({
+      columns: [t.appointmentId, t.tenantId],
+      foreignColumns: [appointment.id, appointment.tenantId],
+      name: 'google_sync_queue_appointment_tenant_fk',
+    }).onDelete('cascade'),
+    /** At most one pending push per appointment — this is what collapses a
+     *  burst of edits into a single call. */
+    uniqueIndex('google_sync_queue_appointment_key')
+      .on(t.appointmentId)
+      .where(sql`${t.appointmentId} is not null`),
+    index('google_sync_queue_due_idx').on(t.tenantId, t.nextAttemptAt),
+    check('google_sync_queue_operation_check', sql`${t.operation} in ('upsert', 'delete')`),
+    /** Each operation carries exactly what it needs to run on its own. */
+    check(
+      'google_sync_queue_delete_shape',
+      sql`(${t.operation} = 'delete') = (${t.googleEventId} is not null)`,
+    ),
+    check(
+      'google_sync_queue_upsert_shape',
+      sql`(${t.operation} = 'upsert') = (${t.appointmentId} is not null)`,
+    ),
+    check('google_sync_queue_attempts_positive', sql`${t.attempts} >= 0`),
+  ],
+)
+
+/**
+ * An appointment that was changed here and in Google before our change got
+ * out. The two sides are **not merged**: which one is right is a decision, and
+ * a merge would quietly invent a third version nobody chose.
+ *
+ * Its own table rather than three columns on `appointment`: a conflict is a
+ * fact with its own time and its own reason, it is resolved by being deleted,
+ * and the list the calendar shows is then a plain select.
+ */
+export const appointmentSyncConflict = pgTable(
+  'appointment_sync_conflict',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    appointmentId: uuid().notNull(),
+    detectedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Only the three fields the return channel knows. A remote title never
+     *  gets this far — it is read and dropped. */
+    remoteStartsAt: timestamp({ withTimezone: true }).notNull(),
+    remoteEndsAt: timestamp({ withTimezone: true }).notNull(),
+    remoteCancelled: boolean().notNull().default(false),
+    reason: text().notNull().$type<SyncConflictReason>(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.appointmentId, t.tenantId],
+      foreignColumns: [appointment.id, appointment.tenantId],
+      name: 'appointment_sync_conflict_appointment_tenant_fk',
+    }).onDelete('cascade'),
+    /** One open conflict per appointment; a later remote change overwrites the
+     *  proposal rather than queueing a second decision about the same slot. */
+    unique('appointment_sync_conflict_appointment_key').on(t.appointmentId),
+    index('appointment_sync_conflict_tenant_idx').on(t.tenantId, t.detectedAt),
+    check(
+      'appointment_sync_conflict_reason_check',
+      sql`${t.reason} in ('both_changed', 'overlap')`,
+    ),
+    check(
+      'appointment_sync_conflict_ends_after_starts',
+      sql`${t.remoteEndsAt} > ${t.remoteStartsAt}`,
+    ),
   ],
 )

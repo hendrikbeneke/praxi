@@ -19,6 +19,7 @@ import {
 } from '../db/schema.js'
 import { newId } from '../id.js'
 import { blockingInvoiceLines } from './billable.js'
+import { enqueueDelete, enqueueUpsert } from './google-sync.js'
 
 /**
  * Activities, their positions, and the calendar entry that usually comes with
@@ -375,11 +376,16 @@ async function upsertAppointment(
 
   if (existingId) {
     await tx.update(appointment).set(values).where(eq(appointment.id, existingId))
+    // In the same transaction as the change, so the instruction and the change
+    // commit together or not at all (slice 9). It reaches nothing when no
+    // practice calendar is configured.
+    await enqueueUpsert(tx, tenantId, existingId)
     return existingId
   }
 
   const id = newId()
   await tx.insert(appointment).values({ id, tenantId, contactId, ...values })
+  await enqueueUpsert(tx, tenantId, id)
   return id
 }
 
@@ -447,6 +453,9 @@ export async function updateActivity(
       // Dropping the calendar entry: detach first, because the foreign key
       // would otherwise null the column for us and we would lose the id.
       await tx.update(activity).set({ appointmentId: null }).where(eq(activity.id, id))
+      // Before the delete: afterwards there is nothing left to read the event
+      // id from, and the pending push has gone with the cascade.
+      await enqueueDelete(tx, tenantId, existing.appointmentId)
       await tx.delete(appointment).where(eq(appointment.id, existing.appointmentId))
       appointmentId = null
     }
@@ -521,6 +530,7 @@ export async function deleteActivity(
     // Items go with it through `on delete cascade`.
     await tx.delete(activity).where(and(eq(activity.tenantId, tenantId), eq(activity.id, id)))
     if (existing.appointmentId) {
+      await enqueueDelete(tx, tenantId, existing.appointmentId)
       await tx.delete(appointment).where(eq(appointment.id, existing.appointmentId))
     }
     return true

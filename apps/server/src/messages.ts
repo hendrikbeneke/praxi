@@ -186,6 +186,33 @@ export const messages = {
     defaultTaken: 'Es gibt bereits einen Standardbaustein dieser Art.',
     paidVariantTaken: 'Es gibt bereits einen Baustein für die bezahlte Variante.',
   },
+  google: {
+    notConfigured:
+      'Die Google-Anbindung ist nicht eingerichtet. ' +
+      'Es fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET oder GOOGLE_TOKEN_KEY in der Umgebung.',
+    notConnected: 'Es besteht keine Verbindung zu Google.',
+    noCalendar: 'Es ist kein Praxiskalender ausgewählt.',
+    // The key changed under a stored token. Nothing is deleted automatically:
+    // a key set wrongly by accident must not throw a connection away.
+    keyMismatch:
+      'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. ' +
+      'Setzen Sie den ursprünglichen GOOGLE_TOKEN_KEY zurück oder verbinden Sie neu.',
+    authExpired: 'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.',
+    unreachable: 'Google ist nicht erreichbar. Die Änderung wurde trotzdem gespeichert.',
+    stateInvalid:
+      'Die Anmeldung bei Google ist abgelaufen oder wurde nicht von hier gestartet. ' +
+      'Bitte erneut versuchen.',
+    conflictNotFound: 'Für diesen Termin gibt es keinen offenen Konflikt.',
+    conflictOverlap:
+      'Die Zeiten aus Google lassen sich nicht übernehmen: ' +
+      'in diesem Zeitraum liegt bereits ein anderer Termin.',
+    /** The page the loopback redirect lands on. `127.0.0.1` is a different
+     *  origin than `localhost`, so this cannot be the SPA — it is a plain page
+     *  that says the flow is done. */
+    callbackTitle: 'Google-Kalender verbunden',
+    callbackBody: 'Die Verbindung steht. Sie können dieses Fenster schließen.',
+    callbackFailed: 'Die Verbindung konnte nicht hergestellt werden.',
+  },
   numberRange: {
     missing:
       'Für diesen Nummernkreis ist kein Startwert hinterlegt. ' +

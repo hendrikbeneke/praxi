@@ -306,6 +306,26 @@ Health data falls under Art. 9 GDPR and professional confidentiality under § 20
 - No telemetry, no external fonts, no CDN references in the frontend. Bundle every asset locally.
 - No outbound network requests at all, except to the Google Calendar API in the final slice.
 
+### 13. The Google calendar is a projection
+
+The local database is the system of record. Google Calendar holds *when* the practitioner is occupied and nothing else, and it never feeds anything back except three fields.
+
+**Google never receives data identifying a patient.** An event carries the contact number as its title, the two times, and one bit of status. No description, no participants, no invitations, no location, no hint of a service or an activity type. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set — so a new column on `appointment` cannot leak into a payload by being spread.
+
+The reason is § 203 StGB, not data-protection cosmetics: "Erstgespräch — Maria Schulz" in the calendar of a Heilpraktiker für Psychotherapie discloses that this person is in psychotherapeutic treatment, and Google signs no Verpflichtungserklärung under § 203 Abs. 4.
+
+**The rule has no exception**, not even for a contact holding no patient role. Two reasons, and the second is the stronger one: a rule without an exception can be tested as an absolute, and *roles change retroactively while written events do not* — a prospect becomes a patient, and the events that went out under their name are still sitting there. The exception would need a rewrite mechanism that could never be complete, because the data has long since been cached on a phone. Both reasons stand as a comment at the top of `payload.ts`.
+
+The read side asks `freebusy.query` for busy intervals, which are painted while scheduling and never stored. What makes that a guarantee rather than a promise is the **scope**: `calendar.freebusy`, never `calendar.readonly`. Do not widen it. The concrete temptation will be "we cannot show the calendar names otherwise" — `calendar.calendarlist.readonly` shows names and no content, and no feature in this software needs to read an appointment title.
+
+Everything else follows from "projection":
+
+- **Writing goes through an outbox** (`google_sync_queue`), enqueued in the same transaction as the change. A failed push never blocks entering or moving an appointment: working without a line is the normal state when the line is down, not an exception. A row is never given up on; from five attempts it counts as stuck and the settings say so with its last error.
+- **The event id is derived from the appointment id**, so a lost answer after a successful insert cannot produce a duplicate — the likeliest failure exactly when the connection is bad.
+- **A released slot becomes a cancelled event, not a deletion.** The time is free in Google either way, and the id stays valid, so reviving is an ordinary update. Deleting happens only when the appointment row itself is gone.
+- **The return channel applies `starts_at`, `ends_at` and cancelled, and nothing else.** Our own write is recognised by its ETag. An event created in Google directly is ignored — we cannot invent the contact it would belong to.
+- **Changed on both sides is never merged.** A merge invents a third version nobody chose. The appointment gets a conflict row, its pending push is held back, and the practitioner picks a side in the calendar — where scheduling happens, not in the settings.
+
 ## Target data model
 
 **This is a sketch, not a contract.** It exists so you keep the whole system in view and do not design an early slice in a way that breaks a later one. It is not the final schema.
@@ -702,8 +722,23 @@ appointment           tenant_id uuid not null -> tenant(id),
                         -- nobody attended still occupied the time, which since
                         -- 7.5 is said by activity.status and not here.
                         -- Violations are SQLSTATE 23P01.
-                      -- google_event_id / google_etag / last_pushed_at come in
-                      -- slice 9 with the sync that fills them.
+                      --
+                      -- added in slice 9, the projection towards Google:
+                      google_event_id text,   -- derived from this row's own id
+                        -- (googleEventId() in google/payload.ts), so a lost
+                        -- answer after a successful insert cannot produce a
+                        -- duplicate — the likeliest failure exactly when the
+                        -- line is bad
+                      google_etag text,       -- what tells our own write apart
+                        -- from someone else's when it comes back through
+                        -- events.list
+                      last_pushed_at timestamptz
+                      unique index appointment_google_event_key
+                        on (tenant_id, google_event_id) where not null
+                      check appointment_google_etag_requires_event
+                      unique (id, tenant_id)                  -- target of the
+                        -- two slice-9 foreign keys; the key above carries
+                        -- contact_id, which has nothing to do with either
 
 -- as built (slice 5)
 note                  tenant_id uuid not null -> tenant(id),
@@ -973,8 +1008,107 @@ payment               tenant_id uuid not null -> tenant(id),
                       -- these rows mean is invoicePaymentState() in
                       -- packages/shared, computed on read and never stored.
 
-google_sync_queue     tenant_id, appointment_id, operation (create|update|delete),
-                      attempts, last_error, next_attempt_at
+-- as built (slice 9)
+google_connection     tenant_id uuid not null unique -> tenant(id),
+                      account_email text,                     -- the
+                        -- practitioner's own account, so the settings can say
+                        -- which one is connected. Not a patient datum.
+                      refresh_token_cipher text not null,     -- AES-256-GCM,
+                        -- base64(iv|tag|ciphertext). The access token is NEVER
+                        -- stored — it lives in memory for its hour.
+                      key_fingerprint text not null
+                        check (~ '^[0-9a-f]{16}$'),           -- sha256 of the
+                        -- key, first 16 hex. Exists so a changed key can be
+                        -- named — "the configured key does not match the
+                        -- stored token" — instead of surfacing as a GCM tag
+                        -- failure nobody can act on. Nothing is deleted
+                        -- automatically: a key set wrongly by accident must
+                        -- not throw a working connection away.
+                      calendar_id text,                       -- the practice
+                        -- calendar; null until chosen, and while it is null
+                        -- NOTHING is enqueued at all
+                      freebusy_calendar_ids jsonb not null default '[]',
+                        -- string[]. Their content is never read: the token
+                        -- carries calendar.freebusy, not calendar.readonly.
+                      sync_token text,                        -- events.list
+                        -- continuation; null forces a full pass, which is what
+                        -- Google asks for after it expires (410)
+                      last_sync_at timestamptz,
+                      last_error text,                        -- a sentence for
+                        -- the settings, never a payload (rule 12)
+                      connected_at timestamptz not null default now()
+                      -- There is no `connected` flag: the row exists or it does
+                      -- not, and disconnecting is deleting it. A second place
+                      -- saying whether we are connected would eventually
+                      -- disagree with whether a token is there.
+                      -- set_updated_at; RLS created and disabled.
+
+-- as built (slice 9)
+google_sync_queue     tenant_id uuid not null -> tenant(id),
+                      appointment_id uuid,                    -- NULL on a
+                        -- 'delete': that instruction has to outlive its
+                        -- appointment
+                      operation text not null
+                        check in ('upsert','delete'),
+                        -- Two, not three. `upsert` reads the appointment fresh
+                        -- at push time and lets its CURRENT state decide, so a
+                        -- burst of edits is one call and an appointment
+                        -- cancelled in between goes out as a cancelled event
+                        -- rather than as the move it once was. `delete` is for
+                        -- the one case where there is nothing left to read.
+                      calendar_id text not null,              -- frozen at
+                        -- enqueue time: without it, changing the practice
+                        -- calendar would send a pending deletion to the wrong
+                        -- calendar and leave the event standing in the old one
+                      google_event_id text,                   -- 'delete' only
+                      attempts integer not null default 0 check (>= 0),
+                      last_error text,
+                      next_attempt_at timestamptz not null default now()
+                        -- backoff 30s · 1 · 2 · 5 · 15 · 60 min, then every
+                        -- 6 h. A row is never given up on and never deleted;
+                        -- from 5 attempts it counts as stuck and the settings
+                        -- say so with the last error.
+                      foreign key (appointment_id, tenant_id)
+                        -> appointment (id, tenant_id) on delete cascade
+                        -- CASCADE is right precisely because it only ever
+                        -- reaches 'upsert' rows
+                      unique index google_sync_queue_appointment_key
+                        on (appointment_id) where not null    -- at most one
+                        -- pending push per appointment; this is the collapse
+                      index on (tenant_id, next_attempt_at)
+                      check google_sync_queue_delete_shape (
+                        (operation = 'delete') = (google_event_id is not null))
+                      check google_sync_queue_upsert_shape (
+                        (operation = 'upsert') = (appointment_id is not null))
+                        -- each operation carries exactly what it needs to run
+                        -- on its own
+                      -- set_updated_at; RLS created and disabled.
+
+-- as built (slice 9)
+appointment_sync_conflict
+                      tenant_id uuid not null -> tenant(id),
+                      appointment_id uuid not null,
+                      detected_at timestamptz not null default now(),
+                      remote_starts_at timestamptz not null,
+                      remote_ends_at timestamptz not null,
+                      remote_cancelled boolean not null default false,
+                        -- only the three fields the return channel knows; a
+                        -- remote title never gets this far
+                      reason text not null
+                        check in ('both_changed','overlap')
+                      foreign key (appointment_id, tenant_id)
+                        -> appointment (id, tenant_id) on delete cascade
+                      unique (appointment_id),                -- one open
+                        -- conflict per appointment; a later remote change
+                        -- overwrites the proposal rather than queueing a second
+                        -- decision about the same slot
+                      index on (tenant_id, detected_at),
+                      check appointment_sync_conflict_ends_after_starts
+                      -- Its own table rather than three columns on
+                      -- `appointment`: a conflict is a fact with its own time
+                      -- and its own reason, it is resolved by being deleted,
+                      -- and the list the calendar shows is then a plain select.
+                      -- set_updated_at; RLS created and disabled.
 ```
 
 `app_user` is deliberately not called `user` — `user` is reserved in Postgres and would force quoting everywhere.

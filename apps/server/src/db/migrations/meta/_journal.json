@@ -169,6 +169,20 @@
       "when": 1786359373142,
       "tag": "0023_payment_trigger_and_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786361836197,
+      "tag": "0024_powerful_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786361837197,
+      "tag": "0025_google_sync_triggers_and_rls",
+      "breakpoints": true
     }
   ]
 }

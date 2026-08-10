@@ -9,6 +9,7 @@ import { appointmentsRoute } from './routes/appointments.js'
 import { authRoute } from './routes/auth.js'
 import { contactRelationTypesRoute, contactRoleTypesRoute } from './routes/contact-types.js'
 import { contactsRoute } from './routes/contacts.js'
+import { googleRoute } from './routes/google.js'
 import { healthRoute } from './routes/health.js'
 import { invoicesRoute } from './routes/invoices.js'
 import { notesRoute } from './routes/notes.js'
@@ -50,6 +51,7 @@ const routes = app
   .route('/api/receivables', receivablesRoute)
   .route('/api/text-templates', textTemplatesRoute)
   .route('/api/number-ranges', numberRangesRoute)
+  .route('/api/google', googleRoute)
 
 export { app }
 export type AppType = typeof routes

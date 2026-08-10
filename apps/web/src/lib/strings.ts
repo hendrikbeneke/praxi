@@ -501,6 +501,79 @@ export const strings = {
     moved: 'Termin verschoben.',
     moveFailed: 'Der Termin konnte nicht verschoben werden.',
   },
+  google: {
+    title: 'Google-Kalender',
+    description:
+      'Termine erscheinen im Google-Kalender ausschließlich mit der Kontaktnummer — ' +
+      'ohne Namen, ohne Leistung, ohne Vorgangsart. Die Praxisdatenbank bleibt das ' +
+      'führende System; der Google-Kalender ist eine Projektion.',
+    notConfigured:
+      'Nicht eingerichtet. In der Umgebung fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ' +
+      'oder GOOGLE_TOKEN_KEY.',
+    notConnected: 'Nicht verbunden.',
+    connectedAs: 'Verbunden als',
+    connect: 'Mit Google verbinden',
+    connectHint:
+      'Die Anmeldung öffnet sich in einem neuen Fenster. Danach kehren Sie hierher zurück.',
+    disconnect: 'Verbindung trennen',
+    disconnectTitle: 'Verbindung zu Google trennen',
+    disconnectQuestion: 'Was soll mit den Terminen geschehen, die bereits in Google stehen?',
+    disconnectKeep: 'Stehen lassen',
+    disconnectKeepHint: 'Nichts geht verloren. Die Einträge bleiben, wo sie sind.',
+    disconnectDelete: 'In Google löschen',
+    disconnectDeleteHint:
+      'Es werden nur Termine gelöscht, die diese Software dort angelegt hat. ' +
+      'Was sich nicht löschen lässt, wird Ihnen danach mit Datum und Uhrzeit genannt.',
+    disconnected: 'Verbindung getrennt.',
+    disconnectedWithDeletions: (deleted: number, attempted: number) =>
+      `Verbindung getrennt. ${deleted} von ${attempted} Terminen in Google gelöscht.`,
+    disconnectRemaining: 'Diese Termine stehen weiterhin in Google und müssen von Hand weg:',
+    keyMismatch:
+      'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. Setzen Sie den ' +
+      'ursprünglichen GOOGLE_TOKEN_KEY zurück oder verbinden Sie neu.',
+    practiceCalendar: 'Praxiskalender',
+    practiceCalendarHint:
+      'Hierhin werden Termine geschrieben. Am besten ein eigener Kalender, kein privater.',
+    practiceCalendarNone: 'Keiner — es wird nichts geschrieben',
+    practiceCalendarReadOnly: 'nur lesbar',
+    freebusyCalendars: 'Kalender für die Belegtzeiten',
+    freebusyCalendarsHint:
+      'Beim Planen werden aus diesen Kalendern nur die belegten Zeiträume abgefragt — ' +
+      'keine Titel, keine Teilnehmer. Das Zugriffsrecht lässt nichts anderes zu.',
+    lastSync: 'Letzte Synchronisation',
+    never: 'noch nie',
+    queue: 'Warteschlange',
+    queueEmpty: 'nichts offen',
+    queuePending: (count: number) => `${count} offen`,
+    queueStuck: (count: number) => `${count} hängen fest`,
+    lastError: 'Letzter Fehler',
+    syncNow: 'Jetzt synchronisieren',
+    syncResult: (result: { pushed: number; failed: number; pulled: number }) =>
+      `${result.pushed} gesendet, ${result.failed} fehlgeschlagen, ${result.pulled} übernommen.`,
+    saved: 'Einstellung gespeichert.',
+    /** The busy blocks from the private calendars, painted behind the entries. */
+    busyLegend: 'Privat belegt',
+    conflictsBanner: (count: number) =>
+      count === 1
+        ? 'Ein Termin wurde auf beiden Seiten geändert.'
+        : `${count} Termine wurden auf beiden Seiten geändert.`,
+    conflictsOpen: 'Ansehen',
+    conflictsTitle: 'Auf beiden Seiten geändert',
+    conflictsDescription:
+      'Diese Termine wurden hier und in Google geändert. Es wird nichts zusammengeführt — ' +
+      'wählen Sie je Termin, welche Fassung gilt.',
+    conflictLocal: 'Hier',
+    conflictRemote: 'In Google',
+    conflictKeepLocal: 'Diese Fassung behalten',
+    conflictKeepRemote: 'Google übernehmen',
+    conflictCancelled: 'abgesagt',
+    conflictReasons: {
+      both_changed: 'Beidseitig geändert',
+      overlap: 'Die Zeiten aus Google überschneiden sich mit einem anderen Termin.',
+    },
+    conflictResolved: 'Konflikt aufgelöst.',
+    contactNumberShort: 'Kontakt',
+  },
   note: {
     title: 'Notizen',
     create: 'Neue Notiz',

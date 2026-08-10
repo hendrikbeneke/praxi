@@ -17,9 +17,11 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { ActivityDialog } from '@/components/activity-dialog'
 import { PageHeader } from '@/components/page-header'
+import { SyncConflictBanner } from '@/components/sync-conflicts'
 import { Button } from '@/components/ui/button'
 import { activityQueryOptions, calendarQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
+import { busyQueryOptions, googleConflictsQueryOptions } from '@/lib/google'
 import { strings } from '@/lib/strings'
 
 /** Nothing personal in the URL: an anchor date and the view. */
@@ -66,6 +68,28 @@ function startOfWeek(date: string): string {
 
 const WEEKDAY_NAMES = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const
 
+/**
+ * Where a block sits in a day column and how tall it is.
+ *
+ * Clamped at both ends: an entry starting before the visible day — an all-day
+ * blocker from a private calendar begins at 00:00 — must not paint above the
+ * grid, and one running past the end must not paint over the columns below.
+ */
+function blockGeometry(startsAt: string, endsAt: string): { top: number; height: number } {
+  const startLocal = toBerlinDateTimeLocal(startsAt)
+  const startMinutes = Number(startLocal.slice(11, 13)) * 60 + Number(startLocal.slice(14, 16))
+  const gridHeight = (DAY_END_HOUR - DAY_START_HOUR) * PIXELS_PER_HOUR
+
+  const rawTop = ((startMinutes - DAY_START_HOUR * 60) / 60) * PIXELS_PER_HOUR
+  const top = Math.max(0, rawTop)
+  const rawHeight = (minutesBetween(startsAt, endsAt) / 60) * PIXELS_PER_HOUR - 2
+
+  return {
+    top,
+    height: Math.min(Math.max(18, rawHeight + Math.min(0, rawTop)), Math.max(18, gridHeight - top)),
+  }
+}
+
 function CalendarPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
@@ -84,6 +108,24 @@ function CalendarPage() {
     ),
   )
   const types = useQuery(activityTypeListQueryOptions(true))
+
+  /**
+   * The practitioner's private calendars, as busy intervals and nothing else
+   * — `freebusy.query` cannot answer with more, and the token's scope cannot
+   * ask for more. Never stored: painted here and forgotten.
+   *
+   * It fails quietly. Without a connection or without a line the calendar
+   * simply shows no foreign blocks, rather than covering a screen that
+   * otherwise works with an error.
+   */
+  const busy = useQuery(
+    busyQueryOptions(
+      fromBerlinDateTimeLocal(`${firstDay}T00:00`),
+      fromBerlinDateTimeLocal(`${lastDay}T00:00`),
+    ),
+  )
+  const conflicts = useQuery(googleConflictsQueryOptions)
+  const conflicted = new Set((conflicts.data ?? []).map((entry) => entry.appointmentId))
 
   /**
    * Filtered here rather than on the server: a week is fetched whole, so this
@@ -226,8 +268,19 @@ function CalendarPage() {
                 {entry.label}
               </span>
             ))}
+          {(busy.data ?? []).length > 0 && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <span
+                aria-hidden
+                className="inline-block size-2.5 rounded-full bg-muted-foreground/30"
+              />
+              {strings.google.busyLegend}
+            </span>
+          )}
         </div>
       </div>
+
+      <SyncConflictBanner conflicts={conflicts.data ?? []} />
 
       <div className="overflow-x-auto rounded-md border">
         <div className="min-w-[720px]">
@@ -283,25 +336,28 @@ function CalendarPage() {
                   />
                 ))}
 
+                {/* Foreign blockers, behind the entries and not clickable:
+                    they are somebody else's calendar, and all we know about
+                    them is that the time is taken. */}
+                {(busy.data ?? [])
+                  .filter((slot) => toBerlinDateTimeLocal(slot.startsAt).slice(0, 10) === day)
+                  .map((slot) => {
+                    const box = blockGeometry(slot.startsAt, slot.endsAt)
+                    return (
+                      <div
+                        key={`${slot.startsAt}-${slot.endsAt}`}
+                        aria-hidden
+                        title={strings.google.busyLegend}
+                        style={{ top: box.top, height: box.height }}
+                        className="pointer-events-none absolute inset-x-0 rounded-sm bg-[repeating-linear-gradient(45deg,var(--color-muted-foreground)_0_2px,transparent_2px_8px)] opacity-20"
+                      />
+                    )
+                  })}
+
                 {shown
                   .filter((entry) => toBerlinDateTimeLocal(entry.startsAt).slice(0, 10) === day)
                   .map((entry) => {
-                    const startLocal = toBerlinDateTimeLocal(entry.startsAt)
-                    const startMinutes =
-                      Number(startLocal.slice(11, 13)) * 60 + Number(startLocal.slice(14, 16))
-                    const top = ((startMinutes - DAY_START_HOUR * 60) / 60) * PIXELS_PER_HOUR
-                    // Clamped to the bottom of the grid. An entry that runs
-                    // past the visible day — or, when something went wrong,
-                    // past the day itself — must not paint over the columns
-                    // below it.
-                    const gridHeight = (DAY_END_HOUR - DAY_START_HOUR) * PIXELS_PER_HOUR
-                    const height = Math.min(
-                      Math.max(
-                        18,
-                        (minutesBetween(entry.startsAt, entry.endsAt) / 60) * PIXELS_PER_HOUR - 2,
-                      ),
-                      Math.max(18, gridHeight - top),
-                    )
+                    const { top, height } = blockGeometry(entry.startsAt, entry.endsAt)
                     const released = !occupiesSlot(entry.status)
                     /**
                      * The colour of the activity's type, with the label in
@@ -325,6 +381,11 @@ function CalendarPage() {
                           released
                             ? 'border-dashed bg-muted text-muted-foreground line-through'
                             : ''
+                        } ${
+                          // Changed here and in Google at the same time. The
+                          // banner above offers the decision; this says which
+                          // slot it is about.
+                          conflicted.has(entry.id) ? 'ring-2 ring-amber-500 ring-offset-1' : ''
                         }`}
                         title={[
                           entry.activityType

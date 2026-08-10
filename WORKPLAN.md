@@ -17,7 +17,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 7 | Cancellation invoices | **done** |
 | 7.5 | Activity types and the status split | **done** |
 | 8 | Payments and receivables | **done** |
-| 9 | Google Calendar sync | todo |
+| 9 | Google Calendar sync | **done** |
 | 10 | Sending invoices by email | todo |
 
 ---
@@ -792,6 +792,75 @@ Only once everything above is in daily use. Design constraint: **Google never re
 - Works offline: a failed push never blocks creating or changing an appointment
 
 **Done when:** appointments appear pseudonymously in Google Calendar, private blockers are visible while scheduling, and pulling the network cable breaks nothing.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **Pseudonymization has no exception**, not even for a contact holding no
+  patient role. Two reasons, and the second is the stronger: a rule without an
+  exception can be tested as an absolute — "the assembled payload contains
+  nothing but the contact number, the times and one bit of status" — and *roles
+  change retroactively while written events do not*. A prospect becomes a
+  patient; the events that went out under their name while they were a prospect
+  are still there, and the exception would need a rewrite mechanism that could
+  never be complete, because the data has long since been cached on a phone.
+  Both reasons stand in full at the top of `google/payload.ts`, because without
+  them the file reads as needlessly awkward and gets "simplified".
+- **The title is the contact number as bare digits**, no prefix. Every extra
+  character is the place where somebody later just appends the activity type.
+- **`calendar.freebusy`, never `calendar.readonly`.** This is the load-bearing
+  line of the slice: the promise that Google learns nothing about the private
+  calendars beyond *when* they are busy stops depending on our code being right
+  and starts depending on the token, which cannot answer with anything else.
+  The comment on the scope list names the concrete temptation ("otherwise we
+  cannot show the calendar names") and its answer
+  (`calendar.calendarlist.readonly` shows names and no content).
+- **`upsert` / `delete`, not create/update/delete.** The state of the
+  appointment *at push time* decides, not the one at enqueue time, so three
+  edits in a row are one call. A released slot goes out as a cancelled event
+  rather than a deletion: the time is free in Google either way, the id stays
+  valid, and reviving is an ordinary update.
+- **The event id is derived from the appointment id** (base32hex of the UUID).
+  A lost answer after a successful insert would otherwise duplicate the event —
+  and it would do so precisely when the line is bad, the most probable failure.
+  The retry now runs into a 409, which counts as success.
+- **Conflicts are their own table**, not three columns on `appointment`. A
+  conflict has its own time and its own reason, it is resolved by being
+  deleted, and the list is then a plain select. It sits in the **calendar**,
+  not in the settings: a conflict is a scheduling fact. The settings say
+  whether the sync works.
+- **`calendar_id` is frozen on the queue row.** Without it, changing the
+  practice calendar would send a pending deletion to the wrong calendar and
+  leave the event standing in the old one.
+- **Disconnecting asks** what should happen to the events in Google, with
+  "leave them" as the default, and names afterwards — with date and time — the
+  ones it could not delete, so they can be found by hand. The local cleanup is
+  identical either way and total: queue, conflicts, `google_event_id`,
+  `google_etag`, `last_pushed_at` and the connection row all go.
+- **No `googleapis` package.** It is enormous and brings its own auth stack for
+  seven calls. The transport is a parameter, which is what lets every test in
+  this slice run offline and assert on the *request* rather than on what a mock
+  chose to answer.
+- **A key mismatch is named, not swallowed.** `key_fingerprint` is checked
+  before decrypting, so a changed `GOOGLE_TOKEN_KEY` produces a sentence rather
+  than a GCM tag failure — and nothing is deleted automatically, because a key
+  set wrongly by accident must not throw a working connection away.
+
+Found while building:
+
+- The OAuth callback cannot be authenticated by session: `127.0.0.1:3000` and
+  `localhost:3000` are different origins, so the cookie is not sent at all. It
+  authenticates through the single-use `state` instead, which is the correct
+  shape for a loopback flow anyway, and answers with a plain page rather than
+  redirecting into an SPA that is not on that origin.
+- `updateAppointment` had to become transactional. Enqueuing outside the
+  transaction that moves the slot would leave an instruction behind for a move
+  that rolled back.
+- drizzle-kit generated the two composite foreign keys *before* the
+  `appointment (id, tenant_id)` unique key they point at. Reordered by hand in
+  `0024`, with a note saying so at the top.
+- The calendar's block geometry became one function. An all-day blocker from a
+  private calendar starts at 00:00 and painted above the grid; the clamp now
+  covers appointments too, which had the same bug for anything before 07:00.
 
 ## Slice 10 — Sending invoices by email
 

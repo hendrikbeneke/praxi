@@ -36,6 +36,26 @@ const envSchema = z.object({
    */
   DATA_DIR: z.string().min(1).default('apps/server/data'),
 
+  /**
+   * Google Calendar (slice 9). All optional: the server starts, and everything
+   * except the Google area works, without a single one of them. The settings
+   * then say "not set up" rather than offering a button that cannot work.
+   *
+   * `GOOGLE_TOKEN_KEY` encrypts the refresh token at rest — 32 bytes as 64 hex
+   * characters, generated with `openssl rand -hex 32`. Losing it does not lose
+   * data; it costs one reconnect.
+   *
+   * `GOOGLE_REDIRECT_URI` is the only thing that changes on a server
+   * deployment. Everything else in this software is relative.
+   */
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_TOKEN_KEY: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/, 'must be 64 hex characters')
+    .optional(),
+  GOOGLE_REDIRECT_URI: z.url().optional(),
+
   // Read by `pnpm db:seed` only, therefore optional here — the server must
   // start without them. The seed validates them itself and refuses to run on
   // a missing or empty password.

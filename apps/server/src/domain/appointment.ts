@@ -3,6 +3,7 @@ import { formatContactName } from '@praxi/shared'
 import { and, asc, eq, gte, lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { activity, appointment, contact } from '../db/schema.js'
+import { enqueueUpsert } from './google-sync.js'
 
 /**
  * Reading and moving calendar entries.
@@ -99,17 +100,26 @@ export async function updateAppointment(
   id: string,
   draft: AppointmentDraft,
 ): Promise<boolean> {
-  const [row] = await database
-    .update(appointment)
-    .set({
-      startsAt: new Date(draft.startsAt),
-      endsAt: new Date(draft.endsAt),
-      status: draft.status,
-      title: draft.title,
-      note: draft.note,
-    })
-    .where(and(eq(appointment.tenantId, tenantId), eq(appointment.id, id)))
-    .returning({ id: appointment.id })
+  return database.transaction(async (tx) => {
+    const [row] = await tx
+      .update(appointment)
+      .set({
+        startsAt: new Date(draft.startsAt),
+        endsAt: new Date(draft.endsAt),
+        status: draft.status,
+        title: draft.title,
+        note: draft.note,
+      })
+      .where(and(eq(appointment.tenantId, tenantId), eq(appointment.id, id)))
+      .returning({ id: appointment.id })
 
-  return row !== undefined
+    if (!row) return false
+
+    // Moving an entry is a change Google has to learn about, and it is
+    // enqueued in the same transaction so a dead line cannot stop the move
+    // (slice 9). Neither title nor note travel — only the times and the one
+    // bit of the status.
+    await enqueueUpsert(tx, tenantId, id)
+    return true
+  })
 }
