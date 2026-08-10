@@ -65,8 +65,19 @@ export const messages = {
     groupNameTaken: 'Eine Leistungsgruppe mit diesem Namen existiert bereits.',
     unknownService: 'Die Gruppe verweist auf eine Leistung, die es nicht gibt.',
   },
+  activityType: {
+    notFound: 'Diese Vorgangsart existiert nicht.',
+    codeTaken: 'Dieses Kürzel ist bereits vergeben.',
+    inUse:
+      'Diese Vorgangsart wird noch von Vorgängen verwendet und kann nicht gelöscht werden. ' +
+      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.',
+    presetMissing:
+      'Die hinterlegte Vorbelegung verweist auf eine Leistung oder Gruppe, die es nicht gibt.',
+  },
   activity: {
     notFound: 'Dieser Vorgang existiert nicht.',
+    unknownType:
+      'Diese Vorgangsart gibt es nicht. Bitte prüfen Sie die Vorgangsarten in den Einstellungen.',
     unknownService: 'Eine der Positionen verweist auf eine Leistung, die es nicht gibt.',
     unknownServiceGroup:
       'Diese Leistungsgruppe existiert nicht oder enthält keine Leistungen. ' +

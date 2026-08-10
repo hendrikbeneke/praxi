@@ -8,7 +8,7 @@ import type {
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
-type ListParams = Pick<Partial<ActivityListQuery>, 'contactId' | 'from' | 'to'>
+type ListParams = Pick<Partial<ActivityListQuery>, 'contactId' | 'from' | 'to' | 'status'>
 
 export const activityListQueryOptions = (params: ListParams) =>
   queryOptions({
@@ -19,6 +19,7 @@ export const activityListQueryOptions = (params: ListParams) =>
           ...(params.contactId ? { contactId: params.contactId } : {}),
           ...(params.from ? { from: params.from } : {}),
           ...(params.to ? { to: params.to } : {}),
+          ...(params.status ? { status: params.status } : {}),
         },
       })
       if (!res.ok) throw await apiError(res)

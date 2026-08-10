@@ -15,6 +15,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 6 | Invoices: draft, finalize, PDF | **done** |
 | 6.5 | Roles and relations | **done** |
 | 7 | Cancellation invoices | **done** |
+| 7.5 | Activity types and the status split | **done** |
 | 8 | Payments and receivables | todo |
 | 9 | Google Calendar sync | todo |
 | 10 | Sending invoices by email | todo |
@@ -624,6 +625,91 @@ See CLAUDE.md rule 9.
 - **The slice-6 test that faked a cancellation was moved onto the real path.**
   That is what the anticipation in slice 6 was for; the billable query now
   proves itself against a document that actually exists.
+
+## Slice 7.5 — Activity types and the status split
+
+Inserted after 7. Three things that had been wrong since slice 4 and would have
+been more expensive later: the kind of an activity was a check constraint the
+practice could not maintain, one status column was carrying two different
+questions, and a position had a duration nothing read. See CLAUDE.md rules 5
+and 6.
+
+- Table `activity_type`; `activity.type` becomes a composite foreign key into
+  it instead of a check constraint
+- `activity.status` (`planned`, `rendered`, `no_show`) beside
+  `appointment.status` (`requested`, `planned`, `confirmed`, `cancelled`,
+  `cancelled_late`)
+- `activity_item.duration_min` dropped
+- `activity.title` optional everywhere, with the type's label as the fallback
+- Settings section "Vorgangsarten"; colours in the calendar; status filters on
+  the Vorgänge page and in the calendar
+- Seed: `initial`, `session`, `talk`, `consultation`, none of them a system
+  entry
+
+**Done when:** I can add an activity type of my own, give it a colour and a
+preset, see that colour in the calendar, and record a no-show that still holds
+its slot and still gets invoiced.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`readableTextOn(color)` rather than a curated palette.** Fixing white as
+  the label colour fails on two of the four seeded colours — 3.7:1 on the teal
+  and 3.2:1 on the amber, both under the 4.5:1 small text needs. Choosing black
+  or white per colour by relative luminance never drops below 4.58:1, for *any*
+  colour, which is what matters: the four seeded ones are the small problem,
+  every colour picked later is the large one. The test walks the colour space
+  and asserts the worst case.
+- **No system entries**, unlike the two catalogues of rule 4. Nothing in the
+  software depends on a particular activity type existing, so there is no
+  `is_system` column and no `protect_system_type` trigger here. What cannot be
+  deleted is a type that is *in use*, and the foreign key says so.
+- **`ON DELETE RESTRICT` on both presets, not `SET NULL`.** A service group can
+  be deleted, and a bare `SET NULL` on a composite key nulls `tenant_id` with
+  it — the trap slice 4 hit on `activity.appointment_id`, which drizzle-kit
+  cannot write a column list for. Refusing is also the better answer: it names
+  what is in the way instead of silently emptying a preset.
+- **Changing the type is not a re-pricing.** The presets are read once, when
+  the type is applied. While there is nothing to overwrite the dialog draws
+  them silently; the moment the activity carries a duration or positions,
+  changing the type changes nothing and a line says "Dauer und Positionen
+  bleiben unverändert." with a button next to it. Taking them over is an action
+  with a name, and the button appends positions rather than replacing them.
+- **The status split is what the exclusion constraint already implied.** A
+  no-show occupies its slot; only a cancellation releases it. Once `attended`
+  and `no_show` moved to the activity, the appointment's status is purely about
+  the slot and the constraint's predicate did not have to change at all.
+  `activity.status` gates nothing — it carries a `COMMENT` saying so, and a
+  test asserts a no-show stays billable, because that column is exactly the
+  kind of thing a later filter would quietly lose revenue on.
+- **Rule 5 was narrowed, deliberately, and it is the one place this slice
+  contradicts CLAUDE.md as written.** "No table ever stores a reference to a
+  group" now reads "no row that records what happened". `activity_type.
+  default_service_group_id` is a catalogue entry naming another catalogue
+  entry; it is resolved into items at entry time, exactly as picking the group
+  by hand is, and never travels onto an activity. The two tests that asserted
+  the old wording were narrowed rather than deleted, the same way slice 4
+  narrowed the service version of them, and both still fail on any *data*
+  table growing a group column.
+- **Filtering by status is server-side on the Vorgänge page and client-side in
+  the calendar**, because that list is paged and a week is fetched whole.
+- **The lossy half of the data migration touched nothing.** Mapping `attended`
+  to `confirmed` and `no_show` to `planned` loses whether a slot had been
+  confirmed; in the development database every appointment was `planned`, so
+  zero rows were affected. Four `activity_item.duration_min` values were
+  dropped with the column, all of them copies of their service's default.
+
+Found while building:
+
+- **The catalogue foreign key and the new check constraint cannot live in the
+  generated migration.** `activity_type_fk` needs the seeded types to exist and
+  `appointment_status_check` needs the old values gone, so both moved by hand
+  from `0020` to `0021` before either had run — the same split as `0016`/`0017`,
+  with drizzle's snapshot describing the state after both.
+- The three list controls in `contact-type-settings.tsx` — order buttons,
+  delete confirmation, checkbox field — were written once and copied within
+  that file. A third catalogue would have made three copies, so they moved to
+  `components/catalogue-controls.tsx`; the delete wording is a prop, because
+  each catalogue says what happens to *its* kind of entry.
 
 ## Slice 8 — Payments and receivables
 

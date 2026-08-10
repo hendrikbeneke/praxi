@@ -47,6 +47,7 @@ function booking(
   return {
     contactId: options.contactId ?? contactId,
     type: 'session',
+    status: 'planned',
     occurredAt: AT(startsAt),
     durationMin: null,
     title: null,
@@ -151,14 +152,17 @@ describe('which statuses hold the slot', () => {
     }
   })
 
-  /** A no-show really did occupy the time — nothing else can have taken place
-   *  in it, so the slot stays blocked. */
+  /**
+   * A no-show really did occupy the time — nothing else can have taken place
+   * in it, so the slot stays blocked. Since slice 7.5 that is expressed by the
+   * appointment staying `planned` while `activity.status` says `no_show`, and
+   * this test is what makes sure the split did not quietly free the slot.
+   */
   it('keeps the slot blocked on a no-show', async () => {
-    await createActivity(
-      db(),
-      tenantId,
-      booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z', { status: 'no_show' }),
-    )
+    await createActivity(db(), tenantId, {
+      ...booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
+      status: 'no_show',
+    })
 
     expect(
       isOverlapViolation(
@@ -170,10 +174,9 @@ describe('which statuses hold the slot', () => {
   /** The SQL in migration 0009 repeats this list; the helper is what the
    *  client reasons with. They must agree. */
   it('agrees with the helper in packages/shared', () => {
+    expect(occupiesSlot('requested')).toBe(true)
     expect(occupiesSlot('planned')).toBe(true)
     expect(occupiesSlot('confirmed')).toBe(true)
-    expect(occupiesSlot('attended')).toBe(true)
-    expect(occupiesSlot('no_show')).toBe(true)
     expect(occupiesSlot('cancelled')).toBe(false)
     expect(occupiesSlot('cancelled_late')).toBe(false)
   })

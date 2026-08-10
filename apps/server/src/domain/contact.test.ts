@@ -1,4 +1,9 @@
-import type { AppointmentStatus, ContactInput, ContactListQuery } from '@praxi/shared'
+import type {
+  ActivityStatus,
+  AppointmentStatus,
+  ContactInput,
+  ContactListQuery,
+} from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -359,11 +364,12 @@ describe('listContacts, ordered by what is current', () => {
   async function book(
     contactId: string,
     startsAt: string,
-    options: { status?: AppointmentStatus } = {},
+    options: { status?: AppointmentStatus; activityStatus?: ActivityStatus } = {},
   ) {
     await createActivity(db(), tenantId, {
       contactId,
       type: 'session',
+      status: options.activityStatus ?? 'planned',
       occurredAt: startsAt,
       durationMin: null,
       title: null,
@@ -419,15 +425,19 @@ describe('listContacts, ordered by what is current', () => {
     expect(items[0]?.appointmentAt).toBe(hoursFromNow(3))
   })
 
-  /** A cancellation is the answer "not this one"; a no-show still happened and
-   *  is a reason to open the record. Same distinction the overlap constraint
-   *  makes. */
+  /**
+   * A cancellation is the answer "not this one"; a no-show still happened and
+   * is a reason to open the record. Same distinction the overlap constraint
+   * makes — and since slice 7.5 it is also the difference between the two
+   * status columns: the cancellation is on the appointment, the no-show on the
+   * activity, and the "Aktuell" order reads only the appointment.
+   */
   it('ignores cancelled appointments but keeps a no-show', async () => {
     const cancelled = await createContact(db(), tenantId, person({ lastName: 'Abgesagt' }))
     const noShow = await createContact(db(), tenantId, person({ lastName: 'Nichtda' }))
 
     await book(cancelled.id, hoursFromNow(2), { status: 'cancelled' })
-    await book(noShow.id, hoursFromNow(4), { status: 'no_show' })
+    await book(noShow.id, hoursFromNow(4), { activityStatus: 'no_show' })
 
     const { items } = await current()
     expect(items.map((item) => item.lastName)).toEqual(['Nichtda'])

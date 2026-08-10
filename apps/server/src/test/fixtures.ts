@@ -1,5 +1,6 @@
 import type { Database } from '../db/client.js'
 import { appUser, practiceSettings, tenant } from '../db/schema.js'
+import { seedActivityTypes } from '../db/seed/activity-types.js'
 import { seedContactTypes } from '../db/seed/contact-types.js'
 import { hashPassword } from '../domain/auth.js'
 import { newId } from '../id.js'
@@ -10,15 +11,17 @@ import { newId } from '../id.js'
  */
 
 /**
- * The role and relation types come with the tenant, from the same function the
- * seed uses. A tenant without them is not a state the application can reach —
- * `contact_role` points at `contact_role_type`, so a contact could not even
- * hold the `patient` role.
+ * The three catalogues come with the tenant, from the same functions the seed
+ * uses. A tenant without them is not a state the application can reach — every
+ * one of them is the target of a composite foreign key, so without them a
+ * contact could not hold the `patient` role and an activity could have no type
+ * at all.
  */
 export async function createTenant(database: Database, name = 'Testmandant'): Promise<string> {
   const id = newId()
   await database.insert(tenant).values({ id, name })
   await seedContactTypes(database, id)
+  await seedActivityTypes(database, id)
   return id
 }
 

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import type { z } from 'zod'
+import { ActivityTypeSettings } from '@/components/activity-type-settings'
 import { ContactTypeSettings } from '@/components/contact-type-settings'
 import { InvoiceSettings } from '@/components/invoice-settings'
 import { PageHeader } from '@/components/page-header'
@@ -284,6 +285,14 @@ function SettingsPage() {
         <h2 className="font-semibold text-lg">{strings.contactType.title}</h2>
         <p className="mt-1 mb-4 text-muted-foreground text-sm">{strings.contactType.description}</p>
         <ContactTypeSettings />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="font-semibold text-lg">{strings.activityType.title}</h2>
+        <p className="mt-1 mb-4 text-muted-foreground text-sm">
+          {strings.activityType.description}
+        </p>
+        <ActivityTypeSettings />
       </div>
     </>
   )

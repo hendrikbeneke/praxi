@@ -2,8 +2,10 @@
 // One schema file per entity, types derived from the schema — never a
 // hand-maintained parallel interface.
 export * from './activity.js'
+export * from './activity-type.js'
 export * from './appointment.js'
 export * from './auth.js'
+export * from './color.js'
 export * from './contact.js'
 export * from './contact-name.js'
 export * from './contact-relation.js'

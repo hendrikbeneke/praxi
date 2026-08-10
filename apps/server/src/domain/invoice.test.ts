@@ -89,6 +89,7 @@ async function makeActivityWithItem(price = 13_500) {
   return createActivity(db(), tenantId, {
     contactId,
     type: 'session',
+    status: 'planned',
     occurredAt: '2026-08-09T07:00:00.000Z',
     durationMin: 90,
     title: null,
@@ -131,6 +132,7 @@ describe('billable items', () => {
     await updateActivity(db(), tenantId, activity.id, {
       contactId,
       type: 'session',
+      status: 'planned',
       occurredAt: '2026-08-09T07:00:00.000Z',
       durationMin: 90,
       title: null,
@@ -144,7 +146,6 @@ describe('billable items', () => {
           feeCode: null,
           quantity: 1,
           unitPriceCents: item.unitPriceCents,
-          durationMin: 90,
           billable: false,
         },
       ],
@@ -545,6 +546,7 @@ describe('an activity item that is on an invoice', () => {
       updateActivity(db(), tenantId, activity.id, {
         contactId,
         type: 'session',
+        status: 'planned',
         occurredAt: '2026-08-09T07:00:00.000Z',
         durationMin: 90,
         title: null,

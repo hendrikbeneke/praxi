@@ -35,6 +35,8 @@ export async function listCalendarEntries(
       title: appointment.title,
       note: appointment.note,
       activityId: activity.id,
+      activityType: activity.type,
+      activityStatus: activity.status,
       contactNumber: contact.contactNumber,
       kind: contact.kind,
       title_: contact.title,
@@ -63,6 +65,10 @@ export async function listCalendarEntries(
     title: row.title,
     note: row.note,
     activityId: row.activityId,
+    // The type travels as its code and the calendar resolves label and colour
+    // from the catalogue it has loaded anyway.
+    activityType: row.activityType,
+    activityStatus: row.activityStatus,
     contactNumber: row.contactNumber,
     // One implementation of the name, shared with the client and with the
     // invoice snapshot in slice 6.
@@ -79,10 +85,13 @@ export async function listCalendarEntries(
 /**
  * Moves an entry or changes its status.
  *
- * The status is descriptive and does not gate billing, but it does decide
- * whether the slot stays occupied — setting `cancelled` frees it for someone
- * else, `no_show` does not. That is enforced by the exclusion constraint, not
- * here; a clash surfaces as SQLSTATE 23P01.
+ * The status says what became of the slot and does not gate billing. What it
+ * does decide is whether the slot stays occupied — setting `cancelled` frees
+ * it for someone else, every other status holds it. That is enforced by the
+ * exclusion constraint, not here; a clash surfaces as SQLSTATE 23P01.
+ *
+ * Whether the session took place is `activity.status`, not this one, and is
+ * changed through the activity.
  */
 export async function updateAppointment(
   database: Database,

@@ -82,6 +82,7 @@ async function finalizedInvoice(quantity = 1): Promise<Invoice> {
   await createActivity(db(), tenantId, {
     contactId,
     type: 'session',
+    status: 'planned',
     occurredAt: '2026-08-09T07:00:00.000Z',
     durationMin: 90,
     title: null,

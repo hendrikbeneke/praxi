@@ -146,6 +146,10 @@ export const billableItemSchema = z.object({
   activityId: z.uuid(),
   occurredAt: z.iso.datetime(),
   activityTitle: z.string().nullable(),
+  /** The `code` of the activity's type. Sent so the picker can fall back to
+   *  its label where the activity has no title of its own — the client
+   *  resolves it from the catalogue, like everywhere else. */
+  activityType: z.string(),
   description: z.string(),
   feeCode: z.string().nullable(),
   quantity: z.number().int(),

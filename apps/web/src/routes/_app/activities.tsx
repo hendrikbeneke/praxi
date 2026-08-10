@@ -1,4 +1,4 @@
-import { type Activity, fromBerlinDateTimeLocal } from '@praxi/shared'
+import { type Activity, activityStatuses, fromBerlinDateTimeLocal } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { activityListQueryOptions } from '@/lib/activities'
 import { strings } from '@/lib/strings'
 
-/** Dates only — nothing personal, so the URL may carry them. */
+/** Dates and a status — nothing personal, so the URL may carry them. */
 const searchSchema = z.object({
   from: z
     .string()
@@ -23,6 +23,7 @@ const searchSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  status: z.enum(activityStatuses).optional(),
 })
 
 export const Route = createFileRoute('/_app/activities')({
@@ -52,6 +53,7 @@ function ActivitiesPage() {
     activityListQueryOptions({
       from: fromBerlinDateTimeLocal(`${from}T00:00`),
       to: fromBerlinDateTimeLocal(`${shiftDays(to, 1)}T00:00`),
+      ...(search.status ? { status: search.status } : {}),
     }),
   )
 
@@ -100,6 +102,25 @@ function ActivitiesPage() {
               void navigate({ search: (previous) => ({ ...previous, to: event.target.value }) })
             }
           />
+        </div>
+
+        {/* Filtered on the server: this list is paged, so narrowing it in the
+            browser would hide rows the page never fetched. */}
+        <div className="flex gap-1">
+          {[undefined, ...activityStatuses].map((value) => (
+            <Button
+              key={value ?? 'all'}
+              size="sm"
+              variant={search.status === value ? 'default' : 'outline'}
+              onClick={() =>
+                void navigate({ search: (previous) => ({ ...previous, status: value }) })
+              }
+            >
+              {value === undefined
+                ? strings.activity.allStatuses
+                : strings.activity.statuses[value]}
+            </Button>
+          ))}
         </div>
       </div>
 

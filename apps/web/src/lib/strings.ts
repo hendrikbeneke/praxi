@@ -116,6 +116,52 @@ export const strings = {
       'nicht löschen — setzen Sie ihn dann auf inaktiv.',
     loadFailed: 'Rollen und Beziehungsarten konnten nicht geladen werden.',
   },
+  activityType: {
+    title: 'Vorgangsarten',
+    description:
+      'Welche Arten von Vorgängen es gibt, in welcher Farbe sie im Kalender erscheinen und ' +
+      'was beim Anlegen vorbelegt wird.',
+
+    create: 'Neue Vorgangsart',
+    createTitle: 'Vorgangsart anlegen',
+    editTitle: 'Vorgangsart bearbeiten',
+    empty: 'Noch keine Vorgangsarten.',
+
+    code: 'Kürzel',
+    codeHint:
+      'Technisches Kürzel, klein geschrieben, ohne Leerzeichen. Es steht mit dem Anlegen fest ' +
+      'und lässt sich später nicht mehr ändern.',
+    label: 'Bezeichnung',
+    color: 'Farbe',
+    colorHint: 'Damit wird der Termin im Kalender hinterlegt.',
+    defaultDuration: 'Dauer in Minuten',
+    defaultDurationHint: 'Leer lassen, wenn es keine übliche Dauer gibt.',
+    preset: 'Vorbelegte Leistung',
+    presetHint:
+      'Wird beim Anlegen eines Vorgangs als Position eingesetzt. Eine Gruppe wird dabei sofort ' +
+      'in einzelne Positionen aufgelöst. Spätere Änderungen hier wirken sich auf nichts ' +
+      'Bestehendes aus.',
+    presetNone: 'Keine',
+    presetService: 'Leistung',
+    presetGroup: 'Leistungsgruppe',
+    isDefault: 'Standard für neue Vorgänge',
+    isDefaultHint: 'Genau eine Art kann das sein. Die bisherige verliert die Markierung.',
+    defaultBadge: 'Standard',
+    active: 'Aktiv',
+    inactive: 'Inaktiv',
+    activeHint: 'Inaktive Arten erscheinen in keiner Auswahlliste, bleiben aber an Vorgängen.',
+    moveUp: 'Nach oben',
+    moveDown: 'Nach unten',
+
+    saved: 'Vorgangsart gespeichert.',
+    deleted: 'Vorgangsart gelöscht.',
+    saveFailed: 'Die Vorgangsart konnte nicht gespeichert werden.',
+    deleteTitle: 'Vorgangsart löschen?',
+    deleteBody:
+      'Die Art verschwindet aus der Auswahl. Solange sie noch von Vorgängen verwendet wird, ' +
+      'lässt sie sich nicht löschen — setzen Sie sie dann auf inaktiv.',
+    loadFailed: 'Die Vorgangsarten konnten nicht geladen werden.',
+  },
   validation: {
     required: 'Dieses Feld ist erforderlich.',
     email: 'Bitte eine gültige E-Mail-Adresse eingeben.',
@@ -343,12 +389,24 @@ export const strings = {
     noItems: 'Ohne Leistungen',
 
     type: 'Art',
-    types: {
-      session: 'Sitzung',
-      talk: 'Vortrag',
-      consultation: 'Beratung',
-      other: 'Sonstiges',
+    /** The labels themselves come from `activity_type` — the practitioner
+     *  maintains them in the settings, so there is nothing to translate. */
+    typeHint: 'Die Vorgangsarten pflegen Sie in den Einstellungen.',
+    statusLabel: 'Status',
+    statuses: {
+      planned: 'Geplant',
+      rendered: 'Stattgefunden',
+      no_show: 'Nicht erschienen',
     },
+    /** Rule 6, said where it could be misread: the status is documentation,
+     *  not a switch. */
+    statusHint: 'Der Status ist nur Dokumentation und steuert die Abrechnung nicht.',
+    allStatuses: 'Alle',
+    /** What the dialog says instead of quietly overwriting. */
+    presetsUnchanged: 'Dauer und Positionen bleiben unverändert.',
+    presetsApply: 'Aus der Vorgangsart übernehmen',
+    presetsApplied: 'Vorbelegung übernommen.',
+    presetsNone: 'Diese Vorgangsart hat keine Vorbelegung.',
     contact: 'Kontakt',
     contactSearch: 'Name oder Kontaktnummer tippen',
     contactNoResults: 'Kein Kontakt gefunden. Archivierte Kontakte werden nicht vorgeschlagen.',
@@ -426,14 +484,17 @@ export const strings = {
     day: 'Tag',
     empty: 'Keine Termine in diesem Zeitraum.',
     newHere: 'Termin anlegen',
+    /** The slot, and only the slot. Whether the session took place is the
+     *  activity's status. */
     status: {
+      requested: 'Angefragt',
       planned: 'Geplant',
       confirmed: 'Bestätigt',
-      attended: 'Wahrgenommen',
       cancelled: 'Abgesagt',
       cancelled_late: 'Kurzfristig abgesagt',
-      no_show: 'Nicht erschienen',
     },
+    statusFilter: 'Status',
+    allStatuses: 'Alle',
     /** The distinction the exclusion constraint makes. */
     releasesSlot: 'Der Zeitraum wird dadurch wieder frei.',
     holdsSlot: 'Der Zeitraum bleibt belegt.',

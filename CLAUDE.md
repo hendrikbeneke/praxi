@@ -33,15 +33,16 @@ The practice does not only treat patients. It also sells courses, exam preparati
 | Beziehungstyp | `contact_relation_type` | the configurable catalogue of relations |
 | Patient | a `contact` with role `patient` | never its own table |
 | Vorgang | `activity` | a dated event where services were rendered |
+| Vorgangsart | `activity_type` | the configurable catalogue of activity types |
 | Vorgangsposition | `activity_item` | one rendered service within an activity |
-| Sitzung | an `activity` of type session | |
+| Sitzung | an `activity` whose type is `session` | |
 | Termin / Kalendereintrag | `appointment` | separate from the activity, optional |
 | Notiz / Dokumentation | `note` | attached to a contact, optionally to an activity |
 | Anhang / Datei | `note_file` | files are always attached through a note |
 | sperren / gesperrt | `lock` / `locked` | never "sign" — locking is not a signature |
 | Nachtrag | `addendum` | a note correcting a locked note |
 | Leistung | `service` | catalogue entry, acts as a template |
-| Leistungsgruppe | `service_group` | selection helper only, never referenced by data |
+| Leistungsgruppe | `service_group` | selection helper, never referenced by a data row |
 | Ziffer (GebüH) | `fee_code` | optional, free text |
 | Rechnung | `invoice` | |
 | Rechnungsposition | `invoice_line` | |
@@ -180,9 +181,11 @@ Confidentiality follows the role, not the table: professional secrecy under § 2
 
 ### 5. Services are templates, never live references
 
-`service` is a catalogue. `service_group` is a selection helper — when you pick a group, it is resolved into individual items immediately, at entry time. **No table ever stores a reference to a group.**
+`service` is a catalogue. `service_group` is a selection helper — when you pick a group, it is resolved into individual items immediately, at entry time. **No row that records what happened ever stores a reference to a group.**
 
-When an `activity_item` is created, description, fee code, price and duration are **copied** from the service. `service_id` remains only as a record of origin and carries no meaning for price or text afterwards.
+The one place a group id may appear besides `service_group_item` is `activity_type.default_service_group_id` (slice 7.5): a catalogue entry naming another catalogue entry as a preset. It is resolved into individual items the moment the type is applied, exactly as picking the group by hand is, and never travels onto the activity. Nothing else may hold one, and `activity.test.ts` asserts the list against the live catalogue so a new column is caught.
+
+When an `activity_item` is created, description, fee code and price are **copied** from the service. `service_id` remains only as a record of origin and carries no meaning for price or text afterwards. A position has no duration of its own — the length of what happened belongs to the activity.
 
 Consequences, all of them intended:
 
@@ -195,9 +198,17 @@ Consequences, all of them intended:
 
 `activity` is a dated event where services were rendered to a contact — a session, a talk, a consultation. It is the record of what happened.
 
+**The type of an activity is a catalogue entry**, not an enum: `activity.type` holds the `code` of an `activity_type`, through a composite foreign key carrying `tenant_id`, exactly as roles and relations do in rule 4. The practice decides which kinds of appointment it has, and it names and colours them itself. There are no system entries — nothing in the software depends on a particular type existing. A type that is in use cannot be deleted, only deactivated; the foreign key enforces that and the domain refuses first, so the message is a sentence.
+
+An activity type may carry **presets**: a default duration, and either a default service or a default service group. They prefill a *new* activity and are read exactly once, when the type is applied. This is rule 5 one level up — changing a preset reaches nothing that already exists, and there is no re-apply mechanism anywhere in `domain/`. Changing the type of an activity that already carries a duration or positions therefore changes nothing else; the UI says so in a line and offers taking the presets over as an action with a name, rather than overwriting silently.
+
+`activity.title` is optional. Where it is missing, every screen shows the label of the activity type instead — one implementation, `activityLabel()` in `packages/shared`, so list, calendar, contact overview and note dialog cannot drift.
+
 `appointment` is the calendar entry. It is separate and optional: `activity.appointment_id` is nullable and unique. In practice both are created together, but an activity can be documented afterwards without ever producing a calendar entry. The foreign key sits on the activity — the appointment knows nothing about business logic, because it is ultimately just a projection towards a calendar.
 
-The appointment status (confirmed, attended, cancelled, no-show) is **descriptive only**. It does not gate billing. Anything in the past can be billed.
+**The two statuses say different things, and that is why there are two.** `appointment.status` (`requested`, `planned`, `confirmed`, `cancelled`, `cancelled_late`) says what became of the *slot*; `activity.status` (`planned`, `rendered`, `no_show`) says what became of the *treatment*. A no-show is an activity that did not happen in a slot that stayed occupied — one column could not say both, and the slot has to stay blocked, because the time really was. Only a cancellation releases it; the exclusion constraint names those two values and nothing else.
+
+Both are **descriptive only**. Neither gates billing: anything in the past can be billed whatever they say, and `domain/billable.ts` reads neither. `activity.status` is the one that invites the mistake — it has a value that reads like a reason not to invoice — so the column carries a `COMMENT` saying so in the database, and there is a test asserting that a no-show stays billable.
 
 Billability is a property of the item, not of a status:
 
@@ -532,20 +543,39 @@ service_group_item    tenant_id uuid not null -> tenant(id),
                       -- This is the only table in the schema that may hold a
                       -- service_group_id (rule 5).
 
--- as built (slice 4)
+-- as built (slice 4), retyped and split in slice 7.5
 activity              tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null,
-                      type text not null check in
-                        ('session','talk','consultation','other'),
+                      type text not null,                     -- the `code` of
+                        -- an activity_type. Was a check constraint until 7.5;
+                        -- the set is not merely expected to change, it is
+                        -- maintained by the practitioner (rule 6).
+                      status text not null default 'planned' check in
+                        ('planned','rendered','no_show'),
+                        -- what became of the TREATMENT. Descriptive only: it
+                        -- does not gate billing, domain/billable.ts does not
+                        -- read it, and COMMENT ON COLUMN says so in the
+                        -- database too. appointment.status says what became of
+                        -- the slot.
                       occurred_at timestamptz not null,
                       duration_min integer check (null or > 0)
                         -- descriptive only, nothing is derived from it;
                         -- redundant while there is an appointment, but an
                         -- activity documented afterwards has no other length
                       appointment_id uuid,
-                      title, internal_note                      (text, nullable)
+                      title, internal_note                    (text, nullable)
+                        -- title optional: where it is missing every screen
+                        -- shows the label of the activity type instead
+                        -- (activityLabel() in packages/shared)
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id)
+                      foreign key (type, tenant_id)
+                        -> activity_type (code, tenant_id)
+                        on update restrict on delete restrict
+                        -- nothing to cascade on update: a code never changes.
+                        -- restrict on delete is what makes a type that is in
+                        -- use undeletable; the domain refuses first so the
+                        -- message is a sentence.
                       foreign key (appointment_id, contact_id, tenant_id)
                         -> appointment (id, contact_id, tenant_id)
                         on delete set null (appointment_id)
@@ -557,9 +587,10 @@ activity              tenant_id uuid not null -> tenant(id),
                       unique (appointment_id)                   -- nulls do not
                         -- collide, so any number may have no calendar entry
                       unique (id, tenant_id)
-                      index (tenant_id, occurred_at), index (contact_id, occurred_at)
+                      index (tenant_id, occurred_at), index (contact_id, occurred_at),
+                      index (tenant_id, status)
 
--- as built (slice 4)
+-- as built (slice 4), duration dropped in slice 7.5
 activity_item         tenant_id uuid not null -> tenant(id),
                       activity_id uuid not null,
                       position integer not null                 -- sort order,
@@ -572,8 +603,11 @@ activity_item         tenant_id uuid not null -> tenant(id),
                       unit_price_cents integer not null         -- copied, then
                         -- free. No sign restriction, unlike the catalogue: a
                         -- negative one-off line is how rule 5 grants a discount
-                      duration_min integer check (null or > 0), -- copied
                       billable boolean not null default true
+                        -- deliberately absent since 7.5: duration_min. Nothing
+                        -- ever read it — the length of what happened is
+                        -- activity.duration_min, and where there is a calendar
+                        -- entry that is the interval the appointment spans.
                       foreign key (activity_id, tenant_id)
                         -> activity (id, tenant_id) on delete cascade
                       foreign key (service_id, tenant_id)
@@ -585,7 +619,53 @@ activity_item         tenant_id uuid not null -> tenant(id),
                       -- place rather than replacing, because slice 6 points
                       -- invoice_line.activity_item_id at these ids.
 
--- as built (slice 4), extended in slice 9
+-- as built (slice 7.5)
+activity_type         tenant_id uuid not null -> tenant(id),
+                      code text not null,                       -- the handle
+                        -- activity.type points at; fixed once the row exists
+                      label text not null,
+                      color text not null default '#64748b'
+                        check (~ '^#[0-9a-f]{6}$'),             -- the calendar
+                        -- paints the entry in it; the label on top is black or
+                        -- white, whichever reads better (readableTextOn)
+                      default_duration_min integer check (null or > 0),
+                      default_service_id uuid,
+                      default_service_group_id uuid,
+                        -- presets. Read once, when the type is applied to a
+                        -- new activity, and never again (rule 5 one level up).
+                        -- The group id here is the only one outside
+                        -- service_group_item, and it never travels onto the
+                        -- activity: it is resolved into items at entry time.
+                      is_default boolean not null default false,
+                      sort_order integer not null default 0,
+                      active boolean not null default true
+                      foreign key (default_service_id, tenant_id)
+                        -> service (id, tenant_id)
+                        on update restrict on delete restrict,
+                      foreign key (default_service_group_id, tenant_id)
+                        -> service_group (id, tenant_id)
+                        on update restrict on delete restrict
+                        -- RESTRICT, not SET NULL: a group *can* be deleted, and
+                        -- a bare SET NULL on a composite key nulls tenant_id
+                        -- with it — the slice-4 trap drizzle-kit cannot write a
+                        -- column list for. Refusing also names what is in the
+                        -- way instead of silently emptying a preset.
+                      unique (tenant_id, code)                  -- also the
+                        -- target of activity's composite foreign key
+                      index on (tenant_id, sort_order, label),
+                      unique index activity_type_default_key
+                        on (tenant_id) where is_default
+                      check activity_type_code_shape
+                        (^[a-z][a-z0-9_]{0,39}$),
+                      check activity_type_single_preset (
+                        num_nonnulls(default_service_id,
+                                     default_service_group_id) <= 1)
+                      -- No is_system column and no protect_system_type trigger,
+                      -- unlike the two catalogues of rule 4: nothing in the
+                      -- software depends on a particular activity type
+                      -- existing. set_updated_at; RLS created and disabled.
+
+-- as built (slice 4), status narrowed in slice 7.5, extended in slice 9
 appointment           tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null                  -- NOT null,
                         -- against the sketch: every appointment belongs to an
@@ -595,8 +675,12 @@ appointment           tenant_id uuid not null -> tenant(id),
                       starts_at timestamptz not null,
                       ends_at timestamptz not null check (> starts_at),
                       status text not null default 'planned' check in
-                        ('planned','confirmed','attended','cancelled',
-                         'cancelled_late','no_show'),
+                        ('requested','planned','confirmed','cancelled',
+                         'cancelled_late'),
+                        -- what became of the SLOT, and nothing else.
+                        -- `attended` and `no_show` moved to activity.status in
+                        -- slice 7.5: a no-show is an activity that did not
+                        -- happen in a slot that stayed occupied.
                       title, note                               (text, nullable)
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id)
@@ -607,9 +691,11 @@ appointment           tenant_id uuid not null -> tenant(id),
                         tstzrange(starts_at, ends_at) WITH &&)
                         WHERE (status NOT IN ('cancelled','cancelled_late'))
                         -- migration 0009, needs btree_gist. tstzrange is
-                        -- half-open, so back-to-back slots do not clash.
-                        -- no_show still occupies the time; only a cancellation
-                        -- releases it. Violations are SQLSTATE 23P01.
+                        -- half-open, so back-to-back slots do not clash. Only
+                        -- a cancellation releases the slot — a session that
+                        -- nobody attended still occupied the time, which since
+                        -- 7.5 is said by activity.status and not here.
+                        -- Violations are SQLSTATE 23P01.
                       -- google_event_id / google_etag / last_pushed_at come in
                       -- slice 9 with the sync that fills them.
 
@@ -891,7 +977,7 @@ A control that explicitly means *edit* — the pencil on a note — may lead str
 
 In practice: a `<fieldset disabled={!editing}>` around the fields, `editing` initialised to "this is a new record, or the caller asked for edit mode" and reset whenever a dialog opens. Dialogs use `ReadModeFooter` so every record looks the same once open, regardless of which button opened it. What this does **not** cover are single decisions that are not a record — ticking a role in the contact header, adding or removing a relation, uploading a file. Those act immediately and have no save button at all.
 
-**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.type`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_code` and `contact_relation.relation_code` point at a catalogue table through a composite foreign key (rule 4). `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
+**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_code`, `contact_relation.relation_code` and `activity.type` point at a catalogue table through a composite foreign key (rules 4 and 6). `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 
 **`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
 

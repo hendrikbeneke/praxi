@@ -300,6 +300,12 @@ describe('the catalogue holds no live references', () => {
    * `activity_item.service_id` records where a position came from and means
    * nothing for its price or text — the values were copied. Slice 4 added it,
    * and this test was narrowed to the rule it actually protects.
+   *
+   * Slice 7.5 narrowed it once more, for `activity_type.default_service_group_id`.
+   * That is a catalogue entry naming another catalogue entry as a preset: it
+   * is resolved into individual items the moment the type is applied, and no
+   * row that records what happened ever holds it. Only such a table may appear
+   * in this list, and every addition has to be weighed against rule 5 first.
    */
   it('lets nothing outside the catalogue reference a service group', async () => {
     const referencing = await db().execute<{ table_name: string }>(`
@@ -310,9 +316,10 @@ describe('the catalogue holds no live references', () => {
       where tc.constraint_type = 'FOREIGN KEY'
         and ccu.table_name = 'service_group'
         and tc.table_name <> 'service_group_item'
+      order by 1
     `)
 
-    expect([...referencing]).toEqual([])
+    expect([...referencing].map((row) => row.table_name)).toEqual(['activity_type'])
   })
 
   it('allows a service to be referenced only as a record of origin', async () => {

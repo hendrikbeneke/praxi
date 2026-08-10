@@ -6,21 +6,26 @@ import { optionalText } from './field.js'
  * sits on `activity`, because the appointment knows nothing about business
  * logic — it is ultimately a projection towards a calendar (CLAUDE.md rule 6).
  *
- * The status is **descriptive only**. It does not gate billing; anything in the
- * past can be billed. What it does affect is the overlap constraint: a
- * cancelled slot is free again, a no-show is not, because it really did occupy
+ * The status says what became of the **slot**, and nothing else. What became
+ * of the treatment is `activity.status`: `attended` and `no_show` used to live
+ * here and moved there in slice 7.5, because a no-show is an activity that did
+ * not happen in a slot that stayed occupied, and one column could not say
+ * both.
+ *
+ * It is **descriptive only** in the same sense as before — it does not gate
+ * billing; anything in the past can be billed. What it does affect is the
+ * overlap constraint: a cancelled slot is free again, every other status holds
  * the time.
  *
  * `text` with a named check constraint rather than an enum — CLAUDE.md marks
- * this set as expected to change.
+ * this set as expected to change, and slice 7.5 is the proof.
  */
 export const appointmentStatuses = [
+  'requested',
   'planned',
   'confirmed',
-  'attended',
   'cancelled',
   'cancelled_late',
-  'no_show',
 ] as const
 export const appointmentStatusSchema = z.enum(appointmentStatuses)
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>
@@ -75,16 +80,6 @@ export const appointmentSchema = z.object({
 })
 
 export type Appointment = z.infer<typeof appointmentSchema>
-
-/** An appointment in a list, with just enough of its contact and activity to
- *  paint a calendar without a second round trip. */
-export const calendarEntrySchema = appointmentSchema.extend({
-  activityId: z.uuid().nullable(),
-  contactNumber: z.number().int(),
-  contactName: z.string(),
-})
-
-export type CalendarEntry = z.infer<typeof calendarEntrySchema>
 
 export const appointmentRangeQuerySchema = z.object({
   from: z.iso.datetime(),

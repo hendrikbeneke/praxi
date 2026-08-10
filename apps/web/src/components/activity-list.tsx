@@ -1,11 +1,18 @@
 import {
   type Activity,
+  activityLabel,
+  activityTypeColor,
+  activityTypeLabel,
   formatBerlinDateTime,
   formatBerlinTime,
   formatEuro,
+  occupiesSlot,
+  readableTextOn,
   sumItems,
 } from '@praxi/shared'
+import { useQuery } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { strings } from '@/lib/strings'
 
 /**
@@ -15,6 +22,11 @@ import { strings } from '@/lib/strings'
  * Each row shows the billable sum, because that is the number the practitioner
  * checks against — a no-show shows the Ausfallhonorar, not the session that
  * did not take place.
+ *
+ * Two statuses appear, and they say different things: the activity's says what
+ * became of the treatment, the appointment's what became of the slot. Only the
+ * ones worth reading are shown — a planned activity in a planned slot is the
+ * normal case and gets no badge at all.
  */
 export function ActivityList({
   activities,
@@ -25,6 +37,8 @@ export function ActivityList({
   onOpen: (activity: Activity) => void
   emptyText?: string
 }) {
+  const types = useQuery(activityTypeListQueryOptions(true))
+
   if (activities.length === 0) {
     return <p className="text-muted-foreground text-sm">{emptyText ?? strings.activity.empty}</p>
   }
@@ -34,6 +48,8 @@ export function ActivityList({
       {activities.map((activity) => {
         const billable = sumItems(activity.items, { billableOnly: true })
         const total = sumItems(activity.items)
+        const color = activityTypeColor(types.data, activity.type)
+        const typeLabel = activityTypeLabel(types.data, activity.type)
 
         return (
           <li key={activity.id}>
@@ -44,21 +60,30 @@ export function ActivityList({
             >
               <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-medium">{formatBerlinDateTime(activity.occurredAt)}</span>
-                <Badge variant="outline">{strings.activity.types[activity.type]}</Badge>
-                {activity.appointment && (
-                  <Badge
-                    variant={
-                      activity.appointment.status === 'no_show' ||
-                      activity.appointment.status.startsWith('cancelled')
-                        ? 'secondary'
-                        : 'outline'
-                    }
-                  >
+                <span
+                  className="rounded px-1.5 py-0.5 text-xs"
+                  style={{ backgroundColor: color, color: readableTextOn(color) }}
+                >
+                  {typeLabel}
+                </span>
+
+                {activity.status !== 'planned' && (
+                  <Badge variant={activity.status === 'no_show' ? 'secondary' : 'outline'}>
+                    {strings.activity.statuses[activity.status]}
+                  </Badge>
+                )}
+                {activity.appointment && !occupiesSlot(activity.appointment.status) && (
+                  <Badge variant="secondary">
                     {strings.appointment.status[activity.appointment.status]}
                   </Badge>
                 )}
+
+                {/* The title if there is one, otherwise the type's label is
+                    already the name of this activity and stands above. */}
                 {activity.title && (
-                  <span className="text-muted-foreground text-sm">{activity.title}</span>
+                  <span className="text-muted-foreground text-sm">
+                    {activityLabel(activity, typeLabel)}
+                  </span>
                 )}
                 <span className="ml-auto font-medium tabular-nums">{formatEuro(billable)}</span>
               </span>

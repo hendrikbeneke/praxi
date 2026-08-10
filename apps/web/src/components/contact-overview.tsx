@@ -1,5 +1,7 @@
 import {
   type Activity,
+  activityLabel,
+  activityTypeLabel,
   ageInYears,
   type Contact,
   dueDate,
@@ -18,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { activityListQueryOptions } from '@/lib/activities'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { relationListQueryOptions } from '@/lib/contact-types'
 import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
@@ -127,11 +130,16 @@ function ContactDetails({ contact }: { contact: Contact }) {
   )
 }
 
-/** What an activity was about, in one line: its title, or the services on it. */
-function activityLabel(activity: Activity): string {
-  if (activity.title) return activity.title
-  if (activity.items.length === 0) return strings.activity.noItems
-  return activity.items.map((item) => item.description).join(', ')
+/**
+ * What an activity is called: its title, or the label of its type — the same
+ * fallback every other screen uses (`activityLabel` in `packages/shared`).
+ * This file used to add a third step, the item descriptions joined together,
+ * which slice 7.5 dropped: with the type label there is always a name, and
+ * "Folgesitzung, Folgesitzung" said less than "Folgesitzung".
+ */
+function useActivityLabel(): (activity: Activity) => string {
+  const types = useQuery(activityTypeListQueryOptions(true))
+  return (activity) => activityLabel(activity, activityTypeLabel(types.data, activity.type))
 }
 
 /**
@@ -147,6 +155,7 @@ function ActivitySummary({
   onDocument: (activity: Activity) => void
 }) {
   const activities = useQuery(activityListQueryOptions({ contactId }))
+  const activityLabelOf = useActivityLabel()
   const now = new Date()
 
   const rows = activities.data ?? []
@@ -180,7 +189,7 @@ function ActivitySummary({
                   <span className="ml-2 text-muted-foreground">
                     {formatRelativeBerlin(next.appointment.startsAt, now)}
                   </span>
-                  <span className="block text-muted-foreground">{activityLabel(next)}</span>
+                  <span className="block text-muted-foreground">{activityLabelOf(next)}</span>
                 </p>
               ) : (
                 <p className="mt-1 text-muted-foreground">{strings.contact.noNextAppointment}</p>
@@ -193,7 +202,7 @@ function ActivitySummary({
                 <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
                   <p>
                     <span className="tabular-nums">{formatBerlinDateTime(last.occurredAt)}</span>
-                    <span className="block text-muted-foreground">{activityLabel(last)}</span>
+                    <span className="block text-muted-foreground">{activityLabelOf(last)}</span>
                   </p>
                   <Button size="sm" variant="outline" onClick={() => onDocument(last)}>
                     <FileText className="size-4" aria-hidden />
@@ -219,6 +228,7 @@ function ActivitySummary({
 function RecentActivities({ contactId }: { contactId: string }) {
   const activities = useQuery(activityListQueryOptions({ contactId }))
   const notes = useQuery(noteListQueryOptions({ contactId }))
+  const activityLabelOf = useActivityLabel()
 
   const documented = new Set(
     (notes.data ?? [])
@@ -250,7 +260,7 @@ function RecentActivities({ contactId }: { contactId: string }) {
                 <span className="w-32 shrink-0 tabular-nums">
                   {formatBerlinDate(activity.occurredAt)}
                 </span>
-                <span className="flex-1">{activityLabel(activity)}</span>
+                <span className="flex-1">{activityLabelOf(activity)}</span>
                 {documented.has(activity.id) ? (
                   <Badge variant="secondary">{strings.contact.documented}</Badge>
                 ) : (

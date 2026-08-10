@@ -1,4 +1,4 @@
-import type { ActivityInput, ServiceInput } from '@praxi/shared'
+import type { ActivityInput, AppointmentStatus, ServiceInput } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -14,6 +14,7 @@ import {
   UnknownServiceGroupError,
   updateActivity,
 } from './activity.js'
+import { listBillableItems } from './billable.js'
 import { createContact } from './contact.js'
 import { createService, createServiceGroup, updateService, updateServiceGroup } from './service.js'
 
@@ -60,6 +61,7 @@ function activityInput(overrides: Partial<ActivityInput> = {}): ActivityInput {
   return {
     contactId,
     type: 'session',
+    status: 'planned',
     occurredAt: AT('2026-09-01T08:00:00Z'),
     durationMin: null,
     title: null,
@@ -70,11 +72,7 @@ function activityInput(overrides: Partial<ActivityInput> = {}): ActivityInput {
   }
 }
 
-const slot = (
-  startsAt: string,
-  endsAt: string,
-  status: 'planned' | 'cancelled' | 'no_show' | 'cancelled_late' = 'planned',
-) => ({
+const slot = (startsAt: string, endsAt: string, status: AppointmentStatus = 'planned') => ({
   startsAt: AT(startsAt),
   endsAt: AT(endsAt),
   status,
@@ -83,7 +81,7 @@ const slot = (
 })
 
 describe('copying from the catalogue', () => {
-  it('copies description, fee code, price and duration', async () => {
+  it('copies description, fee code and price', async () => {
     const entry = await createService(
       db(),
       tenantId,
@@ -110,7 +108,6 @@ describe('copying from the catalogue', () => {
       feeCode: '19',
       quantity: 1,
       unitPriceCents: 13_500,
-      durationMin: 90,
       billable: true,
     })
   })
@@ -156,7 +153,6 @@ describe('copying from the catalogue', () => {
       expect(reloaded?.items[0]).toMatchObject({
         description: 'Folgesitzung',
         unitPriceCents: 9000,
-        durationMin: 50,
       })
     }
   })
@@ -186,7 +182,6 @@ describe('copying from the catalogue', () => {
             feeCode: null,
             quantity: 1,
             unitPriceCents: 6000,
-            durationMin: 50,
             billable: true,
           },
         ],
@@ -214,7 +209,6 @@ describe('copying from the catalogue', () => {
             feeCode: null,
             quantity: 1,
             unitPriceCents: 42_000,
-            durationMin: 90,
             billable: true,
           },
         ],
@@ -239,7 +233,6 @@ describe('copying from the catalogue', () => {
             feeCode: null,
             quantity: 1,
             unitPriceCents: -1500,
-            durationMin: null,
             billable: true,
           },
         ],
@@ -315,8 +308,20 @@ describe('resolving a service group', () => {
   /**
    * "No table ever stores a reference to a group" (rule 5). Checked against
    * the catalogue rather than the code, so a later column would be caught.
+   *
+   * Narrowed in slice 7.5, the way slice 4 narrowed the service version of
+   * this test, and for the same reason: `activity_type.default_service_group_id`
+   * is a **preset**, resolved into individual items the moment the type is
+   * applied — exactly what happens when the group is picked by hand. It is a
+   * second catalogue entry naming a first, and it never reaches a row that
+   * records what happened. What rule 5 protects is that no *data* row holds a
+   * group, so that renaming or emptying one cannot reach back into what was
+   * entered from it, and that is what is asserted here.
+   *
+   * Anything appearing in this list that is not a catalogue table has to be
+   * weighed against rule 5 before it is allowed.
    */
-  it('stores no group reference anywhere', async () => {
+  it('stores no group reference on anything that records what happened', async () => {
     const { group: created } = await group()
     await createActivity(
       db(),
@@ -329,11 +334,13 @@ describe('resolving a service group', () => {
       from information_schema.columns
       where table_schema = 'public'
         and column_name like '%group%'
-        and table_name <> 'service_group'
-        and table_name <> 'service_group_item'
+        and table_name not in ('service_group', 'service_group_item')
+      order by 1, 2
     `)
 
-    expect([...columns]).toEqual([])
+    expect([...columns]).toEqual([
+      { table_name: 'activity_type', column_name: 'default_service_group_id' },
+    ])
   })
 
   it('is unaffected when the group is changed afterwards', async () => {
@@ -416,7 +423,6 @@ describe('items are stable across an edit', () => {
             feeCode: null,
             quantity: 2,
             unitPriceCents: 9000,
-            durationMin: 50,
             billable: true,
           },
         ],
@@ -458,7 +464,6 @@ describe('items are stable across an edit', () => {
             feeCode: kept.feeCode,
             quantity: kept.quantity,
             unitPriceCents: kept.unitPriceCents,
-            durationMin: kept.durationMin,
             billable: kept.billable,
           },
         ],
@@ -495,7 +500,6 @@ describe('items are stable across an edit', () => {
               feeCode: null,
               quantity: 1,
               unitPriceCents: 100,
-              durationMin: null,
               billable: true,
             },
           ],
@@ -506,8 +510,14 @@ describe('items are stable across an edit', () => {
 })
 
 describe('the no-show workflow', () => {
-  /** Rule 6: the unbilled item stays, because it documents that a session was
-   *  planned and did not happen; an Ausfallhonorar is added next to it. */
+  /**
+   * Rule 6: the unbilled item stays, because it documents that a session was
+   * planned and did not happen; an Ausfallhonorar is added next to it.
+   *
+   * Since slice 7.5 the no-show is on the **activity**. The appointment stays
+   * `planned`, and that is the point of the split: the time really was
+   * occupied, so the slot is not free — only a cancellation releases it.
+   */
   it('turns a session into a no-show with a cancellation fee', async () => {
     const session = await createService(db(), tenantId, serviceInput())
     const fee = await createService(
@@ -545,12 +555,12 @@ describe('the no-show workflow', () => {
             feeCode: planned.feeCode,
             quantity: planned.quantity,
             unitPriceCents: planned.unitPriceCents,
-            durationMin: planned.durationMin,
             billable: false,
           },
           { kind: 'service', serviceId: fee.id, quantity: 1, billable: true },
         ],
-        appointment: slot('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z', 'no_show'),
+        status: 'no_show',
+        appointment: slot('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
       }),
     )
 
@@ -558,7 +568,36 @@ describe('the no-show workflow', () => {
       ['Folgesitzung', false],
       ['Ausfallhonorar', true],
     ])
-    expect(updated?.appointment?.status).toBe('no_show')
+    expect(updated?.status).toBe('no_show')
+    expect(updated?.appointment?.status).toBe('planned')
+  })
+
+  /**
+   * The status is descriptive and does not gate billing (rule 6). Worth a test
+   * of its own: the split gives `activity.status` a value that reads like a
+   * reason not to invoice, and the moment anything starts filtering on it the
+   * Ausfallhonorar disappears from the billable pool.
+   */
+  it('leaves a no-show billable', async () => {
+    const fee = await createService(
+      db(),
+      tenantId,
+      serviceInput({ description: 'Ausfallhonorar', defaultPriceCents: 6000 }),
+    )
+
+    const created = await createActivity(
+      db(),
+      tenantId,
+      activityInput({
+        status: 'no_show',
+        occurredAt: AT('2026-01-05T08:00:00Z'),
+        items: [{ kind: 'service', serviceId: fee.id, quantity: 1, billable: true }],
+      }),
+    )
+
+    const billable = await listBillableItems(db(), tenantId, contactId)
+    expect(billable.map((item) => item.description)).toEqual(['Ausfallhonorar'])
+    expect(billable[0]?.activityType).toBe(created.type)
   })
 })
 
@@ -698,6 +737,23 @@ describe('listing', () => {
       offset: 0,
     })
     expect(byRange).toHaveLength(2)
+  })
+
+  it('filters by status', async () => {
+    await createActivity(db(), tenantId, activityInput())
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({ status: 'no_show', occurredAt: AT('2026-09-02T08:00:00Z') }),
+    )
+
+    const noShows = await listActivities(db(), tenantId, {
+      contactId,
+      status: 'no_show',
+      limit: 50,
+      offset: 0,
+    })
+    expect(noShows.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
   })
 
   it('shows only its own tenant', async () => {

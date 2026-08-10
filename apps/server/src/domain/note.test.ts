@@ -516,6 +516,7 @@ describe('an activity that documentation hangs on', () => {
     const activity = await createActivity(db(), tenantId, {
       contactId,
       type: 'session',
+      status: 'planned',
       occurredAt: '2026-08-09T07:00:00.000Z',
       durationMin: 50,
       title: null,

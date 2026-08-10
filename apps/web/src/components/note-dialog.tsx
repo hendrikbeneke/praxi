@@ -1,5 +1,7 @@
 import {
   type Activity,
+  activityLabel,
+  activityTypeLabel,
   formatBerlinDate,
   type Note,
   type NoteType,
@@ -31,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { activityListQueryOptions } from '@/lib/activities'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import { createNote, updateNote } from '@/lib/notes'
 import { strings } from '@/lib/strings'
@@ -70,6 +73,7 @@ export function NoteDialog({
   const formId = useId()
 
   const activities = useQuery({ ...activityListQueryOptions({ contactId }), enabled: open })
+  const types = useQuery({ ...activityTypeListQueryOptions(true), enabled: open })
 
   const [noteDate, setNoteDate] = useState('')
   const [type, setType] = useState<NoteType>('session')
@@ -189,8 +193,8 @@ export function NoteDialog({
                 <SelectItem value={NO_ACTIVITY}>{strings.note.activityNone}</SelectItem>
                 {(activities.data ?? []).map((entry: Activity) => (
                   <SelectItem key={entry.id} value={entry.id}>
-                    {formatBerlinDate(entry.occurredAt)} — {strings.activity.types[entry.type]}
-                    {entry.title ? ` · ${entry.title}` : ''}
+                    {formatBerlinDate(entry.occurredAt)} —{' '}
+                    {activityLabel(entry, activityTypeLabel(types.data, entry.type))}
                   </SelectItem>
                 ))}
               </SelectContent>

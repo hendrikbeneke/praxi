@@ -25,10 +25,17 @@ import { blockingInvoiceLines } from './billable.js'
  * them.
  *
  * The rule this file exists to enforce is CLAUDE.md rule 5: a service is a
- * template. Description, fee code, price and duration are copied out of the
- * catalogue when an item is created, and nothing reads the catalogue again
- * afterwards. A service group is resolved into individual items at the same
- * moment and its id is stored nowhere.
+ * template. Description, fee code and price are copied out of the catalogue
+ * when an item is created, and nothing reads the catalogue again afterwards. A
+ * service group is resolved into individual items at the same moment and its
+ * id is stored nowhere.
+ *
+ * The same holds one level up for `activity_type`: its default duration and
+ * default service or group prefill a *new* activity in the dialog and are
+ * never re-read. Changing the type of an activity that already exists
+ * therefore changes nothing here — the client sends what it wants stored, and
+ * taking a preset over is an explicit action there, not a side effect of the
+ * type travelling in this payload.
  */
 
 export class UnknownServiceError extends Error {
@@ -91,7 +98,6 @@ const itemColumns = {
   feeCode: activityItem.feeCode,
   quantity: activityItem.quantity,
   unitPriceCents: activityItem.unitPriceCents,
-  durationMin: activityItem.durationMin,
   billable: activityItem.billable,
 }
 
@@ -189,7 +195,6 @@ async function resolveItems(
         feeCode: input.feeCode,
         quantity: input.quantity,
         unitPriceCents: input.unitPriceCents,
-        durationMin: input.durationMin,
         billable: input.billable,
       })
       continue
@@ -204,7 +209,6 @@ async function resolveItems(
         feeCode: entry.feeCode,
         quantity: input.quantity,
         unitPriceCents: entry.defaultPriceCents,
-        durationMin: entry.defaultDurationMin,
         billable: input.billable,
       })
       continue
@@ -223,7 +227,6 @@ async function resolveItems(
         feeCode: member.service.feeCode,
         quantity: member.quantity,
         unitPriceCents: member.service.defaultPriceCents,
-        durationMin: member.service.defaultDurationMin,
         billable: true,
       })
     }
@@ -283,7 +286,6 @@ async function syncItems(
       feeCode: item.feeCode,
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
-      durationMin: item.durationMin,
       billable: item.billable,
     }
 
@@ -305,6 +307,7 @@ async function loadActivity(
       id: activity.id,
       contactId: activity.contactId,
       type: activity.type,
+      status: activity.status,
       occurredAt: activity.occurredAt,
       durationMin: activity.durationMin,
       title: activity.title,
@@ -337,6 +340,7 @@ async function loadActivity(
     id: row.id,
     contactId: row.contactId,
     type: row.type,
+    status: row.status,
     occurredAt: row.occurredAt.toISOString(),
     durationMin: row.durationMin,
     title: row.title,
@@ -397,6 +401,7 @@ export async function createActivity(
       tenantId,
       contactId: input.contactId,
       type: input.type,
+      status: input.status,
       occurredAt: new Date(input.occurredAt),
       durationMin: input.durationMin,
       title: input.title,
@@ -451,6 +456,7 @@ export async function updateActivity(
       .set({
         contactId: input.contactId,
         type: input.type,
+        status: input.status,
         occurredAt: new Date(input.occurredAt),
         durationMin: input.durationMin,
         title: input.title,
@@ -530,6 +536,7 @@ export async function listActivities(
   if (query.contactId) filters.push(eq(activity.contactId, query.contactId))
   if (query.from) filters.push(gte(activity.occurredAt, new Date(query.from)))
   if (query.to) filters.push(lt(activity.occurredAt, new Date(query.to)))
+  if (query.status) filters.push(eq(activity.status, query.status))
 
   const rows = await database
     .select({ id: activity.id })

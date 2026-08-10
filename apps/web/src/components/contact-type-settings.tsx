@@ -5,24 +5,13 @@ import type {
   ContactRoleTypeCreate,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { CheckboxField, DeleteButton, OrderButtons } from '@/components/catalogue-controls'
 import { ReadModeFooter } from '@/components/read-mode-footer'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -181,6 +170,8 @@ function RoleTypes() {
                 disabled={type.isSystem}
                 onConfirm={() => remove.mutate(type.id)}
                 hint={type.isSystem ? strings.contactType.systemHint : undefined}
+                title={strings.contactType.deleteTitle}
+                body={strings.contactType.deleteBody}
               />
             </li>
           ))}
@@ -405,6 +396,8 @@ function RelationTypes() {
                 disabled={type.isSystem}
                 onConfirm={() => remove.mutate(type.id)}
                 hint={type.isSystem ? strings.contactType.systemHint : undefined}
+                title={strings.contactType.deleteTitle}
+                body={strings.contactType.deleteBody}
               />
             </li>
           ))}
@@ -555,106 +548,5 @@ function RelationTypeDialog({
         )}
       </DialogContent>
     </Dialog>
-  )
-}
-
-// ----------------------------------------------------------------- both lists
-
-function OrderButtons({
-  index,
-  count,
-  pending,
-  onMove,
-}: {
-  index: number
-  count: number
-  pending: boolean
-  onMove: (index: number, delta: number) => void
-}) {
-  return (
-    <span className="flex">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={strings.contactType.moveUp}
-        disabled={index === 0 || pending}
-        onClick={() => onMove(index, -1)}
-      >
-        <ChevronUp className="size-4" aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={strings.contactType.moveDown}
-        disabled={index === count - 1 || pending}
-        onClick={() => onMove(index, 1)}
-      >
-        <ChevronDown className="size-4" aria-hidden />
-      </Button>
-    </span>
-  )
-}
-
-function DeleteButton({
-  disabled,
-  hint,
-  onConfirm,
-}: {
-  disabled: boolean
-  hint?: string | undefined
-  onConfirm: () => void
-}) {
-  if (disabled) {
-    return (
-      <Button variant="ghost" size="icon" disabled title={hint} aria-label={strings.actions.delete}>
-        <Trash2 className="size-4" aria-hidden />
-      </Button>
-    )
-  }
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={strings.actions.delete}>
-          <Trash2 className="size-4" aria-hidden />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{strings.contactType.deleteTitle}</AlertDialogTitle>
-          <AlertDialogDescription>{strings.contactType.deleteBody}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{strings.actions.cancel}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>{strings.actions.delete}</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-function CheckboxField({
-  id,
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  id: string
-  label: string
-  hint?: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-3">
-        <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-        <Label htmlFor={id} className="font-normal">
-          {label}
-        </Label>
-      </div>
-      {hint && <p className="mt-1 ml-7 text-muted-foreground text-xs">{hint}</p>}
-    </div>
   )
 }

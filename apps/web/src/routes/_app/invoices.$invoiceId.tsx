@@ -1,4 +1,6 @@
 import {
+  activityLabel,
+  activityTypeLabel,
   dueDate,
   formatBerlinDate,
   formatEuro,
@@ -39,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import {
   billableQueryOptions,
@@ -656,6 +659,7 @@ function BillablePicker({
   onAdd: (update: (current: DraftLine[]) => DraftLine[]) => void
 }) {
   const billable = useQuery(billableQueryOptions(contactId))
+  const types = useQuery(activityTypeListQueryOptions(true))
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const items = billable.data ?? []
@@ -692,6 +696,14 @@ function BillablePicker({
             />
             <Label htmlFor={`billable-${item.id}`} className="font-normal">
               {formatBerlinDate(item.occurredAt)} — {item.description}
+              {/* Which activity it came from, for the days that carry more
+                  than one. Its title, or the label of its type. */}
+              <span className="ml-2 text-muted-foreground text-xs">
+                {activityLabel(
+                  { title: item.activityTitle },
+                  activityTypeLabel(types.data, item.activityType),
+                )}
+              </span>
             </Label>
             <span className="ml-auto tabular-nums">
               {item.quantity} × {formatEuro(item.unitPriceCents)}

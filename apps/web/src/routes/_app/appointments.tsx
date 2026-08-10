@@ -1,9 +1,13 @@
 import {
+  activityTypeColor,
+  activityTypeLabel,
+  appointmentStatuses,
   type CalendarEntry,
   formatBerlinTime,
   fromBerlinDateTimeLocal,
   minutesBetween,
   occupiesSlot,
+  readableTextOn,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -15,6 +19,7 @@ import { ActivityDialog } from '@/components/activity-dialog'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { activityQueryOptions, calendarQueryOptions } from '@/lib/activities'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { strings } from '@/lib/strings'
 
 /** Nothing personal in the URL: an anchor date and the view. */
@@ -25,6 +30,9 @@ const searchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   view: z.enum(['week', 'day']).optional(),
+  /** The slot's status. What became of the treatment is the activity's status
+   *  and is filtered on the Vorgänge page, where the list is the record. */
+  status: z.enum(appointmentStatuses).optional(),
 })
 
 export const Route = createFileRoute('/_app/appointments')({
@@ -74,6 +82,16 @@ function CalendarPage() {
       fromBerlinDateTimeLocal(`${firstDay}T00:00`),
       fromBerlinDateTimeLocal(`${lastDay}T00:00`),
     ),
+  )
+  const types = useQuery(activityTypeListQueryOptions(true))
+
+  /**
+   * Filtered here rather than on the server: a week is fetched whole, so this
+   * is instant and costs no round trip. The Vorgänge page does it the other
+   * way round, because that list is paged.
+   */
+  const shown = (entries.data ?? []).filter(
+    (entry) => search.status === undefined || entry.status === search.status,
   )
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -175,6 +193,42 @@ function CalendarPage() {
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap gap-1">
+          {[undefined, ...appointmentStatuses].map((value) => (
+            <Button
+              key={value ?? 'all'}
+              size="sm"
+              variant={search.status === value ? 'default' : 'outline'}
+              onClick={() =>
+                void navigate({ search: (previous) => ({ ...previous, status: value }) })
+              }
+            >
+              {value === undefined
+                ? strings.appointment.allStatuses
+                : strings.appointment.status[value]}
+            </Button>
+          ))}
+        </div>
+
+        {/* The legend, so a colour in the grid can be read without opening an
+            entry. Only the active types — the rest are history. */}
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {(types.data ?? [])
+            .filter((entry) => entry.active)
+            .map((entry) => (
+              <span key={entry.code} className="flex items-center gap-1.5 text-xs">
+                <span
+                  aria-hidden
+                  className="inline-block size-2.5 rounded-full"
+                  style={{ backgroundColor: entry.color }}
+                />
+                {entry.label}
+              </span>
+            ))}
+        </div>
+      </div>
+
       <div className="overflow-x-auto rounded-md border">
         <div className="min-w-[720px]">
           {/* Day headers */}
@@ -229,7 +283,7 @@ function CalendarPage() {
                   />
                 ))}
 
-                {(entries.data ?? [])
+                {shown
                   .filter((entry) => toBerlinDateTimeLocal(entry.startsAt).slice(0, 10) === day)
                   .map((entry) => {
                     const startLocal = toBerlinDateTimeLocal(entry.startsAt)
@@ -249,23 +303,51 @@ function CalendarPage() {
                       Math.max(18, gridHeight - top),
                     )
                     const released = !occupiesSlot(entry.status)
+                    /**
+                     * The colour of the activity's type, with the label in
+                     * whichever of black and white reads on it — see
+                     * `readableTextOn`. A released slot keeps the muted look
+                     * instead: it is struck through, and painting it in the
+                     * type's colour would make it as loud as a live entry.
+                     */
+                    const color = activityTypeColor(types.data, entry.activityType)
+                    const paint = released
+                      ? undefined
+                      : { backgroundColor: color, color: readableTextOn(color), borderColor: color }
 
                     return (
                       <button
                         type="button"
                         key={entry.id}
                         onClick={() => openEntry(entry)}
-                        style={{ top, height }}
+                        style={{ top, height, ...paint }}
                         className={`absolute inset-x-1 overflow-hidden rounded border px-1.5 py-0.5 text-left text-xs ${
                           released
                             ? 'border-dashed bg-muted text-muted-foreground line-through'
-                            : 'border-primary/30 bg-primary/10'
+                            : ''
                         }`}
-                        title={`${strings.appointment.status[entry.status]} — ${entry.contactName}`}
+                        title={[
+                          entry.activityType
+                            ? activityTypeLabel(types.data, entry.activityType)
+                            : null,
+                          strings.appointment.status[entry.status],
+                          entry.activityStatus && entry.activityStatus !== 'planned'
+                            ? strings.activity.statuses[entry.activityStatus]
+                            : null,
+                          entry.contactName,
+                        ]
+                          .filter((part) => part !== null)
+                          .join(' — ')}
                       >
                         <span className="block truncate font-medium">{entry.contactName}</span>
                         <span className="block truncate">
                           {formatBerlinTime(entry.startsAt)}–{formatBerlinTime(entry.endsAt)}
+                          {/* A no-show must not look like an ordinary
+                              appointment: the slot is occupied, but nothing
+                              happened in it. */}
+                          {entry.activityStatus !== null && entry.activityStatus !== 'planned' && (
+                            <> · {strings.activity.statuses[entry.activityStatus]}</>
+                          )}
                         </span>
                       </button>
                     )
@@ -276,7 +358,7 @@ function CalendarPage() {
         </div>
       </div>
 
-      {entries.data?.length === 0 && (
+      {entries.data !== undefined && shown.length === 0 && (
         <p className="mt-3 text-muted-foreground text-sm">{strings.appointment.empty}</p>
       )}
 

@@ -47,6 +47,11 @@ export async function listBillableItems(
       activityId: activityItem.activityId,
       occurredAt: activity.occurredAt,
       activityTitle: activity.title,
+      /** So the picker can fall back to the type's label where the activity
+       *  has no title of its own. The activity's *status* is deliberately not
+       *  here: it does not gate billing (rule 6), and offering it would invite
+       *  a filter that quietly loses revenue. */
+      activityType: activity.type,
       description: activityItem.description,
       feeCode: activityItem.feeCode,
       quantity: activityItem.quantity,

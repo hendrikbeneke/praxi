@@ -13,7 +13,7 @@
  */
 
 import type {
-  ActivityType,
+  ActivityStatus,
   AppointmentStatus,
   ContactKind,
   InvoiceStatus,
@@ -577,6 +577,84 @@ export const serviceGroupItem = pgTable(
 )
 
 /**
+ * The catalogue of activity types (CLAUDE.md rule 6). Maintained by the
+ * practitioner, which is why `activity.type` points at a `code` here through a
+ * composite foreign key rather than being an enum or a check constraint.
+ *
+ * There are no system entries: nothing in the software depends on a particular
+ * activity type existing, unlike `patient` in the role catalogue. A type that
+ * is in use cannot be deleted — the foreign key from `activity` sees to that —
+ * but it can be deactivated.
+ *
+ * The two default columns prefill a new activity and are read exactly once,
+ * when the type is applied. Changing them never reaches an activity that
+ * already exists, for the same reason a service is a template (rule 5).
+ */
+export const activityType = pgTable(
+  'activity_type',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    code: text().notNull(),
+    label: text().notNull(),
+    /** `#rrggbb`. The calendar paints the entry in it and picks black or white
+     *  for the label, whichever reads better — `readableTextOn` in
+     *  `packages/shared/src/color.ts`. */
+    color: text().notNull().default('#64748b'),
+    defaultDurationMin: integer(),
+    defaultServiceId: uuid(),
+    defaultServiceGroupId: uuid(),
+    /** Preselected for a new activity; at most one per tenant. */
+    isDefault: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(0),
+    active: boolean().notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    /**
+     * `RESTRICT` rather than `SET NULL` on both, and deliberately: a service
+     * group *can* be deleted, and a bare `SET NULL` on a composite key nulls
+     * `tenant_id` with it — the trap slice 4 hit on `activity.appointment_id`,
+     * which drizzle-kit cannot express a column list for. Refusing to delete a
+     * group that a type prefills is also the better answer: it names what is
+     * in the way instead of quietly emptying a preset.
+     */
+    foreignKey({
+      columns: [t.defaultServiceId, t.tenantId],
+      foreignColumns: [service.id, service.tenantId],
+      name: 'activity_type_service_tenant_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
+    foreignKey({
+      columns: [t.defaultServiceGroupId, t.tenantId],
+      foreignColumns: [serviceGroup.id, serviceGroup.tenantId],
+      name: 'activity_type_service_group_tenant_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
+    // Also the target of the composite foreign key on `activity`.
+    unique('activity_type_tenant_code_key').on(t.tenantId, t.code),
+    index('activity_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
+    uniqueIndex('activity_type_default_key').on(t.tenantId).where(sql`${t.isDefault}`),
+    check('activity_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
+    check('activity_type_color_shape', sql`${t.color} ~ '^#[0-9a-f]{6}$'`),
+    check(
+      'activity_type_duration_positive',
+      sql`${t.defaultDurationMin} is null or ${t.defaultDurationMin} > 0`,
+    ),
+    /** Either one service or one group, never both: a type that prefills both
+     *  would have to decide an order between them, and nothing needs that. */
+    check(
+      'activity_type_single_preset',
+      sql`num_nonnulls(${t.defaultServiceId}, ${t.defaultServiceGroupId}) <= 1`,
+    ),
+  ],
+)
+
+/**
  * The calendar entry. Separate from the activity and optional: the foreign key
  * sits on `activity`, because the appointment knows nothing about business
  * logic (CLAUDE.md rule 6).
@@ -596,9 +674,15 @@ export const appointment = pgTable(
     contactId: uuid().notNull(),
     startsAt: timestamp({ withTimezone: true }).notNull(),
     endsAt: timestamp({ withTimezone: true }).notNull(),
-    /** Descriptive only — it does not gate billing (rule 6). It does decide
-     *  whether the slot stays occupied; see the exclusion constraint in
-     *  migration 0009. */
+    /**
+     * What became of the **slot**, and nothing else. It does not gate billing
+     * (rule 6); what it does decide is whether the slot stays occupied — see
+     * the exclusion constraint in migration 0009.
+     *
+     * `attended` and `no_show` moved to `activity.status` in slice 7.5: a
+     * no-show is an activity that did not happen in a slot that stayed
+     * occupied, and one column could not say both.
+     */
     status: text().notNull().default('planned').$type<AppointmentStatus>(),
     title: text(),
     note: text(),
@@ -619,7 +703,7 @@ export const appointment = pgTable(
     index('appointment_tenant_starts_idx').on(t.tenantId, t.startsAt),
     check(
       'appointment_status_check',
-      sql`${t.status} in ('planned', 'confirmed', 'attended', 'cancelled', 'cancelled_late', 'no_show')`,
+      sql`${t.status} in ('requested', 'planned', 'confirmed', 'cancelled', 'cancelled_late')`,
     ),
     check('appointment_ends_after_starts', sql`${t.endsAt} > ${t.startsAt}`),
   ],
@@ -637,7 +721,17 @@ export const activity = pgTable(
       .notNull()
       .references(() => tenant.id),
     contactId: uuid().notNull(),
-    type: text().notNull().$type<ActivityType>(),
+    /** The `code` of an `activity_type`, held by a composite foreign key. */
+    type: text().notNull(),
+    /**
+     * What became of the activity. **Descriptive only: it does not gate
+     * billing** (rule 6). Anything in the past can be invoiced whatever this
+     * says, and `domain/billable.ts` does not read it — billability is a
+     * property of the item, `activity_item.billable`.
+     *
+     * Separate from `appointment.status`, which says what became of the slot.
+     */
+    status: text().notNull().default('planned').$type<ActivityStatus>(),
     occurredAt: timestamp({ withTimezone: true }).notNull(),
     /** Descriptive only, and nothing is derived from it. Redundant while there
      *  is an appointment, but an activity documented afterwards has no
@@ -677,18 +771,37 @@ export const activity = pgTable(
     // Target of note's three-column foreign key, so a note cannot hang on the
     // activity of a different contact.
     unique('activity_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
+    /**
+     * The catalogue, per rule 6. `ON UPDATE RESTRICT` has nothing to cascade:
+     * a code is set when the type is created and never changes. `ON DELETE
+     * RESTRICT` is what makes a type that is in use undeletable — the domain
+     * refuses first, so the message is a sentence and not a constraint name.
+     */
+    foreignKey({
+      columns: [t.type, t.tenantId],
+      foreignColumns: [activityType.code, activityType.tenantId],
+      name: 'activity_type_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
     index('activity_tenant_occurred_idx').on(t.tenantId, t.occurredAt),
     index('activity_contact_idx').on(t.contactId, t.occurredAt),
-    check('activity_type_check', sql`${t.type} in ('session', 'talk', 'consultation', 'other')`),
+    index('activity_tenant_status_idx').on(t.tenantId, t.status),
+    check('activity_status_check', sql`${t.status} in ('planned', 'rendered', 'no_show')`),
     check('activity_duration_positive', sql`${t.durationMin} is null or ${t.durationMin} > 0`),
   ],
 )
 
 /**
- * One rendered service within an activity. Description, fee code, price and
- * duration are **copied** from the catalogue at entry time; `service_id`
- * remains only as a record of origin and means nothing for price or text
- * afterwards (CLAUDE.md rule 5).
+ * One rendered service within an activity. Description, fee code and price are
+ * **copied** from the catalogue at entry time; `service_id` remains only as a
+ * record of origin and means nothing for price or text afterwards
+ * (CLAUDE.md rule 5).
+ *
+ * A position has no duration of its own. It had one until slice 7.5 and
+ * nothing ever read it: the length of what happened is `activity.duration_min`,
+ * and where there is a calendar entry that is the interval the appointment
+ * spans.
  *
  * These rows are stable: slice 6 points `invoice_line.activity_item_id` at
  * them, so editing an activity updates rows in place rather than replacing
@@ -713,7 +826,6 @@ export const activityItem = pgTable(
      * is the intended way to grant one.
      */
     unitPriceCents: integer().notNull(),
-    durationMin: integer(),
     /** False for a session that did not happen: the item stays, because it
      *  documents that one was planned, and an Ausfallhonorar is added next to
      *  it (rule 6). */
@@ -736,7 +848,6 @@ export const activityItem = pgTable(
     unique('activity_item_id_tenant_key').on(t.id, t.tenantId),
     index('activity_item_activity_idx').on(t.activityId, t.position),
     check('activity_item_quantity_positive', sql`${t.quantity} > 0`),
-    check('activity_item_duration_positive', sql`${t.durationMin} is null or ${t.durationMin} > 0`),
   ],
 )
 

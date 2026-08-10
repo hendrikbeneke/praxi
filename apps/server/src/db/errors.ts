@@ -58,6 +58,19 @@ export function foreignKeyViolationConstraint(error: unknown): string | null {
   return typeof driver.constraint_name === 'string' ? driver.constraint_name : ''
 }
 
+/** SQLSTATE 23514. */
+const CHECK_VIOLATION = '23514'
+
+/** The name of the violated check constraint, or `null` if this is a different
+ *  error. Used by the tests to assert that a named constraint refused rather
+ *  than something else about the statement. */
+export function checkViolationConstraint(error: unknown): string | null {
+  const driver = driverError(error)
+  if (!driver || driver.code !== CHECK_VIOLATION) return null
+
+  return typeof driver.constraint_name === 'string' ? driver.constraint_name : ''
+}
+
 /** True when two appointments would occupy the same slot — the
  *  `appointment_no_overlap` exclusion constraint from migration 0009. */
 export function isOverlapViolation(error: unknown): boolean {

@@ -2,9 +2,10 @@ import {
   type Activity,
   type ActivityInput,
   type ActivityItemInput,
+  type ActivityStatus,
   type ActivityType,
   type AppointmentStatus,
-  activityTypes,
+  activityStatuses,
   addMinutesToLocal,
   appointmentStatuses,
   formatBerlinDate,
@@ -21,7 +22,7 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
 import { ReadModeFooter } from '@/components/read-mode-footer'
@@ -47,6 +48,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { createActivity, updateActivity } from '@/lib/activities'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import { noteListQueryOptions } from '@/lib/notes'
 import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/services'
@@ -57,9 +59,9 @@ import { strings } from '@/lib/strings'
  *
  * `source` is what decides how it goes back to the server. A row added from
  * the catalogue and not touched since is sent as a reference, so the *server*
- * copies description, fee code, price and duration (CLAUDE.md rule 5, and the
- * rule lives in `domain/`, not here). Editing any of those fields turns it
- * into a `custom` row carrying its own values.
+ * copies description, fee code and price (CLAUDE.md rule 5, and the rule lives
+ * in `domain/`, not here). Editing any of those fields turns it into a
+ * `custom` row carrying its own values.
  */
 type DraftItem = {
   key: string
@@ -70,7 +72,6 @@ type DraftItem = {
   feeCode: string
   quantity: number
   priceText: string
-  durationText: string
   billable: boolean
 }
 
@@ -90,7 +91,6 @@ function fromService(service: Service, quantity: number): DraftItem {
     feeCode: service.feeCode ?? '',
     quantity,
     priceText: formatEuroAmount(service.defaultPriceCents),
-    durationText: service.defaultDurationMin === null ? '' : String(service.defaultDurationMin),
     billable: true,
   }
 }
@@ -105,7 +105,6 @@ function fromStored(item: Activity['items'][number]): DraftItem {
     feeCode: item.feeCode ?? '',
     quantity: item.quantity,
     priceText: formatEuroAmount(item.unitPriceCents),
-    durationText: item.durationMin === null ? '' : String(item.durationMin),
     billable: item.billable,
   }
 }
@@ -125,7 +124,6 @@ function toItemInput(item: DraftItem): ActivityItemInput {
     }
   }
 
-  const duration = Number.parseInt(item.durationText, 10)
   return {
     kind: 'custom',
     ...(item.id ? { id: item.id } : {}),
@@ -134,12 +132,50 @@ function toItemInput(item: DraftItem): ActivityItemInput {
     feeCode: item.feeCode.trim() === '' ? null : item.feeCode.trim(),
     quantity: item.quantity,
     unitPriceCents: draftPriceCents(item),
-    durationMin: Number.isFinite(duration) && duration > 0 ? duration : null,
     billable: item.billable,
   }
 }
 
 const DEFAULT_DURATION_MIN = 50
+
+/** True when a type has anything to prefill at all. Without this, changing to
+ *  a type that prefills nothing would announce that nothing happened. */
+function hasPreset(entry: ActivityType): boolean {
+  return (
+    entry.defaultDurationMin !== null ||
+    entry.defaultServiceId !== null ||
+    entry.defaultServiceGroupId !== null
+  )
+}
+
+/**
+ * The positions a type prefills: its default service, or its default group
+ * resolved into one row per member.
+ *
+ * The resolution happens here, at entry time, exactly as it does when a group
+ * is picked by hand — no group id is ever sent or stored (CLAUDE.md rule 5).
+ * The rows go back as service references, so the server still does the copying.
+ */
+function presetItemsOf(
+  entry: ActivityType,
+  services: readonly Service[],
+  groups: readonly ServiceGroup[],
+): DraftItem[] {
+  if (entry.defaultServiceId !== null) {
+    const service = services.find((candidate) => candidate.id === entry.defaultServiceId)
+    return service ? [fromService(service, 1)] : []
+  }
+
+  if (entry.defaultServiceGroupId !== null) {
+    const group = groups.find((candidate) => candidate.id === entry.defaultServiceGroupId)
+    return (group?.items ?? []).flatMap((member) => {
+      const service = services.find((candidate) => candidate.id === member.serviceId)
+      return service ? [fromService(service, member.quantity)] : []
+    })
+  }
+
+  return []
+}
 
 export function ActivityDialog({
   activity,
@@ -161,11 +197,24 @@ export function ActivityDialog({
 
   const services = useQuery({ ...serviceListQueryOptions(false), enabled: open })
   const groups = useQuery({ ...serviceGroupListQueryOptions(false), enabled: open })
+  // Inactive types come along: an activity entered under one still has to show
+  // its label rather than its bare code. The picker filters them out below.
+  const types = useQuery({ ...activityTypeListQueryOptions(true), enabled: open })
 
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
-  const [type, setType] = useState<ActivityType>('session')
+  const [type, setType] = useState('')
+  const [activityStatus, setActivityStatus] = useState<ActivityStatus>('planned')
   const [occurredAtLocal, setOccurredAtLocal] = useState('')
   const [durationText, setDurationText] = useState('')
+  /**
+   * What a preset last wrote into the duration field, so "has the practitioner
+   * touched this?" is answerable. Applying a type's presets silently is only
+   * allowed while there is nothing of theirs to overwrite.
+   */
+  const [presetDurationText, setPresetDurationText] = useState('')
+  /** Set when a type was chosen whose presets were *not* applied, because
+   *  something would have been overwritten. Shows the line and the button. */
+  const [presetNotice, setPresetNotice] = useState(false)
   const [title, setTitle] = useState('')
   const [internalNote, setInternalNote] = useState('')
   const [items, setItems] = useState<DraftItem[]>([])
@@ -181,11 +230,13 @@ export function ActivityDialog({
   useEffect(() => {
     if (!open) return
     setEditing(activity === undefined)
+    setPresetNotice(false)
 
     if (activity) {
       const start = toBerlinDateTimeLocal(activity.occurredAt)
       setSelectedContactId(activity.contactId)
       setType(activity.type)
+      setActivityStatus(activity.status)
       setOccurredAtLocal(start)
       // With a calendar entry its length wins: that is the interval the
       // calendar and the overlap constraint actually work with, and saving
@@ -203,14 +254,20 @@ export function ActivityDialog({
       setWithAppointment(activity.appointment !== null)
       setStatus(activity.appointment?.status ?? 'planned')
       setAppointmentNote(activity.appointment?.note ?? '')
+      // Nothing here came from a preset, so everything counts as touched.
+      setPresetDurationText('')
       return
     }
 
     const start = startsAtLocal ?? toBerlinDateTimeLocal(new Date().toISOString())
     setSelectedContactId(contactId ?? null)
-    setType('session')
+    // Left empty on purpose: the default type is picked once the catalogue has
+    // arrived, in the effect below, which is also where its presets are drawn.
+    setType('')
+    setActivityStatus('planned')
     setOccurredAtLocal(start)
     setDurationText(String(DEFAULT_DURATION_MIN))
+    setPresetDurationText(String(DEFAULT_DURATION_MIN))
     setTitle('')
     setInternalNote('')
     setItems([])
@@ -218,6 +275,77 @@ export function ActivityDialog({
     setStatus('planned')
     setAppointmentNote('')
   }, [open, activity, contactId, startsAtLocal])
+
+  const typeList = types.data ?? []
+  const currentType = typeList.find((entry) => entry.code === type)
+  /** Active types, plus the one this activity already carries even if it has
+   *  been deactivated since — otherwise opening an old activity would silently
+   *  offer to change its type. */
+  const selectableTypes = typeList.filter((entry) => entry.active || entry.code === type)
+
+  /** Nothing of the practitioner's would be overwritten: no positions, and a
+   *  duration still exactly as a preset left it. */
+  const nothingToOverwrite = items.length === 0 && durationText === presetDurationText
+
+  /** `useCallback` because the effect below depends on it — it changes only
+   *  when the two catalogues it reads do. */
+  const applyPresetOf = useCallback(
+    (entry: ActivityType) => {
+      if (entry.defaultDurationMin !== null) {
+        const text = String(entry.defaultDurationMin)
+        setDurationText(text)
+        setPresetDurationText(text)
+      }
+      const rows = presetItemsOf(entry, services.data ?? [], groups.data ?? [])
+      // Appended, not replaced: pressing the button must not make positions
+      // disappear. On a fresh activity the list is empty, so it is the same.
+      if (rows.length > 0) setItems((current) => [...current, ...rows])
+    },
+    [services.data, groups.data],
+  )
+
+  /**
+   * The default type, drawn once the catalogue has arrived. It cannot happen
+   * in the reset effect above, which runs while the queries are still in
+   * flight, so `type` starts empty and this fills it exactly once per opening.
+   */
+  useEffect(() => {
+    if (!open || activity !== undefined || type !== '') return
+    if (!types.data || !services.data || !groups.data) return
+
+    const chosen =
+      types.data.find((entry) => entry.isDefault && entry.active) ??
+      types.data.find((entry) => entry.active)
+    if (!chosen) return
+
+    setType(chosen.code)
+    applyPresetOf(chosen)
+  }, [open, activity, type, types.data, services.data, groups.data, applyPresetOf])
+
+  /**
+   * Choosing a type by hand.
+   *
+   * The presets are drawn only while there is nothing to overwrite. Once the
+   * activity carries a duration or positions of its own, changing the type
+   * changes **nothing** else, and a line says so with a button next to it —
+   * taking the presets over is then an action with a name rather than a silent
+   * side effect (CLAUDE.md rule 6).
+   */
+  function chooseType(code: string) {
+    setType(code)
+
+    const entry = typeList.find((candidate) => candidate.code === code)
+    if (!entry || !hasPreset(entry)) {
+      setPresetNotice(false)
+      return
+    }
+    if (nothingToOverwrite) {
+      applyPresetOf(entry)
+      setPresetNotice(false)
+      return
+    }
+    setPresetNotice(true)
+  }
 
   /** Fixed for an existing activity, and fixed when the dialog was opened from
    *  a contact. Only the calendar leaves the choice open. */
@@ -244,7 +372,10 @@ export function ActivityDialog({
       : addMinutesToLocal(occurredAtLocal, durationMinutes)
 
   const canSave =
-    targetContactId !== null && occurredAtLocal !== '' && (!withAppointment || endsAtLocal !== null)
+    targetContactId !== null &&
+    type !== '' &&
+    occurredAtLocal !== '' &&
+    (!withAppointment || endsAtLocal !== null)
 
   const mutation = useMutation({
     mutationFn: (input: ActivityInput) =>
@@ -302,6 +433,8 @@ export function ActivityDialog({
     setItems((current) => [...current, ...expanded])
   }
 
+  /** The description starts from the activity's own title where there is one:
+   *  a free position is usually the thing the activity is called. */
   function addFreeItem() {
     setItems((current) => [
       ...current,
@@ -309,22 +442,22 @@ export function ActivityDialog({
         key: nextKey(),
         source: 'custom',
         serviceId: null,
-        description: '',
+        description: title.trim(),
         feeCode: '',
         quantity: 1,
         priceText: '',
-        durationText: '',
         billable: true,
       },
     ])
   }
 
   function submit() {
-    if (targetContactId === null || occurredAtLocal === '') return
+    if (targetContactId === null || type === '' || occurredAtLocal === '') return
 
     mutation.mutate({
       contactId: targetContactId,
       type,
+      status: activityStatus,
       occurredAt: fromBerlinDateTimeLocal(occurredAtLocal),
       durationMin: durationMinutes,
       title: title.trim() === '' ? null : title.trim(),
@@ -374,19 +507,67 @@ export function ActivityDialog({
 
             <div className="sm:col-span-2">
               <Label htmlFor={`${formId}-type`}>{strings.activity.type}</Label>
-              <Select value={type} onValueChange={(value) => setType(value as ActivityType)}>
+              <Select value={type} onValueChange={chooseType}>
                 <SelectTrigger id={`${formId}-type`} className="mt-2 w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {activityTypes.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {strings.activity.types[value]}
+                  {selectableTypes.map((entry) => (
+                    <SelectItem key={entry.code} value={entry.code}>
+                      <span
+                        aria-hidden
+                        className="inline-block size-2.5 rounded-full"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      {entry.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="sm:col-span-2">
+              <Label htmlFor={`${formId}-activity-status`}>{strings.activity.statusLabel}</Label>
+              <Select
+                value={activityStatus}
+                onValueChange={(value) => setActivityStatus(value as ActivityStatus)}
+              >
+                <SelectTrigger id={`${formId}-activity-status`} className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {activityStatuses.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {strings.activity.statuses[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-muted-foreground text-xs">{strings.activity.statusHint}</p>
+            </div>
+
+            {/* The presets were not drawn, because something of the
+                practitioner's would have been overwritten. Say that plainly,
+                and make taking them over an action with a name. */}
+            {presetNotice && currentType && (
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed px-3 py-2 sm:col-span-6">
+                <span className="text-muted-foreground text-sm">
+                  {strings.activity.presetsUnchanged}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    applyPresetOf(currentType)
+                    setPresetNotice(false)
+                    toast.success(strings.activity.presetsApplied)
+                  }}
+                >
+                  {strings.activity.presetsApply}
+                </Button>
+              </div>
+            )}
 
             <div className="sm:col-span-2">
               <Label htmlFor={`${formId}-occurred`}>{strings.activity.occurredAt}</Label>
@@ -445,7 +626,7 @@ export function ActivityDialog({
                 {items.map((item, index) => (
                   <li key={item.key} className="rounded-md border p-3">
                     <div className="grid gap-2 sm:grid-cols-12">
-                      <div className="sm:col-span-5">
+                      <div className="sm:col-span-6">
                         <Label className="text-xs" htmlFor={`${item.key}-description`}>
                           {strings.activity.itemDescription}
                         </Label>
@@ -484,7 +665,7 @@ export function ActivityDialog({
                           }
                         />
                       </div>
-                      <div className="sm:col-span-2">
+                      <div className="sm:col-span-3">
                         <Label className="text-xs" htmlFor={`${item.key}-price`}>
                           {strings.activity.itemPrice}
                         </Label>
@@ -494,19 +675,6 @@ export function ActivityDialog({
                           className="mt-1"
                           value={item.priceText}
                           onChange={(event) => edit(index, { priceText: event.target.value })}
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label className="text-xs" htmlFor={`${item.key}-item-duration`}>
-                          {strings.activity.itemDuration}
-                        </Label>
-                        <Input
-                          id={`${item.key}-item-duration`}
-                          type="number"
-                          min={1}
-                          className="mt-1"
-                          value={item.durationText}
-                          onChange={(event) => edit(index, { durationText: event.target.value })}
                         />
                       </div>
                     </div>
