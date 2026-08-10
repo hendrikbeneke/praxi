@@ -6,9 +6,9 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { ActivityDialog } from '@/components/activity-dialog'
 import { ActivityList } from '@/components/activity-list'
+import { DateField } from '@/components/date-field'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { activityListQueryOptions } from '@/lib/activities'
 import { strings } from '@/lib/strings'
@@ -81,25 +81,23 @@ function ActivitiesPage() {
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div>
           <Label htmlFor="from">{strings.appointment.previous}</Label>
-          <Input
+          <DateField
             id="from"
-            type="date"
             className="mt-2"
             value={from}
-            onChange={(event) =>
-              void navigate({ search: (previous) => ({ ...previous, from: event.target.value }) })
+            onChange={(value: string) =>
+              void navigate({ search: (previous) => ({ ...previous, from: value }) })
             }
           />
         </div>
         <div>
           <Label htmlFor="to">{strings.appointment.next}</Label>
-          <Input
+          <DateField
             id="to"
-            type="date"
             className="mt-2"
             value={to}
-            onChange={(event) =>
-              void navigate({ search: (previous) => ({ ...previous, to: event.target.value }) })
+            onChange={(value: string) =>
+              void navigate({ search: (previous) => ({ ...previous, to: value }) })
             }
           />
         </div>

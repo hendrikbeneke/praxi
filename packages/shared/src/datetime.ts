@@ -10,6 +10,8 @@
  * invoice would say so in print.
  */
 
+import { DISPLAY_LOCALE } from './date-format.js'
+
 export const PRACTICE_TIME_ZONE = 'Europe/Berlin'
 
 const partsFormat = new Intl.DateTimeFormat('en-CA', {
@@ -99,16 +101,16 @@ export function addMinutesToLocal(local: string, minutes: number): string {
   return new Date(parseLocal(local) + minutes * 60_000).toISOString().slice(0, 16)
 }
 
-const dateFormat = new Intl.DateTimeFormat('de-DE', {
+const dateFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   timeZone: PRACTICE_TIME_ZONE,
   dateStyle: 'medium',
 })
-const timeFormat = new Intl.DateTimeFormat('de-DE', {
+const timeFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   timeZone: PRACTICE_TIME_ZONE,
   hour: '2-digit',
   minute: '2-digit',
 })
-const weekdayFormat = new Intl.DateTimeFormat('de-DE', {
+const weekdayFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   timeZone: PRACTICE_TIME_ZONE,
   weekday: 'short',
   day: '2-digit',

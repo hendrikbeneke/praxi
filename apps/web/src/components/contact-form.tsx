@@ -7,8 +7,9 @@ import {
   contactKinds,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { DateField } from '@/components/date-field'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -244,13 +245,33 @@ export function ContactForm({
                   error={errors.lastName && strings.validation.required}
                   {...form.register('lastName')}
                 />
-                <Field
-                  className="sm:col-span-3"
-                  id="dateOfBirth"
-                  type="date"
-                  label={strings.contact.dateOfBirth}
-                  {...form.register('dateOfBirth')}
-                />
+                {/*
+                  The one field that asks for `past`, and the reason is a
+                  property of this field alone: it is the only one that reaches
+                  back far enough for "00–69 means the 2000s" to give a wrong
+                  answer instead of a harmless one. `12.3.46` typed for a
+                  patient born in 1946 would otherwise become 2046, and their
+                  age would be wrong from that moment on. A payment, a session
+                  or an invoice never lies that far back, so they keep the
+                  ordinary rule — and nothing about this belongs anywhere else.
+                  A four-digit year is taken at its word here too.
+                */}
+                <div className="sm:col-span-3">
+                  <Label htmlFor="dateOfBirth">{strings.contact.dateOfBirth}</Label>
+                  <Controller
+                    control={form.control}
+                    name="dateOfBirth"
+                    render={({ field }) => (
+                      <DateField
+                        id="dateOfBirth"
+                        className="mt-2"
+                        twoDigitYear="past"
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
+                </div>
               </>
             ) : (
               <>

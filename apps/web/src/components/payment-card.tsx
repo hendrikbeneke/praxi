@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { DateField } from '@/components/date-field'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import {
   AlertDialog,
@@ -223,13 +224,7 @@ function PaymentDialog({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="payment-date">{strings.payment.paidOn}</Label>
-            <Input
-              id="payment-date"
-              type="date"
-              className="mt-2"
-              value={paidOn}
-              onChange={(event) => setPaidOn(event.target.value)}
-            />
+            <DateField id="payment-date" className="mt-2" value={paidOn} onChange={setPaidOn} />
           </div>
 
           <div>

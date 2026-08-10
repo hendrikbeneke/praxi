@@ -159,6 +159,14 @@ Formatted amounts are never persisted and never cross the API boundary. Cents as
 
 All timestamps `timestamptz`, stored in UTC. Display and input in `Europe/Berlin`. Pure dates (date of birth, invoice date, date of service, payment date) as `date`, not timestamps.
 
+**The written format belongs to the application, not to the browser.** There is no `<input type="date">` and no `<input type="time">` anywhere: they render in the *browser's* language, so on a machine set to en-US the field asks for mm/dd/yyyy under a German label — 07.03. is then a different day than it looks — and a time field offers a twelve-hour clock with AM/PM. Every date goes through `DateField`, every time through `TimeField`, and both speak ISO to everything behind them.
+
+`packages/shared/src/date-format.ts` is the one place that knows the order of the parts, the separator and the notation: `parseDateDE`, `formatDateDE`, `parseTimeDE` and `formatTimeDE` are written against a descriptor and name no format themselves. Translating the application means adding a second descriptor and choosing it there — no field is touched. `Intl` display formatting in `datetime.ts` takes its locale from the same module.
+
+Reading is deliberately tolerant — `13.7.26`, `13/7/2026`, `130726` are one day, `9:5`, `930` and `9.30` are times — and deliberately strict about one thing: **an impossible date is rejected, never rolled over.** `31.02.2026` is `null` and not the third of March, because a date that rolled silently is worse than one that was refused.
+
+A two-digit year means the nearest one: 00–69 this century, 70–99 the last. **The date of birth is the single exception** and passes `twoDigitYear: 'past'`, because it is the only field reaching far enough back for that rule to give a wrong answer instead of a harmless one — `12.3.46` for a patient born in 1946 would otherwise become 2046 and their age would be wrong from then on. A four-digit year is never reinterpreted, in any field.
+
 ### 4. Contacts, kinds, roles and relations
 
 `contact.kind` is `person` or `organization`. It is structural, decides which fields apply, and never changes.

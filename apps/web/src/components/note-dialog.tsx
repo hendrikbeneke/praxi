@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { DateField } from '@/components/date-field'
 import { NoteFiles } from '@/components/note-files'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
@@ -23,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -154,12 +154,11 @@ export function NoteDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor={`${formId}-date`}>{strings.note.noteDate}</Label>
-              <Input
+              <DateField
                 id={`${formId}-date`}
-                type="date"
                 className="mt-2"
                 value={noteDate}
-                onChange={(event) => setNoteDate(event.target.value)}
+                onChange={setNoteDate}
               />
             </div>
 

@@ -28,9 +28,11 @@ import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
+import { DateField } from '@/components/date-field'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
+import { TimeField } from '@/components/time-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -210,7 +212,14 @@ export function ActivityDialog({
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const [type, setType] = useState('')
   const [activityStatus, setActivityStatus] = useState<ActivityStatus>('planned')
-  const [occurredAtLocal, setOccurredAtLocal] = useState('')
+  /**
+   * The day and the time of day are held apart, because they are entered apart
+   * — a native `datetime-local` was one field and rendered in the browser's
+   * language, down to a twelve-hour clock with AM/PM on an en-US machine.
+   * Everything downstream still reads the combined wall-clock string.
+   */
+  const [occurredDate, setOccurredDate] = useState('')
+  const [occurredTime, setOccurredTime] = useState('')
   const [durationText, setDurationText] = useState('')
   /**
    * What a preset last wrote into the duration field, so "has the practitioner
@@ -243,7 +252,8 @@ export function ActivityDialog({
       setSelectedContactId(activity.contactId)
       setType(activity.type)
       setActivityStatus(activity.status)
-      setOccurredAtLocal(start)
+      setOccurredDate(start.slice(0, 10))
+      setOccurredTime(start.slice(11, 16))
       // With a calendar entry its length wins: that is the interval the
       // calendar and the overlap constraint actually work with, and saving
       // writes the same value back to the activity so the two stop drifting.
@@ -271,7 +281,8 @@ export function ActivityDialog({
     // arrived, in the effect below, which is also where its presets are drawn.
     setType('')
     setActivityStatus('planned')
-    setOccurredAtLocal(start)
+    setOccurredDate(start.slice(0, 10))
+    setOccurredTime(start.slice(11, 16))
     setDurationText(String(DEFAULT_DURATION_MIN))
     setPresetDurationText(String(DEFAULT_DURATION_MIN))
     setTitle('')
@@ -371,6 +382,11 @@ export function ActivityDialog({
     parsedDuration <= MAX_APPOINTMENT_MINUTES
       ? parsedDuration
       : null
+
+  /** The two halves back together, and `''` unless both are there — every
+   *  check below already reads that as "no time given yet". */
+  const occurredAtLocal =
+    occurredDate === '' || occurredTime === '' ? '' : `${occurredDate}T${occurredTime}`
 
   const endsAtLocal =
     occurredAtLocal === '' || durationMinutes === null
@@ -577,12 +593,21 @@ export function ActivityDialog({
 
             <div className="sm:col-span-2">
               <Label htmlFor={`${formId}-occurred`}>{strings.activity.occurredAt}</Label>
-              <Input
+              <DateField
                 id={`${formId}-occurred`}
-                type="datetime-local"
                 className="mt-2"
-                value={occurredAtLocal}
-                onChange={(event) => setOccurredAtLocal(event.target.value)}
+                value={occurredDate}
+                onChange={setOccurredDate}
+              />
+            </div>
+
+            <div className="sm:col-span-1">
+              <Label htmlFor={`${formId}-occurred-time`}>{strings.activity.occurredTime}</Label>
+              <TimeField
+                id={`${formId}-occurred-time`}
+                className="mt-2"
+                value={occurredTime}
+                onChange={setOccurredTime}
               />
             </div>
 

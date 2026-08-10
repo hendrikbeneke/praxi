@@ -1020,3 +1020,41 @@ One reported symptom, one audit, one rule.
   values nor through a control that leads nowhere. Same family, same reason.
   Read mode keeps a screen from changing a record by accident; this keeps it
   from inventing one.
+
+## After slice 10 — dates in the application's own format
+
+The native date fields followed the *browser's* language: an en-US machine
+asked for mm/dd/yyyy under German labels, and the `datetime-local` on the
+activity offered a twelve-hour clock with AM/PM.
+
+- **`packages/shared/src/date-format.ts`** holds one descriptor — order,
+  separator, notation — and `parseDateDE` / `formatDateDE` / `parseTimeDE` /
+  `formatTimeDE` are written against it rather than naming a format themselves.
+  A later translation adds a second descriptor and chooses it there; no field
+  is touched. The `Intl` formatters in `datetime.ts` read the locale from the
+  same module, so display and input cannot drift apart.
+- **Tolerant reading, one strictness.** `13.7.26`, `13/7/2026` and `130726` are
+  the same day; `9:5`, `930` and `9.30` are times. But `31.02.2026` is `null`
+  and never the third of March — the same round-trip check `parseLocal` already
+  used, for the same reason: a date that rolled over silently is worse than one
+  that was refused.
+- **Two-digit years and the date of birth.** 00–69 is this century, 70–99 the
+  last — right everywhere except the one field that reaches far enough back for
+  it to be wrong rather than harmless. `12.3.46` for a patient born in 1946
+  would become 2046 and their age would be wrong from then on, so that field
+  alone passes `twoDigitYear: 'past'`. A four-digit year is never
+  reinterpreted, in any field.
+- **The calendar is hand-written**, and month and year are dropdowns rather
+  than something to page to. Entering a date of birth means travelling eight
+  hundred months. Written this way it is the only shape the component has, not
+  an option somebody has to switch on — the same argument as everywhere else in
+  this repository. No new dependency; it is date arithmetic, not a protocol.
+- **The screen and the value never disagree**, which is the rule from the
+  previous commit applied to a field: every keystroke is parsed and reported,
+  and unreadable text emits an empty string rather than leaving the previous
+  date standing behind a field that no longer shows it. The complaint waits for
+  the field to be left, because marking half-typed input as wrong is noise.
+- Replaced: date of birth, note date, payment date, invoice date, date of
+  service per invoice line, the two filters on the activity list, and the
+  activity's date and time — that last one split into two fields, which is what
+  removed the AM/PM clock.

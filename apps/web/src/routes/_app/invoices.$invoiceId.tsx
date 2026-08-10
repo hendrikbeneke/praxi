@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { DateField } from '@/components/date-field'
 import { InvoiceSendDialog, InvoiceSendHistory } from '@/components/invoice-send-dialog'
 import { PageHeader } from '@/components/page-header'
 import { PaymentCard } from '@/components/payment-card'
@@ -369,13 +370,12 @@ function InvoiceDetailPage() {
         <div className="grid gap-4 sm:grid-cols-4">
           <div>
             <Label htmlFor={`${formId}-date`}>{strings.invoice.invoiceDate}</Label>
-            <Input
+            <DateField
               id={`${formId}-date`}
-              type="date"
               className="mt-2"
               disabled={!canEdit}
               value={invoiceDate}
-              onChange={(event) => setInvoiceDate(event.target.value)}
+              onChange={setInvoiceDate}
             />
           </div>
           <div>
@@ -465,13 +465,12 @@ function InvoiceDetailPage() {
                       <Label className="text-xs" htmlFor={`${line.key}-date`}>
                         {strings.invoice.lineDate}
                       </Label>
-                      <Input
+                      <DateField
                         id={`${line.key}-date`}
-                        type="date"
                         className="mt-1"
                         disabled={!canEdit}
                         value={line.dateOfService}
-                        onChange={(event) => patch(index, { dateOfService: event.target.value })}
+                        onChange={(dateOfService) => patch(index, { dateOfService })}
                       />
                     </div>
                     <div className="sm:col-span-2">
