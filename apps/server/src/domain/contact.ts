@@ -4,6 +4,7 @@ import type {
   ContactListItem,
   ContactListQuery,
   ContactRoleInput,
+  ContactUpdate,
 } from '@praxi/shared'
 import type { AnyColumn, SQL } from 'drizzle-orm'
 import {
@@ -70,7 +71,7 @@ function toContact(row: ContactRow, roles: Contact['roles']): Contact {
  * fields of the other kind. The `contact_kind_fields` check constraint rejects
  * anything else, so this is where the two representations meet.
  */
-function columnsFromInput(input: ContactInput) {
+function columnsFromInput(input: ContactUpdate) {
   const shared = {
     vatId: input.vatId,
     street: input.street,
@@ -398,11 +399,17 @@ export async function createContact(
   })
 }
 
+/**
+ * Master data only. Roles are not part of this payload and must not become
+ * part of it again — see the note on `contactUpdateSchema`. They are ticked in
+ * the page header, which saves immediately, and an open form would otherwise
+ * write back the roles as they were when it was opened.
+ */
 export async function updateContact(
   database: Database,
   tenantId: string,
   id: string,
-  input: ContactInput,
+  input: ContactUpdate,
 ): Promise<Contact | null> {
   return database.transaction(async (tx) => {
     const [existing] = await tx
@@ -419,8 +426,28 @@ export async function updateContact(
       .set(columnsFromInput(input))
       .where(and(eq(contact.tenantId, tenantId), eq(contact.id, id)))
 
-    await replaceRoles(tx, tenantId, id, input.roles)
+    return loadContact(tx, tenantId, id)
+  })
+}
 
+/** The one path that changes roles. `since` survives an edit that does not
+ *  touch it, because `replaceRoles` updates in place. */
+export async function setContactRoles(
+  database: Database,
+  tenantId: string,
+  id: string,
+  roles: ContactRoleInput[],
+): Promise<Contact | null> {
+  return database.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: contact.id })
+      .from(contact)
+      .where(and(eq(contact.tenantId, tenantId), eq(contact.id, id)))
+      .limit(1)
+
+    if (!existing) return null
+
+    await replaceRoles(tx, tenantId, id, roles)
     return loadContact(tx, tenantId, id)
   })
 }

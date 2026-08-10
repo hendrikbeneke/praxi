@@ -1,5 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { type Contact, type ContactInput, type ContactKind, contactKinds } from '@praxi/shared'
+import {
+  type Contact,
+  type ContactKind,
+  type ContactRoleInput,
+  type ContactUpdate,
+  contactKinds,
+} from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -48,15 +54,12 @@ const contactFormSchema = z
     email: z.union([z.literal(''), z.email().max(160)]),
     phone: z.string().trim().max(40),
     internalNote: z.string().trim().max(4000),
-    // Only the roles the contact actually holds. The checkbox list is drawn
-    // from the catalogue, which is loaded separately — a role type that is
-    // added tomorrow must show up without this form knowing about it.
-    roles: z.array(
-      z.object({
-        roleCode: z.string(),
-        since: z.union([z.literal(''), z.iso.date()]),
-      }),
-    ),
+    /**
+     * Only filled while creating. On an existing contact the roles are ticked
+     * in the page header, which saves immediately — see the note on
+     * `contactUpdateSchema` for why they must not travel with this form.
+     */
+    roles: z.array(z.object({ roleCode: z.string(), since: z.iso.date() })),
   })
   .superRefine((values, ctx) => {
     // Mirrors the `contact_kind_fields` check constraint, so the practitioner
@@ -74,12 +77,7 @@ type ContactFormOutput = z.output<typeof contactFormSchema>
 
 const emptyToNull = (value: string) => (value === '' ? null : value)
 
-function toContactInput(values: ContactFormOutput): ContactInput {
-  const roles = values.roles.map((entry) => ({
-    roleCode: entry.roleCode,
-    since: emptyToNull(entry.since),
-  }))
-
+function toContactUpdate(values: ContactFormOutput): ContactUpdate {
   const shared = {
     vatId: emptyToNull(values.vatId),
     street: emptyToNull(values.street),
@@ -89,7 +87,6 @@ function toContactInput(values: ContactFormOutput): ContactInput {
     email: emptyToNull(values.email),
     phone: emptyToNull(values.phone),
     internalNote: emptyToNull(values.internalNote),
-    roles,
   }
 
   return values.kind === 'person'
@@ -134,18 +131,32 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     email: contact?.email ?? '',
     phone: contact?.phone ?? '',
     internalNote: contact?.internalNote ?? '',
-    roles:
-      contact?.roles.map((entry) => ({ roleCode: entry.roleCode, since: entry.since ?? '' })) ?? [],
+    roles: [],
   }
 }
 
+/**
+ * The master data of a contact.
+ *
+ * Roles are only part of this form while a contact is being created; on an
+ * existing one they live in the page header, next to the name. Relations never
+ * belong here — they are on the overview.
+ *
+ * `editing` is false by default on an existing contact: the record is read
+ * first and changed rarely, and a page full of live inputs invites a stray
+ * keystroke into a field nobody meant to touch.
+ */
 export function ContactForm({
   contact,
+  editing = true,
   onSubmit,
+  onCancel,
   pending,
 }: {
   contact?: Contact
-  onSubmit: (input: ContactInput) => void
+  editing?: boolean
+  onSubmit: (input: ContactUpdate, roles: ContactRoleInput[]) => void
+  onCancel?: () => void
   pending: boolean
 }) {
   const form = useForm<ContactFormValues, unknown, ContactFormOutput>({
@@ -157,228 +168,239 @@ export function ContactForm({
   const roles = form.watch('roles')
   const errors = form.formState.errors
 
-  /**
-   * Inactive types are loaded as well, but only shown where the contact
-   * already holds one — otherwise saving would silently drop a role that is
-   * simply no longer offered.
-   */
-  const types = useQuery(roleTypeListQueryOptions(true))
-  const roleTypes = (types.data ?? []).filter(
-    (type) => type.active || roles.some((entry) => entry.roleCode === type.code),
-  )
+  const creating = contact === undefined
+  const types = useQuery({ ...roleTypeListQueryOptions(false), enabled: creating })
+  const roleTypes = types.data ?? []
 
   return (
     <form
       className="max-w-3xl space-y-6"
-      onSubmit={form.handleSubmit((values) => onSubmit(toContactInput(values)))}
+      onSubmit={form.handleSubmit((values) => onSubmit(toContactUpdate(values), values.roles))}
       noValidate
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.contact.sectionName}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-6">
-          <div className="sm:col-span-2">
-            <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
-            {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
-            <Select
-              value={kind}
-              onValueChange={(value) => form.setValue('kind', value as ContactKind)}
-              disabled={Boolean(contact)}
-            >
-              <SelectTrigger id="kind" className="mt-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {contactKinds.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {strings.contact.kind[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {contact && (
-              <p className="mt-1 text-muted-foreground text-xs">{strings.contact.kindImmutable}</p>
-            )}
-          </div>
+      <fieldset disabled={!editing} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{strings.contact.sectionName}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-6">
+            <div className="sm:col-span-2">
+              <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
+              {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
+              <Select
+                value={kind}
+                onValueChange={(value) => form.setValue('kind', value as ContactKind)}
+                disabled={Boolean(contact)}
+              >
+                <SelectTrigger id="kind" className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {contactKinds.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {strings.contact.kind[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {contact && (
+                <p className="mt-1 text-muted-foreground text-xs">
+                  {strings.contact.kindImmutable}
+                </p>
+              )}
+            </div>
 
-          {kind === 'person' ? (
-            <>
-              <Field
-                className="sm:col-span-2"
-                id="salutation"
-                label={strings.contact.salutation}
-                list="salutation-options"
-                {...form.register('salutation')}
-              />
-              <datalist id="salutation-options">
-                {strings.contact.salutationOptions.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
-              <Field
-                className="sm:col-span-2"
-                id="title"
-                label={strings.contact.academicTitle}
-                {...form.register('title')}
-              />
-              <Field
-                className="sm:col-span-3"
-                id="firstName"
-                label={strings.contact.firstName}
-                {...form.register('firstName')}
-              />
-              <Field
-                className="sm:col-span-3"
-                id="lastName"
-                label={strings.contact.lastName}
-                error={errors.lastName && strings.validation.required}
-                {...form.register('lastName')}
-              />
-              <Field
-                className="sm:col-span-3"
-                id="dateOfBirth"
-                type="date"
-                label={strings.contact.dateOfBirth}
-                {...form.register('dateOfBirth')}
-              />
-            </>
-          ) : (
-            <>
-              <Field
-                className="sm:col-span-4"
-                id="companyName"
-                label={strings.contact.companyName}
-                error={errors.companyName && strings.validation.required}
-                {...form.register('companyName')}
-              />
-              <Field
-                className="sm:col-span-3"
-                id="contactPerson"
-                label={strings.contact.contactPerson}
-                {...form.register('contactPerson')}
-              />
-            </>
-          )}
-
-          {/* A sole trader is a person and can still have a VAT id. */}
-          <Field
-            className="sm:col-span-3"
-            id="vatId"
-            label={strings.contact.vatId}
-            {...form.register('vatId')}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.contact.roleLabel}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2">
-          {roleTypes.length === 0 && (
-            <p className="text-muted-foreground text-sm">{strings.contact.roleHint}</p>
-          )}
-          {roleTypes.map((type) => {
-            const checked = roles.some((entry) => entry.roleCode === type.code)
-            return (
-              <div key={type.code} className="flex items-center gap-3">
-                <Checkbox
-                  id={`role-${type.code}`}
-                  checked={checked}
-                  onCheckedChange={(value) => {
-                    // "seit" is recorded but not shown: on the day a role is
-                    // ticked, today is the only sensible answer, and a date
-                    // field per role turned the section into a form of its own.
-                    form.setValue(
-                      'roles',
-                      value === true
-                        ? [...roles, { roleCode: type.code, since: todayInBerlin() }]
-                        : roles.filter((entry) => entry.roleCode !== type.code),
-                      { shouldDirty: true },
-                    )
-                  }}
+            {kind === 'person' ? (
+              <>
+                <Field
+                  className="sm:col-span-2"
+                  id="salutation"
+                  label={strings.contact.salutation}
+                  list="salutation-options"
+                  {...form.register('salutation')}
                 />
-                <Label htmlFor={`role-${type.code}`} className="font-normal">
-                  {type.label}
-                  {!type.active && ` (${strings.contact.roleInactive})`}
-                </Label>
-              </div>
-            )
-          })}
-        </CardContent>
-      </Card>
+                <datalist id="salutation-options">
+                  {strings.contact.salutationOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+                <Field
+                  className="sm:col-span-2"
+                  id="title"
+                  label={strings.contact.academicTitle}
+                  {...form.register('title')}
+                />
+                <Field
+                  className="sm:col-span-3"
+                  id="firstName"
+                  label={strings.contact.firstName}
+                  {...form.register('firstName')}
+                />
+                <Field
+                  className="sm:col-span-3"
+                  id="lastName"
+                  label={strings.contact.lastName}
+                  error={errors.lastName && strings.validation.required}
+                  {...form.register('lastName')}
+                />
+                <Field
+                  className="sm:col-span-3"
+                  id="dateOfBirth"
+                  type="date"
+                  label={strings.contact.dateOfBirth}
+                  {...form.register('dateOfBirth')}
+                />
+              </>
+            ) : (
+              <>
+                <Field
+                  className="sm:col-span-4"
+                  id="companyName"
+                  label={strings.contact.companyName}
+                  error={errors.companyName && strings.validation.required}
+                  {...form.register('companyName')}
+                />
+                <Field
+                  className="sm:col-span-3"
+                  id="contactPerson"
+                  label={strings.contact.contactPerson}
+                  {...form.register('contactPerson')}
+                />
+              </>
+            )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.contact.sectionAddress}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-6">
-          <Field
-            className="sm:col-span-6"
-            id="street"
-            label={strings.contact.street}
-            {...form.register('street')}
-          />
-          <Field
-            className="sm:col-span-2"
-            id="postalCode"
-            label={strings.contact.postalCode}
-            {...form.register('postalCode')}
-          />
-          <Field
-            className="sm:col-span-4"
-            id="city"
-            label={strings.contact.city}
-            {...form.register('city')}
-          />
-          <Field
-            className="sm:col-span-2"
-            id="country"
-            label={strings.contact.country}
-            error={errors.country && strings.validation.country}
-            {...form.register('country')}
-          />
-        </CardContent>
-      </Card>
+            {/* A sole trader is a person and can still have a VAT id. */}
+            <Field
+              className="sm:col-span-3"
+              id="vatId"
+              label={strings.contact.vatId}
+              {...form.register('vatId')}
+            />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.contact.sectionContact}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="email"
-            type="email"
-            label={strings.contact.email}
-            error={errors.email && strings.validation.email}
-            {...form.register('email')}
-          />
-          <Field id="phone" type="tel" label={strings.contact.phone} {...form.register('phone')} />
-        </CardContent>
-      </Card>
+        {creating && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{strings.contact.roleLabel}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {roleTypes.length === 0 && (
+                <p className="text-muted-foreground text-sm">{strings.contact.roleHint}</p>
+              )}
+              {roleTypes.map((type) => {
+                const checked = roles.some((entry) => entry.roleCode === type.code)
+                return (
+                  <div key={type.code} className="flex items-center gap-3">
+                    <Checkbox
+                      id={`role-${type.code}`}
+                      checked={checked}
+                      onCheckedChange={(value) => {
+                        // "seit" is recorded but not shown: on the day a role is
+                        // ticked, today is the only sensible answer, and a date
+                        // field per role turned the section into a form of its own.
+                        form.setValue(
+                          'roles',
+                          value === true
+                            ? [...roles, { roleCode: type.code, since: todayInBerlin() }]
+                            : roles.filter((entry) => entry.roleCode !== type.code),
+                          { shouldDirty: true },
+                        )
+                      }}
+                    />
+                    <Label htmlFor={`role-${type.code}`} className="font-normal">
+                      {type.label}
+                    </Label>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{strings.contact.sectionInternal}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Label htmlFor="internalNote">{strings.contact.internalNote}</Label>
-          <Textarea
-            id="internalNote"
-            rows={4}
-            className="mt-2"
-            {...form.register('internalNote')}
-          />
-          <p className="mt-1 text-muted-foreground text-xs">{strings.contact.internalNoteHint}</p>
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{strings.contact.sectionAddress}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-6">
+            <Field
+              className="sm:col-span-6"
+              id="street"
+              label={strings.contact.street}
+              {...form.register('street')}
+            />
+            <Field
+              className="sm:col-span-2"
+              id="postalCode"
+              label={strings.contact.postalCode}
+              {...form.register('postalCode')}
+            />
+            <Field
+              className="sm:col-span-4"
+              id="city"
+              label={strings.contact.city}
+              {...form.register('city')}
+            />
+            <Field
+              className="sm:col-span-2"
+              id="country"
+              label={strings.contact.country}
+              error={errors.country && strings.validation.country}
+              {...form.register('country')}
+            />
+          </CardContent>
+        </Card>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
-          {pending ? strings.contact.saving : strings.contact.save}
-        </Button>
-      </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{strings.contact.sectionContact}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="email"
+              type="email"
+              label={strings.contact.email}
+              error={errors.email && strings.validation.email}
+              {...form.register('email')}
+            />
+            <Field
+              id="phone"
+              type="tel"
+              label={strings.contact.phone}
+              {...form.register('phone')}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{strings.contact.sectionInternal}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Label htmlFor="internalNote">{strings.contact.internalNote}</Label>
+            <Textarea
+              id="internalNote"
+              rows={4}
+              className="mt-2"
+              {...form.register('internalNote')}
+            />
+            <p className="mt-1 text-muted-foreground text-xs">{strings.contact.internalNoteHint}</p>
+          </CardContent>
+        </Card>
+      </fieldset>
+
+      {editing && (
+        <div className="flex justify-end gap-2">
+          {onCancel && (
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
+              {strings.contact.cancel}
+            </Button>
+          )}
+          <Button type="submit" disabled={pending}>
+            {pending ? strings.contact.saving : strings.contact.save}
+          </Button>
+        </div>
+      )}
     </form>
   )
 }

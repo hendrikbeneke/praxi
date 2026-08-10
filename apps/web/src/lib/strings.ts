@@ -175,6 +175,8 @@ export const strings = {
     relationAdded: 'Beziehung hinzugefügt.',
     relationRemoved: 'Beziehung entfernt.',
     relationRemove: 'Entfernen',
+    relationReplace: 'Ersetzen',
+    relationTaken: 'bereits gesetzt',
     relationRemoveTitle: 'Beziehung entfernen?',
     relationRemoveBody:
       'Die Beziehung verschwindet aus beiden Akten. Die Kontakte selbst bleiben unverändert.',
@@ -234,7 +236,36 @@ export const strings = {
       'wiederhergestellt werden. Gelöscht wird nichts.',
     cancel: 'Abbrechen',
 
+    ageYears: (years: number) => `${years} Jahre`,
+    editRoles: 'Rollen bearbeiten',
+    edit: 'Bearbeiten',
+
+    overviewThread: 'Termine und Vorgänge',
+    nextAppointment: 'Nächster Termin',
+    noNextAppointment: 'Kein Termin geplant.',
+    lastActivity: 'Letzter Vorgang',
+    document: 'Dokumentieren',
+    recentActivities: 'Letzte Vorgänge',
+    documented: 'Dokumentiert',
+    notDocumented: 'Nicht dokumentiert',
+    noContactData: 'Keine Kontaktdaten hinterlegt.',
+    billable: 'Abrechenbar',
+    noBillable: 'Nichts offen.',
+    billableCount: (count: number) =>
+      count === 1 ? '1 offene Position' : `${count} offene Positionen`,
+    openDraft: 'Zum Rechnungsentwurf',
+    invoicesFinalized: (count: number) =>
+      count === 1 ? '1 festgeschriebene Rechnung' : `${count} festgeschriebene Rechnungen`,
+    /** Deliberately "fällig seit" and not "überfällig": until slice 8 nothing
+     *  here knows whether an invoice was paid, and the line below says so. */
+    invoicesDue: (count: number) => `${count} fällig seit`,
+    paymentsNotTracked: 'Zahlungen werden noch nicht erfasst.',
+    guardianMissing:
+      'Dieser Kontakt ist noch nicht volljährig, und es ist niemand als sorgeberechtigt ' +
+      'hinterlegt. Sie können das unter „Verknüpfte Kontakte" ergänzen.',
+
     tabs: {
+      overview: 'Übersicht',
       master: 'Stammdaten',
       notes: 'Notizen',
       activities: 'Vorgänge',
@@ -310,6 +341,7 @@ export const strings = {
     createTitle: 'Vorgang anlegen',
     editTitle: 'Vorgang bearbeiten',
     empty: 'Noch keine Vorgänge.',
+    noItems: 'Ohne Leistungen',
 
     type: 'Art',
     types: {

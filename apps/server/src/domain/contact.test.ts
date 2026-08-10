@@ -11,6 +11,7 @@ import {
   getContact,
   listContacts,
   setContactArchived,
+  setContactRoles,
   updateContact,
 } from './contact.js'
 
@@ -161,7 +162,7 @@ describe('updateContact', () => {
   })
 })
 
-describe('roles on update', () => {
+describe('setContactRoles', () => {
   /**
    * The reason existing role rows are updated in place instead of being
    * deleted and reinserted: a save that does not touch a role must not move
@@ -178,12 +179,9 @@ describe('roles on update', () => {
       .from(contactRole)
       .where(eq(contactRole.contactId, created.id))
 
-    const updated = await updateContact(
-      db(),
-      tenantId,
-      created.id,
-      person({ city: 'Musterstadt', roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
-    )
+    const updated = await setContactRoles(db(), tenantId, created.id, [
+      { roleCode: 'patient', since: '2024-03-01' },
+    ])
 
     expect(updated?.roles).toEqual([{ roleCode: 'patient', since: '2024-03-01' }])
 
@@ -204,17 +202,10 @@ describe('roles on update', () => {
       person({ roles: [{ roleCode: 'prospect', since: '2024-03-01' }] }),
     )
 
-    const updated = await updateContact(
-      db(),
-      tenantId,
-      created.id,
-      person({
-        roles: [
-          { roleCode: 'prospect', since: '2024-03-01' },
-          { roleCode: 'patient', since: '2026-08-08' },
-        ],
-      }),
-    )
+    const updated = await setContactRoles(db(), tenantId, created.id, [
+      { roleCode: 'prospect', since: '2024-03-01' },
+      { roleCode: 'patient', since: '2026-08-08' },
+    ])
 
     expect(updated?.roles).toEqual([
       { roleCode: 'patient', since: '2026-08-08' },
@@ -234,12 +225,9 @@ describe('roles on update', () => {
       }),
     )
 
-    const updated = await updateContact(
-      db(),
-      tenantId,
-      created.id,
-      person({ roles: [{ roleCode: 'patient', since: null }] }),
-    )
+    const updated = await setContactRoles(db(), tenantId, created.id, [
+      { roleCode: 'patient', since: null },
+    ])
 
     expect(updated?.roles).toEqual([{ roleCode: 'patient', since: null }])
   })
@@ -251,12 +239,9 @@ describe('roles on update', () => {
       person({ roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
     )
 
-    const updated = await updateContact(
-      db(),
-      tenantId,
-      created.id,
-      person({ roles: [{ roleCode: 'patient', since: '2024-04-01' }] }),
-    )
+    const updated = await setContactRoles(db(), tenantId, created.id, [
+      { roleCode: 'patient', since: '2024-04-01' },
+    ])
 
     expect(updated?.roles).toEqual([{ roleCode: 'patient', since: '2024-04-01' }])
   })
@@ -490,6 +475,46 @@ describe('listContacts, ordered alphabetically', () => {
   it('sorts by contact number when asked', async () => {
     const { items } = await listContacts(db(), tenantId, query({ sort: 'number', dir: 'desc' }))
     expect(items.map((item) => item.contactNumber)).toEqual([2, 1])
+  })
+})
+
+describe('roles have their own path', () => {
+  /** The reason they do: the header saves a role the moment it is ticked,
+   *  while the master data form saves on a button. If roles travelled in the
+   *  form's payload, an open form would write back the roles it was opened
+   *  with. See the note on `contactUpdateSchema`. */
+  it('survive a master data save untouched', async () => {
+    const created = await createContact(
+      db(),
+      tenantId,
+      person({ roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
+    )
+
+    const updated = await updateContact(db(), tenantId, created.id, {
+      kind: 'person',
+      salutation: null,
+      title: null,
+      firstName: 'Erika',
+      lastName: 'Musterfrau',
+      dateOfBirth: null,
+      vatId: null,
+      street: null,
+      postalCode: null,
+      city: 'Musterstadt',
+      country: 'DE',
+      email: null,
+      phone: null,
+      internalNote: null,
+    })
+
+    expect(updated?.city).toBe('Musterstadt')
+    expect(updated?.roles).toEqual([{ roleCode: 'patient', since: '2024-03-01' }])
+  })
+
+  it('report an unknown contact rather than inventing one', async () => {
+    expect(
+      await setContactRoles(db(), tenantId, '019fde08-0000-7000-8000-0000000000ff', []),
+    ).toBeNull()
   })
 })
 

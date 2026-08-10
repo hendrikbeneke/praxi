@@ -60,35 +60,62 @@ const sharedFields = {
     .default(null),
   phone: optionalText(40),
   internalNote: optionalText(4000),
-  roles: rolesField,
+}
+
+const personFields = {
+  kind: z.literal('person'),
+  // Free text, not an enum: "Familie" and "Herr und Frau" have to be
+  // possible, and no letter is generated from this.
+  salutation: optionalText(40),
+  title: optionalText(40),
+  firstName: optionalText(80),
+  lastName: requiredText(80),
+  dateOfBirth: z.iso.date().nullable().default(null),
+}
+
+const organizationFields = {
+  kind: z.literal('organization'),
+  companyName: requiredText(120),
+  contactPerson: optionalText(120),
 }
 
 /**
+ * What may be changed on an existing contact.
+ *
  * A discriminated union rather than one flat object with everything optional,
  * so the shape mirrors the `contact_kind_fields` check constraint exactly: the
  * fields of the other kind cannot even be expressed, let alone sent.
+ *
+ * **`roles` is deliberately absent, and must stay absent.** They are edited in
+ * the page header, which saves the moment a role is ticked, while the master
+ * data form is a form with a save button. If a role travelled in this payload
+ * too, an open form would carry the roles as they were when it was opened and
+ * write them back over anything ticked in the meantime — silently, and only
+ * sometimes. Roles go through `PUT /api/contacts/:id/roles`; nothing else may
+ * touch them.
+ */
+export const contactUpdateSchema = z.discriminatedUnion('kind', [
+  z.object({ ...personFields, ...sharedFields }),
+  z.object({ ...organizationFields, ...sharedFields }),
+])
+
+export type ContactUpdate = z.infer<typeof contactUpdateSchema>
+
+/**
+ * What creating a contact takes. The same fields plus the roles, because at
+ * that moment there is no second place they could be edited from and no race
+ * to lose — "add a new patient" should stay one action.
  */
 export const contactInputSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('person'),
-    // Free text, not an enum: "Familie" and "Herr und Frau" have to be
-    // possible, and no letter is generated from this.
-    salutation: optionalText(40),
-    title: optionalText(40),
-    firstName: optionalText(80),
-    lastName: requiredText(80),
-    dateOfBirth: z.iso.date().nullable().default(null),
-    ...sharedFields,
-  }),
-  z.object({
-    kind: z.literal('organization'),
-    companyName: requiredText(120),
-    contactPerson: optionalText(120),
-    ...sharedFields,
-  }),
+  z.object({ ...personFields, ...sharedFields, roles: rolesField }),
+  z.object({ ...organizationFields, ...sharedFields, roles: rolesField }),
 ])
 
 export type ContactInput = z.infer<typeof contactInputSchema>
+
+/** The body of the roles endpoint — the only way roles change. */
+export const contactRolesInputSchema = z.object({ roles: rolesField })
+export type ContactRolesInput = z.infer<typeof contactRolesInputSchema>
 
 /** What the API returns. Flat, with every field of both kinds present and
  *  `null` where it does not apply. */

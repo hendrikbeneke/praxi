@@ -25,6 +25,16 @@ export const contactRelationInputSchema = z.object({
   direction: relationDirectionSchema,
   otherContactId: z.uuid(),
   since: z.iso.date().nullable().default(null),
+  /**
+   * Take the place of the relation the exclusivity index would collide with,
+   * in one transaction. This is what "Ersetzen" on an exclusive type sends —
+   * remove-then-add from the client would leave the contact without a billing
+   * recipient if the second call failed.
+   *
+   * A type that is not exclusive has no such relation, so nothing extra is
+   * removed and this is an ordinary add.
+   */
+  replace: z.boolean().default(false),
 })
 
 export type ContactRelationInput = z.infer<typeof contactRelationInputSchema>

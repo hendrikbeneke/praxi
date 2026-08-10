@@ -42,7 +42,12 @@ function NewContactPage() {
           </Button>
         }
       />
-      <ContactForm onSubmit={(input) => mutation.mutate(input)} pending={mutation.isPending} />
+      {/* Creating is the one place roles travel with the master data: nothing
+          else can be editing them yet, so there is nothing to overwrite. */}
+      <ContactForm
+        onSubmit={(input, roles) => mutation.mutate({ ...input, roles })}
+        pending={mutation.isPending}
+      />
     </>
   )
 }

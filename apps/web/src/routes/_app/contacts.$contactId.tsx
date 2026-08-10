@@ -1,9 +1,8 @@
 import {
   type Activity,
-  type ContactInput,
+  type ContactUpdate,
   formatBerlinDate,
   formatBerlinTime,
-  formatContactName,
   formatEuro,
   type Note,
   occupiesSlot,
@@ -11,17 +10,18 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, ArrowLeft, Plus, ShieldCheck } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, Pencil, Plus, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { ActivityDialog } from '@/components/activity-dialog'
 import { ActivityList } from '@/components/activity-list'
 import { ContactForm } from '@/components/contact-form'
-import { ContactRelations } from '@/components/contact-relations'
+import { ContactHeader } from '@/components/contact-header'
+import { ContactOverview } from '@/components/contact-overview'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteDialog } from '@/components/note-dialog'
 import { NoteList } from '@/components/note-list'
-import { PageHeader } from '@/components/page-header'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +43,19 @@ import { createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
+/**
+ * The tab lives in the URL so a record can be linked to on the tab that
+ * matters — a note to self, or a jump from the invoice list straight into the
+ * documentation — and so the back button returns to where one was.
+ */
+const tabs = ['overview', 'master', 'notes', 'activities', 'appointments', 'invoices'] as const
+
+const searchSchema = z.object({
+  tab: z.enum(tabs).default('overview'),
+})
+
 export const Route = createFileRoute('/_app/contacts/$contactId')({
+  validateSearch: searchSchema,
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(contactQueryOptions(params.contactId)),
   component: ContactDetailPage,
@@ -51,16 +63,25 @@ export const Route = createFileRoute('/_app/contacts/$contactId')({
 
 function ContactDetailPage() {
   const { contactId } = Route.useParams()
+  const { tab } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
   const queryClient = useQueryClient()
   const { data: contact } = useQuery(contactQueryOptions(contactId))
+
+  /** Master data is read far more often than it is changed, so the page starts
+   *  read-only and a stray keystroke cannot land in a field nobody opened. */
+  const [editing, setEditing] = useState(false)
+  /** The activity the "Dokumentieren" button on the overview points at. */
+  const [documenting, setDocumenting] = useState<Activity | undefined>()
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['contacts'] })
 
   const save = useMutation({
-    mutationFn: (input: ContactInput) => updateContact(contactId, input),
+    mutationFn: (input: ContactUpdate) => updateContact(contactId, input),
     onSuccess: async (saved) => {
       queryClient.setQueryData(contactQueryOptions(contactId).queryKey, saved)
       await invalidate()
+      setEditing(false)
       toast.success(strings.contact.saved)
     },
     onError: (error) => {
@@ -86,13 +107,10 @@ function ContactDetailPage() {
 
   return (
     <>
-      <PageHeader
-        title={formatContactName(contact)}
-        description={`${strings.contact.contactNumber} ${contact.contactNumber}`}
+      <ContactHeader
+        contact={contact}
         actions={
-          <div className="flex items-center gap-2">
-            {isArchived && <Badge variant="secondary">{strings.contact.archivedBadge}</Badge>}
-
+          <>
             {isArchived ? (
               <Button
                 variant="outline"
@@ -131,12 +149,16 @@ function ContactDetailPage() {
                 {strings.actions.back}
               </Link>
             </Button>
-          </div>
+          </>
         }
       />
 
-      <Tabs defaultValue="master">
+      <Tabs
+        value={tab}
+        onValueChange={(next) => void navigate({ search: { tab: next as (typeof tabs)[number] } })}
+      >
         <TabsList>
+          <TabsTrigger value="overview">{strings.contact.tabs.overview}</TabsTrigger>
           <TabsTrigger value="master">{strings.contact.tabs.master}</TabsTrigger>
           <TabsTrigger value="notes">{strings.contact.tabs.notes}</TabsTrigger>
           <TabsTrigger value="activities">{strings.contact.tabs.activities}</TabsTrigger>
@@ -144,20 +166,31 @@ function ContactDetailPage() {
           <TabsTrigger value="invoices">{strings.contact.tabs.invoices}</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="overview" className="pt-6">
+          <ContactOverview contact={contact} onDocument={setDocumenting} />
+        </TabsContent>
+
         <TabsContent value="master" className="space-y-6 pt-6">
-          {/* `key` remounts the form when the server's version changes, so the
-              fields show what was actually stored. */}
+          <div className="flex max-w-3xl justify-end">
+            {!editing && (
+              <Button variant="outline" onClick={() => setEditing(true)}>
+                <Pencil className="size-4" aria-hidden />
+                {strings.contact.edit}
+              </Button>
+            )}
+          </div>
+
+          {/* `key` remounts the form when the stored version changes or when
+              editing is left, so the fields show what was actually stored —
+              that is also what "Abbrechen" relies on. */}
           <ContactForm
-            key={contact.id + (contact.archivedAt ?? '')}
+            key={`${contact.id}${contact.archivedAt ?? ''}${editing}`}
             contact={contact}
+            editing={editing}
             onSubmit={(input) => save.mutate(input)}
+            onCancel={() => setEditing(false)}
             pending={save.isPending}
           />
-
-          {/* Below the form, not inside it: a relation saves on its own. */}
-          <div className="max-w-3xl">
-            <ContactRelations contactId={contactId} />
-          </div>
         </TabsContent>
 
         <TabsContent value="activities" className="pt-6">
@@ -176,6 +209,17 @@ function ContactDetailPage() {
           <ContactInvoices contactId={contactId} />
         </TabsContent>
       </Tabs>
+
+      {/* Opened from the overview, so it lives here rather than in the notes
+          tab — the point is to document without going looking for the tab. */}
+      {documenting && (
+        <NoteDialog
+          contactId={contactId}
+          activityId={documenting.id}
+          open
+          onOpenChange={(next) => !next && setDocumenting(undefined)}
+        />
+      )}
     </>
   )
 }

@@ -77,3 +77,12 @@ export const contactRelationTypeSchema = z.object({
 })
 
 export type ContactRelationType = z.infer<typeof contactRelationTypeSchema>
+
+/**
+ * The system relation types, by code. Logic is allowed to depend on these two
+ * and on nothing else in the catalogue: `guardian` is what the reminder about
+ * a minor without one looks for, `billing_recipient` is who a later slice will
+ * address the invoice to.
+ */
+export const GUARDIAN_RELATION_CODE = 'guardian'
+export const BILLING_RECIPIENT_RELATION_CODE = 'billing_recipient'

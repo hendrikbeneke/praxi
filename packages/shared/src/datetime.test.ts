@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addMinutesToLocal,
+  ageInYears,
   formatBerlinTime,
   formatRelativeBerlin,
   fromBerlinDateTimeLocal,
@@ -128,5 +129,25 @@ describe('formatRelativeBerlin', () => {
 
   it('has a word for right now', () => {
     expect(formatRelativeBerlin('2026-08-24T08:00:20.000Z', now)).toBe('gerade eben')
+  })
+})
+
+describe('ageInYears', () => {
+  const now = new Date('2026-08-24T08:00:00.000Z')
+
+  it('counts the birthday as the day the number goes up', () => {
+    expect(ageInYears('2008-08-24', now)).toBe(18)
+    expect(ageInYears('2008-08-25', now)).toBe(17)
+    expect(ageInYears('2008-08-23', now)).toBe(18)
+  })
+
+  it('does not turn someone a year younger late in the evening', () => {
+    // 00:30 Berlin on their birthday is 22:30 UTC the day before.
+    expect(ageInYears('2008-08-25', new Date('2026-08-24T22:30:00.000Z'))).toBe(18)
+  })
+
+  it('lets a leap-year birthday pass on 1 March in a common year', () => {
+    expect(ageInYears('2008-02-29', new Date('2026-02-28T12:00:00.000Z'))).toBe(17)
+    expect(ageInYears('2008-02-29', new Date('2026-03-01T12:00:00.000Z'))).toBe(18)
   })
 })

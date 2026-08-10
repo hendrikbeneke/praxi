@@ -3,7 +3,9 @@ import type {
   ContactInput,
   ContactListItem,
   ContactListOrder,
+  ContactRoleInput,
   ContactSortField,
+  ContactUpdate,
   SortDirection,
 } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
@@ -72,8 +74,22 @@ export async function createContact(input: ContactInput): Promise<Contact> {
   return res.json()
 }
 
-export async function updateContact(contactId: string, input: ContactInput): Promise<Contact> {
+/** Master data only — roles go through `setContactRoles`, see the note on
+ *  `contactUpdateSchema`. */
+export async function updateContact(contactId: string, input: ContactUpdate): Promise<Contact> {
   const res = await api.api.contacts[':contactId'].$put({ param: { contactId }, json: input })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function setContactRoles(
+  contactId: string,
+  roles: ContactRoleInput[],
+): Promise<Contact> {
+  const res = await api.api.contacts[':contactId'].roles.$put({
+    param: { contactId },
+    json: { roles },
+  })
   if (!res.ok) throw await apiError(res)
   return res.json()
 }

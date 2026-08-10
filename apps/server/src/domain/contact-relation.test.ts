@@ -62,6 +62,7 @@ describe('adding a relation', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
 
     const fromChild = await listRelations(db(), tenantId, child)
@@ -81,6 +82,7 @@ describe('adding a relation', () => {
       direction: 'inverse',
       otherContactId: child,
       since: null,
+      replace: false,
     })
 
     const [row] = await db()
@@ -99,6 +101,7 @@ describe('adding a relation', () => {
         direction: 'forward',
         otherContactId: child,
         since: null,
+        replace: false,
       }),
     ).rejects.toThrow(SelfRelationError)
   })
@@ -122,6 +125,7 @@ describe('adding a relation', () => {
       direction: 'forward' as const,
       otherContactId: mother,
       since: null,
+      replace: false,
     }
     await addRelation(db(), tenantId, child, input)
 
@@ -137,6 +141,7 @@ describe('adding a relation', () => {
         direction: 'forward',
         otherContactId: mother,
         since: null,
+        replace: false,
       }),
     ).rejects.toThrow(UnknownRelationTypeError)
   })
@@ -160,6 +165,7 @@ describe('adding a relation', () => {
         direction: 'forward',
         otherContactId: child,
         since: null,
+        replace: false,
       }),
     ).rejects.toThrow(UnknownRelationTypeError)
   })
@@ -172,6 +178,7 @@ describe('exclusive types', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
 
     await expect(
@@ -180,6 +187,7 @@ describe('exclusive types', () => {
         direction: 'forward',
         otherContactId: father,
         since: null,
+        replace: false,
       }),
     ).rejects.toSatisfy(
       (error: unknown) => uniqueViolationConstraint(error) === 'contact_relation_exclusive_key',
@@ -196,12 +204,14 @@ describe('exclusive types', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
     await addRelation(db(), tenantId, secondChild, {
       relationCode: 'billing_recipient',
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
 
     expect(await listRelations(db(), tenantId, mother)).toHaveLength(2)
@@ -213,12 +223,59 @@ describe('exclusive types', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
     await addRelation(db(), tenantId, child, {
       relationCode: 'guardian',
       direction: 'forward',
       otherContactId: father,
       since: null,
+      replace: false,
+    })
+
+    expect(await listRelations(db(), tenantId, child)).toHaveLength(2)
+  })
+
+  it('are replaced rather than refused when the caller asks for it', async () => {
+    await addRelation(db(), tenantId, child, {
+      relationCode: 'billing_recipient',
+      direction: 'forward',
+      otherContactId: mother,
+      since: null,
+      replace: false,
+    })
+
+    const replaced = await addRelation(db(), tenantId, child, {
+      relationCode: 'billing_recipient',
+      direction: 'forward',
+      otherContactId: father,
+      since: null,
+      replace: true,
+    })
+
+    expect(replaced?.otherContactId).toBe(father)
+
+    const relations = await listRelations(db(), tenantId, child)
+    expect(relations).toHaveLength(1)
+    expect(relations[0]?.otherContactId).toBe(father)
+  })
+
+  /** `replace` removes what the index would collide with, which for a
+   *  non-exclusive type is nothing at all. */
+  it('leave a non-exclusive type alone when replace is set', async () => {
+    await addRelation(db(), tenantId, child, {
+      relationCode: 'guardian',
+      direction: 'forward',
+      otherContactId: mother,
+      since: null,
+      replace: false,
+    })
+    await addRelation(db(), tenantId, child, {
+      relationCode: 'guardian',
+      direction: 'forward',
+      otherContactId: father,
+      since: null,
+      replace: true,
     })
 
     expect(await listRelations(db(), tenantId, child)).toHaveLength(2)
@@ -233,12 +290,14 @@ describe('exclusive types', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
     await addRelation(db(), tenantId, child, {
       relationCode: 'guardian',
       direction: 'forward',
       otherContactId: father,
       since: null,
+      replace: false,
     })
 
     await expect(
@@ -271,6 +330,7 @@ describe('exclusive types', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
 
     await updateRelationType(db(), tenantId, type.id, {
@@ -292,6 +352,7 @@ describe('exclusive types', () => {
         direction: 'forward',
         otherContactId: father,
         since: null,
+        replace: false,
       }),
     ).rejects.toThrow()
   })
@@ -304,6 +365,7 @@ describe('symmetric types', () => {
       direction: 'forward',
       otherContactId: father,
       since: null,
+      replace: false,
     })
 
     // The same fact from the other side must not become a second row.
@@ -313,6 +375,7 @@ describe('symmetric types', () => {
         direction: 'forward',
         otherContactId: mother,
         since: null,
+        replace: false,
       }),
     ).rejects.toSatisfy(
       (error: unknown) => uniqueViolationConstraint(error) === 'contact_relation_pair_key',
@@ -330,6 +393,7 @@ describe('removing a relation', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
     if (!created) throw new Error('the relation was not created')
 
@@ -343,6 +407,7 @@ describe('removing a relation', () => {
       direction: 'forward',
       otherContactId: mother,
       since: null,
+      replace: false,
     })
     if (!created) throw new Error('the relation was not created')
 

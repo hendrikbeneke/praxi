@@ -126,19 +126,45 @@ export async function addRelation(
     ;[fromContactId, toContactId] = [toContactId, fromContactId]
   }
 
-  const [row] = await database
-    .insert(contactRelation)
-    .values({
-      id: newId(),
-      tenantId,
-      fromContactId,
-      toContactId,
-      relationCode: input.relationCode,
-      since: input.since,
-      // `exclusive` is left at its default on purpose — the
-      // `contact_relation_exclusive` trigger fills it from the type.
-    })
-    .returning({ id: contactRelation.id })
+  const row = await database.transaction(async (tx) => {
+    if (input.replace) {
+      /**
+       * Take the place of whatever the exclusivity index would collide with:
+       * same `from` contact, same type, and flagged exclusive. One transaction,
+       * because remove-then-add from the client leaves the contact without a
+       * billing recipient when the second call fails.
+       *
+       * A type that is not exclusive has no such row — `exclusive` is false on
+       * all of its relations — so nothing is removed and this is a plain add.
+       */
+      await tx
+        .delete(contactRelation)
+        .where(
+          and(
+            eq(contactRelation.tenantId, tenantId),
+            eq(contactRelation.fromContactId, fromContactId),
+            eq(contactRelation.relationCode, input.relationCode),
+            eq(contactRelation.exclusive, true),
+          ),
+        )
+    }
+
+    const [inserted] = await tx
+      .insert(contactRelation)
+      .values({
+        id: newId(),
+        tenantId,
+        fromContactId,
+        toContactId,
+        relationCode: input.relationCode,
+        since: input.since,
+        // `exclusive` is left at its default on purpose — the
+        // `contact_relation_exclusive` trigger fills it from the type.
+      })
+      .returning({ id: contactRelation.id })
+
+    return inserted
+  })
 
   if (!row) return null
 

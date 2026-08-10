@@ -136,6 +136,27 @@ export function minutesBetween(startIso: string, endIso: string): number {
   return Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000)
 }
 
+/**
+ * Completed years between a date of birth and today, counted the way a person
+ * counts them: the birthday itself is the day the number goes up.
+ *
+ * Both dates are read as Berlin calendar days. Late in the evening UTC is
+ * already the previous day here, and someone would be a year too young on
+ * their own birthday.
+ */
+export function ageInYears(dateOfBirth: string, now: Date): number {
+  const today = toBerlinDate(now.toISOString())
+
+  const [birthYear, birthMonth, birthDay] = dateOfBirth.split('-').map(Number)
+  const [year, month, day] = today.split('-').map(Number)
+  if (!birthYear || !birthMonth || !birthDay || !year || !month || !day) {
+    throw new Error('not a date')
+  }
+
+  const hadBirthday = month > birthMonth || (month === birthMonth && day >= birthDay)
+  return year - birthYear - (hadBirthday ? 0 : 1)
+}
+
 /** Whole days between two instants, counted in Berlin calendar days rather
  *  than in 24-hour steps — "yesterday" is a day on the wall calendar. */
 function berlinDayDifference(iso: string, now: Date): number {

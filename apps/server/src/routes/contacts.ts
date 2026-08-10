@@ -2,6 +2,8 @@ import {
   contactInputSchema,
   contactListQuerySchema,
   contactRelationInputSchema,
+  contactRolesInputSchema,
+  contactUpdateSchema,
 } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -15,6 +17,7 @@ import {
   getContact,
   listContacts,
   setContactArchived,
+  setContactRoles,
   updateContact,
 } from '../domain/contact.js'
 import {
@@ -95,13 +98,35 @@ export const contactsRoute = new Hono<AppEnv>()
   .put(
     '/:contactId',
     validate('param', contactParam),
-    validate('json', contactInputSchema),
+    validate('json', contactUpdateSchema),
     async (c) => {
       const updated = await updateContact(
         db(),
         tenantId(c),
         c.req.valid('param').contactId,
         c.req.valid('json'),
+      ).catch(translate)
+
+      return updated ? c.json(updated) : notFound()
+    },
+  )
+
+  /**
+   * Roles have their own endpoint because they have their own control: the
+   * header saves the moment one is ticked, while the master data form saves on
+   * a button. Sharing one payload would let the form write back stale roles —
+   * see the note on `contactUpdateSchema`.
+   */
+  .put(
+    '/:contactId/roles',
+    validate('param', contactParam),
+    validate('json', contactRolesInputSchema),
+    async (c) => {
+      const updated = await setContactRoles(
+        db(),
+        tenantId(c),
+        c.req.valid('param').contactId,
+        c.req.valid('json').roles,
       ).catch(translate)
 
       return updated ? c.json(updated) : notFound()
