@@ -11,6 +11,11 @@ import { getEnv } from './env.js'
  * AES-256-GCM with a key from the environment: authenticated, so a tampered
  * ciphertext fails loudly instead of decrypting to garbage.
  *
+ * The environment variable is `ENCRYPTION_KEY`, and the name is the point: it
+ * holds the key things are encrypted *with*, never a credential that is being
+ * protected. It was `SECRET_KEY` until slice 10 — a name that leaves open what
+ * is in it and invites somebody to put a real password there one day.
+ *
  * This lived in `google/crypto.ts` until slice 10. It moved because it is not
  * Google's — a second copy for mail would have been the beginning of two
  * mechanisms that drift.
@@ -25,21 +30,21 @@ const TAG_BYTES = 16
 
 /** A key is 32 bytes as 64 hex characters. `env.ts` checks the shape. */
 function readKey(): Buffer | null {
-  const hex = getEnv().SECRET_KEY
+  const hex = getEnv().ENCRYPTION_KEY
   return hex ? Buffer.from(hex, 'hex') : null
 }
 
-/** Whether a key is configured at all. Without one the areas that need a
- *  secret say "not set up" and refuse to store one; nothing else in the
- *  software cares. */
-export function secretKeyConfigured(): boolean {
+/** Whether a key is configured at all. Without one the areas that need to
+ *  store a credential say "not set up" and refuse to store one; nothing else
+ *  in the software cares. */
+export function encryptionKeyConfigured(): boolean {
   return readKey() !== null
 }
 
-export class MissingSecretKeyError extends Error {
+export class MissingEncryptionKeyError extends Error {
   constructor() {
-    super('SECRET_KEY is not configured')
-    this.name = 'MissingSecretKeyError'
+    super('ENCRYPTION_KEY is not configured')
+    this.name = 'MissingEncryptionKeyError'
   }
 }
 
@@ -50,10 +55,10 @@ export class MissingSecretKeyError extends Error {
  * failure nobody can act on. Nothing is deleted automatically: a key set
  * wrongly by accident must not throw a working connection away.
  */
-export class SecretKeyMismatchError extends Error {
+export class EncryptionKeyMismatchError extends Error {
   constructor() {
     super('the stored refresh token was encrypted with a different key')
-    this.name = 'SecretKeyMismatchError'
+    this.name = 'EncryptionKeyMismatchError'
   }
 }
 
@@ -61,14 +66,14 @@ export class SecretKeyMismatchError extends Error {
  *  far too little to reconstruct one. */
 export function keyFingerprint(): string {
   const key = readKey()
-  if (!key) throw new MissingSecretKeyError()
+  if (!key) throw new MissingEncryptionKeyError()
   return createHash('sha256').update(key).digest('hex').slice(0, 16)
 }
 
 /** `base64(iv | tag | ciphertext)`. */
 export function encryptSecret(plain: string): { cipher: string; fingerprint: string } {
   const key = readKey()
-  if (!key) throw new MissingSecretKeyError()
+  if (!key) throw new MissingEncryptionKeyError()
 
   const iv = randomBytes(IV_BYTES)
   const cipher = createCipheriv(ALGORITHM, key, iv)
@@ -82,10 +87,10 @@ export function encryptSecret(plain: string): { cipher: string; fingerprint: str
 
 export function decryptSecret(stored: string, fingerprint: string): string {
   const key = readKey()
-  if (!key) throw new MissingSecretKeyError()
+  if (!key) throw new MissingEncryptionKeyError()
   // Checked before decrypting, so the common cause is named rather than
   // guessed at from an authentication tag failure.
-  if (fingerprint !== keyFingerprint()) throw new SecretKeyMismatchError()
+  if (fingerprint !== keyFingerprint()) throw new EncryptionKeyMismatchError()
 
   const raw = Buffer.from(stored, 'base64')
   const decipher = createDecipheriv(ALGORITHM, key, raw.subarray(0, IV_BYTES))

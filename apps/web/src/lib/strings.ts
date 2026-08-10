@@ -585,7 +585,7 @@ export const strings = {
       'führende System; der Google-Kalender ist eine Projektion.',
     notConfigured:
       'Nicht eingerichtet. In der Umgebung fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ' +
-      'oder SECRET_KEY.',
+      'oder ENCRYPTION_KEY.',
     notConnected: 'Nicht verbunden.',
     connectedAs: 'Verbunden als',
     connect: 'Mit Google verbinden',
@@ -606,7 +606,7 @@ export const strings = {
     disconnectRemaining: 'Diese Termine stehen weiterhin in Google und müssen von Hand weg:',
     keyMismatch:
       'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. Setzen Sie den ' +
-      'ursprünglichen SECRET_KEY zurück oder verbinden Sie neu.',
+      'ursprünglichen ENCRYPTION_KEY zurück oder verbinden Sie neu.',
     practiceCalendar: 'Praxiskalender',
     practiceCalendarHint:
       'Hierhin werden Termine geschrieben. Am besten ein eigener Kalender, kein privater.',

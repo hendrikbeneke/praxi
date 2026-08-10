@@ -841,7 +841,7 @@ Only once everything above is in daily use. Design constraint: **Google never re
   this slice run offline and assert on the *request* rather than on what a mock
   chose to answer.
 - **A key mismatch is named, not swallowed.** `key_fingerprint` is checked
-  before decrypting, so a changed `GOOGLE_TOKEN_KEY` produces a sentence rather
+  before decrypting, so a changed key produces a sentence rather
   than a GCM tag failure — and nothing is deleted automatically, because a key
   set wrongly by accident must not throw a working connection away.
 
@@ -928,14 +928,18 @@ Settled before the slice starts (CLAUDE.md rule 14):
   message cannot differ. Unknown ones stay standing rather than being emptied,
   and both the server and the dialog name them — the dialog re-scans on every
   keystroke, because the text is editable and one can be typed in by hand.
-- **`GOOGLE_TOKEN_KEY` → `SECRET_KEY`**, and `google/crypto.ts` → `src/secrets.ts`.
-  It is not Google's any more, and a second copy for mail would have been the
-  beginning of two mechanisms that drift. No alias: two names for one thing is
-  ballast whose reason nobody remembers in a year.
+- **`GOOGLE_TOKEN_KEY` → `ENCRYPTION_KEY`**, and `google/crypto.ts` →
+  `src/secrets.ts`. It is not Google's any more, and a second copy for mail
+  would have been the beginning of two mechanisms that drift. No alias and no
+  fallback: two names for one thing is ballast whose reason nobody remembers in
+  a year. The name went through `SECRET_KEY` first and was corrected in the
+  same slice — the value is the key things are encrypted *with*, not a secret
+  being protected, and "secret key" leaves that open in a way that invites a
+  real password to be pasted there. `.env.example` says so in full.
 
 Found while building:
 
-- The tests needed a `SECRET_KEY` to assert that the password is stored
+- The tests needed an `ENCRYPTION_KEY` to assert that the password is stored
   encrypted. Set to a fixed obviously-fake value in `src/test/setup.ts` —
   encryption is arithmetic, not a service, so this needs nothing running and
   breaks no rule about network calls.

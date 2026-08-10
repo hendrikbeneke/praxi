@@ -17,7 +17,7 @@ import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
-import { SecretKeyMismatchError } from '../secrets.js'
+import { EncryptionKeyMismatchError } from '../secrets.js'
 import { fileStore } from '../storage.js'
 
 const invoiceParam = z.object({ invoiceId: z.uuid() })
@@ -55,7 +55,7 @@ export const invoiceSendRoute = new Hono<AppEnv>()
       const invoiceId = c.req.valid('param').invoiceId
 
       const smtp = await loadSmtpConfig(db(), tenant).catch((error: unknown) => {
-        if (error instanceof SecretKeyMismatchError) {
+        if (error instanceof EncryptionKeyMismatchError) {
           throw new HTTPException(409, { message: messages.smtp.keyMismatch })
         }
         throw error

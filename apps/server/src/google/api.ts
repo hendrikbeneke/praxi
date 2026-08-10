@@ -32,7 +32,7 @@ export function forgetAccessToken(tenantId: string): void {
  * usable without Google.
  *
  * A key mismatch is *not* swallowed: `decryptSecret` throws
- * `SecretKeyMismatchError`, and the caller turns that into a sentence.
+ * `EncryptionKeyMismatchError`, and the caller turns that into a sentence.
  */
 export async function openGoogleApi(
   database: Database,

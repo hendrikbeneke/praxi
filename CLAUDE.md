@@ -340,7 +340,7 @@ Everything else follows from "projection":
 
 **A draft cannot be sent**, guarded the same way a draft cannot be paid: `domain/invoice-send.ts` refuses first for the message, and the foreign key against a finalized document makes the state unreachable.
 
-Secrets are one mechanism, not two: `src/secrets.ts` (AES-256-GCM, key in `SECRET_KEY`) encrypts the SMTP password and the Google refresh token alike. It lived in `google/crypto.ts` until this slice and moved because it is not Google's.
+Secrets are one mechanism, not two: `src/secrets.ts` (AES-256-GCM) encrypts the SMTP password and the Google refresh token alike. It lived in `google/crypto.ts` until this slice and moved because it is not Google's. The environment variable is **`ENCRYPTION_KEY`**, and the name carries a rule: it holds the key things are encrypted *with*, never a credential being protected. It was `SECRET_KEY` briefly and `GOOGLE_TOKEN_KEY` before that — "secret key" leaves open what is in it and invites a real password to be pasted there one day. Nothing that a human would otherwise remember belongs in the environment; those are entered in the application and stored encrypted.
 
 ## Target data model
 

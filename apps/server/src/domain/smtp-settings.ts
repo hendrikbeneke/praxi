@@ -5,7 +5,12 @@ import { smtpSettings } from '../db/schema.js'
 import { newId } from '../id.js'
 import type { MailAddress } from '../mail/message.js'
 import type { SmtpConfig } from '../mail/transport.js'
-import { decryptSecret, encryptSecret, keyFingerprint, secretKeyConfigured } from '../secrets.js'
+import {
+  decryptSecret,
+  encryptionKeyConfigured,
+  encryptSecret,
+  keyFingerprint,
+} from '../secrets.js'
 
 /**
  * The SMTP account, stored and read back.
@@ -46,7 +51,7 @@ export async function getSmtpSettings(
     // Google connection does it.
     keyMismatch:
       row.keyFingerprint !== null &&
-      secretKeyConfigured() &&
+      encryptionKeyConfigured() &&
       row.keyFingerprint !== keyFingerprint(),
   }
 }
@@ -113,7 +118,7 @@ export async function deleteSmtpSettings(database: Database, tenantId: string): 
  * What the transport needs, password decrypted. The only path the plain
  * password takes, and it ends at the SMTP connection.
  *
- * A key that no longer matches surfaces as `SecretKeyMismatchError` from
+ * A key that no longer matches surfaces as `EncryptionKeyMismatchError` from
  * `decryptSecret`, which the route turns into a sentence.
  */
 export async function loadSmtpConfig(

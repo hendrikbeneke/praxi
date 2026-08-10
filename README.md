@@ -102,8 +102,12 @@ Calendar API, add an OAuth client of type *Desktop app*, and put its id and
 secret plus a key for the token store into `.env`:
 
 ```bash
-openssl rand -hex 32      # SECRET_KEY
+openssl rand -hex 32      # ENCRYPTION_KEY
 ```
+
+`ENCRYPTION_KEY` is the key credentials are encrypted *with*, not a credential
+itself — no password of yours belongs in it. It covers the Google refresh token
+and the SMTP password alike.
 
 Then connect under *Einstellungen → Google-Kalender* and pick a practice
 calendar — ideally one of its own, not a private one.
@@ -122,7 +126,7 @@ an appointment — pulling the network cable breaks nothing.
 
 Optional and off until configured. The SMTP account is entered under
 *Einstellungen → Mailversand* — it is configuration, not deployment, so it does
-not live in `.env`. The password is encrypted at rest with `SECRET_KEY`, the
+not live in `.env`. The password is encrypted at rest with `ENCRYPTION_KEY`, the
 same mechanism as the Google refresh token.
 
 The **test send goes to the configured sender address and nowhere else**. There

@@ -41,16 +41,20 @@ const envSchema = z.object({
    * except the Google area works, without a single one of them. The settings
    * then say "not set up" rather than offering a button that cannot work.
    *
-   * `SECRET_KEY` encrypts the refresh token at rest — 32 bytes as 64 hex
-   * characters, generated with `openssl rand -hex 32`. Losing it does not lose
-   * data; it costs one reconnect.
+   * `ENCRYPTION_KEY` is the key every stored credential is encrypted *with* —
+   * the Google refresh token and the SMTP password — not a credential itself.
+   * 32 bytes as 64 hex characters, generated once with `openssl rand -hex 32`
+   * and never typed by a human. Losing it does not lose data; it costs one
+   * reconnect and one re-entered password. It is used by `src/secrets.ts` and
+   * is listed here, in the Google block, only because that slice needed it
+   * first.
    *
    * `GOOGLE_REDIRECT_URI` is the only thing that changes on a server
    * deployment. Everything else in this software is relative.
    */
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
-  SECRET_KEY: z
+  ENCRYPTION_KEY: z
     .string()
     .regex(/^[0-9a-f]{64}$/, 'must be 64 hex characters')
     .optional(),

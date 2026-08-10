@@ -191,9 +191,9 @@ export const messages = {
       'Es ist kein Mailkonto hinterlegt. Bitte richten Sie es in den Einstellungen ein.',
     keyMismatch:
       'Der hinterlegte Schlüssel passt nicht zum gespeicherten Passwort. ' +
-      'Setzen Sie den ursprünglichen SECRET_KEY zurück oder tragen Sie das Passwort neu ein.',
-    secretKeyMissing:
-      'Ohne SECRET_KEY in der Umgebung kann kein Passwort gespeichert werden. ' +
+      'Setzen Sie den ursprünglichen ENCRYPTION_KEY zurück oder tragen Sie das Passwort neu ein.',
+    encryptionKeyMissing:
+      'Ohne ENCRYPTION_KEY in der Umgebung kann kein Passwort gespeichert werden. ' +
       'Siehe .env.example.',
     saved: 'Mailkonto gespeichert.',
   },
@@ -221,14 +221,14 @@ export const messages = {
   google: {
     notConfigured:
       'Die Google-Anbindung ist nicht eingerichtet. ' +
-      'Es fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET oder SECRET_KEY in der Umgebung.',
+      'Es fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET oder ENCRYPTION_KEY in der Umgebung.',
     notConnected: 'Es besteht keine Verbindung zu Google.',
     noCalendar: 'Es ist kein Praxiskalender ausgewählt.',
     // The key changed under a stored token. Nothing is deleted automatically:
     // a key set wrongly by accident must not throw a connection away.
     keyMismatch:
       'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. ' +
-      'Setzen Sie den ursprünglichen SECRET_KEY zurück oder verbinden Sie neu.',
+      'Setzen Sie den ursprünglichen ENCRYPTION_KEY zurück oder verbinden Sie neu.',
     authExpired: 'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.',
     unreachable: 'Google ist nicht erreichbar. Die Änderung wurde trotzdem gespeichert.',
     stateInvalid:

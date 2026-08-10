@@ -50,7 +50,7 @@ export const GOOGLE_SCOPES = [
  *  work. */
 export function oauthConfigured(): boolean {
   const env = getEnv()
-  return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.SECRET_KEY)
+  return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.ENCRYPTION_KEY)
 }
 
 /**

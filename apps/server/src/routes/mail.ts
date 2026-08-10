@@ -23,16 +23,16 @@ import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
-import { MissingSecretKeyError, SecretKeyMismatchError } from '../secrets.js'
+import { EncryptionKeyMismatchError, MissingEncryptionKeyError } from '../secrets.js'
 
 const templateParam = z.object({ templateId: z.uuid() })
 
 /** The two secret-store failures deserve a sentence rather than a 500. */
 function translate(error: unknown): never {
-  if (error instanceof MissingSecretKeyError) {
-    throw new HTTPException(409, { message: messages.smtp.secretKeyMissing })
+  if (error instanceof MissingEncryptionKeyError) {
+    throw new HTTPException(409, { message: messages.smtp.encryptionKeyMissing })
   }
-  if (error instanceof SecretKeyMismatchError) {
+  if (error instanceof EncryptionKeyMismatchError) {
     throw new HTTPException(409, { message: messages.smtp.keyMismatch })
   }
   if (uniqueViolationConstraint(error) === 'email_template_tenant_name_key') {

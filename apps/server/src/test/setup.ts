@@ -30,7 +30,7 @@ process.env.LOG_LEVEL ??= 'fatal'
  * service, so testing it needs nothing running. It never leaves this process
  * and never encrypts anything real.
  */
-process.env.SECRET_KEY = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
+process.env.ENCRYPTION_KEY = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
 
 const databaseName = workerDatabaseName()
 const migrationsFolder = fileURLToPath(new URL('../db/migrations', import.meta.url))

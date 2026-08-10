@@ -12,7 +12,12 @@ import type { GoogleApi } from '../google/client.js'
 import { isNotFound } from '../google/client.js'
 import { oauthConfigured, revokeToken } from '../google/oauth.js'
 import { newId } from '../id.js'
-import { decryptSecret, encryptSecret, keyFingerprint, secretKeyConfigured } from '../secrets.js'
+import {
+  decryptSecret,
+  encryptionKeyConfigured,
+  encryptSecret,
+  keyFingerprint,
+} from '../secrets.js'
 import { countQueue, listPushedEvents } from './google-sync.js'
 
 /**
@@ -61,7 +66,7 @@ export async function saveConnection(
 }
 
 export async function getStatus(database: Database, tenantId: string): Promise<GoogleStatus> {
-  const configured = oauthConfigured() && secretKeyConfigured()
+  const configured = oauthConfigured() && encryptionKeyConfigured()
 
   const [row] = await database
     .select()
@@ -82,7 +87,7 @@ export async function getStatus(database: Database, tenantId: string): Promise<G
     // A stored token encrypted with a different key than the one configured
     // now. Named rather than left to fail at an authentication tag.
     keyMismatch:
-      row !== undefined && secretKeyConfigured() && row.keyFingerprint !== keyFingerprint(),
+      row !== undefined && encryptionKeyConfigured() && row.keyFingerprint !== keyFingerprint(),
     accountEmail: row?.accountEmail ?? null,
     calendarId: row?.calendarId ?? null,
     freebusyCalendarIds: row?.freebusyCalendarIds ?? [],
