@@ -15,6 +15,7 @@
 import type {
   ActivityStatus,
   AppointmentStatus,
+  ContactGender,
   ContactKind,
   InvoiceStatus,
   InvoiceType,
@@ -218,6 +219,17 @@ export const contact = pgTable(
     firstName: text(),
     lastName: text(),
     dateOfBirth: date({ mode: 'string' }),
+    birthPlace: text(),
+    /**
+     * `female | male | diverse`, the three entries German civil status law
+     * knows; NULL is "not recorded" and is at the same time the fourth state
+     * the law has, "no entry". Text with a named check rather than a pgEnum,
+     * because the set may change again.
+     *
+     * The salutation is NOT derived from this — "Familie" and "Herr und Frau"
+     * stay possible, so it remains free text beside this column.
+     */
+    gender: text().$type<ContactGender>(),
 
     // organization
     companyName: text(),
@@ -226,11 +238,16 @@ export const contact = pgTable(
     // both — a sole trader is a person and can still have a VAT id
     vatId: text(),
     street: text(),
+    /** Its own column, not part of the street. `formatStreetLine()` in
+     *  packages/shared puts the two together for the screen and the invoice
+     *  alike — one implementation, so a document reads like what was checked. */
+    houseNumber: text(),
     postalCode: text(),
     city: text(),
     country: text().notNull().default('DE'),
     email: text(),
-    phone: text(),
+    phoneMobile: text(),
+    phoneLandline: text(),
     internalNote: text(),
     archivedAt: timestamp({ withTimezone: true }),
 
@@ -272,7 +289,12 @@ export const contact = pgTable(
           and ${t.salutation} is null and ${t.title} is null
           and ${t.firstName} is null and ${t.lastName} is null
           and ${t.dateOfBirth} is null
+          and ${t.birthPlace} is null and ${t.gender} is null
       )`,
+    ),
+    check(
+      'contact_gender_values',
+      sql`${t.gender} is null or ${t.gender} in ('female', 'male', 'diverse')`,
     ),
   ],
 )

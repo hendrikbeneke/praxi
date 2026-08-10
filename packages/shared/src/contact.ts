@@ -11,6 +11,24 @@ export const contactKindSchema = z.enum(contactKinds)
 export type ContactKind = z.infer<typeof contactKindSchema>
 
 /**
+ * The three entries German civil status law knows since 2018. Text with a
+ * named check constraint rather than a `pgEnum`, because the set may well
+ * change again.
+ *
+ * There is deliberately no `unspecified`: "no entry" is `null`, and a fourth
+ * value beside it would be a second way of saying almost the same thing. The
+ * two would eventually disagree.
+ *
+ * **The salutation is not derived from this and never will be.** "Familie" and
+ * "Herr und Frau" have to stay possible, so it remains free text beside this
+ * field (CLAUDE.md rule 4). The German labels live in `strings.ts`; nothing
+ * reads a value to a person.
+ */
+export const contactGenders = ['female', 'male', 'diverse'] as const
+export const contactGenderSchema = z.enum(contactGenders)
+export type ContactGender = z.infer<typeof contactGenderSchema>
+
+/**
  * Roles are separate from `kind` and there can be several per contact: a
  * prospect who becomes a patient, someone who is both a patient and a course
  * participant (CLAUDE.md rule 4).
@@ -44,6 +62,9 @@ const sharedFields = {
   // restricted to organizations.
   vatId: optionalText(40),
   street: optionalText(120),
+  // Its own field, not part of the street. `formatStreetLine` puts the two
+  // back together for the screen and the invoice alike.
+  houseNumber: optionalText(20),
   postalCode: optionalText(16),
   city: optionalText(80),
   country: z
@@ -58,7 +79,8 @@ const sharedFields = {
     .transform((value) => (value === '' ? null : value))
     .nullable()
     .default(null),
-  phone: optionalText(40),
+  phoneMobile: optionalText(40),
+  phoneLandline: optionalText(40),
   internalNote: optionalText(4000),
 }
 
@@ -71,6 +93,8 @@ const personFields = {
   firstName: optionalText(80),
   lastName: requiredText(80),
   dateOfBirth: z.iso.date().nullable().default(null),
+  birthPlace: optionalText(120),
+  gender: contactGenderSchema.nullable().default(null),
 }
 
 const organizationFields = {
@@ -128,15 +152,19 @@ export const contactSchema = z.object({
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   dateOfBirth: z.string().nullable(),
+  birthPlace: z.string().nullable(),
+  gender: contactGenderSchema.nullable(),
   companyName: z.string().nullable(),
   vatId: z.string().nullable(),
   contactPerson: z.string().nullable(),
   street: z.string().nullable(),
+  houseNumber: z.string().nullable(),
   postalCode: z.string().nullable(),
   city: z.string().nullable(),
   country: z.string(),
   email: z.string().nullable(),
-  phone: z.string().nullable(),
+  phoneMobile: z.string().nullable(),
+  phoneLandline: z.string().nullable(),
   internalNote: z.string().nullable(),
   archivedAt: z.iso.datetime().nullable(),
   roles: z.array(z.object({ roleCode: z.string(), since: z.string().nullable() })),

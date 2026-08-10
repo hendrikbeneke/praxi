@@ -197,6 +197,13 @@
       "when": 1786366336872,
       "tag": "0027_mail_triggers_and_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786366337872,
+      "tag": "0028_contact_person_fields",
+      "breakpoints": true
     }
   ]
 }

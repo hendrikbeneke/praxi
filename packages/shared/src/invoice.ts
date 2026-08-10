@@ -26,12 +26,21 @@ export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>
  * `name` is produced by `formatContactName`, the same function the screen
  * uses, so the stored name reads exactly like the one that was checked before
  * finalizing.
+ *
+ * **Every field here is optional with a default, and that is a property of a
+ * snapshot rather than a concession to old rows.** What is stored is what the
+ * contact looked like at the moment of finalizing. When the contact schema
+ * grows a field afterwards — `houseNumber` did — every snapshot written before
+ * that simply does not have the key, and reading it must produce the same
+ * document it produced on the day it was issued. This holds after going live
+ * as much as before it.
  */
 export const recipientSnapshotSchema = z.object({
   contactNumber: z.number().int(),
   name: z.string(),
   contactPerson: z.string().nullable().default(null),
   street: z.string().nullable().default(null),
+  houseNumber: z.string().nullable().default(null),
   postalCode: z.string().nullable().default(null),
   city: z.string().nullable().default(null),
   country: z.string(),

@@ -1058,3 +1058,46 @@ activity offered a twelve-hour clock with AM/PM.
   service per invoice line, the two filters on the activity list, and the
   activity's date and time — that last one split into two fields, which is what
   removed the AM/PM clock.
+
+## Slice 10.5 — contact fields for a person, and the address split
+
+Migration `0028_contact_person_fields`. Everything added is optional; nothing
+became `NOT NULL`.
+
+- **`gender`**, `text` with the named check `contact_gender_values`, values
+  `female | male | diverse` — the three entries German civil status law knows
+  since 2018. There is deliberately no `unspecified`: "no entry" is the fourth
+  state the law has and it is already `NULL`, so a value beside it would be a
+  second way of saying almost the same thing and the two would drift. The
+  German labels live in `strings.ts` and are never derived from the value.
+- **The salutation is not derived from it and will not be.** "Familie" and
+  "Herr und Frau" have to stay possible, so it remains free text in its own
+  column. Said in the schema, in the migration's `COMMENT` and in the Zod
+  schema, because this is exactly the shortcut somebody takes later.
+- **`birth_place`**, and both are person fields: `contact_kind_fields` was
+  replaced (DROP/ADD in one migration) so an organization must have them
+  `NULL`, like the salutation and the date of birth.
+- **`house_number` is its own column.** The address line is assembled by
+  `formatStreetLine()` in `packages/shared`, the same function on screen and in
+  the invoice PDF — the argument of `formatContactName()` one field further: a
+  document has to read like what was checked before it was issued.
+- **`recipient_snapshot` gained a nullable `houseNumber`**, and the test that
+  covers it is about the model, not about old data: a snapshot holds what the
+  contact looked like at finalization, so every field the contact schema grows
+  afterwards is a key older snapshots do not have. Reading one has to produce
+  the document it produced that day. This does not stop being true after go-
+  live, and the test says so in as many words so it is not narrowed to a
+  null-check during some cleanup.
+- **`phone` became `phone_mobile` and `phone_landline`**, with nothing carried
+  over — the development database held no phone number at all, and until go-
+  live a row that no longer fits a schema change is deleted rather than nursed
+  along in a migration.
+- `meta/0028_snapshot.json` is hand-written beside the migration, derived from
+  0026. drizzle-kit cannot generate the `phone` split without an interactive
+  answer to "renamed or dropped", and without a snapshot the next `generate`
+  would emit these columns a second time. `drizzle-kit generate` now reports no
+  drift.
+
+Checked and unchanged: the contact list shows only the city, the search covers
+first, last and company name and the contact number but never a phone number,
+and the mail send resolves an email address alone.

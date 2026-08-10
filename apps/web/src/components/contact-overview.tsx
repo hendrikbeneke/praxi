@@ -8,6 +8,7 @@ import {
   formatBerlinDateTime,
   formatEuro,
   formatRelativeBerlin,
+  formatStreetLine,
   GUARDIAN_RELATION_CODE,
   invoicePaymentState,
   toBerlinDate,
@@ -91,7 +92,9 @@ function GuardianHint({ contact }: { contact: Contact }) {
 }
 
 function ContactDetails({ contact }: { contact: Contact }) {
-  const hasAddress = contact.street || contact.postalCode || contact.city
+  const streetLine = formatStreetLine(contact)
+  const hasAddress = streetLine !== null || contact.postalCode || contact.city
+  const hasPhone = contact.phoneMobile !== null || contact.phoneLandline !== null
 
   return (
     <Card>
@@ -99,10 +102,21 @@ function ContactDetails({ contact }: { contact: Contact }) {
         <CardTitle>{strings.contact.sectionContact}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
-        {contact.phone && (
+        {/* Labelled, because which of the two it is decides whether one
+            calls or writes. */}
+        {contact.phoneMobile && (
           <p>
-            <a className="underline underline-offset-2" href={`tel:${contact.phone}`}>
-              {contact.phone}
+            <span className="text-muted-foreground">{strings.contact.phoneMobile} </span>
+            <a className="underline underline-offset-2" href={`tel:${contact.phoneMobile}`}>
+              {contact.phoneMobile}
+            </a>
+          </p>
+        )}
+        {contact.phoneLandline && (
+          <p>
+            <span className="text-muted-foreground">{strings.contact.phoneLandline} </span>
+            <a className="underline underline-offset-2" href={`tel:${contact.phoneLandline}`}>
+              {contact.phoneLandline}
             </a>
           </p>
         )}
@@ -115,14 +129,14 @@ function ContactDetails({ contact }: { contact: Contact }) {
         )}
         {hasAddress && (
           <address className="not-italic text-muted-foreground">
-            {contact.street && <div>{contact.street}</div>}
+            {streetLine && <div>{streetLine}</div>}
             <div>
               {[contact.postalCode, contact.city].filter(Boolean).join(' ')}
               {contact.country !== 'DE' && ` · ${contact.country}`}
             </div>
           </address>
         )}
-        {!contact.phone && !contact.email && !hasAddress && (
+        {!hasPhone && !contact.email && !hasAddress && (
           <p className="text-muted-foreground">{strings.contact.noContactData}</p>
         )}
       </CardContent>

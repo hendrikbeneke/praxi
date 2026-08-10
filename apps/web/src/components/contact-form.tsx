@@ -4,6 +4,8 @@ import {
   type ContactKind,
   type ContactRoleInput,
   type ContactUpdate,
+  contactGenderSchema,
+  contactGenders,
   contactKinds,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -42,10 +44,14 @@ const contactFormSchema = z
     firstName: z.string().trim().max(80),
     lastName: z.string().trim().max(80),
     dateOfBirth: z.union([z.literal(''), z.iso.date()]),
+    birthPlace: z.string().trim().max(120),
+    // `''` is "not recorded", which is what NULL means in the column too.
+    gender: z.union([z.literal(''), contactGenderSchema]),
     companyName: z.string().trim().max(120),
     contactPerson: z.string().trim().max(120),
     vatId: z.string().trim().max(40),
     street: z.string().trim().max(120),
+    houseNumber: z.string().trim().max(20),
     postalCode: z.string().trim().max(16),
     city: z.string().trim().max(80),
     country: z
@@ -54,7 +60,8 @@ const contactFormSchema = z
       .toUpperCase()
       .regex(/^[A-Z]{2}$/),
     email: z.union([z.literal(''), z.email().max(160)]),
-    phone: z.string().trim().max(40),
+    phoneMobile: z.string().trim().max(40),
+    phoneLandline: z.string().trim().max(40),
     internalNote: z.string().trim().max(4000),
     /**
      * Only filled while creating. On an existing contact the roles are ticked
@@ -79,15 +86,22 @@ type ContactFormOutput = z.output<typeof contactFormSchema>
 
 const emptyToNull = (value: string) => (value === '' ? null : value)
 
+/** A Radix select item cannot carry an empty value, so "not recorded" needs a
+ *  token of its own on the way through the dropdown. It is folded back to `''`
+ *  immediately, and to `null` on submit. */
+const NO_GENDER = 'none'
+
 function toContactUpdate(values: ContactFormOutput): ContactUpdate {
   const shared = {
     vatId: emptyToNull(values.vatId),
     street: emptyToNull(values.street),
+    houseNumber: emptyToNull(values.houseNumber),
     postalCode: emptyToNull(values.postalCode),
     city: emptyToNull(values.city),
     country: values.country,
     email: emptyToNull(values.email),
-    phone: emptyToNull(values.phone),
+    phoneMobile: emptyToNull(values.phoneMobile),
+    phoneLandline: emptyToNull(values.phoneLandline),
     internalNote: emptyToNull(values.internalNote),
   }
 
@@ -99,6 +113,8 @@ function toContactUpdate(values: ContactFormOutput): ContactUpdate {
         firstName: emptyToNull(values.firstName),
         lastName: values.lastName,
         dateOfBirth: emptyToNull(values.dateOfBirth),
+        birthPlace: emptyToNull(values.birthPlace),
+        gender: values.gender === '' ? null : values.gender,
         ...shared,
       }
     : {
@@ -123,15 +139,19 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     firstName: contact?.firstName ?? '',
     lastName: contact?.lastName ?? '',
     dateOfBirth: contact?.dateOfBirth ?? '',
+    birthPlace: contact?.birthPlace ?? '',
+    gender: contact?.gender ?? '',
     companyName: contact?.companyName ?? '',
     contactPerson: contact?.contactPerson ?? '',
     vatId: contact?.vatId ?? '',
     street: contact?.street ?? '',
+    houseNumber: contact?.houseNumber ?? '',
     postalCode: contact?.postalCode ?? '',
     city: contact?.city ?? '',
     country: contact?.country ?? 'DE',
     email: contact?.email ?? '',
-    phone: contact?.phone ?? '',
+    phoneMobile: contact?.phoneMobile ?? '',
+    phoneLandline: contact?.phoneLandline ?? '',
     internalNote: contact?.internalNote ?? '',
     roles: [],
   }
@@ -272,6 +292,41 @@ export function ContactForm({
                     )}
                   />
                 </div>
+
+                <div className="sm:col-span-3">
+                  <Label htmlFor="gender">{strings.contact.gender}</Label>
+                  <Controller
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value === '' ? NO_GENDER : field.value}
+                        onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
+                      >
+                        <SelectTrigger id="gender" className="mt-2 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Not recorded is a value one can pick back, not
+                              only a state one starts in. */}
+                          <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
+                          {contactGenders.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {strings.contact.genders[value]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+
+                <Field
+                  className="sm:col-span-3"
+                  id="birthPlace"
+                  label={strings.contact.birthPlace}
+                  {...form.register('birthPlace')}
+                />
               </>
             ) : (
               <>
@@ -346,10 +401,18 @@ export function ContactForm({
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-6">
             <Field
-              className="sm:col-span-6"
+              className="sm:col-span-4"
               id="street"
               label={strings.contact.street}
               {...form.register('street')}
+            />
+            {/* Its own field. The two are put back together for display by
+                `formatStreetLine`, on screen and on the invoice alike. */}
+            <Field
+              className="sm:col-span-2"
+              id="houseNumber"
+              label={strings.contact.houseNumber}
+              {...form.register('houseNumber')}
             />
             <Field
               className="sm:col-span-2"
@@ -386,10 +449,16 @@ export function ContactForm({
               {...form.register('email')}
             />
             <Field
-              id="phone"
+              id="phoneMobile"
               type="tel"
-              label={strings.contact.phone}
-              {...form.register('phone')}
+              label={strings.contact.phoneMobile}
+              {...form.register('phoneMobile')}
+            />
+            <Field
+              id="phoneLandline"
+              type="tel"
+              label={strings.contact.phoneLandline}
+              {...form.register('phoneLandline')}
             />
           </CardContent>
         </Card>

@@ -108,6 +108,7 @@ export function recipientSnapshotOf(row: typeof contact.$inferSelect): Recipient
     name: formatContactName(row),
     contactPerson: row.contactPerson,
     street: row.street,
+    houseNumber: row.houseNumber,
     postalCode: row.postalCode,
     city: row.city,
     country: row.country,

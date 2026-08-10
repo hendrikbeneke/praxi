@@ -417,20 +417,40 @@ session               tenant_id uuid not null -> tenant(id),
                       unique index on (token_hash)
                       index on (user_id), index on (expires_at)
 
--- as built (slice 2)
+-- as built (slice 2), person fields and the address split in slice 10.5
 contact               tenant_id uuid not null -> tenant(id),
                       contact_number integer not null check (>= 1),
                       kind contact_kind not null                (pgEnum:
                         -- person | organization; structural, never changes)
                       -- person
                       salutation, title, first_name, last_name  (text, nullable)
-                      date_of_birth date,
+                        -- salutation stays free text and is NEVER derived from
+                        -- `gender`: "Familie" and "Herr und Frau" have to be
+                        -- possible, and nothing here generates a letter.
+                      date_of_birth date, birth_place text,
+                      gender text                               -- female |
+                        -- male | diverse, the three entries German civil status
+                        -- law knows. NULL means not recorded and is at the same
+                        -- time the fourth state the law has, "no entry" — which
+                        -- is why there is deliberately no `unspecified` value
+                        -- beside it. text + named check, not an enum: the set
+                        -- has changed once already.
                       -- organization
                       company_name, contact_person              (text, nullable)
                       -- both: a sole trader is a person and can have a VAT id
                       vat_id, street, postal_code, city         (text, nullable)
+                      house_number text,                        -- its own
+                        -- column, not part of the street. The address line is
+                        -- assembled by formatStreetLine() in packages/shared,
+                        -- shared by the screen and the invoice PDF, so a
+                        -- document reads like what was checked before it.
                       country text not null default 'DE',
-                      email, phone, internal_note               (text, nullable)
+                      email, internal_note                      (text, nullable)
+                      phone_mobile, phone_landline              (text, nullable)
+                        -- two columns since slice 10.5, because which of them
+                        -- it is decides whether one calls or writes. There was
+                        -- one `phone` before; nothing carried it over, the
+                        -- development database held none.
                       archived_at timestamptz                   (soft delete;
                         -- there is no hard delete path)
                       sort_name text generated always as (
@@ -451,7 +471,10 @@ contact               tenant_id uuid not null -> tenant(id),
                                         company_name/contact_person null
                         organization => company_name not null,
                                         salutation/title/first_name/
-                                        last_name/date_of_birth null)
+                                        last_name/date_of_birth/
+                                        birth_place/gender null)
+                      check contact_gender_values (
+                        gender is null or in ('female','male','diverse'))
 
 -- as built (slice 6.5)
 contact_role_type     tenant_id uuid not null -> tenant(id),
@@ -905,7 +928,15 @@ invoice               tenant_id uuid not null -> tenant(id),
                       payment_term_days integer not null
                         check (between 0 and 365),
                       recipient_snapshot jsonb,       -- formatContactName(),
-                        -- the same function the screen uses
+                        -- the same function the screen uses. EVERY key in it is
+                        -- optional with a default, and that is the model rather
+                        -- than a concession to old rows: a snapshot holds what
+                        -- the contact looked like at finalization, so when the
+                        -- contact schema grows a field — house_number did in
+                        -- 10.5 — older snapshots simply do not carry the key and
+                        -- have to render the document they rendered then. True
+                        -- after go-live as much as before it; asserted in
+                        -- contact-address.test.ts.
                       intro_text, outro_text          (text, nullable)
                         -- plain text, not a reference to a text_template: a
                         -- foreign key to a mutable table on an immutable row

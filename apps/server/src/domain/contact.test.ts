@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { contact, contactRole } from '../db/schema.js'
+import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import {
@@ -44,13 +45,17 @@ function person(overrides: Partial<Extract<ContactInput, { kind: 'person' }>> = 
     firstName: 'Erika',
     lastName: 'Musterfrau',
     dateOfBirth: null,
+    birthPlace: null,
+    gender: null,
     vatId: null,
     street: null,
+    houseNumber: null,
     postalCode: null,
     city: null,
     country: 'DE',
     email: null,
-    phone: null,
+    phoneMobile: null,
+    phoneLandline: null,
     internalNote: null,
     roles: [],
     ...overrides,
@@ -66,11 +71,13 @@ function organization(
     contactPerson: null,
     vatId: null,
     street: null,
+    houseNumber: null,
     postalCode: null,
     city: null,
     country: 'DE',
     email: null,
-    phone: null,
+    phoneMobile: null,
+    phoneLandline: null,
     internalNote: null,
     roles: [],
     ...overrides,
@@ -132,6 +139,64 @@ describe('createContact', () => {
 
     const next = await createContact(db(), tenantId, person())
     expect(next.contactNumber).toBe(2)
+  })
+
+  it('stores the person fields', async () => {
+    const created = await createContact(
+      db(),
+      tenantId,
+      person({
+        gender: 'diverse',
+        birthPlace: 'Musterstadt',
+        street: 'Musterweg',
+        houseNumber: '12a',
+        phoneMobile: '0170 0000000',
+        phoneLandline: '030 0000000',
+      }),
+    )
+
+    expect(created.gender).toBe('diverse')
+    expect(created.birthPlace).toBe('Musterstadt')
+    expect(created.houseNumber).toBe('12a')
+    expect(created.phoneMobile).toBe('0170 0000000')
+    expect(created.phoneLandline).toBe('030 0000000')
+  })
+
+  /**
+   * Text with a named check rather than a pgEnum, because the set may change
+   * again — but the database still refuses anything outside it, so a value
+   * that reached it past the Zod schema cannot be stored.
+   */
+  it('refuses a gender outside the three values', async () => {
+    await expect(
+      createContact(db(), tenantId, person({ gender: 'unknown' as never })),
+    ).rejects.toThrow()
+  })
+
+  /** `kind` decides which fields apply: gender and birth place belong to a
+   *  person, exactly like the salutation and the date of birth. */
+  it('refuses person fields on an organization', async () => {
+    await expect(
+      db().insert(contact).values({
+        id: newId(),
+        tenantId,
+        contactNumber: 900,
+        kind: 'organization',
+        companyName: 'Beispiel GmbH',
+        gender: 'female',
+      }),
+    ).rejects.toThrow()
+
+    await expect(
+      db().insert(contact).values({
+        id: newId(),
+        tenantId,
+        contactNumber: 901,
+        kind: 'organization',
+        companyName: 'Beispiel GmbH',
+        birthPlace: 'Musterstadt',
+      }),
+    ).rejects.toThrow()
   })
 })
 
@@ -507,13 +572,17 @@ describe('roles have their own path', () => {
       firstName: 'Erika',
       lastName: 'Musterfrau',
       dateOfBirth: null,
+      birthPlace: null,
+      gender: null,
       vatId: null,
       street: null,
+      houseNumber: null,
       postalCode: null,
       city: 'Musterstadt',
       country: 'DE',
       email: null,
-      phone: null,
+      phoneMobile: null,
+      phoneLandline: null,
       internalNote: null,
     })
 

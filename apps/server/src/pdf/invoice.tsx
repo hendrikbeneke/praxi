@@ -1,5 +1,10 @@
-import type { Invoice, RecipientSnapshot } from '@praxi/shared'
-import { dueDate, formatEuro } from '@praxi/shared'
+import {
+  dueDate,
+  formatEuro,
+  formatStreetLine,
+  type Invoice,
+  type RecipientSnapshot,
+} from '@praxi/shared'
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import { ADDRESS_FIELD, CONTENT, INFO_BLOCK, MARKS, mmToPt } from './din5008.js'
 
@@ -109,7 +114,10 @@ function AddressBlock({ recipient }: { recipient: RecipientSnapshot }) {
   const lines = [
     recipient.name,
     recipient.contactPerson,
-    recipient.street,
+    // Street and house number as one line, by the same function the contact
+    // overview uses. A snapshot written before `houseNumber` existed has none
+    // and comes out exactly as it did then.
+    formatStreetLine(recipient),
     [recipient.postalCode, recipient.city].filter(Boolean).join(' ') || null,
     recipient.country === 'DE' ? null : recipient.country,
   ].filter((line): line is string => Boolean(line?.trim()))
