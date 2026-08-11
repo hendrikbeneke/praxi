@@ -1,0 +1,62 @@
+/* Source Sans 3, self-hosted — no CDN (CLAUDE.md rule 12). Variable font,
+   weight axis covers 400–600 in one file per subset, mirroring exactly what
+   Google Fonts itself serves for this family; downloaded once and vendored
+   under src/assets/fonts rather than fetched at runtime. */
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../assets/fonts/source-sans-3-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../assets/fonts/source-sans-3-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(98.2% 0.005 85);
+  --foreground: oklch(25% 0.012 62);
+  --card: oklch(99.6% 0.003 85);
+  --card-foreground: oklch(25% 0.012 62);
+  --popover: oklch(99.6% 0.003 85);
+  --popover-foreground: oklch(25% 0.012 62);
+  --primary: oklch(37% 0.028 253);
+  --primary-foreground: oklch(98.6% 0.004 85);
+  --secondary: oklch(95.2% 0.008 82);
+  --secondary-foreground: oklch(31% 0.014 62);
+  --muted: oklch(96.4% 0.006 82);
+  --muted-foreground: oklch(52% 0.014 66);
+  --accent: oklch(94.4% 0.009 80);
+  --accent-foreground: oklch(27% 0.013 62);
+  --destructive: oklch(51% 0.15 27);
+  --border: oklch(90.2% 0.008 80);
+  --input: oklch(87.5% 0.009 80);
+  --ring: oklch(58% 0.03 253);
+  --radius: 0.5rem;
+  --font-sans:
+    "Source Sans 3", "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+body {
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+}
+table,
+input,
+[data-slot="badge"] {
+  font-variant-numeric: tabular-nums;
+}
