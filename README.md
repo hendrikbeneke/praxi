@@ -4,15 +4,17 @@ Practice management software for a German *Heilpraktiker für Psychotherapie*
 practice. One practitioner, one tenant, running locally on a Mac.
 
 `CLAUDE.md` holds the architecture, the domain rules and the target data model.
-`WORKPLAN.md` holds the slice order and the current progress.
+`WORKPLAN.md` holds the slice order and the current progress. `DEPLOY.md`
+holds the production deployment steps.
 
 ## Requirements
 
 - **Node 24 LTS** — the exact version is pinned in `.nvmrc`
 - **pnpm 11** — `corepack enable` is enough, the version is pinned in
   `package.json` under `packageManager`
-- **Docker** — for Postgres 17 only; the application itself is never
-  containerised
+- **Docker** — for Postgres 17 locally; the application itself is not
+  containerised for development, only for the production deployment
+  described in `DEPLOY.md`
 
 ## Setup
 

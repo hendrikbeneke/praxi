@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,6 +9,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 
 /** The archive confirmation from the contact detail screen
  *  (`routes/_app/contacts.$contactId.tsx`): archiving is a soft delete, so

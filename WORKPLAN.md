@@ -19,6 +19,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 8 | Payments and receivables | **done** |
 | 9 | Google Calendar sync | **done** |
 | 10 | Sending invoices by email | **done** |
+| 11 | Deployment via Coolify | **done** |
 
 ---
 
@@ -1177,6 +1178,92 @@ with the invoice lines — the argument of `paidCents` in slice 8.
   not a comparison after the fact — an effect that read the fields it writes
   would fight with typing.
 
+## Slice 11 — Deployment via Coolify
+
+Infrastructure only — no schema, no domain rule, no UI. Gets praxi running on
+a netcup root server through a self-hosted Coolify instance, deployed
+straight from this GitHub repository. Coolify builds the `Dockerfile` at the
+repository root and brings its own reverse proxy and TLS; Postgres is a
+separate Coolify database resource, not part of any application-level
+compose file. `DEPLOY.md` holds the step-by-step path from an empty server to
+a running instance.
+
+Explicitly out of scope, as instructed before planning: multi-tenancy, RLS,
+registration, rate limiting, backups — all separate, most of them already
+tracked under "Before going live" below.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **Multi-stage `Dockerfile`**, `node:24-alpine`, running as the image's
+  built-in `node` user rather than root. A `deps` stage installs the full
+  workspace including devDependencies for building; a separate `prod-deps`
+  stage runs `pnpm install --prod --frozen-lockfile --filter @praxi/server...`
+  so the runtime image only ever contains `@praxi/server`'s and
+  `@praxi/shared`'s production dependencies — `apps/web` needs no runtime
+  footprint at all, its build output is the static files already written
+  into `apps/server/public`. Considered `pnpm deploy` for this and rejected
+  it: without a `"files"` field it packs by the same rules as `npm pack`,
+  which falls back to `.gitignore` — and `dist/` and `public/` are both
+  gitignored, so `pnpm deploy` would silently ship an image without its own
+  build output.
+- **Migrations run as the first step of the container's own start sequence**
+  (`CMD` chains `node apps/server/dist/db/migrate.js && exec node
+  apps/server/dist/index.js`), not through Coolify's pre- or
+  post-deployment command hooks. Read from Coolify's own source
+  (`ApplicationDeploymentJob.php`) before deciding: the pre-deployment hook
+  execs into the *previous* container before the new image is even built —
+  skipped entirely on a first deployment, and on any later one it would run
+  against the *old* code's migration files, never the new ones. The
+  post-deployment hook does run in the new container, but only after
+  traffic has already switched to it and the deployment is already marked
+  finished; a failing command there is caught and only logged as a warning.
+  Neither gives "run with the new code, before it takes traffic, and hard-fail
+  the deployment if it doesn't apply" — the container's own startup does, for
+  free, through the health check Coolify already gates traffic-switching on.
+  `apps/server/src/db/migrate.ts` calls `drizzle-orm`'s own
+  `postgres-js/migrator` programmatically rather than shelling out to
+  `drizzle-kit migrate`, so `drizzle-kit` never has to be a production
+  dependency for the sake of one function `drizzle-orm` already exports.
+- **`ENCRYPTION_KEY` is generated once on the server and never reused from
+  local `.env`, and never regenerated on a later redeploy** — losing it
+  makes the stored Google refresh token and SMTP password permanently
+  undecryptable with the new key. Documented as its own section in
+  `DEPLOY.md`, not just a table row, because "regenerate all secrets on
+  redeploy" is a reasonable habit from other projects that would quietly
+  break this one.
+- **A new Google OAuth client of type Web application**, alongside the
+  existing local Desktop client rather than replacing it. No code change —
+  `google/oauth.ts` already takes `redirect_uri` from the
+  `GOOGLE_REDIRECT_URI` environment variable — but a Desktop client only
+  ever accepts a loopback redirect, so it cannot be pointed at a public
+  HTTPS URL at all; only a Web client with that URI registered in "Authorized
+  redirect URIs" works.
+- **`GET /api/health` stays exactly as it is** — no database round-trip
+  added for Coolify's check. `verifyDatabaseConnection()` already fails the
+  process at startup when Postgres is unreachable (`index.ts`), so a
+  per-request DB check on the health path would repeat that same guarantee,
+  potentially every few seconds, for no new information.
+- **Postgres runs as Coolify's standard managed database resource**, not a
+  custom container — confirmed against Coolify's source
+  (`StandalonePostgresql`) that an arbitrary `POSTGRES_INITDB_ARGS`
+  environment variable is honoured on that resource, the same mechanism
+  `docker-compose.yml` already uses locally for
+  `--locale-provider=icu --icu-locale=de-DE`. Only takes effect on an empty
+  data directory, so it has to be set before the very first start.
+- **Squashing the migration history into a `pg_dump` baseline stays
+  deferred**, moved into "Before going live" below rather than done in this
+  slice. This deployment is the infrastructure step, not the point at which
+  real patient data starts flowing through the system — that gate already
+  has its own, still-open checklist, and squashing is a one-way door
+  (history becomes unreconstructable) with no benefit before then.
+- Verified locally before anything touched the server: `docker build`, then
+  `docker run` against the local Postgres — migration applied cleanly (29
+  migrations), `/api/health` answered 200, the Docker `HEALTHCHECK` turned
+  healthy, the container ran as `node` rather than root, `DATA_DIR` was
+  writable, and `SIGTERM` reached the server directly (`exec` in the `CMD`
+  chain hands it PID 1) for a clean shutdown instead of the default
+  10-second kill timeout.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
@@ -1213,3 +1300,12 @@ each line names the reason, not the solution.
   the law requires it for a time — nothing today marks when that time is up or
   removes anything afterwards, and keeping health data longer than the purpose
   allows is its own breach.
+- **Squash the migration history into a single `pg_dump --schema-only`
+  baseline**, per the rule under Conventions in `CLAUDE.md`. Deliberately not
+  done for the Coolify deployment in slice 11 — that slice is the
+  infrastructure step, not the point real patient data starts flowing
+  through the system, and squashing is a one-way door with no benefit before
+  then. Produce it from the actual running database, never regenerated from
+  the Drizzle schema, so the hand-written parts — triggers, the `EXCLUDE`
+  constraint, RLS policies, the ICU locale check, partial indexes — survive
+  the squash.

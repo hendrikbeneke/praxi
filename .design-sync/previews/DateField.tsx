@@ -23,12 +23,7 @@ export function Ausgefuellt() {
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor="dateOfBirthFilled">Geburtsdatum</Label>
-      <DateField
-        id="dateOfBirthFilled"
-        value={value}
-        onChange={setValue}
-        twoDigitYear="past"
-      />
+      <DateField id="dateOfBirthFilled" value={value} onChange={setValue} twoDigitYear="past" />
     </div>
   )
 }

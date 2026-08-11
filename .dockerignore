@@ -1,0 +1,27 @@
+# Everything below is either rebuilt fresh inside the image or must never
+# reach the build context in the first place.
+
+node_modules
+**/node_modules
+dist
+**/dist
+apps/server/public
+apps/web/src/routeTree.gen.ts
+*.tsbuildinfo
+
+# Local Postgres data and generated files/PDFs — never part of an image.
+.docker-data
+apps/server/data
+
+# Design Sync scratch, never shipped.
+.design-sync/.cache
+.design-sync/learnings
+.design-sync/node_modules
+.ds-sync
+ds-bundle
+apps/web/.ds-sync-scratch
+
+.git
+.env
+.env.local
+.DS_Store
