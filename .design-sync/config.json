@@ -6,6 +6,7 @@
   "entry": "apps/web/.ds-sync-scratch/entry.tsx",
   "tsconfig": "tsconfig.json",
   "cssEntry": ".ds-sync-scratch/compiled.css",
+  "extraFonts": ["src/styles/tokens.css"],
   "componentSrcMap": {
     "Badge": "src/components/ui/badge.tsx",
     "Button": "src/components/ui/button.tsx",

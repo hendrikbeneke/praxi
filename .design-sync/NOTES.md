@@ -62,9 +62,9 @@ has none of the actual utility classes. Instead:
   `apps/web/src` changed (`cp apps/server/public/assets/index-*.css
   apps/web/.ds-sync-scratch/compiled.css`, single file, no glob needed since
   `build` clears the dir first).
-- No `@font-face` in the compiled CSS — the app uses the system font stack
-  (`-apple-system, "Segoe UI", Roboto, ...`), no brand font to source. No
-  `[FONT_MISSING]` expected.
+- **Stale as of 2026-08-11**: the app now ships a self-hosted brand font
+  (Source Sans 3) — see "Font resync — 2026-08-11" below for what that means
+  for `cssEntry` and `cfg.extraFonts`.
 
 ## Grouping via docsMap stubs
 
@@ -100,6 +100,44 @@ around it. Fixed by running a full rebuild once all overrides were set, then sco
 next time**: decide all `cfg.overrides` entries *before* dispatching preview-authoring
 subagents, or re-run a full build immediately after any override change and before
 telling an agent to touch that component.
+
+## Font resync — 2026-08-11
+
+`apps/web/src` gained a self-hosted brand font: `apps/web/src/styles/tokens.css`
+defines `--font-sans` as `"Source Sans 3","Source Sans Pro",-apple-system,…`
+and ships two `@font-face` rules (latin, latin-ext variable-weight subsets,
+400–600) pointing at `apps/web/src/assets/fonts/*.woff2`. This resync hit
+both font tags and only one was fixable from the repo:
+
+- **`[FONT_DANGLING]`, fixed.** `cfg.cssEntry` is the *compiled* CSS copy
+  (see above) — Vite rewrites the `@font-face` `url()`s to absolute,
+  cache-busted paths (`/assets/source-sans-3-latin-<hash>.woff2`), which
+  don't resolve as filesystem paths when the converter scans them. Added
+  `"extraFonts": ["src/styles/tokens.css"]` to `.design-sync/config.json` —
+  that file's `@font-face` rules use plain relative `url("../assets/fonts/…")`
+  paths, which resolve correctly, and its fonts get copied into `fonts/` and
+  merged into the shipped `fonts/fonts.css`. **Residual wrinkle, harmless but
+  worth knowing**: `fonts/fonts.css` ends up with the compiled copy's *broken*
+  minified rules AND the `extraFonts`-derived *working* ones for the same
+  family/weight — the working ones are appended last, and per the CSS Fonts
+  cascade (last matching `@font-face` wins for identical descriptors) they're
+  the ones actually used. `[FONT_DANGLING]` no longer fires and the render
+  check is clean, so this is accepted as resolved rather than chased further;
+  if a future resync ever wants a single clean rule per family, the real fix
+  is sourcing `cssEntry` from something that doesn't emit hashed font URLs at
+  all (out of scope for a token-only change).
+- **`[FONT_MISSING]` "Source Sans Pro", accepted as a non-issue, user
+  confirmed.** It's the second name in the `--font-sans` fallback list —
+  since Source Sans 3 is always shipped and self-hosted, that fallback is
+  provably unreachable in both the real app and in designs built from this
+  DS. User chose "document, don't source a second font" over hosting Source
+  Sans Pro too. Nothing to fix on a future resync unless the fallback list
+  itself changes.
+- `.design-sync/conventions.md`'s styling-idiom section claimed "no custom
+  fonts ship with this bundle — system font stack" — corrected to describe
+  Source Sans 3. Caught by the base skill's "validate before shipping" step;
+  worth specifically re-checking that paragraph on any future font-related
+  change, since nothing else flags stale prose automatically.
 
 ## Re-sync risks
 

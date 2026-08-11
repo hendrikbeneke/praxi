@@ -22,7 +22,7 @@ Tailwind CSS utility classes, shadcn/ui "new-york" style, neutral base color. Ne
 
 Radius scale: `rounded-md` is the default control radius; `rounded-xl` is `Card`'s; `rounded-full` is `Badge`'s. Spacing follows Tailwind's default scale (`gap-2`, `gap-4`, `gap-6`, `px-3`, `px-6` are the recurring values across these components) — don't introduce a new spacing scale.
 
-No custom fonts ship with this bundle — the app uses the system font stack (`-apple-system, "Segoe UI", Roboto, ...`) deliberately (CLAUDE.md: no external fonts, no CDN, no telemetry). Don't add a webfont when composing with these components.
+The brand typeface is **Source Sans 3**, self-hosted (weights 400/600, `font-family: var(--font-sans)`) — no CDN, no remote `@font-face` (CLAUDE.md: no external fonts, no CDN, no telemetry). It's already the default body font; don't set a different `font-family` when composing with these components, and don't add a second webfont.
 
 Numeric/tabular data (contact numbers, dates, amounts) is set with `tabular-nums` in the real app so columns of numbers align — carry that over in any table or list composition.
 
