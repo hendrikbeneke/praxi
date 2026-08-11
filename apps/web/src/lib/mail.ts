@@ -75,12 +75,16 @@ export async function deleteEmailTemplate(templateId: string): Promise<void> {
 
 /** What the dialog opens with — placeholders already resolved on the server,
  *  so the screen shows exactly what will go out. */
-export const invoiceSendDraftQueryOptions = (invoiceId: string) =>
+/** `templateId` prepares the draft again for another covering note. The
+ *  placeholders are resolved on the server either way — never in the browser
+ *  and never at send time (CLAUDE.md rule 14). */
+export const invoiceSendDraftQueryOptions = (invoiceId: string, templateId?: string) =>
   queryOptions({
-    queryKey: ['invoices', invoiceId, 'send-draft'],
+    queryKey: ['invoices', invoiceId, 'send-draft', templateId ?? 'default'],
     queryFn: async (): Promise<InvoiceSendDraft> => {
       const res = await api.api.invoices[':invoiceId']['send-draft'].$get({
         param: { invoiceId },
+        query: templateId ? { templateId } : {},
       })
       if (!res.ok) throw await apiError(res)
       return res.json()

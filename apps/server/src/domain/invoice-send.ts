@@ -20,7 +20,7 @@ import { newId } from '../id.js'
 import { buildInvoiceMail, buildTestMail, type MailAddress } from '../mail/message.js'
 import type { MailTransport } from '../mail/transport.js'
 import { messages } from '../messages.js'
-import { defaultEmailTemplate } from './email-template.js'
+import { defaultEmailTemplate, getEmailTemplate } from './email-template.js'
 import type { FileStore } from './file-store.js'
 import { getStoredPdfPath } from './invoice.js'
 
@@ -212,12 +212,24 @@ export async function prepareSend(
   database: Database,
   tenantId: string,
   invoiceId: string,
+  templateId?: string,
 ): Promise<InvoiceSendDraft | null> {
   const row = await loadInvoiceForSend(database, tenantId, invoiceId)
   if (!row) return null
 
   const recipient = await resolveRecipient(database, tenantId, row.contactId)
-  const template = await defaultEmailTemplate(database, tenantId)
+  /**
+   * Switching the template in the dialog prepares again *here* rather than
+   * resolving anything in the browser. Rule 14 asks that placeholders are
+   * filled when the dialog is prepared and never at send time; a second
+   * preparation is still a preparation, and it keeps the one resolver.
+   *
+   * A named template that has meanwhile been deleted falls back to the default
+   * instead of failing — the answer says which one was actually used.
+   */
+  const template =
+    (templateId ? await getEmailTemplate(database, tenantId, templateId) : null) ??
+    (await defaultEmailTemplate(database, tenantId))
   const [smtp] = await database
     .select({ id: smtpSettings.id })
     .from(smtpSettings)
@@ -234,24 +246,30 @@ export async function prepareSend(
   const subject = applyPlaceholders(template?.subject ?? '', values)
   const body = applyPlaceholders(template?.body ?? '', values)
 
+  /**
+   * Only what the dialog cannot mend. A missing address and a missing template
+   * are *gaps in the prefill*, not blocks: both can be filled in by hand, and
+   * treating them as blocks is what left the send button disabled after an
+   * address had been typed in. They travel as flags below, and the screen
+   * decides when they stop applying.
+   */
   const blockedReason =
     row.status === 'draft'
       ? messages.invoiceSend.draftNotSendable
       : !smtp
         ? messages.invoiceSend.smtpMissing
-        : !recipient.email
-          ? messages.invoiceSend.noRecipientAddress
-          : !template
-            ? messages.invoiceSend.templateMissing
-            : null
+        : null
 
   return {
     recipient: recipient.email,
     recipientName: recipient.name,
     subject,
     body,
+    templateId: template?.id ?? null,
     canSend: blockedReason === null,
     blockedReason,
+    recipientAddressMissing: recipient.email === null,
+    templateMissing: template === null,
     // Both halves, so a stray `{{kontonummer}}` in either is visible before
     // anything goes out rather than to the recipient afterwards.
     unknownPlaceholders: [

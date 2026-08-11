@@ -566,6 +566,17 @@ export const strings = {
       '{{total}} Gesamtbetrag, {{name}} Empfängername.',
 
     send: 'Per Mail senden',
+    /** Why the recipient field opened empty. Shown only while it still is —
+     *  it explains a gap and is pointless once one is typed in. */
+    noRecipientAddress:
+      'Für diesen Empfänger ist keine E-Mail-Adresse hinterlegt. Tragen Sie sie hier von Hand ' +
+      'ein oder ergänzen Sie sie am Kontakt.',
+    noTemplate:
+      'Es ist keine Mailvorlage hinterlegt. Betreff und Text lassen sich hier von Hand ' +
+      'schreiben; eine Vorlage legen Sie in den Einstellungen an.',
+    template: 'Vorlage',
+    templateChanged: 'Betreff und Text wurden nicht ersetzt, weil Sie sie bereits geändert haben.',
+    templateApply: 'Vorlage übernehmen',
     sendTitle: 'Rechnung versenden',
     sendDescription: 'Die Rechnung geht als PDF-Anhang an diese Adresse.',
     recipient: 'Empfänger',

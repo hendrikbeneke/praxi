@@ -218,14 +218,25 @@ describe('what may be sent', () => {
     expect(prepared?.blockedReason).toContain('Rechnungsentwurf')
   })
 
-  it('blocks when no address is on file, and says which is missing', async () => {
+  /**
+   * A missing address is a **gap in the prefill**, not a block.
+   *
+   * It used to be one, and the consequence showed up on screen: the send
+   * button stayed disabled after an address had been typed in by hand, because
+   * `canSend` had been decided from loaded data and outlived the reason it was
+   * decided from. `blockedReason` now covers only what typing cannot mend —
+   * a draft, or no SMTP account — and the gap travels as its own flag that the
+   * screen stops honouring once the field holds an address.
+   */
+  it('reports a missing address as a gap and not as a block', async () => {
     await db().update(contact).set({ email: null }).where(eq(contact.id, contactId))
     const entry = await finalized()
 
     const prepared = await prepareSend(db(), tenantId, entry.id)
     expect(prepared?.recipient).toBeNull()
-    expect(prepared?.canSend).toBe(false)
-    expect(prepared?.blockedReason).toContain('E-Mail-Adresse')
+    expect(prepared?.recipientAddressMissing).toBe(true)
+    expect(prepared?.canSend).toBe(true)
+    expect(prepared?.blockedReason).toBeNull()
   })
 })
 
@@ -328,6 +339,67 @@ describe('the recipient', () => {
     const entry = await finalized()
     const prepared = await prepareSend(db(), tenantId, entry.id)
     expect(prepared?.recipient).toBe('kasse@beispiel.test')
+  })
+})
+
+describe('the covering note', () => {
+  it('opens with the default template and says which one that is', async () => {
+    const entry = await finalized()
+    const prepared = await prepareSend(db(), tenantId, entry.id)
+
+    const [standard] = await db()
+      .select()
+      .from(emailTemplate)
+      .where(eq(emailTemplate.tenantId, tenantId))
+
+    expect(prepared?.templateId).toBe(standard?.id)
+    expect(prepared?.templateMissing).toBe(false)
+  })
+
+  /**
+   * Switching the template in the dialog prepares again *here*, so the
+   * placeholders keep being resolved by one resolver before the text is shown
+   * — never in the browser and never at send time (rule 14).
+   */
+  it('prepares again for another template, with the placeholders resolved', async () => {
+    const otherId = newId()
+    await db().insert(emailTemplate).values({
+      id: otherId,
+      tenantId,
+      name: 'Kurz',
+      subject: 'Rechnung {{number}}',
+      body: 'Anbei {{number}} über {{total}}.',
+      isDefault: false,
+      active: true,
+    })
+
+    const entry = await finalized()
+    const prepared = await prepareSend(db(), tenantId, entry.id, otherId)
+
+    expect(prepared?.templateId).toBe(otherId)
+    expect(prepared?.subject).toBe('Rechnung RH-2026-007')
+    // The euro sign arrives with the non-breaking space `Intl` puts there.
+    expect(prepared?.body).toContain('Anbei RH-2026-007 über 135,00')
+  })
+
+  /** A template deleted in another tab must not turn the dialog into a 404. */
+  it('falls back to the default when the named template is gone', async () => {
+    const entry = await finalized()
+    const prepared = await prepareSend(db(), tenantId, entry.id, newId())
+
+    expect(prepared?.templateId).not.toBeNull()
+    expect(prepared?.subject).toBe('Ihre Rechnung RH-2026-007')
+  })
+
+  it('says so when there is no template at all', async () => {
+    await db().delete(emailTemplate).where(eq(emailTemplate.tenantId, tenantId))
+    const entry = await finalized()
+
+    const prepared = await prepareSend(db(), tenantId, entry.id)
+    expect(prepared?.templateMissing).toBe(true)
+    expect(prepared?.templateId).toBeNull()
+    // Still sendable: subject and body can be written by hand.
+    expect(prepared?.canSend).toBe(true)
   })
 })
 

@@ -1143,3 +1143,36 @@ with the invoice lines — the argument of `paidCents` in slice 8.
   one since slice 4 (items and appointment are loaded per row too) and the
   comment says the fourth query is deliberate, so it is not read as an
   oversight later. When the list is felt to be slow, all four go at once.
+
+## After slice 11 — two faults in the send dialog
+
+- **The send button hung on the contact, not on the field.** `canSend` was
+  false when the contact had no address, so typing one in changed nothing:
+  the button stayed disabled and the red hint stayed up. `blockedReason` now
+  covers only what typing cannot mend — a draft invoice, no SMTP account — and
+  what the *prefill* could not supply travels as `recipientAddressMissing` and
+  `templateMissing`, which the screen stops honouring as soon as the field
+  holds something. The button's own condition is the current field contents,
+  validated with the very schema the send endpoint validates with, so the two
+  cannot disagree about what an address is.
+- It is the same family as "a form never claims a state that does not exist",
+  from the other side: here it kept claiming one that no longer did. Audited
+  the rest — every other disabled button and warning is either derived from
+  form state already (`NumberRangeForm`, the activity dialog, the payment
+  dialog, the contact form) or from loaded data that the form genuinely cannot
+  change (a number range that is not configured, a Google calendar we may not
+  write to, a system role that cannot be deleted, a contact kind that is
+  fixed). The send dialog was the only one.
+- **The covering note can be chosen.** A select over the active templates,
+  preset to the one in force and shown even when there is only one, so which
+  note applies is readable rather than guessed. Switching **prepares the draft
+  again on the server** — placeholders keep being resolved by one resolver
+  before the text is shown, never in the browser and never at send time (rule
+  14). A template that has meanwhile been deleted falls back to the default
+  rather than turning the dialog into a 404, and the answer says which one was
+  used.
+- Text the practitioner has already edited is **not** overwritten by a switch.
+  It says so and offers taking it over, the same shape as applying an activity
+  type's presets. "Has this been edited" is a ref set by the change handlers,
+  not a comparison after the fact — an effect that read the fields it writes
+  would fight with typing.

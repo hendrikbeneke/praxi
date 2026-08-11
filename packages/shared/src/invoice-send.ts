@@ -81,9 +81,31 @@ export const invoiceSendDraftSchema = z.object({
   recipientName: z.string(),
   subject: z.string(),
   body: z.string(),
-  /** False with a reason: a draft, a missing address, no SMTP configuration. */
+  /** Which template the subject and body above came from, so the picker can
+   *  show what is in force. Null when there is no active template at all. */
+  templateId: z.uuid().nullable(),
+  /**
+   * False with a reason — and **only for what the dialog cannot mend**: the
+   * invoice is still a draft, or no SMTP account is configured. Nothing the
+   * practitioner types can change either.
+   *
+   * What the *prefill* could not supply is a different matter and lives in the
+   * two flags below. Mixing the two is what made the send button stay disabled
+   * after an address was typed in by hand: a blocked state derived from loaded
+   * data outlived the reason it was derived from.
+   */
   canSend: z.boolean(),
   blockedReason: z.string().nullable(),
+  /**
+   * The contact had no address, which is why the recipient field opened empty.
+   * It explains a gap and stops meaning anything the moment the field holds a
+   * valid address — so the screen, not the server, decides when to stop
+   * showing it.
+   */
+  recipientAddressMissing: z.boolean(),
+  /** No active mail template exists, which is why subject and body opened
+   *  empty. Same reasoning. */
+  templateMissing: z.boolean(),
   unknownPlaceholders: z.array(z.string()),
 })
 

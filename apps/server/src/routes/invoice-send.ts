@@ -34,13 +34,30 @@ const invoiceParam = z.object({ invoiceId: z.uuid() })
 export const invoiceSendRoute = new Hono<AppEnv>()
   .use('*', requireAuth, withTenant)
 
-  /** What the dialog opens with: recipient, subject and body with the
-   *  placeholders already filled, plus why it cannot be sent if it cannot. */
-  .get('/:invoiceId/send-draft', validate('param', invoiceParam), async (c) => {
-    const draft = await prepareSend(db(), tenantId(c), c.req.valid('param').invoiceId)
-    if (!draft) throw new HTTPException(404, { message: messages.invoice.notFound })
-    return c.json(draft)
-  })
+  /**
+   * What the dialog opens with: recipient, subject and body with the
+   * placeholders already filled, plus why it cannot be sent if it cannot.
+   *
+   * `templateId` prepares it again for another covering note. Switching the
+   * template goes through the server rather than being resolved in the
+   * browser, so rule 14 keeps holding: the placeholders are filled when the
+   * dialog is prepared and by one resolver, never at send time.
+   */
+  .get(
+    '/:invoiceId/send-draft',
+    validate('param', invoiceParam),
+    validate('query', z.object({ templateId: z.uuid().optional() })),
+    async (c) => {
+      const draft = await prepareSend(
+        db(),
+        tenantId(c),
+        c.req.valid('param').invoiceId,
+        c.req.valid('query').templateId,
+      )
+      if (!draft) throw new HTTPException(404, { message: messages.invoice.notFound })
+      return c.json(draft)
+    },
+  )
 
   .get('/:invoiceId/sends', validate('param', invoiceParam), async (c) => {
     return c.json(await listSends(db(), tenantId(c), c.req.valid('param').invoiceId))

@@ -26,6 +26,21 @@ export function listEmailTemplates(database: Database, tenantId: string): Promis
     .orderBy(asc(emailTemplate.name))
 }
 
+/** One by id, for the template the send dialog was switched to. */
+export async function getEmailTemplate(
+  reader: DbReader,
+  tenantId: string,
+  id: string,
+): Promise<EmailTemplate | null> {
+  const [row] = await reader
+    .select(columns)
+    .from(emailTemplate)
+    .where(and(eq(emailTemplate.tenantId, tenantId), eq(emailTemplate.id, id)))
+    .limit(1)
+
+  return row ?? null
+}
+
 /** The one a send dialog opens with, or the first active one where none is
  *  marked — an empty dialog would be worse than a starting point. */
 export async function defaultEmailTemplate(

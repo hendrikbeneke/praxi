@@ -206,11 +206,10 @@ export const messages = {
       'Ein Rechnungsentwurf kann nicht versendet werden. ' +
       'Schreiben Sie die Rechnung zuerst fest.',
     smtpMissing: 'Es ist kein Mailkonto hinterlegt. Bitte richten Sie es in den Einstellungen ein.',
-    noRecipientAddress:
-      'Für diesen Empfänger ist keine E-Mail-Adresse hinterlegt. ' +
-      'Tragen Sie sie am Kontakt ein oder geben Sie sie im Versandfenster von Hand ein.',
-    templateMissing:
-      'Es ist keine Mailvorlage hinterlegt. Bitte legen Sie in den Einstellungen eine an.',
+    // The gaps a prefill can leave — no address on the contact, no mail
+    // template — are said by the screen and not from here: they stop applying
+    // the moment the field is filled in by hand, and only the screen knows
+    // that. See `invoiceSendDraftSchema`.
     failed: 'Die Mail konnte nicht versendet werden.',
     /** The test send. It goes to the configured sender and nowhere else. */
     testSubject: 'Testmail aus der Praxisverwaltung',
