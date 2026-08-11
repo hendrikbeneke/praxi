@@ -121,12 +121,23 @@ export const appUser = pgTable(
     passwordHash: text().notNull(),
     name: text().notNull(),
     active: boolean().notNull().default(true),
+    /**
+     * A preference of this user, never a property of the practice — it does
+     * not belong in `practice_settings`. One `jsonb` column rather than a
+     * column per preference (a migration and a wider table for every future
+     * one) or a `user_preference(key, value)` table (loses the one-Zod-
+     * schema-per-entity shape a structured value like a per-view column list
+     * needs). Same reasoning as `invoice.recipient_snapshot`: every key
+     * optional with a default, so a schema that grows costs no migration.
+     */
+    preferences: jsonb().notNull().default({}),
     ...timestamps,
   },
   (t) => [
     uniqueIndex('app_user_email_key').on(t.email),
     index('app_user_tenant_idx').on(t.tenantId),
     check('app_user_email_lowercase', sql`${t.email} = lower(${t.email})`),
+    check('app_user_preferences_is_object', sql`jsonb_typeof(${t.preferences}) = 'object'`),
     // Referenced by the composite foreign key on `session`; see below.
     unique('app_user_id_tenant_key').on(t.id, t.tenantId),
   ],

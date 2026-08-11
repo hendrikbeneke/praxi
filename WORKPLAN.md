@@ -20,6 +20,7 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 9 | Google Calendar sync | **done** |
 | 10 | Sending invoices by email | **done** |
 | 11 | Deployment via Coolify | **done** |
+| 12 | Theme mechanism and user preferences | **done** |
 
 ---
 
@@ -1263,6 +1264,95 @@ tracked under "Before going live" below.
   writable, and `SIGTERM` reached the server directly (`exec` in the `CMD`
   chain hands it PID 1) for a clean shutdown instead of the default
   10-second kill timeout.
+
+## Slice 12 — Theme mechanism and user preferences
+
+From a design pass: five theme variants (schiefer, blau, salbei, rose,
+nacht), switched via `data-theme` on `<html>`, plus the infrastructure for
+user preferences in general — the theme is the first one, a per-view column
+list is a plausible later one. Colour values themselves came from the design
+file and were deliberately not reviewed or corrected in this slice; only the
+mechanism was built.
+
+**As built.** Decisions taken in this slice, agreed before implementation:
+
+- **`app_user.preferences jsonb not null default '{}'`**, plus
+  `check (jsonb_typeof(preferences) = 'object')`, rather than a column per
+  preference or a `user_preference(key, value)` table. A column per
+  preference costs a migration and a wider table for every future one; a
+  key-value table loses the one-Zod-schema-per-entity shape a structured
+  value (a per-view column list) needs. Same reasoning as
+  `invoice.recipient_snapshot`: every key optional with a default, so the
+  schema can grow without a migration. Explicitly **not** in
+  `practice_settings` — a preference of the user, not a property of the
+  practice.
+- **Reads and writes share one Zod schema**
+  (`packages/shared/src/user-preferences.ts`, `userPreferencesSchema`,
+  `themeOptions`): every key is optional by nature, so a `PATCH` body and a
+  `GET` response have the same shape. Unknown keys are dropped on parse,
+  which is what lets an older client read a blob a newer one already added a
+  key to.
+- **`updateUserPreferences` merges with Postgres's own `jsonb || jsonb`** in
+  one `UPDATE ... RETURNING`, never a read-then-write of the whole object.
+  This is the one thing not to "simplify" later: preferences are saved from
+  different, unrelated screens, each knowing only its own key, and a plain
+  `set({ preferences: input })` would let a save from a client that has never
+  heard of a later key erase it. Covered by a test that seeds a key the
+  current schema does not know and confirms it survives an ordinary save.
+- **No flash on load.** `ThemePicker` applies the resolved theme to
+  `document.documentElement.dataset.theme` and mirrors it to
+  `localStorage['praxi-theme']`. A small inline, non-module `<script>` in
+  `index.html` — before the app even starts loading — reads that cache
+  synchronously and applies it, so a returning visitor never sees the
+  default (schiefer) before their real theme takes over. The valid-theme
+  list is necessarily duplicated there (nothing can be imported that early);
+  the comment says so and points at `themeOptions` as the source of truth.
+  Absent a cache — first visit, a different browser — it stays on the
+  default rather than guessing.
+- **`--sidebar` / `--sidebar-foreground` wired into `@theme inline`.**
+  `_app.tsx`'s `bg-sidebar` (slice 1) had never had a matching
+  `--color-sidebar` in any `tokens.css` — the class was silently a no-op.
+  The new tokens file finally defines the token; found and fixed as part of
+  making it take effect, same family as the `--font-sans` wiring gap from
+  the previous slice.
+- **Tailwind's own dark-mode mechanism removed**, not just left dormant:
+  `@custom-variant dark (&:is(.dark *))`, the dead `.dark { … }` value block
+  in `styles.css`, and every `dark:`-prefixed utility across the seven
+  shadcn primitives that had one (badge, button, checkbox, input, select,
+  tabs, textarea). Checked first, not assumed: `dark:` classes were
+  genuinely present, dozens of them. Deleting only the `@custom-variant`
+  line would **not** have made them inert — Tailwind v4 falls back to its
+  built-in meaning for `dark:`, `@media (prefers-color-scheme: dark)`, which
+  would have started applying those styles based on the visitor's OS setting
+  alone, independent of the chosen `data-theme`. Removing the utility
+  classes themselves was the only way to actually retire the mechanism.
+- **`praxi-tokens.css` arrived with broken character encoding** (UTF-8 read
+  as Latin-1) and the word "praxi" in its own header comment. Re-transcribed
+  with the exact same wording and values, correctly encoded, product name
+  dropped from the file (the `localStorage` key `praxi-theme` keeps it — that
+  prefix protects against collisions and was kept on purpose). Two comments
+  that had gone stale relative to what was actually built in this same slice
+  were corrected, not just re-encoded: "kommt aus den Praxis-Einstellungen"
+  (it comes from `app_user.preferences`, decided in this slice, not
+  `practice_settings`) and the font comment's mention of a Google Fonts
+  preview link (this file ships the real, self-hosted `@font-face` rules,
+  not a preview stand-in).
+- **Font**: reused the two variable-font files already vendored in the
+  previous slice (`source-sans-3-latin.woff2` / `-latin-ext.woff2`,
+  weight axis 400–600) rather than downloading anything new. Confirmed
+  first that this still covers what the app actually uses — `grep` across
+  `apps/web/src` for Tailwind's `font-*` weight utilities turned up only
+  `font-normal` (400), `font-medium` (500) and `font-semibold` (600), never
+  `font-bold` — and a variable font's declared 400–600 range covers 500 by
+  interpolation, so no third file was needed.
+- **Verified in a real browser**, not just by reading the generated CSS:
+  Playwright against the dev server confirmed the picker's five swatches
+  (each a `data-theme`-scoped span reading the real `--primary`, not a
+  second colour list in TypeScript), an immediate full recolour on switching
+  to `nacht`, `document.documentElement.dataset.theme` already `"nacht"`
+  at the moment the reload's navigation resolves (the actual no-flash
+  proof, not just "looks fine on screenshot"), and the `--sidebar` fix
+  visible as a now-distinct sidebar tone in the default theme.
 
 ## Before going live
 

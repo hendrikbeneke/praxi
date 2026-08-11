@@ -9,6 +9,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Applies the cached theme before first paint, so a returning visitor
+      // never sees the default (schiefer) flash before their real theme
+      // takes over. Source of truth for the value set / option list is
+      // packages/shared/src/user-preferences.ts (themeOptions) — this list
+      // is duplicated here on purpose, because nothing can be imported this
+      // early; keep the two in sync by hand. Same key, same "absent means
+      // schiefer" convention as components/theme-picker.tsx.
+      ;(() => {
+        var THEME_OPTIONS = ['blau', 'salbei', 'rose', 'nacht']
+        var cached = localStorage.getItem('praxi-theme')
+        if (cached && THEME_OPTIONS.indexOf(cached) !== -1) {
+          document.documentElement.dataset.theme = cached
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

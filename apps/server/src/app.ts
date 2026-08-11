@@ -21,6 +21,7 @@ import { serviceGroupsRoute } from './routes/service-groups.js'
 import { servicesRoute } from './routes/services.js'
 import { settingsRoute } from './routes/settings.js'
 import { textTemplatesRoute } from './routes/text-templates.js'
+import { userPreferencesRoute } from './routes/user-preferences.js'
 
 const app = new Hono<AppEnv>()
 
@@ -57,6 +58,7 @@ const routes = app
   .route('/api/google', googleRoute)
   .route('/api/settings/smtp', smtpRoute)
   .route('/api/email-templates', emailTemplatesRoute)
+  .route('/api/user-preferences', userPreferencesRoute)
 
 export { app }
 export type AppType = typeof routes

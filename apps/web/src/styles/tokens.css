@@ -24,31 +24,71 @@
     U+2C60-2C7F, U+A720-A7FF;
 }
 
+/* ==========================================================================
+   Farbtokens und Theme-Varianten
+   Erzeugt aus dem Design-Entwurf. Übernahme ins Repo:
+
+   1. Diese Datei als apps/web/src/styles/tokens.css ablegen (ersetzt die
+      bestehende) und vor dem Tailwind-Import einbinden.
+   2. Theme wählen: data-theme am <html>-Element setzen, z. B.
+      <html data-theme="blau">. Ohne Attribut gilt :root (schiefer).
+   3. Der Wert kommt aus den Benutzereinstellungen (app_user.preferences);
+      beim Schreiben nur das Attribut tauschen, keine Komponente muss
+      angefasst werden.
+
+   Varianten: schiefer (Standard) · blau · salbei · rose · nacht
+   ========================================================================== */
+
 :root {
   color-scheme: light;
-  --background: oklch(98.2% 0.005 85);
-  --foreground: oklch(25% 0.012 62);
-  --card: oklch(99.6% 0.003 85);
+
+  /* --- Flächen ------------------------------------------------------------ */
+  --background: oklch(98.2% 0.005 85); /* Seite: warmes Papierweiß */
+  --foreground: oklch(25% 0.012 62); /* Text: warmes Fast-Schwarz */
+  --card: oklch(99.6% 0.003 85); /* Karten liegen heller auf der Seite */
   --card-foreground: oklch(25% 0.012 62);
   --popover: oklch(99.6% 0.003 85);
   --popover-foreground: oklch(25% 0.012 62);
-  --primary: oklch(37% 0.028 253);
+
+  /* --- Primär / Sekundär ------------------------------------------------- */
+  --primary: oklch(37% 0.028 253); /* Schiefer, aus #3f4a5a */
   --primary-foreground: oklch(98.6% 0.004 85);
   --secondary: oklch(95.2% 0.008 82);
   --secondary-foreground: oklch(31% 0.014 62);
-  --muted: oklch(96.4% 0.006 82);
-  --muted-foreground: oklch(52% 0.014 66);
-  --accent: oklch(94.4% 0.009 80);
+
+  /* --- Ruhige Ebenen ------------------------------------------------------ */
+  --muted: oklch(96.4% 0.006 82); /* Tabellenkopf, Platzhalterflächen */
+  --muted-foreground: oklch(52% 0.014 66); /* Hinweiszeilen, Labels */
+  --accent: oklch(94.4% 0.009 80); /* nur Hover */
   --accent-foreground: oklch(27% 0.013 62);
-  --destructive: oklch(51% 0.15 27);
-  --border: oklch(90.2% 0.008 80);
-  --input: oklch(87.5% 0.009 80);
+
+  /* --- Navigation -------------------------------------------------------- */
+  --sidebar: oklch(97% 0.006 85); /* Seitenleiste: eine Stufe unter der Seite */
+  --sidebar-foreground: oklch(25% 0.012 62);
+
+  /* --- Signal ------------------------------------------------------------- */
+  --destructive: oklch(51% 0.15 27); /* Löschen, Fehler, „nicht dokumentiert" */
+
+  /* --- Linien und Fokus --------------------------------------------------- */
+  --border: oklch(90.2% 0.008 80); /* Trennlinien: sichtbar, nie hart */
+  --input: oklch(87.5% 0.009 80); /* Feldrahmen einen Schritt kräftiger */
   --ring: oklch(58% 0.03 253);
-  --radius: 0.5rem;
+
+  /* --- Form --------------------------------------------------------------- */
+  --radius: 0.5rem; /* rounded-md 6px, -lg 8px, -xl 12px */
+
+  /* --- Schrift ------------------------------------------------------------
+     Source Sans 3: ruhige humanistische Grotesk, gute Ziffern, deckt
+     Deutsch vollständig ab. Selbst gehostet, siehe @font-face oben — nicht
+     nur eine Vorschau, das ist der tatsächlich ausgelieferte Font. Fällt
+     sonst auf System zurück. */
   --font-sans:
     "Source Sans 3", "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 }
+
+/* Optional, aber empfohlen: Ziffern in Tabellen und Formularen laufen
+   gleich breit, Text bricht freundlicher. Kein Token, deshalb getrennt. */
 body {
   background: var(--background);
   color: var(--foreground);
@@ -59,4 +99,82 @@ table,
 input,
 [data-slot="badge"] {
   font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Varianten. Der Theme-Layer ist nur eine Wertetabelle — ein Satz anderer
+   Werte auf einem Vorfahren reicht, alles darunter zieht mit. Angewendet
+   über data-theme am Wurzelelement des Screens.
+   ========================================================================== */
+[data-theme="blau"] {
+  --primary: oklch(48% 0.11 252);
+  --ring: oklch(60% 0.11 252);
+  --secondary: oklch(94.6% 0.018 250);
+  --secondary-foreground: oklch(34% 0.06 252);
+  --accent: oklch(93.6% 0.022 250);
+  --accent-foreground: oklch(30% 0.06 252);
+  --muted: oklch(96.2% 0.012 250);
+  --sidebar: oklch(96.8% 0.012 250);
+  --border: oklch(89.8% 0.014 250);
+  --input: oklch(87% 0.016 250);
+}
+
+[data-theme="salbei"] {
+  --primary: oklch(44% 0.06 165);
+  --ring: oklch(58% 0.07 165);
+  --secondary: oklch(94.8% 0.014 160);
+  --secondary-foreground: oklch(33% 0.04 165);
+  --accent: oklch(93.8% 0.018 160);
+  --accent-foreground: oklch(29% 0.04 165);
+  --muted: oklch(96.4% 0.01 160);
+  --sidebar: oklch(96.8% 0.012 160);
+  --border: oklch(90% 0.012 160);
+  --input: oklch(87.4% 0.014 160);
+}
+
+[data-theme="nacht"] {
+  color-scheme: dark;
+  --background: oklch(22% 0.008 62);
+  --foreground: oklch(95% 0.004 85);
+  --card: oklch(25.5% 0.009 62);
+  --card-foreground: oklch(95% 0.004 85);
+  --popover: oklch(26.5% 0.009 62);
+  --popover-foreground: oklch(95% 0.004 85);
+  --primary: oklch(72% 0.09 252);
+  --primary-foreground: oklch(22% 0.02 252);
+  --secondary: oklch(31% 0.01 62);
+  --secondary-foreground: oklch(93% 0.005 85);
+  --muted: oklch(29% 0.009 62);
+  --muted-foreground: oklch(72% 0.012 70);
+  --accent: oklch(33% 0.011 62);
+  --accent-foreground: oklch(96% 0.004 85);
+  --destructive: oklch(62% 0.16 27);
+  --border: oklch(35% 0.01 62);
+  --input: oklch(40% 0.012 62);
+  --ring: oklch(60% 0.07 252);
+  --sidebar: oklch(24% 0.009 62);
+}
+
+/* Gedecktes Rosé: die Neutralen bekommen einen Hauch Magenta-Hue, die
+   Primärfläche bleibt dunkel und niedrig gesättigt — Farbe als Temperatur,
+   nicht als Dekor. */
+[data-theme="rose"] {
+  --background: oklch(98.4% 0.006 15);
+  --foreground: oklch(26% 0.022 15);
+  --card: oklch(99.4% 0.004 15);
+  --card-foreground: oklch(26% 0.022 15);
+  --popover: oklch(99.4% 0.004 15);
+  --popover-foreground: oklch(26% 0.022 15);
+  --primary: oklch(42% 0.07 12);
+  --primary-foreground: oklch(98.6% 0.006 15);
+  --secondary: oklch(95% 0.016 12);
+  --secondary-foreground: oklch(33% 0.05 12);
+  --muted: oklch(96.4% 0.012 12);
+  --muted-foreground: oklch(52% 0.026 12);
+  --accent: oklch(94% 0.022 12);
+  --accent-foreground: oklch(29% 0.05 12);
+  --border: oklch(90.4% 0.016 12);
+  --input: oklch(87.6% 0.02 12);
+  --ring: oklch(60% 0.08 12);
+  --sidebar: oklch(97% 0.012 12);
 }

@@ -20,6 +20,18 @@ export const strings = {
     settings: 'Einstellungen',
     signOut: 'Abmelden',
   },
+  preferences: {
+    theme: {
+      label: 'Farbschema',
+      options: {
+        schiefer: 'Schiefer',
+        blau: 'Blau',
+        salbei: 'Salbei',
+        rose: 'Rosé',
+        nacht: 'Nacht',
+      },
+    },
+  },
   login: {
     title: 'Anmelden',
     description: 'Bitte melden Sie sich mit Ihren Zugangsdaten an.',

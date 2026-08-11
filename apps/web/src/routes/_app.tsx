@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
+import { ThemePicker } from '@/components/theme-picker'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { currentUserQueryOptions, resetCache, signOut } from '@/lib/auth'
@@ -88,8 +89,9 @@ function AppLayout() {
         </nav>
 
         <Separator />
-        <div className="space-y-2 p-3">
+        <div className="space-y-3 p-3">
           <p className="truncate px-3 text-muted-foreground text-xs">{user.name}</p>
+          <ThemePicker />
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 px-3 text-muted-foreground"
