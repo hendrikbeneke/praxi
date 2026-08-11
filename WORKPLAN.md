@@ -1176,3 +1176,40 @@ with the invoice lines — the argument of `paidCents` in slice 8.
   type's presets. "Has this been edited" is a ref set by the change handlers,
   not a comparison after the fact — an effect that read the fields it writes
   would fight with typing.
+
+## Before going live
+
+Findings of a security review of the auth concept. Nothing here is built yet;
+each line names the reason, not the solution.
+
+- **Move `requireAuth` from the individual route groups onto the `/api` group,
+  with the four exceptions stated explicitly** — health, login, logout and the
+  Google OAuth callback. Today a newly added route is *open by default*: the
+  middleware is the first line of each router chain, and forgetting it produces
+  no error, no warning and no failing test.
+- **A route test over `app.routes` with an exact exception list**, asserting
+  401 without a session — and asserting in the other direction too, that no
+  exception names a path that no longer exists. The list must be exact and not
+  by prefix: `/api/auth/*` would wave `GET /api/auth/me` through, which is the
+  shortcut that makes such a test worthless.
+- **A second test with two tenants and real data**, asserting that every route
+  actually filters by `tenant_id`. `tenantId(c)` being the only sanctioned
+  source says where the value comes from; it does not say that a handler used
+  it, and one that forgets simply does not filter.
+- **Rate limit and lockout after failed attempts on the login.** There is
+  neither today, so a password can be tried against the one account as fast as
+  the process answers.
+- **Decide and write down whether the database itself is encrypted.** Patient
+  data currently sits unencrypted in Postgres, protected only by FileVault —
+  which covers a stolen machine that is switched off and nothing else. This is
+  a decision to take deliberately, not one to arrive at by default.
+- **An access log, from the moment a second person has access.** With one user
+  "who looked at this record" is answerable from the fact that there is one;
+  with two it is not, and § 630f and Art. 9 GDPR make it a question that gets
+  asked.
+- **Enable the RLS policies.** They are created and deliberately disabled on
+  every table; the tenant filter is application code until they are on.
+- **A deletion concept for the retention periods.** Records are kept because
+  the law requires it for a time — nothing today marks when that time is up or
+  removes anything afterwards, and keeping health data longer than the purpose
+  allows is its own breach.
