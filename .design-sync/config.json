@@ -22,7 +22,16 @@
     "Tabs": "src/components/ui/tabs.tsx",
     "PageHeader": "src/components/page-header.tsx",
     "DateField": "src/components/date-field.tsx",
-    "ReadModeFieldset": "src/components/read-mode-fieldset.tsx"
+    "ReadModeFieldset": "src/components/read-mode-fieldset.tsx",
+    "Dialog": "src/components/ui/dialog.tsx",
+    "Separator": "src/components/ui/separator.tsx",
+    "Toaster": "src/components/ui/sonner.tsx",
+    "TimeField": "src/components/time-field.tsx",
+    "ReadModeFooter": "src/components/read-mode-footer.tsx",
+    "PaymentStatusBadge": "src/components/payment-status.tsx",
+    "OrderButtons": "src/components/catalogue-controls.tsx",
+    "DeleteButton": "src/components/catalogue-controls.tsx",
+    "CheckboxField": "src/components/catalogue-controls.tsx"
   },
   "docsMap": {
     "Badge": "../../.design-sync/docs-stubs/primitives.md",
@@ -39,13 +48,24 @@
     "Tabs": "../../.design-sync/docs-stubs/primitives.md",
     "PageHeader": "../../.design-sync/docs-stubs/patterns.md",
     "DateField": "../../.design-sync/docs-stubs/patterns.md",
-    "ReadModeFieldset": "../../.design-sync/docs-stubs/patterns.md"
+    "ReadModeFieldset": "../../.design-sync/docs-stubs/patterns.md",
+    "Dialog": "../../.design-sync/docs-stubs/primitives.md",
+    "Separator": "../../.design-sync/docs-stubs/primitives.md",
+    "Toaster": "../../.design-sync/docs-stubs/primitives.md",
+    "TimeField": "../../.design-sync/docs-stubs/patterns.md",
+    "ReadModeFooter": "../../.design-sync/docs-stubs/patterns.md",
+    "PaymentStatusBadge": "../../.design-sync/docs-stubs/patterns.md",
+    "OrderButtons": "../../.design-sync/docs-stubs/patterns.md",
+    "DeleteButton": "../../.design-sync/docs-stubs/patterns.md",
+    "CheckboxField": "../../.design-sync/docs-stubs/patterns.md"
   },
   "guidelinesGlob": ["../../.design-sync/guidelines/*.md"],
   "readmeHeader": ".design-sync/conventions.md",
   "overrides": {
     "Select": { "cardMode": "single", "viewport": "280x340" },
     "Popover": { "cardMode": "single", "viewport": "320x320" },
-    "AlertDialog": { "cardMode": "single", "viewport": "480x360" }
+    "AlertDialog": { "cardMode": "single", "viewport": "480x360" },
+    "Dialog": { "cardMode": "single", "viewport": "480x360" },
+    "Toaster": { "cardMode": "single", "viewport": "360x140" }
   }
 }

@@ -23,6 +23,63 @@ not used by either target screen. `components/ui/dialog.tsx`, `separator.tsx`,
 Every graded/authored preview should be for these 15 — this campaign's scope
 is narrower than "the whole app", intentionally.
 
+## Scope expansion (2026-08-11): 15 → 24
+
+User asked to sync "the rest". Before touching config, every excluded
+component was checked again for real (`grep`, not memory) for
+`useQuery`/`useMutation`/`useNavigate`/`useParams` usage — the original
+"screens vs. building blocks" call above was correct: **23 of the 30**
+excluded components fetch or mutate their own data inline and stay excluded
+for that reason, unchanged. Only **7 files** had none — but one of them,
+`catalogue-controls.tsx`, exports three separate named components
+(`OrderButtons`, `DeleteButton`, `CheckboxField`), so scope actually grew by
+**9 components**, not 7:
+
+- `components/ui/dialog.tsx` → `Dialog` (Primitives)
+- `components/ui/separator.tsx` → `Separator` (Primitives)
+- `components/ui/sonner.tsx` → `Toaster` (Primitives)
+- `components/time-field.tsx` → `TimeField` (Patterns) — `DateField`'s sibling
+- `components/read-mode-footer.tsx` → `ReadModeFooter` (Patterns)
+- `components/payment-status.tsx` → `PaymentStatusBadge` (Patterns)
+- `components/catalogue-controls.tsx` → `OrderButtons`, `DeleteButton`,
+  `CheckboxField` (all Patterns)
+
+The remaining 23 (all screens/dialogs — `activity-dialog`, `contact-form`,
+`note-dialog`, every `*-settings` screen, etc.) are still out of scope. The
+user was offered the alternative (build a mock React Query cache per
+component so they could render standalone) and explicitly declined it as
+disproportionate effort for this campaign — not a technical dead end, just
+not worth it here. Revisit only if a future session actually wants those
+screens in the DS, and expect it to need `cfg.provider` plus per-component
+seeded query data, not just a `componentSrcMap` entry.
+
+`entry.tsx` and `config.json`'s `componentSrcMap`/`docsMap` updated
+accordingly; the three catalogue-controls exports and `Dialog` needed no new
+docs stub — reused the existing `primitives.md`/`patterns.md` stubs.
+
+### Known render warns (non-blocking, checked against real screenshots)
+
+- **`DeleteButton`, `OrderButtons` — `[RENDER_THIN]`, benign.** Both are
+  deliberately icon-only controls (one or two small icon buttons, no text by
+  design — labelled via `aria-label` only). The screenshots show them
+  rendering correctly (icon visible, disabled state visibly lighter); the
+  check's "no text" heuristic just doesn't fit a control this minimal.
+- **`Toaster` — `[RENDER_THIN]` / "rendered height is 0px", benign, cause
+  understood.** `<Toaster />` portals its content outside the measured DOM
+  node, so the height check sees nothing regardless of what's on screen — a
+  measurement blind spot, not a rendering problem. Confirmed by screenshot:
+  content renders in full once `position` is `top-center` instead of the
+  real app's `bottom-right` (`__root.tsx`). Tried and ruled out first:
+  disabling sonner's 400ms enter transition via CSS did nothing — the
+  original symptom (a sliver of the toast, mostly invisible) was **not**
+  animation timing, it was `bottom-right` landing mostly outside whatever
+  region the render-check crops around for a `cardMode: "single"` card —
+  centered overlays (`Dialog`, `AlertDialog`, `Popover`) all crop correctly
+  for the same reason `top-center` does. `position` is a real prop of the
+  real component; composing with `bottom-right` to match the app is correct,
+  this preview just can't stay visible while demonstrating that value. See
+  the comment in `.design-sync/previews/Toaster.tsx`.
+
 ## No dist — hand-written entry, not synth-from-src
 
 `resolvePackage`'s built-in synth-entry fallback does `export * from <every
