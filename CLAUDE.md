@@ -226,6 +226,12 @@ Billability is a property of the item, not of a status:
 
 The activity is the source of truth and the primary place to make corrections. Invoice lines stay editable while the invoice is a draft, but that is the exception path, not the normal workflow.
 
+**The way from the work to the demand is one operation, not two.** `collectBillableItems()` in `domain/invoice.ts` turns billable items into drafts — one per contact, **appended to the draft that contact already has** rather than opening a second one. The button on a single activity and the bulk action on the Abrechenbar list are the same call with a different number of ids, so the rule about what happens to them lives in the domain and not in two screens. All contacts in one transaction: a half-finished collect would leave the practitioner guessing which ones still need doing. Both ways say what will happen before it happens — new draft or addition — which the screen works out from the drafts it has loaded anyway; there is no preview endpoint.
+
+**`activity.billingState`** (`none` | `open` | `billed`) is derived on read by `billingStateOf()` and never stored, like `paidCents`. `none` means there is nothing to bill, not that nothing has been billed. It shares the `claimedByAnActiveInvoice` condition with the billable list, and that sharing *is* the design: cancelling an invoice frees its items again, so an activity has to fall back from `billed` to `open` with nothing kept in step. A column or a second, simpler query would pass every easy case and break exactly there — which is what the cancellation test in `invoice.test.ts` guards, and it says so in as many words.
+
+**The billable list shows `activity.status` and cannot filter on it.** There is no status parameter in `billableQuerySchema`, in the route, or in the query. Billability does not depend on a status, so a filter could only ever hide work that is still owed — and a past activity still standing on `planned` is exactly the row worth noticing. Not expressible beats not allowed: nobody has to remember the rule.
+
 ### 7. Notes: locking, hash chain, addenda, files
 
 A note belongs to a contact, and optionally to an activity. Files are always attached through a note (`note_file`), never directly to a contact or activity — this gives attachments the same locking semantics as text without a second mechanism.

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { activityStatusSchema } from './activity.js'
 import { optionalText, requiredText } from './field.js'
 
 /**
@@ -168,16 +169,28 @@ export const invoiceListQuerySchema = z.object({
 
 export type InvoiceListQuery = z.infer<typeof invoiceListQuerySchema>
 
-/** One of a contact's activity items that may still be put on an invoice. */
+/** An activity item that may still be put on an invoice. */
 export const billableItemSchema = z.object({
   id: z.uuid(),
   activityId: z.uuid(),
+  /** Carried because the list may span contacts; the draft picker on a single
+   *  contact ignores it. */
+  contactId: z.uuid(),
+  contactNumber: z.number().int(),
+  contactName: z.string(),
   occurredAt: z.iso.datetime(),
   activityTitle: z.string().nullable(),
   /** The `code` of the activity's type. Sent so the picker can fall back to
    *  its label where the activity has no title of its own — the client
    *  resolves it from the catalogue, like everywhere else. */
   activityType: z.string(),
+  /**
+   * What became of the treatment. Shown, never filtered on: a past activity
+   * still standing on "geplant" is the one worth noticing, and a filter would
+   * hide it. There is no status parameter in the query below, which is what
+   * makes that a property of the API rather than a habit.
+   */
+  activityStatus: activityStatusSchema,
   description: z.string(),
   feeCode: z.string().nullable(),
   quantity: z.number().int(),
@@ -186,7 +199,42 @@ export const billableItemSchema = z.object({
 
 export type BillableItem = z.infer<typeof billableItemSchema>
 
-export const billableQuerySchema = z.object({ contactId: z.uuid() })
+/**
+ * `contactId` narrows the list to one contact; without it the list spans all
+ * of them.
+ *
+ * There is deliberately **no status field here.** Billability does not depend
+ * on a status (rule 6), so a filter over it could only ever hide work that is
+ * still owed — and what cannot be expressed cannot be added by habit either.
+ */
+export const billableQuerySchema = z.object({ contactId: z.uuid().optional() })
+
+/**
+ * Turn billable items into drafts: one per contact, appending to the draft a
+ * contact already has rather than opening a second one.
+ *
+ * Both ways into billing use this — the button on a single activity and the
+ * bulk action on the billable list. They differ only in how many items they
+ * hand over, so they are one operation and not two.
+ */
+export const invoiceCollectSchema = z.object({
+  activityItemIds: z.array(z.uuid()).min(1).max(500),
+  invoiceDate: z.iso.date(),
+})
+
+export type InvoiceCollect = z.infer<typeof invoiceCollectSchema>
+
+/** What became of one contact's share of a `collect`. */
+export const invoiceCollectResultSchema = z.object({
+  invoiceId: z.uuid(),
+  contactId: z.uuid(),
+  contactName: z.string(),
+  /** False when the items were appended to a draft that already existed. */
+  created: z.boolean(),
+  addedLines: z.number().int(),
+})
+
+export type InvoiceCollectResult = z.infer<typeof invoiceCollectResultSchema>
 
 /** Sum of an invoice's lines. Used by the draft editor and by finalization, so
  *  the number on screen and the number on the document come from one place. */

@@ -13,6 +13,7 @@ export const strings = {
     contacts: 'Kontakte',
     appointments: 'Termine',
     activities: 'Vorgänge',
+    billable: 'Abrechenbar',
     invoices: 'Rechnungen',
     receivables: 'Bezahlübersicht',
     services: 'Leistungen',
@@ -1011,6 +1012,41 @@ export const strings = {
     weekdays: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
     invalid: (example: string) => `Kein gültiges Datum. Zum Beispiel ${example}.`,
     timeInvalid: (example: string) => `Keine gültige Uhrzeit. Zum Beispiel ${example}.`,
+  },
+  /**
+   * The billable view and the two ways into it. The status of an activity is
+   * shown here and never filters — see `billableQuerySchema`.
+   */
+  billable: {
+    title: 'Abrechenbar',
+    description:
+      'Alle erbrachten Leistungen, die auf keiner aktiven Rechnung stehen — nach Kontakt ' +
+      'gruppiert. Der Status eines Vorgangs wird angezeigt, filtert aber nicht: ein ' +
+      'vergangener Vorgang, der noch auf „geplant“ steht, soll auffallen.',
+    empty: 'Nichts offen — alles Erbrachte steht auf einer Rechnung.',
+    collect: 'Rechnungen erstellen',
+    draftExists: 'Entwurf vorhanden',
+    total: 'Summe:',
+
+    collectTitle: 'Rechnungsentwürfe erzeugen?',
+    collectBody:
+      'Pro Kontakt entsteht ein Entwurf. Hat ein Kontakt bereits einen, werden die Positionen ' +
+      'dort angehängt statt einen zweiten anzulegen.',
+    collectConfirm: 'Übernehmen',
+    willCreate: (count: number) =>
+      count === 1 ? 'neuer Entwurf, 1 Position' : `neuer Entwurf, ${count} Positionen`,
+    willAppend: (count: number) =>
+      count === 1
+        ? 'an vorhandenen Entwurf, 1 Position'
+        : `an vorhandenen Entwurf, ${count} Positionen`,
+    collected: (count: number) =>
+      count === 1 ? 'Entwurf steht bereit.' : `${count} Entwürfe stehen bereit.`,
+
+    /** On a single activity. */
+    fromActivity: 'Rechnung erstellen',
+    fromActivityNothing: 'Für diesen Vorgang ist nichts mehr offen.',
+    stateOpen: 'Offen',
+    stateBilled: 'Abgerechnet',
   },
   actions: {
     recheck: 'Erneut prüfen',

@@ -18,7 +18,7 @@ import {
   serviceGroupItem,
 } from '../db/schema.js'
 import { newId } from '../id.js'
-import { blockingInvoiceLines } from './billable.js'
+import { billingStateOf, blockingInvoiceLines } from './billable.js'
 import { enqueueDelete, enqueueUpsert } from './google-sync.js'
 
 /**
@@ -337,6 +337,14 @@ async function loadActivity(
     entry = found ? toAppointment(found) : null
   }
 
+  /**
+   * A fourth query per activity, which makes the list an N+1 — deliberately.
+   * It has been one since slice 4 (items and appointment are loaded per row
+   * too), and this is not the moment to optimize something nobody asked for.
+   * When the list is felt to be slow, all four go at once.
+   */
+  const billingState = await billingStateOf(reader, tenantId, row.id)
+
   return {
     id: row.id,
     contactId: row.contactId,
@@ -348,6 +356,7 @@ async function loadActivity(
     internalNote: row.internalNote,
     appointment: entry,
     items,
+    billingState,
   }
 }
 

@@ -13,17 +13,19 @@ import {
   invoiceLine,
   numberRange,
   practiceSettings,
+  activity as schemaActivity,
   service,
 } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
 import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import { BilledItemError, createActivity, deleteActivity, updateActivity } from './activity.js'
-import { listBillableItems } from './billable.js'
+import { billingStateOf, listBillableItems } from './billable.js'
 import { cancelInvoice } from './cancel-invoice.js'
 import { FileStore } from './file-store.js'
 import { pdfPathFor } from './finalize-invoice.js'
 import {
+  collectBillableItems,
   createInvoice,
   deleteInvoice,
   getInvoice,
@@ -573,5 +575,221 @@ describe('an activity item that is on an invoice', () => {
     const error = await deleteActivity(db(), tenantId, activity.id).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(BilledItemError)
     expect((error as BilledItemError).invoiceNumber).toBe('RH-2026-001')
+  })
+})
+
+/** A second contact, so the tenant-wide list and `collect` have something to
+ *  keep apart. */
+async function secondContact(): Promise<string> {
+  const id = newId()
+  await db()
+    .insert(contact)
+    .values({ id, tenantId, contactNumber: 2, kind: 'person', lastName: 'Zweitperson' })
+  return id
+}
+
+async function activityFor(contactForItem: string, occurredAt = '2026-08-09T07:00:00.000Z') {
+  return createActivity(db(), tenantId, {
+    contactId: contactForItem,
+    type: 'session',
+    status: 'planned',
+    occurredAt,
+    durationMin: 90,
+    title: null,
+    internalNote: null,
+    items: [{ kind: 'service', serviceId, quantity: 1, billable: true }],
+    appointment: null,
+  })
+}
+
+describe('the billable list across contacts', () => {
+  it('spans every contact when none is named', async () => {
+    const other = await secondContact()
+    await makeActivityWithItem()
+    await activityFor(other)
+
+    const all = await listBillableItems(db(), tenantId)
+    expect(all).toHaveLength(2)
+    expect(new Set(all.map((item) => item.contactId))).toEqual(new Set([contactId, other]))
+  })
+
+  it('narrows to one contact when it is', async () => {
+    const other = await secondContact()
+    await makeActivityWithItem()
+    await activityFor(other)
+
+    const mine = await listBillableItems(db(), tenantId, contactId)
+    expect(mine).toHaveLength(1)
+    expect(mine[0]?.contactId).toBe(contactId)
+  })
+
+  it('carries the contact and the activity status for display', async () => {
+    await makeActivityWithItem()
+    const [item] = await listBillableItems(db(), tenantId)
+
+    expect(item?.contactName).toBe('Erika Testperson')
+    expect(item?.contactNumber).toBe(1)
+    // Shown, never filtered on: a past activity still standing on "planned" is
+    // the row worth noticing, and `billableQuerySchema` has no status field to
+    // hide it with.
+    expect(item?.activityStatus).toBe('planned')
+  })
+
+  /** Billability does not depend on a status (rule 6), so no status may keep
+   *  an item out of this list. */
+  it('offers an item of a no-show exactly like any other', async () => {
+    const activity = await makeActivityWithItem()
+    await db()
+      .update(schemaActivity)
+      .set({ status: 'no_show' })
+      .where(eq(schemaActivity.id, activity.id))
+
+    expect(await listBillableItems(db(), tenantId)).toHaveLength(1)
+  })
+})
+
+describe('collecting billable items into drafts', () => {
+  it('opens one draft per contact', async () => {
+    const other = await secondContact()
+    await makeActivityWithItem()
+    await activityFor(other)
+
+    const items = await listBillableItems(db(), tenantId)
+    const results = await collectBillableItems(db(), tenantId, {
+      activityItemIds: items.map((item) => item.id),
+      invoiceDate: INVOICE_DATE,
+    })
+
+    expect(results).toHaveLength(2)
+    expect(results.every((entry) => entry.created)).toBe(true)
+    expect(new Set(results.map((entry) => entry.invoiceId)).size).toBe(2)
+    expect(await listBillableItems(db(), tenantId)).toHaveLength(0)
+  })
+
+  /** The rule the whole endpoint exists for: a contact gets one draft, not a
+   *  second one beside the first. */
+  it('appends to a draft the contact already has', async () => {
+    await makeActivityWithItem()
+    const first = await draftFromBillable()
+
+    const later = await activityFor(contactId, '2026-08-16T07:00:00.000Z')
+    const [item] = await listBillableItems(db(), tenantId, contactId)
+    expect(item?.activityId).toBe(later.id)
+
+    const [result] = await collectBillableItems(db(), tenantId, {
+      activityItemIds: [item?.id ?? ''],
+      invoiceDate: INVOICE_DATE,
+    })
+
+    expect(result?.created).toBe(false)
+    expect(result?.invoiceId).toBe(first.id)
+
+    const draft = await getInvoice(db(), tenantId, first.id)
+    expect(draft?.lines).toHaveLength(2)
+    // Positions continue rather than restart, and the total is summed over all
+    // the lines rather than added to.
+    expect(draft?.lines.map((line) => line.position)).toEqual([0, 1])
+    expect(draft?.totalCents).toBe(27_000)
+  })
+
+  it('refuses an item that is already claimed', async () => {
+    await makeActivityWithItem()
+    const [item] = await listBillableItems(db(), tenantId)
+    await draftFromBillable()
+
+    await expect(
+      collectBillableItems(db(), tenantId, {
+        activityItemIds: [item?.id ?? ''],
+        invoiceDate: INVOICE_DATE,
+      }),
+    ).rejects.toBeInstanceOf(ItemAlreadyBilledError)
+  })
+
+  /**
+   * The whole set is resolved before anything is written, and all of it runs
+   * in one transaction — so a set with one claimed item in it leaves no drafts
+   * behind for the contacts that would have been fine. A half-finished collect
+   * would leave the practitioner guessing which contacts still need doing.
+   */
+  it('creates nothing at all when one item is not billable', async () => {
+    const other = await secondContact()
+    await makeActivityWithItem()
+    await activityFor(other)
+
+    const items = await listBillableItems(db(), tenantId)
+    const claimed = items[0]
+    await collectBillableItems(db(), tenantId, {
+      activityItemIds: [claimed?.id ?? ''],
+      invoiceDate: INVOICE_DATE,
+    })
+
+    const before = await db().select().from(invoice)
+
+    await expect(
+      collectBillableItems(db(), tenantId, {
+        activityItemIds: items.map((item) => item.id),
+        invoiceDate: INVOICE_DATE,
+      }),
+    ).rejects.toBeInstanceOf(ItemAlreadyBilledError)
+
+    expect(await db().select().from(invoice)).toHaveLength(before.length)
+  })
+})
+
+describe('billingState', () => {
+  it('is none when there is nothing to bill', async () => {
+    const activity = await createActivity(db(), tenantId, {
+      contactId,
+      type: 'session',
+      status: 'planned',
+      occurredAt: '2026-08-09T07:00:00.000Z',
+      durationMin: 90,
+      title: null,
+      internalNote: null,
+      items: [],
+      appointment: null,
+    })
+
+    expect(await billingStateOf(db(), tenantId, activity.id)).toBe('none')
+  })
+
+  it('is open while an item is on no active invoice', async () => {
+    const activity = await makeActivityWithItem()
+    expect(await billingStateOf(db(), tenantId, activity.id)).toBe('open')
+  })
+
+  it('is billed once every item is claimed — a draft counts', async () => {
+    const activity = await makeActivityWithItem()
+    await draftFromBillable()
+
+    expect(await billingStateOf(db(), tenantId, activity.id)).toBe('billed')
+  })
+
+  /**
+   * **The test this commit is really about.**
+   *
+   * What it protects is not the three values but that `billingStateOf` and
+   * `listBillableItems` decide with the *same* condition. Cancelling an
+   * invoice returns its items to the billable pool (rule 9) — the lines stay
+   * where they are, because a finalized invoice is immutable, and it is the
+   * `status <> 'cancelled'` exclusion alone that frees them.
+   *
+   * So if somebody later implements `billingState` more conveniently — a
+   * column on `activity`, a flag written at finalization, a second query that
+   * only asks "is there any invoice line" — every easy case still passes and
+   * this one falls over. That is exactly what it is for. Do not relax it.
+   */
+  it('falls back to open when the invoice is cancelled', async () => {
+    const activity = await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    await finalizeDocument(db(), tenantId, store, draft.id, render)
+
+    expect(await billingStateOf(db(), tenantId, activity.id)).toBe('billed')
+
+    await cancelInvoice(db(), tenantId, store, draft.id, render)
+
+    expect(await billingStateOf(db(), tenantId, activity.id)).toBe('open')
+    // And the two answers agree, which is the point.
+    expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(1)
   })
 })

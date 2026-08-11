@@ -1,6 +1,8 @@
 import type {
   BillableItem,
   Invoice,
+  InvoiceCollect,
+  InvoiceCollectResult,
   InvoiceCreate,
   InvoiceStatus,
   InvoiceUpdate,
@@ -40,15 +42,28 @@ export const invoiceQueryOptions = (invoiceId: string) =>
     },
   })
 
-export const billableQueryOptions = (contactId: string) =>
+/** Everything still open — for one contact, or for all of them when no
+ *  contact is named. There is no status parameter, on purpose: see
+ *  `billableQuerySchema`. */
+export const billableQueryOptions = (contactId?: string) =>
   queryOptions({
-    queryKey: ['invoices', 'billable', contactId],
+    queryKey: ['invoices', 'billable', contactId ?? 'all'],
     queryFn: async (): Promise<BillableItem[]> => {
-      const res = await api.api.invoices.billable.$get({ query: { contactId } })
+      const res = await api.api.invoices.billable.$get({
+        query: contactId ? { contactId } : {},
+      })
       if (!res.ok) throw await apiError(res)
       return res.json()
     },
   })
+
+/** Billable items into drafts — one per contact, appended to the draft a
+ *  contact already has. */
+export async function collectBillable(input: InvoiceCollect): Promise<InvoiceCollectResult[]> {
+  const res = await api.api.invoices.collect.$post({ json: input })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
 
 export async function createInvoice(input: InvoiceCreate): Promise<Invoice> {
   const res = await api.api.invoices.$post({ json: input })

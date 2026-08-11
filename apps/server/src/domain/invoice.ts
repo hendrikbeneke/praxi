@@ -1,5 +1,8 @@
 import type {
+  BillableItem,
   Invoice,
+  InvoiceCollect,
+  InvoiceCollectResult,
   InvoiceCreate,
   InvoiceLine,
   InvoiceLineInput,
@@ -8,7 +11,7 @@ import type {
   RecipientSnapshot,
 } from '@praxi/shared'
 import { formatContactName, sumLines } from '@praxi/shared'
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import { contact, invoice, invoiceLine, practiceSettings, textTemplate } from '../db/schema.js'
@@ -250,95 +253,219 @@ export async function getInvoice(
 }
 
 /**
- * A new draft, optionally filled from the contact's billable items.
+ * The defaults a new draft opens with: the practice's payment term and
+ * whichever intro and outro block is marked as the default.
  *
- * The chosen items are checked against the billable query rather than trusted:
- * a stale browser tab could otherwise put an item on a second invoice.
+ * Shared by `createInvoice` and `collectBillableItems`, because a draft that
+ * came into being from the billable list must not differ from one started by
+ * hand — the difference would only show up on the finished document.
  */
+async function insertDraft(
+  tx: Transaction,
+  tenantId: string,
+  contactId: string,
+  invoiceDate: string,
+  paymentTermDays?: number | null,
+): Promise<string> {
+  const [settings] = await tx
+    .select({ term: practiceSettings.defaultPaymentTermDays })
+    .from(practiceSettings)
+    .where(eq(practiceSettings.tenantId, tenantId))
+    .limit(1)
+
+  const defaultBody = async (kind: 'intro' | 'outro') => {
+    const [template] = await tx
+      .select({ body: textTemplate.body })
+      .from(textTemplate)
+      .where(
+        and(
+          eq(textTemplate.tenantId, tenantId),
+          eq(textTemplate.kind, kind),
+          eq(textTemplate.isDefault, true),
+        ),
+      )
+      .limit(1)
+    return template?.body ?? null
+  }
+
+  const invoiceId = newId()
+  await tx.insert(invoice).values({
+    id: invoiceId,
+    tenantId,
+    contactId,
+    invoiceDate,
+    paymentTermDays: paymentTermDays ?? settings?.term ?? 14,
+    introText: await defaultBody('intro'),
+    outroText: await defaultBody('outro'),
+  })
+
+  return invoiceId
+}
+
+/**
+ * Appends billable items to a draft as lines and rewrites the total.
+ *
+ * The total is summed over *all* the draft's lines rather than added to, so
+ * appending twice cannot drift away from what the lines say.
+ */
+async function appendLines(
+  tx: Transaction,
+  tenantId: string,
+  invoiceId: string,
+  items: readonly BillableItem[],
+): Promise<void> {
+  if (items.length === 0) return
+
+  const [last] = await tx
+    .select({ position: sql<number | null>`max(${invoiceLine.position})` })
+    .from(invoiceLine)
+    .where(eq(invoiceLine.invoiceId, invoiceId))
+
+  const start = (last?.position ?? -1) + 1
+
+  await tx.insert(invoiceLine).values(
+    items.map((item, index) => ({
+      id: newId(),
+      tenantId,
+      invoiceId,
+      position: start + index,
+      activityItemId: item.id,
+      description: item.description,
+      feeCode: item.feeCode,
+      dateOfService: item.occurredAt.slice(0, 10),
+      quantity: item.quantity,
+      unitPriceCents: item.unitPriceCents,
+    })),
+  )
+
+  const stored = await tx
+    .select({ quantity: invoiceLine.quantity, unitPriceCents: invoiceLine.unitPriceCents })
+    .from(invoiceLine)
+    .where(eq(invoiceLine.invoiceId, invoiceId))
+
+  await tx
+    .update(invoice)
+    .set({ totalCents: sumLines(stored) })
+    .where(eq(invoice.id, invoiceId))
+}
+
+/**
+ * Resolves the chosen ids against what is actually billable, rather than
+ * trusting them: a stale browser tab could otherwise put an item on a second
+ * invoice.
+ */
+async function resolveBillable(
+  tx: Transaction,
+  tenantId: string,
+  activityItemIds: readonly string[],
+): Promise<BillableItem[]> {
+  const billable = await listBillableItems(tx, tenantId)
+  const allowed = new Map(billable.map((item) => [item.id, item]))
+
+  return activityItemIds.map((itemId) => {
+    const item = allowed.get(itemId)
+    if (!item) throw new ItemAlreadyBilledError()
+    return item
+  })
+}
+
+/** A new draft, optionally filled from the contact's billable items. */
 export async function createInvoice(
   database: Database,
   tenantId: string,
   input: InvoiceCreate,
 ): Promise<Invoice> {
   const id = await database.transaction(async (tx) => {
-    const [settings] = await tx
-      .select({ term: practiceSettings.defaultPaymentTermDays })
-      .from(practiceSettings)
-      .where(eq(practiceSettings.tenantId, tenantId))
-      .limit(1)
-
-    const [intro] = await tx
-      .select({ body: textTemplate.body })
-      .from(textTemplate)
-      .where(
-        and(
-          eq(textTemplate.tenantId, tenantId),
-          eq(textTemplate.kind, 'intro'),
-          eq(textTemplate.isDefault, true),
-        ),
-      )
-      .limit(1)
-
-    const [outro] = await tx
-      .select({ body: textTemplate.body })
-      .from(textTemplate)
-      .where(
-        and(
-          eq(textTemplate.tenantId, tenantId),
-          eq(textTemplate.kind, 'outro'),
-          eq(textTemplate.isDefault, true),
-        ),
-      )
-      .limit(1)
-
-    const invoiceId = newId()
-    await tx.insert(invoice).values({
-      id: invoiceId,
+    const invoiceId = await insertDraft(
+      tx,
       tenantId,
-      contactId: input.contactId,
-      invoiceDate: input.invoiceDate,
-      paymentTermDays: input.paymentTermDays ?? settings?.term ?? 14,
-      introText: intro?.body ?? null,
-      outroText: outro?.body ?? null,
-    })
+      input.contactId,
+      input.invoiceDate,
+      input.paymentTermDays,
+    )
 
-    if (input.activityItemIds.length > 0) {
-      const billable = await listBillableItems(tx, tenantId, input.contactId)
-      const allowed = new Map(billable.map((item) => [item.id, item]))
-
-      const chosen = input.activityItemIds.map((itemId) => {
-        const item = allowed.get(itemId)
-        if (!item) throw new ItemAlreadyBilledError()
-        return item
-      })
-
-      await tx.insert(invoiceLine).values(
-        chosen.map((item, index) => ({
-          id: newId(),
-          tenantId,
-          invoiceId,
-          position: index,
-          activityItemId: item.id,
-          description: item.description,
-          feeCode: item.feeCode,
-          dateOfService: item.occurredAt.slice(0, 10),
-          quantity: item.quantity,
-          unitPriceCents: item.unitPriceCents,
-        })),
-      )
-
-      await tx
-        .update(invoice)
-        .set({ totalCents: sumLines(chosen) })
-        .where(eq(invoice.id, invoiceId))
+    const chosen = await resolveBillable(tx, tenantId, input.activityItemIds)
+    // Items of a different contact would end up on this contact's invoice.
+    if (chosen.some((item) => item.contactId !== input.contactId)) {
+      throw new ItemAlreadyBilledError()
     }
 
+    await appendLines(tx, tenantId, invoiceId, chosen)
     return invoiceId
   })
 
   const created = await getInvoice(database, tenantId, id)
   if (!created) throw new Error('insert returned no row')
   return created
+}
+
+/**
+ * Turns billable items into drafts — one per contact, appending to a draft the
+ * contact already has instead of opening a second one.
+ *
+ * Both ways into billing land here: the button on a single activity and the
+ * bulk action on the billable list. They differ only in how many items they
+ * hand over, so the rule about what happens to them lives in one place rather
+ * than in two screens.
+ *
+ * One transaction for all contacts. Either every draft named in the answer
+ * exists or none does — a half-finished collect would leave the practitioner
+ * guessing which contacts still need doing.
+ */
+export async function collectBillableItems(
+  database: Database,
+  tenantId: string,
+  input: InvoiceCollect,
+): Promise<InvoiceCollectResult[]> {
+  return database.transaction(async (tx) => {
+    const chosen = await resolveBillable(tx, tenantId, input.activityItemIds)
+
+    const byContact = new Map<string, BillableItem[]>()
+    for (const item of chosen) {
+      const bucket = byContact.get(item.contactId)
+      if (bucket) bucket.push(item)
+      else byContact.set(item.contactId, [item])
+    }
+
+    const results: InvoiceCollectResult[] = []
+
+    for (const [contactId, items] of byContact) {
+      /**
+       * The draft to append to. Ordered newest first because that is the one
+       * being worked on; with the single draft this practice normally has, the
+       * ordering never comes up.
+       */
+      const [open] = await tx
+        .select({ id: invoice.id })
+        .from(invoice)
+        .where(
+          and(
+            eq(invoice.tenantId, tenantId),
+            eq(invoice.contactId, contactId),
+            eq(invoice.status, 'draft'),
+            eq(invoice.type, 'invoice'),
+          ),
+        )
+        .orderBy(desc(invoice.createdAt))
+        .limit(1)
+
+      const invoiceId = open
+        ? open.id
+        : await insertDraft(tx, tenantId, contactId, input.invoiceDate)
+
+      await appendLines(tx, tenantId, invoiceId, items)
+
+      results.push({
+        invoiceId,
+        contactId,
+        contactName: items[0]?.contactName ?? '',
+        created: !open,
+        addedLines: items.length,
+      })
+    }
+
+    return results
+  })
 }
 
 /**

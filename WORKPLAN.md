@@ -1101,3 +1101,45 @@ became `NOT NULL`.
 Checked and unchanged: the contact list shows only the city, the search covers
 first, last and company name and the contact number but never a phone number,
 and the mail send resolves an email address alone.
+
+## Slice 11 — billing from the activity
+
+No schema change and no migration: everything here was already derivable, and
+a stored "billed" flag would be the second place that eventually disagrees
+with the invoice lines — the argument of `paidCents` in slice 8.
+
+- **One operation, two ways in.** `collectBillableItems()` turns billable items
+  into drafts, one per contact, appending to the draft a contact already has
+  instead of opening a second one. The button on an activity and the bulk
+  action on the new list are the same call with a different number of ids, so
+  the rule lives in `domain/` and not in two screens. All contacts in one
+  transaction. Both ways confirm what will happen — new draft or addition —
+  worked out from the drafts the screen has loaded anyway, so there is no
+  preview endpoint.
+- **`activity.billingState`** — `none | open | billed`, derived on read, never
+  stored. `none` means there is nothing to bill, not that nothing has been
+  billed.
+- **The cancellation test is the one that matters.** It protects that
+  `billingStateOf` and `listBillableItems` decide with the *same* condition:
+  cancelling an invoice frees its items, so an activity falls back from
+  `billed` to `open` with nothing kept in step. Implement `billingState` more
+  conveniently later — a column, a flag written at finalization, a query that
+  only asks whether any line exists — and every easy case still passes while
+  this one falls over. The test says so in its own comment so it is not
+  relaxed by someone who reads it as a nullable-edge-case.
+- **Abrechenbar is its own navigation entry**, between Vorgänge and Rechnungen.
+  The three make one path: **Abrechenbar → Rechnungen → Bezahlübersicht** —
+  work done and not yet demanded, demanded, demanded and not yet paid. Not a
+  tab in the invoice list, which lists invoices and would promise the same
+  entity in another selection; not a tab in the activity list, which is the
+  documentation of what happened while this is a money view with a creating
+  action.
+- **The status is shown and cannot be filtered on.** `billableQuerySchema` has
+  no status field, so it is not a rule anybody has to keep — it is not
+  expressible. The comment on `listBillableItems` used to say the status must
+  not be in the result at all; it now says why there is no parameter, which is
+  what the code actually does.
+- The `loadActivity` billing query makes the activity list an N+1. It has been
+  one since slice 4 (items and appointment are loaded per row too) and the
+  comment says the fourth query is deliberate, so it is not read as an
+  oversight later. When the list is felt to be slow, all four go at once.

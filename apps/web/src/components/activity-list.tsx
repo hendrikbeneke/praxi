@@ -78,6 +78,18 @@ export function ActivityList({
                   </Badge>
                 )}
 
+                {/* Whether the work has been claimed, derived on read from the
+                    invoice lines and never stored — a cancelled invoice puts
+                    this back to "Offen" on its own. `none` says there is
+                    nothing to bill here and gets no badge. */}
+                {activity.billingState !== 'none' && (
+                  <Badge variant={activity.billingState === 'billed' ? 'secondary' : 'outline'}>
+                    {activity.billingState === 'billed'
+                      ? strings.billable.stateBilled
+                      : strings.billable.stateOpen}
+                  </Badge>
+                )}
+
                 {/* The title if there is one, otherwise the type's label is
                     already the name of this activity and stands above. */}
                 {activity.title && (

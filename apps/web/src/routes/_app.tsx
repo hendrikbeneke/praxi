@@ -3,6 +3,7 @@ import { createFileRoute, Link, Outlet, redirect, useNavigate } from '@tanstack/
 import {
   CalendarDays,
   ClipboardList,
+  Coins,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -40,6 +41,9 @@ const navigation = [
   { to: '/contacts', label: strings.nav.contacts, icon: Users },
   { to: '/appointments', label: strings.nav.appointments, icon: CalendarDays },
   { to: '/activities', label: strings.nav.activities, icon: ClipboardList },
+  // The money, in the order it moves: what is owed to us and not yet demanded,
+  // what has been demanded, what has been demanded and not yet paid.
+  { to: '/billable', label: strings.nav.billable, icon: Coins },
   { to: '/invoices', label: strings.nav.invoices, icon: FileText },
   { to: '/receivables', label: strings.nav.receivables, icon: Wallet },
   { to: '/services', label: strings.nav.services, icon: Stethoscope },

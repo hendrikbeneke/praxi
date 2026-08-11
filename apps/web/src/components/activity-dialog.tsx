@@ -24,9 +24,10 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { CollectDialog, type CollectPlanEntry } from '@/components/collect-dialog'
 import { ContactPicker } from '@/components/contact-picker'
 import { DateField } from '@/components/date-field'
 import { PaymentStatusBadge } from '@/components/payment-status'
@@ -57,7 +58,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createActivity, updateActivity } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
-import { invoiceListQueryOptions } from '@/lib/invoices'
+import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/services'
 import { strings } from '@/lib/strings'
@@ -899,6 +900,13 @@ export function ActivityDialog({
             <ActivityInvoices activity={activity} onNavigate={() => onOpenChange(false)} />
           )}
 
+          {/* The way from the treatment to the demand. Outside the fieldset:
+              it is an action on a saved record, not a field of the form, and
+              it acts on what is stored rather than on what is on screen. */}
+          {activity && activity.billingState === 'open' && (
+            <BillActivity activity={activity} onDone={() => onOpenChange(false)} />
+          )}
+
           {activity && <ActivityNotes activityId={activity.id} />}
 
           <section>
@@ -934,6 +942,58 @@ export function ActivityDialog({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * "Rechnung erstellen" on a single activity.
+ *
+ * The same call the billable list makes, with the items of this one activity:
+ * one draft for the contact, appended to the draft they already have. Which of
+ * the two it will be is said before it happens, by the dialog both ways share.
+ *
+ * Only offered while `billingState` is `open` — everything else would be a
+ * button that does nothing.
+ */
+function BillActivity({ activity, onDone }: { activity: Activity; onDone: () => void }) {
+  const billable = useQuery(billableQueryOptions(activity.contactId))
+  const drafts = useQuery(
+    invoiceListQueryOptions({ contactId: activity.contactId, status: 'draft' }),
+  )
+  const [confirming, setConfirming] = useState(false)
+
+  const mine = (billable.data ?? []).filter((item) => item.activityId === activity.id)
+  if (mine.length === 0) return null
+
+  const existing = (drafts.data ?? []).find((entry) => entry.type === 'invoice')
+
+  const plan: CollectPlanEntry[] = [
+    {
+      contactId: activity.contactId,
+      contactName: mine[0]?.contactName ?? '',
+      itemIds: mine.map((item) => item.id),
+      totalCents: mine.reduce((sum, item) => sum + item.quantity * item.unitPriceCents, 0),
+      existingDraft: existing ? { id: existing.id, invoiceDate: existing.invoiceDate } : null,
+    },
+  ]
+
+  return (
+    <section>
+      <Button type="button" variant="outline" onClick={() => setConfirming(true)}>
+        <FileText className="size-4" aria-hidden />
+        {strings.billable.fromActivity}
+      </Button>
+
+      <CollectDialog
+        plan={plan}
+        open={confirming}
+        onOpenChange={(open) => {
+          setConfirming(open)
+          if (!open) onDone()
+        }}
+        jumpToInvoice
+      />
+    </section>
   )
 }
 

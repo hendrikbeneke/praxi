@@ -1,7 +1,8 @@
-import type { BillableItem } from '@praxi/shared'
+import type { ActivityBillingState, BillableItem } from '@praxi/shared'
+import { formatContactName } from '@praxi/shared'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import type { DbReader } from '../db/client.js'
-import { activity, activityItem, invoice, invoiceLine } from '../db/schema.js'
+import { activity, activityItem, contact, invoice, invoiceLine } from '../db/schema.js'
 
 /**
  * Which of a contact's activity items may still be put on an invoice
@@ -36,22 +37,45 @@ const claimedByAnActiveInvoice = sql`exists (
      and ${invoice.type} <> 'cancellation_invoice'
 )`
 
+/**
+ * Everything still open, for one contact or across all of them.
+ *
+ * The activity's **status travels with each row and cannot be filtered on**:
+ * there is no status parameter here and none in `billableQuerySchema`. That is
+ * the point rather than an omission — billability does not depend on a status
+ * (rule 6), so a filter over it could only hide work that is still owed, and a
+ * past activity still standing on "planned" is exactly the row worth seeing.
+ * Not expressible beats not allowed: nobody has to remember the rule.
+ */
 export async function listBillableItems(
   reader: DbReader,
   tenantId: string,
-  contactId: string,
+  contactId?: string,
 ): Promise<BillableItem[]> {
+  const filters = [
+    eq(activityItem.tenantId, tenantId),
+    eq(activityItem.billable, true),
+    sql`not ${claimedByAnActiveInvoice}`,
+  ]
+  if (contactId) filters.push(eq(activity.contactId, contactId))
+
   const rows = await reader
     .select({
       id: activityItem.id,
       activityId: activityItem.activityId,
+      contactId: activity.contactId,
+      contactNumber: contact.contactNumber,
+      contactKind: contact.kind,
+      contactTitle: contact.title,
+      contactFirstName: contact.firstName,
+      contactLastName: contact.lastName,
+      contactCompanyName: contact.companyName,
       occurredAt: activity.occurredAt,
       activityTitle: activity.title,
       /** So the picker can fall back to the type's label where the activity
-       *  has no title of its own. The activity's *status* is deliberately not
-       *  here: it does not gate billing (rule 6), and offering it would invite
-       *  a filter that quietly loses revenue. */
+       *  has no title of its own. */
       activityType: activity.type,
+      activityStatus: activity.status,
       description: activityItem.description,
       feeCode: activityItem.feeCode,
       quantity: activityItem.quantity,
@@ -59,17 +83,63 @@ export async function listBillableItems(
     })
     .from(activityItem)
     .innerJoin(activity, eq(activity.id, activityItem.activityId))
-    .where(
-      and(
-        eq(activityItem.tenantId, tenantId),
-        eq(activity.contactId, contactId),
-        eq(activityItem.billable, true),
-        sql`not ${claimedByAnActiveInvoice}`,
-      ),
-    )
-    .orderBy(asc(activity.occurredAt), asc(activityItem.position))
+    .innerJoin(contact, eq(contact.id, activity.contactId))
+    .where(and(...filters))
+    .orderBy(asc(contact.sortName), asc(activity.occurredAt), asc(activityItem.position))
 
-  return rows.map((row) => ({ ...row, occurredAt: row.occurredAt.toISOString() }))
+  return rows.map(
+    ({
+      contactKind,
+      contactTitle,
+      contactFirstName,
+      contactLastName,
+      contactCompanyName,
+      ...row
+    }) => ({
+      ...row,
+      occurredAt: row.occurredAt.toISOString(),
+      // The same function the list and the recipient snapshot use, so one
+      // contact reads the same wherever they appear.
+      contactName: formatContactName({
+        kind: contactKind,
+        title: contactTitle,
+        firstName: contactFirstName,
+        lastName: contactLastName,
+        companyName: contactCompanyName,
+      }),
+    }),
+  )
+}
+
+/**
+ * Whether an activity's work has been claimed yet — `none` when there is
+ * nothing to claim, `billed` when every billable item sits on an active
+ * invoice, `open` while one does not.
+ *
+ * **This shares `claimedByAnActiveInvoice` with the list above, and that is
+ * the whole design.** The two answers have to agree in every case, cancellation
+ * included: cancelling an invoice returns its items to the pool, so an activity
+ * has to fall back from `billed` to `open` without anything being kept in step.
+ * A stored column or a second, "simpler" query would pass the easy tests and
+ * break exactly there — which is what `invoice.test.ts` guards.
+ */
+export async function billingStateOf(
+  reader: DbReader,
+  tenantId: string,
+  activityId: string,
+): Promise<ActivityBillingState> {
+  const [counts] = await reader
+    .select({
+      billable: sql<number>`count(*) filter (where ${activityItem.billable})`.mapWith(Number),
+      open: sql<number>`count(*) filter (
+        where ${activityItem.billable} and not ${claimedByAnActiveInvoice}
+      )`.mapWith(Number),
+    })
+    .from(activityItem)
+    .where(and(eq(activityItem.tenantId, tenantId), eq(activityItem.activityId, activityId)))
+
+  if (!counts || counts.billable === 0) return 'none'
+  return counts.open > 0 ? 'open' : 'billed'
 }
 
 /**

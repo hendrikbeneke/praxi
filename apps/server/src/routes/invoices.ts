@@ -1,6 +1,7 @@
 import type { Invoice } from '@praxi/shared'
 import {
   billableQuerySchema,
+  invoiceCollectSchema,
   invoiceCreateSchema,
   invoiceListQuerySchema,
   invoiceUpdateSchema,
@@ -21,6 +22,7 @@ import {
 import { MissingNumberRangeError } from '../domain/counter.js'
 import { finalizeInvoice } from '../domain/finalize-invoice.js'
 import {
+  collectBillableItems,
   createInvoice,
   deleteInvoice,
   getInvoice,
@@ -119,6 +121,18 @@ export const invoicesRoute = new Hono<AppEnv>()
   .post('/', validate('json', invoiceCreateSchema), async (c) => {
     const created = await createInvoice(db(), tenantId(c), c.req.valid('json')).catch(translate)
     return c.json(created, 201)
+  })
+
+  /**
+   * Billable items into drafts — one per contact, appended to the draft a
+   * contact already has. The button on a single activity and the bulk action
+   * on the billable list are the same call with a different number of ids.
+   */
+  .post('/collect', validate('json', invoiceCollectSchema), async (c) => {
+    const results = await collectBillableItems(db(), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
+    return c.json(results, 201)
   })
 
   .get('/:invoiceId', validate('param', invoiceParam), async (c) => {

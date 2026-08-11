@@ -28,6 +28,22 @@ export const activityStatuses = ['planned', 'rendered', 'no_show'] as const
 export const activityStatusSchema = z.enum(activityStatuses)
 export type ActivityStatus = z.infer<typeof activityStatusSchema>
 
+/**
+ * Whether what was rendered here has been claimed yet.
+ *
+ * Derived on read from the invoice lines and **never stored** — a column would
+ * be a second place saying what the lines already say, and a cancelled invoice
+ * frees its items again (rule 9) without anything to keep in step. It comes
+ * from `billingStateOf()` in `domain/billable.ts`, which uses the very same
+ * condition as the billable list; see the note there.
+ *
+ * `none` is not "nothing has been billed" but "there is nothing to bill" — an
+ * activity whose items are all marked unbillable, or one without items.
+ */
+export const activityBillingStates = ['none', 'open', 'billed'] as const
+export const activityBillingStateSchema = z.enum(activityBillingStates)
+export type ActivityBillingState = z.infer<typeof activityBillingStateSchema>
+
 const quantity = z.number().int().positive().max(999)
 const durationMin = z
   .number()
@@ -123,6 +139,7 @@ export const activitySchema = z.object({
   internalNote: z.string().nullable(),
   appointment: appointmentSchema.nullable(),
   items: z.array(activityItemSchema),
+  billingState: activityBillingStateSchema,
 })
 
 export type Activity = z.infer<typeof activitySchema>
