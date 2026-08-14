@@ -357,6 +357,7 @@ const EMPTY_TEMPLATE: TextTemplateInput = {
   body: '',
   isDefault: false,
   isPaidVariant: false,
+  sortOrder: 0,
   active: true,
 }
 
@@ -468,6 +469,7 @@ function TextTemplateForm({
           body: template.body,
           isDefault: template.isDefault,
           isPaidVariant: template.isPaidVariant,
+          sortOrder: template.sortOrder,
           active: template.active,
         }
       : EMPTY_TEMPLATE,

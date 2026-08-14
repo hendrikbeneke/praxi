@@ -16,6 +16,7 @@ export const emailTemplateInputSchema = z.object({
   body: requiredText(4000),
   /** At most one; the one the send dialog opens with. */
   isDefault: z.boolean().default(false),
+  sortOrder: z.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 })
 
@@ -27,6 +28,7 @@ export const emailTemplateSchema = z.object({
   subject: z.string(),
   body: z.string(),
   isDefault: z.boolean(),
+  sortOrder: z.number().int(),
   active: z.boolean(),
 })
 

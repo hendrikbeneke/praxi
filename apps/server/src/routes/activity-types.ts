@@ -11,6 +11,7 @@ import {
   listActivityTypes,
   updateActivityType,
 } from '../domain/activity-type.js'
+import { UnknownServiceError } from '../domain/service.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
@@ -35,12 +36,10 @@ function translate(error: unknown): never {
   if (foreignKey === 'activity_type_fk') {
     throw new HTTPException(409, { message: messages.activityType.inUse })
   }
-  // A preset pointing at a service or group of another tenant, or at one that
-  // was deleted in between.
-  if (
-    foreignKey === 'activity_type_service_tenant_fk' ||
-    foreignKey === 'activity_type_service_group_tenant_fk'
-  ) {
+
+  // A preset item pointing at a service of another tenant, or at one that was
+  // deleted in between — checked in the domain, not left to the foreign key.
+  if (error instanceof UnknownServiceError) {
     throw new HTTPException(409, { message: messages.activityType.presetMissing })
   }
   throw error

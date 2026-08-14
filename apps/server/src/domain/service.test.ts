@@ -1,4 +1,4 @@
-import type { CatalogueListQuery, ServiceInput } from '@praxi/shared'
+import type { CatalogueListQuery, ServiceGroupInput, ServiceInput } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -8,10 +8,14 @@ import { createTenant } from '../test/fixtures.js'
 import {
   createService,
   createServiceGroup,
+  deleteService,
+  deleteServiceGroup,
   getService,
   getServiceGroup,
   listServiceGroups,
   listServices,
+  ServiceGroupInUseError,
+  ServiceInUseError,
   UnknownServiceError,
   updateService,
   updateServiceGroup,
@@ -33,7 +37,18 @@ function serviceInput(overrides: Partial<ServiceInput> = {}): ServiceInput {
     feeCode: null,
     defaultPriceCents: 9000,
     defaultDurationMin: 50,
+    sortOrder: 0,
     active: true,
+    ...overrides,
+  }
+}
+
+function groupInput(overrides: Partial<ServiceGroupInput> = {}): ServiceGroupInput {
+  return {
+    name: 'Paket',
+    sortOrder: 0,
+    active: true,
+    items: [],
     ...overrides,
   }
 }
@@ -112,6 +127,28 @@ describe('services', () => {
     ])
   })
 
+  /** `sort_order` wins over the alphabet; ties fall back to it (rule from the
+   *  design handoff — see the C) part of the D1 slice). */
+  it('sorts by sortOrder first, description second', async () => {
+    await createService(db(), tenantId, serviceInput({ description: 'Vortrag', sortOrder: 20 }))
+    await createService(
+      db(),
+      tenantId,
+      serviceInput({ description: 'Erstgespräch', sortOrder: 10 }),
+    )
+    await createService(
+      db(),
+      tenantId,
+      serviceInput({ description: 'Ärztliches Attest', sortOrder: 10 }),
+    )
+
+    expect((await listServices(db(), tenantId, active)).map((row) => row.description)).toEqual([
+      'Ärztliches Attest',
+      'Erstgespräch',
+      'Vortrag',
+    ])
+  })
+
   it('does not reach into another tenant', async () => {
     const created = await createService(db(), tenantId, serviceInput())
     const otherTenant = await createTenant(db(), 'Mandant B')
@@ -139,14 +176,17 @@ describe('service groups', () => {
   it('keeps the order the items were given in', async () => {
     const { first, follow } = await catalogue()
 
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Einstiegspaket',
-      active: true,
-      items: [
-        { serviceId: follow.id, quantity: 4 },
-        { serviceId: first.id, quantity: 1 },
-      ],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({
+        name: 'Einstiegspaket',
+        items: [
+          { serviceId: follow.id, quantity: 4 },
+          { serviceId: first.id, quantity: 1 },
+        ],
+      }),
+    )
 
     expect(group.items.map((item) => item.description)).toEqual(['Folgesitzung', 'Erstgespräch'])
     expect(group.items.map((item) => item.quantity)).toEqual([4, 1])
@@ -154,23 +194,28 @@ describe('service groups', () => {
 
   it('numbers positions from zero without gaps', async () => {
     const { first, follow } = await catalogue()
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [
-        { serviceId: first.id, quantity: 1 },
-        { serviceId: follow.id, quantity: 2 },
-      ],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({
+        items: [
+          { serviceId: first.id, quantity: 1 },
+          { serviceId: follow.id, quantity: 2 },
+        ],
+      }),
+    )
 
-    await updateServiceGroup(db(), tenantId, group.id, {
-      name: 'Paket',
-      active: true,
-      items: [
-        { serviceId: follow.id, quantity: 2 },
-        { serviceId: first.id, quantity: 1 },
-      ],
-    })
+    await updateServiceGroup(
+      db(),
+      tenantId,
+      group.id,
+      groupInput({
+        items: [
+          { serviceId: follow.id, quantity: 2 },
+          { serviceId: first.id, quantity: 1 },
+        ],
+      }),
+    )
 
     const rows = await db()
       .select({ position: serviceGroupItem.position, serviceId: serviceGroupItem.serviceId })
@@ -184,11 +229,11 @@ describe('service groups', () => {
 
   it('carries the catalogue values along for display', async () => {
     const { first } = await catalogue()
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [{ serviceId: first.id, quantity: 1 }],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: first.id, quantity: 1 }] }),
+    )
 
     expect(group.items[0]).toMatchObject({
       description: 'Erstgespräch',
@@ -202,11 +247,11 @@ describe('service groups', () => {
    *  able to point that out rather than quietly showing a stale entry. */
   it('reports a deactivated service inside a group', async () => {
     const { first } = await catalogue()
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [{ serviceId: first.id, quantity: 1 }],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: first.id, quantity: 1 }] }),
+    )
 
     await updateService(
       db(),
@@ -224,69 +269,117 @@ describe('service groups', () => {
     const foreign = await createService(db(), otherTenant, serviceInput())
 
     await expect(
-      createServiceGroup(db(), tenantId, {
-        name: 'Paket',
-        active: true,
-        items: [{ serviceId: foreign.id, quantity: 1 }],
-      }),
+      createServiceGroup(
+        db(),
+        tenantId,
+        groupInput({ items: [{ serviceId: foreign.id, quantity: 1 }] }),
+      ),
     ).rejects.toBeInstanceOf(UnknownServiceError)
   })
 
   it('refuses a service id that does not exist', async () => {
     await expect(
-      createServiceGroup(db(), tenantId, {
-        name: 'Paket',
-        active: true,
-        items: [{ serviceId: newId(), quantity: 1 }],
-      }),
+      createServiceGroup(
+        db(),
+        tenantId,
+        groupInput({ items: [{ serviceId: newId(), quantity: 1 }] }),
+      ),
     ).rejects.toBeInstanceOf(UnknownServiceError)
   })
 
   it('hides inactive groups unless asked for them', async () => {
-    await createServiceGroup(db(), tenantId, { name: 'Aktuell', active: true, items: [] })
-    await createServiceGroup(db(), tenantId, { name: 'Eingestellt', active: false, items: [] })
+    await createServiceGroup(db(), tenantId, groupInput({ name: 'Aktuell' }))
+    await createServiceGroup(db(), tenantId, groupInput({ name: 'Eingestellt', active: false }))
 
     expect(await listServiceGroups(db(), tenantId, active)).toHaveLength(1)
     expect(await listServiceGroups(db(), tenantId, all)).toHaveLength(2)
   })
 
-  it('keeps group names unique per tenant', async () => {
-    await createServiceGroup(db(), tenantId, { name: 'Paket', active: true, items: [] })
+  it('sorts by sortOrder first, name second', async () => {
+    await createServiceGroup(db(), tenantId, groupInput({ name: 'Zweites', sortOrder: 0 }))
+    await createServiceGroup(db(), tenantId, groupInput({ name: 'Erstes', sortOrder: 0 }))
 
-    await expect(
-      createServiceGroup(db(), tenantId, { name: 'Paket', active: true, items: [] }),
-    ).rejects.toThrow()
+    expect((await listServiceGroups(db(), tenantId, active)).map((row) => row.name)).toEqual([
+      'Erstes',
+      'Zweites',
+    ])
+  })
+
+  it('keeps group names unique per tenant', async () => {
+    await createServiceGroup(db(), tenantId, groupInput())
+
+    await expect(createServiceGroup(db(), tenantId, groupInput())).rejects.toThrow()
   })
 
   it('leaves the services alone when a group is emptied', async () => {
     const { first } = await catalogue()
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [{ serviceId: first.id, quantity: 1 }],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: first.id, quantity: 1 }] }),
+    )
 
-    await updateServiceGroup(db(), tenantId, group.id, { name: 'Paket', active: true, items: [] })
+    await updateServiceGroup(db(), tenantId, group.id, groupInput())
 
     expect(await getService(db(), tenantId, first.id)).not.toBeNull()
   })
 
   it('does not reach into another tenant', async () => {
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [],
-    })
+    const group = await createServiceGroup(db(), tenantId, groupInput())
     const otherTenant = await createTenant(db(), 'Mandant B')
 
     expect(await getServiceGroup(db(), otherTenant, group.id)).toBeNull()
     expect(
-      await updateServiceGroup(db(), otherTenant, group.id, {
-        name: 'Umbenannt',
-        active: true,
-        items: [],
-      }),
+      await updateServiceGroup(db(), otherTenant, group.id, groupInput({ name: 'Umbenannt' })),
     ).toBeNull()
+  })
+})
+
+describe('deleting the catalogue', () => {
+  it('deletes a service that nothing references', async () => {
+    const created = await createService(db(), tenantId, serviceInput())
+
+    expect(await deleteService(db(), tenantId, created.id)).toBe(true)
+    expect(await getService(db(), tenantId, created.id)).toBeNull()
+  })
+
+  it('refuses to delete a service used by a group, with a readable error', async () => {
+    const created = await createService(db(), tenantId, serviceInput())
+    await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: created.id, quantity: 1 }] }),
+    )
+
+    await expect(deleteService(db(), tenantId, created.id)).rejects.toBeInstanceOf(
+      ServiceInUseError,
+    )
+    expect(await getService(db(), tenantId, created.id)).not.toBeNull()
+  })
+
+  it('reports false rather than throwing for an id in another tenant', async () => {
+    const created = await createService(db(), tenantId, serviceInput())
+    const otherTenant = await createTenant(db(), 'Mandant B')
+
+    expect(await deleteService(db(), otherTenant, created.id)).toBe(false)
+    expect(await getService(db(), tenantId, created.id)).not.toBeNull()
+  })
+
+  it('deletes a service group that nothing references', async () => {
+    const group = await createServiceGroup(db(), tenantId, groupInput())
+
+    expect(await deleteServiceGroup(db(), tenantId, group.id)).toBe(true)
+    expect(await getServiceGroup(db(), tenantId, group.id)).toBeNull()
+  })
+
+  /**
+   * Nothing references a group from outside it since D1 — an activity type's
+   * preset resolves a chosen group into service rows immediately rather than
+   * keeping the group id (CLAUDE.md rule 5) — so this only proves the call
+   * exists and does not throw for the case the domain check exists for.
+   */
+  it('has a ServiceGroupInUseError type ready for the day something references a group', () => {
+    expect(new ServiceGroupInUseError()).toBeInstanceOf(Error)
   })
 })
 
@@ -301,11 +394,11 @@ describe('the catalogue holds no live references', () => {
    * nothing for its price or text — the values were copied. Slice 4 added it,
    * and this test was narrowed to the rule it actually protects.
    *
-   * Slice 7.5 narrowed it once more, for `activity_type.default_service_group_id`.
-   * That is a catalogue entry naming another catalogue entry as a preset: it
-   * is resolved into individual items the moment the type is applied, and no
-   * row that records what happened ever holds it. Only such a table may appear
-   * in this list, and every addition has to be weighed against rule 5 first.
+   * D1 removed the last exception, `activity_type.default_service_group_id`:
+   * an activity type's preset now references services directly
+   * (`activity_type_preset_item`), never a group, so nothing at all may
+   * appear in this list anymore. Anything that does needs weighing against
+   * rule 5 before it is added.
    */
   it('lets nothing outside the catalogue reference a service group', async () => {
     const referencing = await db().execute<{ table_name: string }>(`
@@ -319,7 +412,7 @@ describe('the catalogue holds no live references', () => {
       order by 1
     `)
 
-    expect([...referencing].map((row) => row.table_name)).toEqual(['activity_type'])
+    expect([...referencing].map((row) => row.table_name)).toEqual([])
   })
 
   it('allows a service to be referenced only as a record of origin', async () => {
@@ -340,6 +433,7 @@ describe('the catalogue holds no live references', () => {
     // is added to the list.
     expect([...referencing].map((row) => row.table_name)).toEqual([
       'activity_item',
+      'activity_type_preset_item',
       'service_group_item',
     ])
   })
@@ -350,11 +444,11 @@ describe('the catalogue holds no live references', () => {
       tenantId,
       serviceInput({ description: 'Folgesitzung', defaultPriceCents: 9000 }),
     )
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [{ serviceId: original.id, quantity: 2 }],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: original.id, quantity: 2 }] }),
+    )
 
     await updateService(
       db(),
@@ -385,24 +479,24 @@ describe('the catalogue holds no live references', () => {
 describe('database guarantees', () => {
   it('refuses to delete a service that a group uses', async () => {
     const created = await createService(db(), tenantId, serviceInput())
-    await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [{ serviceId: created.id, quantity: 1 }],
-    })
+    await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: created.id, quantity: 1 }] }),
+    )
 
-    // There is no delete path in the domain; deactivation is the way. The
-    // foreign key is what makes that stick even from psql.
+    // The domain refuses first (see "deleting the catalogue" above); this is
+    // the foreign key backstopping it even from psql.
     await expect(db().delete(service).where(eq(service.id, created.id))).rejects.toThrow()
   })
 
   it('removes the items when a group row is deleted', async () => {
     const created = await createService(db(), tenantId, serviceInput())
-    const group = await createServiceGroup(db(), tenantId, {
-      name: 'Paket',
-      active: true,
-      items: [{ serviceId: created.id, quantity: 1 }],
-    })
+    const group = await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: created.id, quantity: 1 }] }),
+    )
 
     await db().delete(serviceGroup).where(eq(serviceGroup.id, group.id))
 

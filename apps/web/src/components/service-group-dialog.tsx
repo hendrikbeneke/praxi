@@ -105,7 +105,9 @@ export function ServiceGroupDialog({
   function submit() {
     setNameTouched(true)
     if (name.trim() === '') return
-    mutation.mutate({ name: name.trim(), active, items })
+    // `sortOrder` is not a form field yet — reordering arrives with the
+    // redesigned catalogue screen (D5) — so it is carried through unchanged.
+    mutation.mutate({ name: name.trim(), sortOrder: group?.sortOrder ?? 0, active, items })
   }
 
   const nameInvalid = nameTouched && name.trim() === ''

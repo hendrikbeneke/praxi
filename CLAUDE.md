@@ -191,7 +191,7 @@ Confidentiality follows the role, not the table: professional secrecy under § 2
 
 `service` is a catalogue. `service_group` is a selection helper — when you pick a group, it is resolved into individual items immediately, at entry time. **No row that records what happened ever stores a reference to a group.**
 
-The one place a group id may appear besides `service_group_item` is `activity_type.default_service_group_id` (slice 7.5): a catalogue entry naming another catalogue entry as a preset. It is resolved into individual items the moment the type is applied, exactly as picking the group by hand is, and never travels onto the activity. Nothing else may hold one, and `activity.test.ts` asserts the list against the live catalogue so a new column is caught.
+**No table outside `service_group` and `service_group_item` may hold a group id at all** — `service.test.ts` asserts the live catalogue against this so a new column is caught. Until D1, `activity_type.default_service_group_id` was the one exception: a catalogue entry naming another catalogue entry as a preset. Slice 7.5's version resolved it into individual items the moment the type was *applied* to an activity; D1 moved that resolution one step earlier, to the moment the group is *picked as a preset* in the settings, and replaced the single-service-or-group columns with `activity_type_preset_item` — a list of service references only (`service_id`, `quantity`, `position`, rule 5 one level up), resolved from a chosen group at selection time and never naming the group afterwards. The activity dialog then applies a type's preset by reading that list directly, with no group left to resolve at that point.
 
 When an `activity_item` is created, description, fee code and price are **copied** from the service. `service_id` remains only as a record of origin and carries no meaning for price or text afterwards. A position has no duration of its own — the length of what happened belongs to the activity.
 
@@ -208,7 +208,7 @@ Consequences, all of them intended:
 
 **The type of an activity is a catalogue entry**, not an enum: `activity.type` holds the `code` of an `activity_type`, through a composite foreign key carrying `tenant_id`, exactly as roles and relations do in rule 4. The practice decides which kinds of appointment it has, and it names and colours them itself. There are no system entries — nothing in the software depends on a particular type existing. A type that is in use cannot be deleted, only deactivated; the foreign key enforces that and the domain refuses first, so the message is a sentence.
 
-An activity type may carry **presets**: a default duration, and either a default service or a default service group. They prefill a *new* activity and are read exactly once, when the type is applied. This is rule 5 one level up — changing a preset reaches nothing that already exists, and there is no re-apply mechanism anywhere in `domain/`. Changing the type of an activity that already carries a duration or positions therefore changes nothing else; the UI says so in a line and offers taking the presets over as an action with a name, rather than overwriting silently.
+An activity type may carry **presets**: a default duration, and a list of service references (`activity_type_preset_item`) with a quantity and an order — picking a service group when setting the preset resolves it into that list immediately, so the type never names a group itself. They prefill a *new* activity and are read exactly once, when the type is applied. This is rule 5 one level up — changing a preset reaches nothing that already exists, and there is no re-apply mechanism anywhere in `domain/`. Changing the type of an activity that already carries a duration or positions therefore changes nothing else; the UI says so in a line and offers taking the presets over as an action with a name, rather than overwriting silently.
 
 `activity.title` is optional. Where it is missing, every screen shows the label of the activity type instead — one implementation, `activityLabel()` in `packages/shared`, so list, calendar, contact overview and note dialog cannot drift.
 
@@ -457,6 +457,15 @@ contact               tenant_id uuid not null -> tenant(id),
                         -- it is decides whether one calls or writes. There was
                         -- one `phone` before; nothing carried it over, the
                         -- development database held none.
+                      diagnosis text                             (nullable,
+                        -- added in D1) — a health datum under Art. 9 GDPR.
+                        -- Never logged, never in an error message, and never
+                        -- in the contact list: domain/contact.ts keeps a
+                        -- separate list-safe column set (listColumns) that
+                        -- never selects it, rather than relying on the
+                        -- response schema alone to keep it out (rule 12).
+                        -- Appears only in master data, the invoice draft
+                        -- (invoice.diagnosis, prefilled from here) and the PDF.
                       archived_at timestamptz                   (soft delete;
                         -- there is no hard delete path)
                       sort_name text generated always as (
@@ -582,7 +591,7 @@ contact_relation      tenant_id uuid not null -> tenant(id),
                       -- ends, so the reverse duplicate collides with the
                       -- unique key above.
 
--- as built (slice 3)
+-- as built (slice 3, sort_order and deletion added in D1)
 service               tenant_id uuid not null -> tenant(id),
                       short_code text                           (nullable)
                       description text not null,                -- copied onto
@@ -596,6 +605,9 @@ service               tenant_id uuid not null -> tenant(id),
                       default_duration_min integer
                         check (null or > 0)                     -- an
                         -- Ausfallhonorar has no duration
+                      sort_order integer not null default 0     -- selection
+                        -- order everywhere the catalogue is picked from;
+                        -- ties break on description
                       active boolean not null default true
                       unique (id, tenant_id)                    -- for the FK
                       unique index (tenant_id, short_code)
@@ -604,13 +616,31 @@ service               tenant_id uuid not null -> tenant(id),
                       -- deliberately absent: valid_from/valid_to, price
                       -- history. Editing the catalogue must leave everything
                       -- that already exists untouched (rule 5).
+                      --
+                      -- Deletable since D1, once nothing references it —
+                      -- deleteService in domain/service.ts checks
+                      -- activity_item, service_group_item and
+                      -- activity_type_preset_item first, for a readable
+                      -- message, with the (already existing) foreign keys
+                      -- from those three as the actual backstop. `active`
+                      -- stays alongside as a separate thing: deactivating and
+                      -- deleting answer different questions.
 
--- as built (slice 3)
+-- as built (slice 3, sort_order and deletion added in D1)
 service_group         tenant_id uuid not null -> tenant(id),
                       name text not null,
+                      sort_order integer not null default 0     -- same
+                        -- reasoning as service.sort_order
                       active boolean not null default true
                       unique (tenant_id, name),
                       unique (id, tenant_id)
+                      --
+                      -- Deletable since D1 (deleteServiceGroup), the same
+                      -- shape as service — but nothing references a group
+                      -- from outside it anymore (see activity_type below), so
+                      -- the domain check it runs finds nothing today. Kept
+                      -- for symmetry and because it costs nothing; ready for
+                      -- the day something does reference a group.
 
 -- as built (slice 3)
 service_group_item    tenant_id uuid not null -> tenant(id),
@@ -630,7 +660,10 @@ service_group_item    tenant_id uuid not null -> tenant(id),
                       unique (service_group_id, service_id),
                       index on (service_group_id, position)
                       -- This is the only table in the schema that may hold a
-                      -- service_group_id (rule 5).
+                      -- service_group_id (rule 5). Until D1, activity_type
+                      -- also held one, naming its preset group; that column is
+                      -- gone now — see activity_type_preset_item below, which
+                      -- holds service references only, never a group.
 
 -- as built (slice 4), retyped and split in slice 7.5
 activity              tenant_id uuid not null -> tenant(id),
@@ -708,7 +741,7 @@ activity_item         tenant_id uuid not null -> tenant(id),
                       -- place rather than replacing, because slice 6 points
                       -- invoice_line.activity_item_id at these ids.
 
--- as built (slice 7.5)
+-- as built (slice 7.5, presets rebuilt as a list in D1)
 activity_type         tenant_id uuid not null -> tenant(id),
                       code text not null,                       -- the handle
                         -- activity.type points at; fixed once the row exists
@@ -718,41 +751,59 @@ activity_type         tenant_id uuid not null -> tenant(id),
                         -- paints the entry in it; the label on top is black or
                         -- white, whichever reads better (readableTextOn)
                       default_duration_min integer check (null or > 0),
-                      default_service_id uuid,
-                      default_service_group_id uuid,
-                        -- presets. Read once, when the type is applied to a
-                        -- new activity, and never again (rule 5 one level up).
-                        -- The group id here is the only one outside
-                        -- service_group_item, and it never travels onto the
-                        -- activity: it is resolved into items at entry time.
                       is_default boolean not null default false,
                       sort_order integer not null default 0,
                       active boolean not null default true
-                      foreign key (default_service_id, tenant_id)
-                        -> service (id, tenant_id)
-                        on update restrict on delete restrict,
-                      foreign key (default_service_group_id, tenant_id)
-                        -> service_group (id, tenant_id)
-                        on update restrict on delete restrict
-                        -- RESTRICT, not SET NULL: a group *can* be deleted, and
-                        -- a bare SET NULL on a composite key nulls tenant_id
-                        -- with it — the slice-4 trap drizzle-kit cannot write a
-                        -- column list for. Refusing also names what is in the
-                        -- way instead of silently emptying a preset.
                       unique (tenant_id, code)                  -- also the
                         -- target of activity's composite foreign key
+                      unique (id, tenant_id)                    -- for the
+                        -- composite FK on activity_type_preset_item below
                       index on (tenant_id, sort_order, label),
                       unique index activity_type_default_key
                         on (tenant_id) where is_default
                       check activity_type_code_shape
-                        (^[a-z][a-z0-9_]{0,39}$),
-                      check activity_type_single_preset (
-                        num_nonnulls(default_service_id,
-                                     default_service_group_id) <= 1)
+                        (^[a-z][a-z0-9_]{0,39}$)
                       -- No is_system column and no protect_system_type trigger,
                       -- unlike the two catalogues of rule 4: nothing in the
                       -- software depends on a particular activity type
                       -- existing. set_updated_at; RLS created and disabled.
+                      --
+                      -- default_service_id / default_service_group_id (slice
+                      -- 7.5) and the check that at most one was set are gone as
+                      -- of D1 — see activity_type_preset_item.
+
+-- as built (D1)
+activity_type_preset_item
+                      tenant_id uuid not null -> tenant(id),
+                      activity_type_id uuid not null,
+                      service_id uuid not null,
+                        -- references only — service_id, quantity, position,
+                        -- nothing else. No price, no description: a type is a
+                        -- template for a template, and freezing either here
+                        -- would mean the catalogue price could never take
+                        -- effect (rule 5, one level up from service_group_item).
+                      quantity integer not null default 1 check (> 0),
+                      position integer not null                 -- sort order
+                        -- only, rewritten from the array index on save, same
+                        -- as service_group_item.position
+                      foreign key (activity_type_id, tenant_id)
+                        -> activity_type (id, tenant_id) on delete cascade
+                      foreign key (service_id, tenant_id)
+                        -> service (id, tenant_id)              -- no cascade:
+                        -- a service in use here cannot be deleted out from
+                        -- under it
+                      unique (activity_type_id, service_id),
+                      index on (activity_type_id, position)
+                      -- Resolved into activity_item rows exactly once, when
+                      -- the type is applied to a new activity (rule 5). Never
+                      -- holds a service_group_id: picking a group as a preset
+                      -- in the settings resolves it into these rows
+                      -- immediately, the same as picking a group by hand
+                      -- resolves it into activity_item rows — so this table
+                      -- can never drift when a group is renamed or emptied
+                      -- later, and it needed no exception in the "no table
+                      -- outside the catalogue references a group" rule.
+                      -- set_updated_at; RLS created and disabled.
 
 -- as built (slice 4), status narrowed in slice 7.5, extended in slice 9
 appointment           tenant_id uuid not null -> tenant(id),
@@ -910,7 +961,7 @@ number_range          tenant_id uuid not null -> tenant(id),
                       -- may continue a numbering from the previous system, so
                       -- starting at 1 would reissue existing numbers.
 
--- as built (slice 6)
+-- as built (slice 6, diagnosis added in D1)
 invoice               tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null,
                       type invoice_type not null default 'invoice'   (pgEnum:
@@ -948,6 +999,11 @@ invoice               tenant_id uuid not null -> tenant(id),
                         -- foreign key to a mutable table on an immutable row
                         -- would need ON DELETE SET NULL, which is an UPDATE
                         -- the trigger refuses. Picking a template fills these.
+                      diagnosis text                  (nullable, added in D1)
+                        -- prefilled from contact.diagnosis when the draft is
+                        -- created, then free to edit for this one invoice —
+                        -- plain text, same reasoning as intro/outro above.
+                        -- Appears on the draft and the PDF only (rule 12).
                       total_cents integer not null default 0,
                       pdf_path text, pdf_hash text,   -- relative to DATA_DIR
                       finalized_at timestamptz
@@ -993,9 +1049,16 @@ invoice               tenant_id uuid not null -> tenant(id),
                         -- also settles that a draft can never be cancelled.
                       check invoice_cancellation_not_self
                       -- trigger protect_finalized_invoice (0014, replaced in
-                      -- 0019): after finalization the row cannot be deleted
-                      -- and only `status` and `cancelled_by_invoice_id` may
-                      -- change — the latter once, from null, never back.
+                      -- 0019 and again in D1/0030): after finalization the row
+                      -- cannot be deleted and only `status` and
+                      -- `cancelled_by_invoice_id` may change — the latter
+                      -- once, from null, never back. Since D1 this is no
+                      -- longer an explicit list of protected columns (which
+                      -- left every new column unprotected until someone
+                      -- remembered to add it there); it diffs the whole row
+                      -- via to_jsonb(NEW/OLD) minus the two allowed columns
+                      -- and `updated_at`, so a new column — diagnosis, right
+                      -- above — is frozen automatically.
                       -- trigger invoice_cancellation_pair (0019), a CONSTRAINT
                       -- TRIGGER, DEFERRABLE INITIALLY DEFERRED: at COMMIT the
                       -- two ends must name each other. Deferred on purpose —
@@ -1028,12 +1091,13 @@ invoice_line          tenant_id uuid not null -> tenant(id),
                       index (activity_item_id) where not null
                       -- trigger protect_finalized_invoice_line, on INSERT too
 
--- as built (slice 6)
+-- as built (slice 6, sort_order added in D1)
 text_template         tenant_id uuid not null -> tenant(id),
                       kind text_template_kind not null   (pgEnum: intro|outro)
                       name text not null, body text not null,
                       is_default boolean not null default false,
                       is_paid_variant boolean not null default false,
+                      sort_order integer not null default 0,
                       active boolean not null default true
                       unique (tenant_id, kind, name)
                       unique index (tenant_id, kind) where is_default,
@@ -1078,12 +1142,13 @@ smtp_settings         tenant_id uuid not null unique -> tenant(id),
                       -- has no password field of any kind.
                       -- set_updated_at; RLS created and disabled.
 
--- as built (slice 10)
+-- as built (slice 10, sort_order added in D1)
 email_template        tenant_id uuid not null -> tenant(id),
                       name text not null,
                       subject text not null,
                       body text not null,
                       is_default boolean not null default false,
+                      sort_order integer not null default 0,
                       active boolean not null default true
                       unique (tenant_id, name),
                       unique index email_template_default_key
@@ -1282,7 +1347,7 @@ appointment_sync_conflict
 
 ## How we work
 
-Development proceeds in **vertical slices**. One slice covers one or a few closely related entities end to end: Zod schema → migration → domain functions → API routes → UI → tests. A slice is finished and committed before the next begins. `WORKPLAN.md` holds the slice order and marks progress.
+Development proceeds in **vertical slices**. One slice covers one or a few closely related entities end to end: Zod schema → migration → domain functions → API routes → UI → tests. A slice is finished and committed before the next begins — **the commit happens before the report, never after**, so the working tree is never uncommitted between two slices. `WORKPLAN.md` holds the slice order and marks progress.
 
 For every slice:
 
@@ -1291,8 +1356,9 @@ For every slice:
 3. Implement it. Migrations are additive — never edit an existing migration file, always add a new one.
 4. Run `pnpm typecheck`, `pnpm test`, `pnpm lint` yourself and fix what fails. Do not hand me failing output.
 5. Replace that table's block in the data model above with the schema as actually built and mark it `-- as built`. The sketch converges into documentation as we go.
-6. Give me a short German summary of what changed and what I should click through to verify.
-7. Wait. Do not start the next slice unprompted.
+6. **Commit**, Conventional Commits format, in English. This happens before step 7, not after — a report describing an uncommitted working tree is not a finished slice.
+7. Give me a short German summary of what changed, **the commit hash**, and what I should click through to verify.
+8. Wait. Do not start the next slice unprompted.
 
 If a slice reveals that a table built earlier was wrong, say so instead of working around it. Renaming a column in slice 3 costs a migration; living with a bad name until slice 9 costs far more.
 
@@ -1308,7 +1374,7 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
 - **No test calls out to a service.** Not to an external host, not to `localhost`, not to a mail catcher — Google, SMTP, anything. The one deliberate exception is Postgres: the domain layer is tested against a real database because triggers and constraints *are* the rules being tested, and that is a local dependency the repository sets up itself. Everything else is a **parameter** — the shape `google/client.ts` established in slice 9: the transport is injected, and the tests assert on the *assembled request* rather than on what a mock chose to answer. A test that needs a service running somewhere is a test that fails for reasons that have nothing to do with the code.
 - **Addresses in tests, fixtures and seeds use `praxi.invalid`** — `beispiel.test` where a second domain is genuinely needed. Both TLDs are reserved by RFC 2606 and guaranteed never to resolve. Not `example.com`: it is reserved too and accepts no mail, but it *exists in the DNS*, and an address that takes a second thought to classify does not belong in a fixture. The same goes for URLs — `https://www.praxi.invalid`, not a domain that resolves.
-- Conventional Commits, in English, one commit per slice.
+- Conventional Commits, in English, one commit per slice — made before the report goes out (see "How we work"), not after.
 
 **Read mode first.** Detail views and dialogs open in read mode. Editing is a deliberate step: the user presses "Bearbeiten", the fields become editable, and "Speichern" / "Abbrechen" appear. Never open a record with editable fields. The exception is creating a new record — there is nothing to read yet, so the form is editable from the start.
 

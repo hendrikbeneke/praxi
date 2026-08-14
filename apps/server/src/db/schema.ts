@@ -260,6 +260,11 @@ export const contact = pgTable(
     phoneMobile: text(),
     phoneLandline: text(),
     internalNote: text(),
+    /** A health datum under Art. 9 GDPR — never logged, never in the contact
+     *  list, only in master data, the invoice draft and the PDF (CLAUDE.md
+     *  rule 12). `domain/contact.ts` keeps it out of the list query's column
+     *  set on purpose, not just out of the response schema. */
+    diagnosis: text(),
     archivedAt: timestamp({ withTimezone: true }),
 
     /**
@@ -524,6 +529,7 @@ export const service = pgTable(
     feeCode: text(),
     defaultPriceCents: integer().notNull(),
     defaultDurationMin: integer(),
+    sortOrder: integer().notNull().default(0),
     active: boolean().notNull().default(true),
     ...timestamps,
   },
@@ -564,6 +570,7 @@ export const serviceGroup = pgTable(
       .notNull()
       .references(() => tenant.id),
     name: text().notNull(),
+    sortOrder: integer().notNull().default(0),
     active: boolean().notNull().default(true),
     ...timestamps,
   },
@@ -622,9 +629,10 @@ export const serviceGroupItem = pgTable(
  * is in use cannot be deleted — the foreign key from `activity` sees to that —
  * but it can be deactivated.
  *
- * The two default columns prefill a new activity and are read exactly once,
- * when the type is applied. Changing them never reaches an activity that
- * already exists, for the same reason a service is a template (rule 5).
+ * The presets — `defaultDurationMin` and the rows of `activity_type_preset_item`
+ * — prefill a new activity and are read exactly once, when the type is
+ * applied. Changing them never reaches an activity that already exists, for
+ * the same reason a service is a template (rule 5).
  */
 export const activityType = pgTable(
   'activity_type',
@@ -640,8 +648,6 @@ export const activityType = pgTable(
      *  `packages/shared/src/color.ts`. */
     color: text().notNull().default('#64748b'),
     defaultDurationMin: integer(),
-    defaultServiceId: uuid(),
-    defaultServiceGroupId: uuid(),
     /** Preselected for a new activity; at most one per tenant. */
     isDefault: boolean().notNull().default(false),
     sortOrder: integer().notNull().default(0),
@@ -649,30 +655,10 @@ export const activityType = pgTable(
     ...timestamps,
   },
   (t) => [
-    /**
-     * `RESTRICT` rather than `SET NULL` on both, and deliberately: a service
-     * group *can* be deleted, and a bare `SET NULL` on a composite key nulls
-     * `tenant_id` with it — the trap slice 4 hit on `activity.appointment_id`,
-     * which drizzle-kit cannot express a column list for. Refusing to delete a
-     * group that a type prefills is also the better answer: it names what is
-     * in the way instead of quietly emptying a preset.
-     */
-    foreignKey({
-      columns: [t.defaultServiceId, t.tenantId],
-      foreignColumns: [service.id, service.tenantId],
-      name: 'activity_type_service_tenant_fk',
-    })
-      .onUpdate('restrict')
-      .onDelete('restrict'),
-    foreignKey({
-      columns: [t.defaultServiceGroupId, t.tenantId],
-      foreignColumns: [serviceGroup.id, serviceGroup.tenantId],
-      name: 'activity_type_service_group_tenant_fk',
-    })
-      .onUpdate('restrict')
-      .onDelete('restrict'),
     // Also the target of the composite foreign key on `activity`.
     unique('activity_type_tenant_code_key').on(t.tenantId, t.code),
+    // Referenced by the composite foreign key on `activity_type_preset_item`.
+    unique('activity_type_id_tenant_key').on(t.id, t.tenantId),
     index('activity_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
     uniqueIndex('activity_type_default_key').on(t.tenantId).where(sql`${t.isDefault}`),
     check('activity_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
@@ -681,12 +667,52 @@ export const activityType = pgTable(
       'activity_type_duration_positive',
       sql`${t.defaultDurationMin} is null or ${t.defaultDurationMin} > 0`,
     ),
-    /** Either one service or one group, never both: a type that prefills both
-     *  would have to decide an order between them, and nothing needs that. */
-    check(
-      'activity_type_single_preset',
-      sql`num_nonnulls(${t.defaultServiceId}, ${t.defaultServiceGroupId}) <= 1`,
-    ),
+  ],
+)
+
+/**
+ * The services an activity type prefills, one row per service. References
+ * only — `service_id`, `quantity`, `position`, nothing else. No price, no
+ * description: a type is a template for a template, and freezing either here
+ * would mean the catalogue price could never take effect.
+ *
+ * Resolved into `activity_item` rows exactly once, when the type is applied
+ * to a new activity, exactly as `service_group_item` is when a group is
+ * chosen by hand (rule 5). A service group is never referenced here: picking
+ * one in the settings resolves it into these rows immediately, so there is
+ * nothing left that could drift when the group is renamed or emptied later.
+ */
+export const activityTypePresetItem = pgTable(
+  'activity_type_preset_item',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    activityTypeId: uuid().notNull(),
+    serviceId: uuid().notNull(),
+    quantity: integer().notNull().default(1),
+    /** Sort order only, like `service_group_item.position` — rewritten from
+     *  the array index on save, no unique constraint to fight. */
+    position: integer().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.activityTypeId, t.tenantId],
+      foreignColumns: [activityType.id, activityType.tenantId],
+      name: 'activity_type_preset_item_type_tenant_fk',
+    }).onDelete('cascade'),
+    // No cascade: services are never deleted while still used anywhere,
+    // including here — this is what makes that stick.
+    foreignKey({
+      columns: [t.serviceId, t.tenantId],
+      foreignColumns: [service.id, service.tenantId],
+      name: 'activity_type_preset_item_service_tenant_fk',
+    }),
+    unique('activity_type_preset_item_type_service_key').on(t.activityTypeId, t.serviceId),
+    index('activity_type_preset_item_type_idx').on(t.activityTypeId, t.position),
+    check('activity_type_preset_item_quantity_positive', sql`${t.quantity} > 0`),
   ],
 )
 
@@ -1103,6 +1129,7 @@ export const textTemplate = pgTable(
      *  erhalten" action, which finalizes and records the payment in one
      *  transaction (slice 8). */
     isPaidVariant: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(0),
     active: boolean().notNull().default(true),
     ...timestamps,
   },
@@ -1167,6 +1194,13 @@ export const invoice = pgTable(
     recipientSnapshot: jsonb().$type<RecipientSnapshot>(),
     introText: text(),
     outroText: text(),
+    /** Prefilled from `contact.diagnosis` when the draft is created, then
+     *  free to edit for this one invoice — plain text, not a reference, same
+     *  as the intro and outro blocks. Frozen at finalization like everything
+     *  else on this row; `protect_finalized_invoice` covers it automatically
+     *  by comparing the whole row rather than naming columns (migration
+     *  0030). Appears on the draft and the PDF only — CLAUDE.md rule 12. */
+    diagnosis: text(),
     totalCents: integer().notNull().default(0),
     /** Relative to DATA_DIR, like every stored path. */
     pdfPath: text(),
@@ -1616,6 +1650,7 @@ export const emailTemplate = pgTable(
     subject: text().notNull(),
     body: text().notNull(),
     isDefault: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(0),
     active: boolean().notNull().default(true),
     ...timestamps,
   },

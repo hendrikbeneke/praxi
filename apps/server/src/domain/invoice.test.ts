@@ -207,6 +207,30 @@ describe('drafts', () => {
     expect(draft.totalCents).toBe(13_500)
   })
 
+  /** Prefilled once, from the contact's master data, exactly like the intro
+   *  and outro texts — then free to edit for this one invoice
+   *  (CLAUDE.md rule 12). */
+  it('prefills diagnosis from the contact, then leaves it editable', async () => {
+    await db()
+      .update(contact)
+      .set({ diagnosis: 'Anpassungsstörung' })
+      .where(eq(contact.id, contactId))
+    await makeActivityWithItem()
+
+    const draft = await draftFromBillable()
+    expect(draft.diagnosis).toBe('Anpassungsstörung')
+
+    const updated = await updateInvoice(db(), tenantId, draft.id, {
+      invoiceDate: INVOICE_DATE,
+      paymentTermDays: 14,
+      introText: null,
+      outroText: null,
+      diagnosis: 'Andere Diagnose',
+      lines: draft.lines.map((line) => ({ ...line, feeCode: null })),
+    })
+    expect(updated?.diagnosis).toBe('Andere Diagnose')
+  })
+
   it('refuses an item that is already on another invoice', async () => {
     await makeActivityWithItem()
     const items = await listBillableItems(db(), tenantId, contactId)
@@ -232,6 +256,7 @@ describe('drafts', () => {
       paymentTermDays: 14,
       introText: null,
       outroText: null,
+      diagnosis: null,
       lines: [
         { ...line, feeCode: null },
         {
@@ -475,6 +500,33 @@ describe('the database refuses on its own', () => {
     expect(cancellation?.cancelsInvoiceId).toBe(finalized.id)
   })
 
+  /**
+   * `protect_finalized_invoice` (migration 0030) diffs the whole row and
+   * names what is *allowed* to change, rather than listing protected columns
+   * — so a column added after that migration, like `diagnosis`, is frozen
+   * automatically instead of needing this trigger to be remembered too.
+   */
+  it('freezes a column added after the immutability trigger without naming it there', async () => {
+    await makeActivityWithItem()
+    const finalized = await finalizeDocument(
+      db(),
+      tenantId,
+      store,
+      (await draftFromBillable()).id,
+      render,
+    )
+    if (!finalized) throw new Error('not finalized')
+
+    expect(
+      await refusal(
+        db()
+          .update(invoice)
+          .set({ diagnosis: 'nachträglich eingefügt' })
+          .where(eq(invoice.id, finalized.id)),
+      ),
+    ).toBe('finalized invoice is immutable except for its status')
+  })
+
   it('blocks touching the lines of a finalized invoice', async () => {
     await makeActivityWithItem()
     const finalized = await finalizeDocument(
@@ -528,6 +580,7 @@ describe('the database refuses on its own', () => {
         paymentTermDays: 30,
         introText: null,
         outroText: null,
+        diagnosis: null,
         lines: [],
       }),
     ).rejects.toBeInstanceOf(InvoiceNotADraftError)

@@ -45,6 +45,7 @@ const invoice: Invoice = {
   },
   introText: 'für die erbrachten Leistungen erlaube ich mir zu berechnen:',
   outroText: 'Umsatzsteuerfrei nach § 4 Nr. 14 lit. a UStG.',
+  diagnosis: null,
   totalCents: 27_000,
   // Not printed — the document says what is owed, not what has arrived.
   paidCents: 0,

@@ -15,18 +15,36 @@ import { requiredText } from './field.js'
  *
  * ## The presets are presets
  *
- * `defaultDurationMin` and one of `defaultServiceId` / `defaultServiceGroupId`
- * prefill a new activity. They are read once, when the type is applied, and
- * never again — the same rule 5 reasoning that makes a service a template:
- * changing the catalogue must leave everything that already exists untouched.
- * Changing the type of an activity that already carries a duration or
- * positions therefore changes nothing by itself; taking the presets over is a
- * separate, named action in the dialog.
+ * `defaultDurationMin` and `presetItems` prefill a new activity. They are read
+ * once, when the type is applied, and never again — the same rule 5 reasoning
+ * that makes a service a template: changing the catalogue must leave
+ * everything that already exists untouched. Changing the type of an activity
+ * that already carries a duration or positions therefore changes nothing by
+ * itself; taking the presets over is a separate, named action in the dialog.
  *
- * At most one of the two presets may be set. A type that fills in both a
- * single service and a whole group would have to decide an order between them,
- * and there is no reading of "the default for this type" that needs both.
+ * `presetItems` references services only — never a group. Picking a group in
+ * the settings resolves it into its members immediately, exactly as it does
+ * everywhere else a group is picked (rule 5): no row here ever names one, so
+ * there is nothing left to keep in step when a group is renamed or emptied.
  */
+
+const presetItemFields = {
+  serviceId: z.uuid(),
+  quantity: z.number().int().positive().max(999).default(1),
+}
+
+/** What an edit may change. Order is the array order, exactly as with
+ *  `service_group_item` — `position` is written from the index on save. */
+export const activityTypePresetItemInputSchema = z.object(presetItemFields)
+export type ActivityTypePresetItemInput = z.infer<typeof activityTypePresetItemInputSchema>
+
+const presetItemsField = z
+  .array(activityTypePresetItemInputSchema)
+  .max(50)
+  .default([])
+  .refine((items) => new Set(items.map((item) => item.serviceId)).size === items.length, {
+    message: 'duplicate service',
+  })
 
 const activityTypeFields = {
   label: requiredText(60),
@@ -40,8 +58,7 @@ const activityTypeFields = {
     .max(24 * 60)
     .nullable()
     .default(null),
-  defaultServiceId: z.uuid().nullable().default(null),
-  defaultServiceGroupId: z.uuid().nullable().default(null),
+  presetItems: presetItemsField,
   /** Preselected when a new activity is created. At most one per tenant, held
    *  by a partial unique index. */
   isDefault: z.boolean().default(false),
@@ -49,29 +66,12 @@ const activityTypeFields = {
   active: z.boolean().default(true),
 }
 
-type PresetFields = { defaultServiceId: string | null; defaultServiceGroupId: string | null }
-
-const singlePresetRule = {
-  check: (input: PresetFields) =>
-    input.defaultServiceId === null || input.defaultServiceGroupId === null,
-  options: {
-    message: 'a type prefills either one service or one group, not both',
-    path: ['defaultServiceGroupId'] as PropertyKey[],
-  },
-}
-
 /** What an edit may change. `code` is absent on purpose: it is the handle
  *  `activity.type` points at and is fixed once the entry exists. */
-export const activityTypeInputSchema = z
-  .object(activityTypeFields)
-  .refine(singlePresetRule.check, singlePresetRule.options)
-
+export const activityTypeInputSchema = z.object(activityTypeFields)
 export type ActivityTypeInput = z.infer<typeof activityTypeInputSchema>
 
-export const activityTypeCreateSchema = z
-  .object({ code: typeCodeSchema, ...activityTypeFields })
-  .refine(singlePresetRule.check, singlePresetRule.options)
-
+export const activityTypeCreateSchema = z.object({ code: typeCodeSchema, ...activityTypeFields })
 export type ActivityTypeCreate = z.infer<typeof activityTypeCreateSchema>
 
 export const activityTypeSchema = z.object({
@@ -80,8 +80,18 @@ export const activityTypeSchema = z.object({
   label: z.string(),
   color: z.string(),
   defaultDurationMin: z.number().int().nullable(),
-  defaultServiceId: z.uuid().nullable(),
-  defaultServiceGroupId: z.uuid().nullable(),
+  presetItems: z.array(
+    activityTypePresetItemInputSchema.extend({
+      /** Denormalized for display, so the settings screen and the picker do
+       *  not each have to join the catalogue themselves — same reasoning as
+       *  `ServiceGroup.items`. */
+      description: z.string(),
+      shortCode: z.string().nullable(),
+      defaultPriceCents: z.number().int(),
+      defaultDurationMin: z.number().int().nullable(),
+      serviceActive: z.boolean(),
+    }),
+  ),
   isDefault: z.boolean(),
   sortOrder: z.number().int(),
   active: z.boolean(),

@@ -30,6 +30,7 @@ export const textTemplateInputSchema = z
      * the `payment` table, because it also records a payment.
      */
     isPaidVariant: z.boolean().default(false),
+    sortOrder: z.number().int().min(0).max(9999).default(0),
     active: z.boolean().default(true),
   })
   .refine((input) => !input.isPaidVariant || input.kind === 'outro', {
@@ -46,6 +47,7 @@ export const textTemplateSchema = z.object({
   body: z.string(),
   isDefault: z.boolean(),
   isPaidVariant: z.boolean(),
+  sortOrder: z.number().int(),
   active: z.boolean(),
 })
 

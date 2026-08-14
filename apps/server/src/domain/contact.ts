@@ -36,7 +36,12 @@ export class ContactKindChangeError extends Error {
   }
 }
 
-const columns = {
+/**
+ * The list-safe column set — every contact field except `diagnosis`. Every
+ * list query is built on this, so a health datum under Art. 9 GDPR is never
+ * even read for a list row; see `detailColumns` below.
+ */
+const listColumns = {
   id: contact.id,
   contactNumber: contact.contactNumber,
   kind: contact.kind,
@@ -62,12 +67,46 @@ const columns = {
   archivedAt: contact.archivedAt,
 }
 
-/** The row as Drizzle returns it: `archived_at` is a `timestamptz` and arrives
- *  as a `Date`, while the wire format is an ISO string. */
+/**
+ * `listColumns` plus `diagnosis`, for the single-row reads only —
+ * `getContact`, `createContact`, `updateContact`. Kept as its own column set
+ * rather than merged back into `listColumns`, on purpose: before this split,
+ * `listContacts` selected the exact same columns as a single-row read, so
+ * adding `diagnosis` there would have put a health datum on every row of the
+ * contact list (CLAUDE.md rule 12). Do not fold these back into one — a
+ * future column belongs on `listColumns` by default and only moves here if
+ * it is deliberately meant to reach the list too.
+ */
+const detailColumns = {
+  ...listColumns,
+  diagnosis: contact.diagnosis,
+}
+
+/** The detail row as Drizzle returns it: `archived_at` is a `timestamptz` and
+ *  arrives as a `Date`, while the wire format is an ISO string. */
 type ContactRow = Omit<Contact, 'archivedAt' | 'roles'> & { archivedAt: Date | null }
+
+/** The list row — the same shape, minus `diagnosis`, which `listColumns`
+ *  never selected in the first place. */
+type ContactListRow = Omit<ContactListItem, 'archivedAt' | 'roles' | 'appointmentAt'> & {
+  archivedAt: Date | null
+}
 
 function toContact(row: ContactRow, roles: Contact['roles']): Contact {
   return { ...row, archivedAt: row.archivedAt?.toISOString() ?? null, roles }
+}
+
+function toContactListItem(
+  row: ContactListRow,
+  roles: Contact['roles'],
+  appointmentAt: Date | null,
+): ContactListItem {
+  return {
+    ...row,
+    archivedAt: row.archivedAt?.toISOString() ?? null,
+    roles,
+    appointmentAt: appointmentAt?.toISOString() ?? null,
+  }
 }
 
 /**
@@ -87,6 +126,7 @@ function columnsFromInput(input: ContactUpdate) {
     phoneMobile: input.phoneMobile,
     phoneLandline: input.phoneLandline,
     internalNote: input.internalNote,
+    diagnosis: input.diagnosis,
   }
 
   if (input.kind === 'person') {
@@ -192,7 +232,7 @@ async function loadContact(
   id: string,
 ): Promise<Contact | null> {
   const [row] = await reader
-    .select(columns)
+    .select(detailColumns)
     .from(contact)
     .where(and(eq(contact.tenantId, tenantId), eq(contact.id, id)))
     .limit(1)
@@ -271,7 +311,7 @@ function nearestAppointments(database: Database, tenantId: string, now: Date) {
     .as('nearest')
 }
 
-type ListRow = ContactRow & { appointmentAt: Date | null }
+type ListRow = ContactListRow & { appointmentAt: Date | null }
 type Page = { rows: ListRow[]; total: number }
 
 /**
@@ -291,7 +331,7 @@ async function currentPage(
 
   const [rows, [totals]] = await Promise.all([
     database
-      .select({ ...columns, appointmentAt: nearest.startsAt })
+      .select({ ...listColumns, appointmentAt: nearest.startsAt })
       .from(contact)
       .innerJoin(nearest, eq(nearest.contactId, contact.id))
       .where(where)
@@ -321,7 +361,7 @@ async function alphabeticalPage(
 
   const [rows, [totals]] = await Promise.all([
     database
-      .select(columns)
+      .select(listColumns)
       .from(contact)
       .where(where)
       .orderBy(direction(column))
@@ -382,10 +422,7 @@ export async function listContacts(
   )
 
   return {
-    items: rows.map((row) => ({
-      ...toContact(row, roles.get(row.id) ?? []),
-      appointmentAt: row.appointmentAt?.toISOString() ?? null,
-    })),
+    items: rows.map((row) => toContactListItem(row, roles.get(row.id) ?? [], row.appointmentAt)),
     total,
   }
 }

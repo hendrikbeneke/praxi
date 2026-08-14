@@ -7,7 +7,13 @@ import type {
 } from '@praxi/shared'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
-import { service, serviceGroup, serviceGroupItem } from '../db/schema.js'
+import {
+  activityItem,
+  activityTypePresetItem,
+  service,
+  serviceGroup,
+  serviceGroupItem,
+} from '../db/schema.js'
 import { newId } from '../id.js'
 
 /**
@@ -16,12 +22,32 @@ import { newId } from '../id.js'
  * reaches into an activity or an invoice, now or later.
  */
 
-/** A group may not reference a service of another tenant, and the composite
- *  foreign key says so — but a clear error beats a constraint violation. */
+/** A group, or an activity type's preset, may not reference a service of
+ *  another tenant, and the composite foreign key says so — but a clear error
+ *  beats a constraint violation. */
 export class UnknownServiceError extends Error {
   constructor() {
-    super('service group references a service that does not exist in this tenant')
+    super('reference to a service that does not exist in this tenant')
     this.name = 'UnknownServiceError'
+  }
+}
+
+/** A service still referenced elsewhere is refused before the foreign keys
+ *  even see it, so the message can name what stands in the way. */
+export class ServiceInUseError extends Error {
+  constructor() {
+    super('service is referenced by an activity item, a group or a preset')
+    this.name = 'ServiceInUseError'
+  }
+}
+
+/** A service group still referenced elsewhere — today that can only be its
+ *  own items, which are removed along with it, so this exists for symmetry
+ *  and for the day something outside the catalogue references a group. */
+export class ServiceGroupInUseError extends Error {
+  constructor() {
+    super('service group is referenced outside its own items')
+    this.name = 'ServiceGroupInUseError'
   }
 }
 
@@ -32,6 +58,7 @@ const serviceColumns = {
   feeCode: service.feeCode,
   defaultPriceCents: service.defaultPriceCents,
   defaultDurationMin: service.defaultDurationMin,
+  sortOrder: service.sortOrder,
   active: service.active,
 }
 
@@ -48,7 +75,7 @@ export async function listServices(
     .select(serviceColumns)
     .from(service)
     .where(and(...filters))
-    .orderBy(asc(service.description))
+    .orderBy(asc(service.sortOrder), asc(service.description))
 }
 
 export async function getService(
@@ -142,10 +169,15 @@ export async function listServiceGroups(
   if (!query.includeInactive) filters.push(eq(serviceGroup.active, true))
 
   const groups = await database
-    .select({ id: serviceGroup.id, name: serviceGroup.name, active: serviceGroup.active })
+    .select({
+      id: serviceGroup.id,
+      name: serviceGroup.name,
+      sortOrder: serviceGroup.sortOrder,
+      active: serviceGroup.active,
+    })
     .from(serviceGroup)
     .where(and(...filters))
-    .orderBy(asc(serviceGroup.name))
+    .orderBy(asc(serviceGroup.sortOrder), asc(serviceGroup.name))
 
   const items = await itemsFor(
     database,
@@ -161,7 +193,12 @@ async function loadGroup(
   id: string,
 ): Promise<ServiceGroup | null> {
   const [row] = await reader
-    .select({ id: serviceGroup.id, name: serviceGroup.name, active: serviceGroup.active })
+    .select({
+      id: serviceGroup.id,
+      name: serviceGroup.name,
+      sortOrder: serviceGroup.sortOrder,
+      active: serviceGroup.active,
+    })
     .from(serviceGroup)
     .where(and(eq(serviceGroup.tenantId, tenantId), eq(serviceGroup.id, id)))
     .limit(1)
@@ -231,7 +268,13 @@ export async function createServiceGroup(
 ): Promise<ServiceGroup> {
   return database.transaction(async (tx) => {
     const id = newId()
-    await tx.insert(serviceGroup).values({ id, tenantId, name: input.name, active: input.active })
+    await tx.insert(serviceGroup).values({
+      id,
+      tenantId,
+      name: input.name,
+      sortOrder: input.sortOrder,
+      active: input.active,
+    })
     await replaceItems(tx, tenantId, id, input.items)
 
     const created = await loadGroup(tx, tenantId, id)
@@ -249,7 +292,7 @@ export async function updateServiceGroup(
   return database.transaction(async (tx) => {
     const [existing] = await tx
       .update(serviceGroup)
-      .set({ name: input.name, active: input.active })
+      .set({ name: input.name, sortOrder: input.sortOrder, active: input.active })
       .where(and(eq(serviceGroup.tenantId, tenantId), eq(serviceGroup.id, id)))
       .returning({ id: serviceGroup.id })
 
@@ -258,4 +301,88 @@ export async function updateServiceGroup(
     await replaceItems(tx, tenantId, id, input.items)
     return loadGroup(tx, tenantId, id)
   })
+}
+
+/**
+ * Whether a service is referenced anywhere it must not be deleted out from
+ * under — checked in the domain so the message can say so in a sentence
+ * rather than surfacing a constraint name. The foreign keys from all three
+ * tables stay in place as the actual guarantee; this only runs ahead of them.
+ */
+async function serviceIsInUse(reader: DbReader, tenantId: string, id: string): Promise<boolean> {
+  const [usedByActivity, usedByGroup, usedByPreset] = await Promise.all([
+    reader
+      .select({ id: activityItem.id })
+      .from(activityItem)
+      .where(and(eq(activityItem.tenantId, tenantId), eq(activityItem.serviceId, id)))
+      .limit(1),
+    reader
+      .select({ id: serviceGroupItem.id })
+      .from(serviceGroupItem)
+      .where(and(eq(serviceGroupItem.tenantId, tenantId), eq(serviceGroupItem.serviceId, id)))
+      .limit(1),
+    reader
+      .select({ id: activityTypePresetItem.id })
+      .from(activityTypePresetItem)
+      .where(
+        and(
+          eq(activityTypePresetItem.tenantId, tenantId),
+          eq(activityTypePresetItem.serviceId, id),
+        ),
+      )
+      .limit(1),
+  ])
+
+  return usedByActivity.length > 0 || usedByGroup.length > 0 || usedByPreset.length > 0
+}
+
+/** Deletable once nothing references it; deactivation is the answer while it
+ *  is still used anywhere. `false` if the id does not exist in this tenant. */
+export async function deleteService(
+  database: Database,
+  tenantId: string,
+  id: string,
+): Promise<boolean> {
+  if (await serviceIsInUse(database, tenantId, id)) throw new ServiceInUseError()
+
+  const deleted = await database
+    .delete(service)
+    .where(and(eq(service.tenantId, tenantId), eq(service.id, id)))
+    .returning({ id: service.id })
+
+  return deleted.length > 0
+}
+
+/**
+ * Whether a group is referenced anywhere outside its own items — always
+ * `false` today, deliberately: since D1, an activity type's presets reference
+ * services directly and never a group (CLAUDE.md rule 5), so nothing but
+ * `service_group_item` — the group's own, cascade-deleted rows — ever carries
+ * a `service_group_id`. Kept as its own function, in the same shape as
+ * `serviceIsInUse`, so the day a table does reference a group, the check has
+ * somewhere to go rather than needing to be invented from scratch.
+ */
+async function serviceGroupIsInUse(
+  _reader: DbReader,
+  _tenantId: string,
+  _id: string,
+): Promise<boolean> {
+  return false
+}
+
+/** Deletable once nothing references it — see `serviceGroupIsInUse`. `false`
+ *  if the id does not exist in this tenant. */
+export async function deleteServiceGroup(
+  database: Database,
+  tenantId: string,
+  id: string,
+): Promise<boolean> {
+  if (await serviceGroupIsInUse(database, tenantId, id)) throw new ServiceGroupInUseError()
+
+  const deleted = await database
+    .delete(serviceGroup)
+    .where(and(eq(serviceGroup.tenantId, tenantId), eq(serviceGroup.id, id)))
+    .returning({ id: serviceGroup.id })
+
+  return deleted.length > 0
 }

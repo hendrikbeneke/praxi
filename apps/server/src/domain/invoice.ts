@@ -60,6 +60,7 @@ const invoiceColumns = {
   recipientSnapshot: invoice.recipientSnapshot,
   introText: invoice.introText,
   outroText: invoice.outroText,
+  diagnosis: invoice.diagnosis,
   totalCents: invoice.totalCents,
   pdfHash: invoice.pdfHash,
   finalizedAt: invoice.finalizedAt,
@@ -273,6 +274,14 @@ async function insertDraft(
     .where(eq(practiceSettings.tenantId, tenantId))
     .limit(1)
 
+  // Prefilled once, from the contact's master data (CLAUDE.md rule 12), then
+  // free to edit for this one invoice — same reasoning as the texts below.
+  const [contactRow] = await tx
+    .select({ diagnosis: contact.diagnosis })
+    .from(contact)
+    .where(and(eq(contact.tenantId, tenantId), eq(contact.id, contactId)))
+    .limit(1)
+
   const defaultBody = async (kind: 'intro' | 'outro') => {
     const [template] = await tx
       .select({ body: textTemplate.body })
@@ -297,6 +306,7 @@ async function insertDraft(
     paymentTermDays: paymentTermDays ?? settings?.term ?? 14,
     introText: await defaultBody('intro'),
     outroText: await defaultBody('outro'),
+    diagnosis: contactRow?.diagnosis ?? null,
   })
 
   return invoiceId
@@ -538,6 +548,7 @@ export async function updateInvoice(
         paymentTermDays: input.paymentTermDays,
         introText: input.introText,
         outroText: input.outroText,
+        diagnosis: input.diagnosis,
         totalCents: sumLines(input.lines),
       })
       .where(eq(invoice.id, id))

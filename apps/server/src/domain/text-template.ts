@@ -18,6 +18,7 @@ const columns = {
   body: textTemplate.body,
   isDefault: textTemplate.isDefault,
   isPaidVariant: textTemplate.isPaidVariant,
+  sortOrder: textTemplate.sortOrder,
   active: textTemplate.active,
 }
 
@@ -33,7 +34,7 @@ export async function listTextTemplates(
     .select(columns)
     .from(textTemplate)
     .where(and(...filters))
-    .orderBy(asc(textTemplate.kind), asc(textTemplate.name))
+    .orderBy(asc(textTemplate.kind), asc(textTemplate.sortOrder), asc(textTemplate.name))
 }
 
 /**

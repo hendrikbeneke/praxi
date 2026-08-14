@@ -22,6 +22,49 @@ Slice order for this repository. Read together with `CLAUDE.md`, which holds the
 | 11 | Deployment via Coolify | **done** |
 | 12 | Theme mechanism and user preferences | **done** |
 
+## Design-Umsetzung
+
+Umsetzung des Design-Handoffs aus `docs/design_handoff_praxi_web`. D1 klärt zuerst alle
+Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
+
+| # | Paket | Status |
+|---|---|---|
+| D1 | Modelländerungen | **done** |
+| D2 | Querschnittsbausteine | todo |
+| D3 | Navigation | todo |
+| D4 | Einstellungen | todo |
+| D5 | Leistungen | todo |
+| D6 | Kontaktbereich | todo |
+| D7 | Zahlungen | todo |
+| D8 | Vorgänge | todo |
+| D9 | Kalender | todo |
+
+## D1 — Modelländerungen
+
+Schema, Domäne, Routen und Schemas in `packages/shared` für vier Änderungen, damit D2–D9
+darauf aufsetzen können. Keine Oberfläche außer dem kleinstmöglichen Eingriff, wo bestehende
+Screens sonst nicht mehr kompiliert hätten.
+
+- **Vorbelegung von `activity_type` wird eine Liste.** `default_service_id` und
+  `default_service_group_id` entfallen samt Check; neue Tabelle
+  `activity_type_preset_item` (service_id, quantity, position) — reine Referenzen, nie Preis
+  oder Bezeichnung. Eine Leistungsgruppe wird beim Auswählen in den Einstellungen sofort
+  aufgelöst, wie überall (Regel 5); nichts außerhalb des Katalogs referenziert danach noch
+  eine Gruppe.
+- **Diagnose:** `contact.diagnosis` und `invoice.diagnosis`, beide frei, optional.
+  `domain/contact.ts` führt zwei getrennte Spaltenmengen (`listColumns` /
+  `detailColumns`), damit die Diagnose die Kontaktliste strukturell nicht erreichen kann
+  (Regel 12). Der Rechnungsentwurf wird einmalig aus den Stammdaten vorbelegt
+  (`insertDraft`) und bleibt frei überschreibbar. `protect_finalized_invoice` vergleicht seit
+  dieser Migration die ganze Zeile minus der erlaubten Spalten statt eine Liste geschützter
+  Spalten zu pflegen — eine neue Spalte ist automatisch eingefroren.
+- **Reihenfolge:** `sort_order` auf `service`, `service_group`, `text_template` und
+  `email_template` — die drei anderen Kataloge (Rollen, Beziehungen, Vorgangsarten) hatten es
+  bereits.
+- **Leistungen löschbar**, wenn nirgends verwendet: `deleteService`/`deleteServiceGroup` mit
+  Domänenprüfung vor dem Fremdschlüssel, für eine lesbare Meldung. `active` bleibt daneben
+  bestehen für "nicht mehr zur Auswahl, aber in Gebrauch".
+
 ---
 
 ## Slice 0 — Scaffold

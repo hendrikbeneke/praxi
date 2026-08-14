@@ -27,6 +27,7 @@ export const serviceInputSchema = z.object({
     .max(24 * 60)
     .nullable()
     .default(null),
+  sortOrder: z.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
 })
 
@@ -54,6 +55,7 @@ export type ServiceGroupItemInput = z.infer<typeof serviceGroupItemInputSchema>
 
 export const serviceGroupInputSchema = z.object({
   name: requiredText(120),
+  sortOrder: z.number().int().min(0).max(9999).default(0),
   active: z.boolean().default(true),
   /** Order is the array order — `position` is written from the index on save. */
   items: z
@@ -70,6 +72,7 @@ export type ServiceGroupInput = z.infer<typeof serviceGroupInputSchema>
 export const serviceGroupSchema = z.object({
   id: z.uuid(),
   name: z.string(),
+  sortOrder: z.number().int(),
   active: z.boolean(),
   items: z.array(
     serviceGroupItemInputSchema.extend({

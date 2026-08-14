@@ -44,6 +44,7 @@ beforeEach(async () => {
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [{ roleCode: 'patient', since: null }],
   })
   contactId = created.id
@@ -56,6 +57,7 @@ function serviceInput(overrides: Partial<ServiceInput> = {}): ServiceInput {
     feeCode: null,
     defaultPriceCents: 9000,
     defaultDurationMin: 50,
+    sortOrder: 0,
     active: true,
     ...overrides,
   }
@@ -284,6 +286,7 @@ describe('resolving a service group', () => {
     )
     const created = await createServiceGroup(db(), tenantId, {
       name: 'Einstiegspaket',
+      sortOrder: 0,
       active: true,
       items: [
         { serviceId: first.id, quantity: 1 },
@@ -313,17 +316,13 @@ describe('resolving a service group', () => {
    * "No table ever stores a reference to a group" (rule 5). Checked against
    * the catalogue rather than the code, so a later column would be caught.
    *
-   * Narrowed in slice 7.5, the way slice 4 narrowed the service version of
-   * this test, and for the same reason: `activity_type.default_service_group_id`
-   * is a **preset**, resolved into individual items the moment the type is
-   * applied — exactly what happens when the group is picked by hand. It is a
-   * second catalogue entry naming a first, and it never reaches a row that
-   * records what happened. What rule 5 protects is that no *data* row holds a
-   * group, so that renaming or emptying one cannot reach back into what was
-   * entered from it, and that is what is asserted here.
-   *
-   * Anything appearing in this list that is not a catalogue table has to be
-   * weighed against rule 5 before it is allowed.
+   * D1 removed the one exception this test used to carry,
+   * `activity_type.default_service_group_id`: an activity type's preset now
+   * references services directly (`activity_type_preset_item`), resolved from
+   * a chosen group immediately at selection time rather than keeping the
+   * group id. So no column outside the catalogue's own two tables may name a
+   * group anymore, and anything appearing here has to be weighed against
+   * rule 5 before it is allowed.
    */
   it('stores no group reference on anything that records what happened', async () => {
     const { group: created } = await group()
@@ -342,9 +341,7 @@ describe('resolving a service group', () => {
       order by 1, 2
     `)
 
-    expect([...columns]).toEqual([
-      { table_name: 'activity_type', column_name: 'default_service_group_id' },
-    ])
+    expect([...columns]).toEqual([])
   })
 
   it('is unaffected when the group is changed afterwards', async () => {
@@ -357,9 +354,15 @@ describe('resolving a service group', () => {
     )
 
     // Empty the group and rename it — the activity must not notice.
-    await createServiceGroup(db(), tenantId, { name: 'Anderes', active: true, items: [] })
+    await createServiceGroup(db(), tenantId, {
+      name: 'Anderes',
+      sortOrder: 0,
+      active: true,
+      items: [],
+    })
     await updateServiceGroup(db(), tenantId, created.id, {
       name: 'Einstiegspaket (alt)',
+      sortOrder: 0,
       active: false,
       items: [{ serviceId: first.id, quantity: 9 }],
     })
@@ -374,6 +377,7 @@ describe('resolving a service group', () => {
   it('refuses an empty or unknown group instead of adding nothing', async () => {
     const empty = await createServiceGroup(db(), tenantId, {
       name: 'Leer',
+      sortOrder: 0,
       active: true,
       items: [],
     })
@@ -663,6 +667,7 @@ describe('the appointment beside the activity', () => {
       phoneMobile: null,
       phoneLandline: null,
       internalNote: null,
+      diagnosis: null,
       roles: [],
     })
 
@@ -717,6 +722,7 @@ describe('listing', () => {
       phoneMobile: null,
       phoneLandline: null,
       internalNote: null,
+      diagnosis: null,
       roles: [],
     })
 

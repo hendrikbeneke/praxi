@@ -33,6 +33,7 @@ function person(overrides: Partial<Extract<ContactInput, { kind: 'person' }>> = 
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [],
     ...overrides,
   }

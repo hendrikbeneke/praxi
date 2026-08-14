@@ -61,8 +61,14 @@ export const messages = {
   service: {
     notFound: 'Diese Leistung existiert nicht.',
     shortCodeTaken: 'Dieses Kürzel ist bereits vergeben.',
+    inUse:
+      'Diese Leistung wird noch verwendet und kann nicht gelöscht werden. ' +
+      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.',
     groupNotFound: 'Diese Leistungsgruppe existiert nicht.',
     groupNameTaken: 'Eine Leistungsgruppe mit diesem Namen existiert bereits.',
+    groupInUse:
+      'Diese Leistungsgruppe wird noch verwendet und kann nicht gelöscht werden. ' +
+      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.',
     unknownService: 'Die Gruppe verweist auf eine Leistung, die es nicht gibt.',
   },
   activityType: {
@@ -71,8 +77,7 @@ export const messages = {
     inUse:
       'Diese Vorgangsart wird noch von Vorgängen verwendet und kann nicht gelöscht werden. ' +
       'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.',
-    presetMissing:
-      'Die hinterlegte Vorbelegung verweist auf eine Leistung oder Gruppe, die es nicht gibt.',
+    presetMissing: 'Die hinterlegte Vorbelegung verweist auf eine Leistung, die es nicht gibt.',
   },
   activity: {
     notFound: 'Dieser Vorgang existiert nicht.',

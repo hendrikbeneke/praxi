@@ -82,6 +82,10 @@ const sharedFields = {
   phoneMobile: optionalText(40),
   phoneLandline: optionalText(40),
   internalNote: optionalText(4000),
+  /** A health datum under Art. 9 GDPR (CLAUDE.md rule 12) — hence
+   *  `contactListItemSchema` below omits it explicitly rather than inheriting
+   *  it from this schema like every other field. */
+  diagnosis: optionalText(4000),
 }
 
 const personFields = {
@@ -166,6 +170,7 @@ export const contactSchema = z.object({
   phoneMobile: z.string().nullable(),
   phoneLandline: z.string().nullable(),
   internalNote: z.string().nullable(),
+  diagnosis: z.string().nullable(),
   archivedAt: z.iso.datetime().nullable(),
   roles: z.array(z.object({ roleCode: z.string(), since: z.string().nullable() })),
 })
@@ -178,8 +183,13 @@ export type Contact = z.infer<typeof contactSchema>
  * `appointmentAt` is the appointment nearest to now within the window the
  * "Aktuell" order uses, and `null` in every other order — the column that
  * explains that order only exists there.
+ *
+ * `diagnosis` is deliberately omitted rather than inherited — a health datum
+ * under Art. 9 GDPR must not appear in the contact list (CLAUDE.md rule 12).
+ * `listContacts` in `domain/contact.ts` mirrors this at the SQL level with its
+ * own column set, so the value is never even read for a list row.
  */
-export const contactListItemSchema = contactSchema.extend({
+export const contactListItemSchema = contactSchema.omit({ diagnosis: true }).extend({
   appointmentAt: z.iso.datetime().nullable(),
 })
 

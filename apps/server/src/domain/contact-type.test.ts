@@ -59,6 +59,7 @@ function testPerson(roles: ContactInput['roles'] = []): ContactInput {
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles,
   }
 }

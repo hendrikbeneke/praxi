@@ -7,8 +7,10 @@ import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import {
   createServiceGroup,
+  deleteServiceGroup,
   getServiceGroup,
   listServiceGroups,
+  ServiceGroupInUseError,
   UnknownServiceError,
   updateServiceGroup,
 } from '../domain/service.js'
@@ -26,6 +28,9 @@ function notFound(): never {
 function translate(error: unknown): never {
   if (error instanceof UnknownServiceError) {
     throw new HTTPException(409, { message: messages.service.unknownService })
+  }
+  if (error instanceof ServiceGroupInUseError) {
+    throw new HTTPException(409, { message: messages.service.groupInUse })
   }
   if (uniqueViolationConstraint(error) === 'service_group_tenant_name_key') {
     throw new HTTPException(409, { message: messages.service.groupNameTaken })
@@ -67,3 +72,11 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
       return updated ? c.json(updated) : notFound()
     },
   )
+
+  .delete('/:groupId', validate('param', groupParam), async (c) => {
+    const deleted = await deleteServiceGroup(db(), tenantId(c), c.req.valid('param').groupId).catch(
+      translate,
+    )
+    if (!deleted) notFound()
+    return c.body(null, 204)
+  })

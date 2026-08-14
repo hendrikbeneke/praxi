@@ -158,6 +158,7 @@ export const strings = {
     presetNone: 'Keine',
     presetService: 'Leistung',
     presetGroup: 'Leistungsgruppe',
+    presetMultiple: (count: number) => `${count} Leistungen ausgewählt`,
     isDefault: 'Standard für neue Vorgänge',
     isDefaultHint: 'Genau eine Art kann das sein. Die bisherige verliert die Markierung.',
     defaultBadge: 'Standard',
@@ -289,6 +290,8 @@ export const strings = {
     phoneLandline: 'Festnetz',
     internalNote: 'Interne Notiz',
     internalNoteHint: 'Nur intern sichtbar, erscheint auf keinem Dokument.',
+    diagnosis: 'Diagnose',
+    diagnosisHint: 'Vertraulich — erscheint nur hier, im Rechnungsentwurf und auf der Rechnung.',
     contactNumber: 'Kontaktnummer',
 
     save: 'Speichern',
@@ -808,6 +811,10 @@ export const strings = {
     total: 'Betrag',
     introText: 'Einleitungstext',
     outroText: 'Schlusstext',
+    diagnosis: 'Diagnose',
+    diagnosisHint:
+      'Aus den Stammdaten vorbelegt, für diese Rechnung überschreibbar. Erscheint auf der ' +
+      'Rechnung.',
     insertTemplate: 'Baustein einfügen',
     textHint:
       'Der eingefügte Text gehört ab dann zu dieser Rechnung und ändert sich nicht mehr mit ' +

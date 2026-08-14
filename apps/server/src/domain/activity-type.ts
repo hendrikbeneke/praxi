@@ -1,8 +1,9 @@
 import type { ActivityType, ActivityTypeCreate, ActivityTypeInput } from '@praxi/shared'
-import { and, asc, eq } from 'drizzle-orm'
-import type { Database, Transaction } from '../db/client.js'
-import { activityType } from '../db/schema.js'
+import { and, asc, eq, inArray } from 'drizzle-orm'
+import type { Database, DbReader, Transaction } from '../db/client.js'
+import { activityType, activityTypePresetItem, service } from '../db/schema.js'
 import { newId } from '../id.js'
+import { UnknownServiceError } from './service.js'
 
 /**
  * The catalogue of activity types (CLAUDE.md rule 6).
@@ -18,10 +19,10 @@ import { newId } from '../id.js'
  * `code` is fixed once the entry exists, like everywhere else: it is the handle
  * `activity.type` points at, and the update schema does not carry one.
  *
- * The default duration and the default service or group are **presets**. They
- * are read when a type is applied to an activity and never again; changing
- * them here reaches nothing that already exists (rule 5). This file therefore
- * has no "re-apply to existing activities" function, and must not grow one.
+ * The default duration and `presetItems` are **presets**. They are read when a
+ * type is applied to an activity and never again; changing them here reaches
+ * nothing that already exists (rule 5). This file therefore has no "re-apply
+ * to existing activities" function, and must not grow one.
  */
 
 const columns = {
@@ -30,11 +31,62 @@ const columns = {
   label: activityType.label,
   color: activityType.color,
   defaultDurationMin: activityType.defaultDurationMin,
-  defaultServiceId: activityType.defaultServiceId,
-  defaultServiceGroupId: activityType.defaultServiceGroupId,
   isDefault: activityType.isDefault,
   sortOrder: activityType.sortOrder,
   active: activityType.active,
+}
+
+/**
+ * The presets of one or more types, joined to the catalogue so the settings
+ * screen and the activity dialog do not each have to fetch the services
+ * themselves — same shape as `itemsFor` in `service.ts`.
+ */
+async function presetItemsFor(
+  reader: DbReader,
+  typeIds: string[],
+): Promise<Map<string, ActivityType['presetItems']>> {
+  if (typeIds.length === 0) return new Map()
+
+  const rows = await reader
+    .select({
+      typeId: activityTypePresetItem.activityTypeId,
+      serviceId: activityTypePresetItem.serviceId,
+      quantity: activityTypePresetItem.quantity,
+      description: service.description,
+      shortCode: service.shortCode,
+      defaultPriceCents: service.defaultPriceCents,
+      defaultDurationMin: service.defaultDurationMin,
+      serviceActive: service.active,
+    })
+    .from(activityTypePresetItem)
+    .innerJoin(service, eq(service.id, activityTypePresetItem.serviceId))
+    .where(inArray(activityTypePresetItem.activityTypeId, typeIds))
+    .orderBy(asc(activityTypePresetItem.position))
+
+  const byType = new Map<string, ActivityType['presetItems']>()
+  for (const { typeId, ...item } of rows) {
+    const list = byType.get(typeId) ?? []
+    list.push(item)
+    byType.set(typeId, list)
+  }
+  return byType
+}
+
+async function loadType(
+  reader: DbReader,
+  tenantId: string,
+  id: string,
+): Promise<ActivityType | null> {
+  const [row] = await reader
+    .select(columns)
+    .from(activityType)
+    .where(and(eq(activityType.tenantId, tenantId), eq(activityType.id, id)))
+    .limit(1)
+
+  if (!row) return null
+
+  const presetItems = await presetItemsFor(reader, [row.id])
+  return { ...row, presetItems: presetItems.get(row.id) ?? [] }
 }
 
 export async function listActivityTypes(
@@ -45,11 +97,18 @@ export async function listActivityTypes(
   const filters = [eq(activityType.tenantId, tenantId)]
   if (!includeInactive) filters.push(eq(activityType.active, true))
 
-  return database
+  const rows = await database
     .select(columns)
     .from(activityType)
     .where(and(...filters))
     .orderBy(asc(activityType.sortOrder), asc(activityType.label))
+
+  const presetItems = await presetItemsFor(
+    database,
+    rows.map((row) => row.id),
+  )
+
+  return rows.map((row) => ({ ...row, presetItems: presetItems.get(row.id) ?? [] }))
 }
 
 /**
@@ -69,6 +128,50 @@ async function clearDefault(
     .where(and(eq(activityType.tenantId, tenantId), eq(activityType.isDefault, true)))
 }
 
+/**
+ * Replaces a type's preset items wholesale — nothing here carries any history
+ * worth preserving, so delete-and-insert is both simpler and correct, exactly
+ * as `replaceItems` in `service.ts` does for a group. `position` is rewritten
+ * from the array index, which is what keeps the order gapless.
+ */
+async function replacePresetItems(
+  tx: Transaction,
+  tenantId: string,
+  activityTypeId: string,
+  items: ActivityTypeInput['presetItems'],
+): Promise<void> {
+  await tx
+    .delete(activityTypePresetItem)
+    .where(eq(activityTypePresetItem.activityTypeId, activityTypeId))
+  if (items.length === 0) return
+
+  const known = await tx
+    .select({ id: service.id })
+    .from(service)
+    .where(
+      and(
+        eq(service.tenantId, tenantId),
+        inArray(
+          service.id,
+          items.map((item) => item.serviceId),
+        ),
+      ),
+    )
+
+  if (known.length !== items.length) throw new UnknownServiceError()
+
+  await tx.insert(activityTypePresetItem).values(
+    items.map((item, index) => ({
+      id: newId(),
+      tenantId,
+      activityTypeId,
+      serviceId: item.serviceId,
+      quantity: item.quantity,
+      position: index,
+    })),
+  )
+}
+
 export async function createActivityType(
   database: Database,
   tenantId: string,
@@ -79,11 +182,25 @@ export async function createActivityType(
 
     const [row] = await tx
       .insert(activityType)
-      .values({ id: newId(), tenantId, ...input })
-      .returning(columns)
+      .values({
+        id: newId(),
+        tenantId,
+        code: input.code,
+        label: input.label,
+        color: input.color,
+        defaultDurationMin: input.defaultDurationMin,
+        isDefault: input.isDefault,
+        sortOrder: input.sortOrder,
+        active: input.active,
+      })
+      .returning({ id: activityType.id })
 
     if (!row) throw new Error('insert returned no row')
-    return row
+    await replacePresetItems(tx, tenantId, row.id, input.presetItems)
+
+    const created = await loadType(tx, tenantId, row.id)
+    if (!created) throw new Error('activity type vanished within its own transaction')
+    return created
   })
 }
 
@@ -98,11 +215,21 @@ export async function updateActivityType(
 
     const [row] = await tx
       .update(activityType)
-      .set(input)
+      .set({
+        label: input.label,
+        color: input.color,
+        defaultDurationMin: input.defaultDurationMin,
+        isDefault: input.isDefault,
+        sortOrder: input.sortOrder,
+        active: input.active,
+      })
       .where(and(eq(activityType.tenantId, tenantId), eq(activityType.id, id)))
-      .returning(columns)
+      .returning({ id: activityType.id })
 
-    return row ?? null
+    if (!row) return null
+
+    await replacePresetItems(tx, tenantId, row.id, input.presetItems)
+    return loadType(tx, tenantId, row.id)
   })
 }
 

@@ -60,13 +60,17 @@ type FormOutput = z.output<typeof serviceFormSchema>
 
 const emptyToNull = (value: string) => (value === '' ? null : value)
 
-function toServiceInput(values: FormOutput): ServiceInput {
+/** `sortOrder` is not a form field yet — reordering arrives with the
+ *  redesigned catalogue screen (D5) — so it is carried through unchanged
+ *  rather than reset to 0 on every save. */
+function toServiceInput(values: FormOutput, sortOrder: number): ServiceInput {
   return {
     shortCode: emptyToNull(values.shortCode),
     description: values.description,
     feeCode: emptyToNull(values.feeCode),
     defaultPriceCents: values.price,
     defaultDurationMin: values.duration === '' ? null : values.duration,
+    sortOrder,
     active: values.active,
   }
 }
@@ -140,7 +144,9 @@ export function ServiceDialog({
 
         <form
           id="service-form"
-          onSubmit={form.handleSubmit((values) => mutation.mutate(toServiceInput(values)))}
+          onSubmit={form.handleSubmit((values) =>
+            mutation.mutate(toServiceInput(values, service?.sortOrder ?? 0)),
+          )}
           noValidate
         >
           <ReadModeFieldset disabled={!editing} className="grid gap-4 sm:grid-cols-6">

@@ -182,6 +182,7 @@ export async function cancelInvoice(
         recipientSnapshot,
         introText: null,
         outroText: null,
+        diagnosis: null,
         totalCents: sumLines(lines),
         // Nothing has been paid on a document that is being created; a
         // cancellation invoice has no payment state at all (see

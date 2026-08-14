@@ -15,6 +15,7 @@ const columns = {
   subject: emailTemplate.subject,
   body: emailTemplate.body,
   isDefault: emailTemplate.isDefault,
+  sortOrder: emailTemplate.sortOrder,
   active: emailTemplate.active,
 }
 
@@ -23,7 +24,7 @@ export function listEmailTemplates(database: Database, tenantId: string): Promis
     .select(columns)
     .from(emailTemplate)
     .where(eq(emailTemplate.tenantId, tenantId))
-    .orderBy(asc(emailTemplate.name))
+    .orderBy(asc(emailTemplate.sortOrder), asc(emailTemplate.name))
 }
 
 /** One by id, for the template the send dialog was switched to. */
@@ -51,7 +52,7 @@ export async function defaultEmailTemplate(
     .select(columns)
     .from(emailTemplate)
     .where(and(eq(emailTemplate.tenantId, tenantId), eq(emailTemplate.active, true)))
-    .orderBy(asc(emailTemplate.name))
+    .orderBy(asc(emailTemplate.sortOrder), asc(emailTemplate.name))
 
   return rows.find((row) => row.isDefault) ?? rows[0] ?? null
 }

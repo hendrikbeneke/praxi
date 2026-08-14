@@ -2,8 +2,8 @@ import type { ActivityTypeCreate } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
-import { checkViolationConstraint, foreignKeyViolationConstraint } from '../db/errors.js'
-import { activityType, service } from '../db/schema.js'
+import { foreignKeyViolationConstraint } from '../db/errors.js'
+import { activityTypePresetItem, service } from '../db/schema.js'
 import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
 import { createActivity, getActivity } from './activity.js'
@@ -14,7 +14,7 @@ import {
   updateActivityType,
 } from './activity-type.js'
 import { createContact } from './contact.js'
-import { createService } from './service.js'
+import { createService, UnknownServiceError } from './service.js'
 
 let tenantId: string
 let contactId: string
@@ -41,6 +41,7 @@ beforeEach(async () => {
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [],
   })
   contactId = created.id
@@ -52,8 +53,7 @@ function typeInput(overrides: Partial<ActivityTypeCreate> = {}): ActivityTypeCre
     label: 'Supervision',
     color: '#334155',
     defaultDurationMin: null,
-    defaultServiceId: null,
-    defaultServiceGroupId: null,
+    presetItems: [],
     isDefault: false,
     sortOrder: 50,
     active: true,
@@ -70,6 +70,7 @@ const someService = () =>
     feeCode: null,
     defaultPriceCents: 9000,
     defaultDurationMin: 50,
+    sortOrder: 0,
     active: true,
   })
 
@@ -187,39 +188,100 @@ describe('the presets', () => {
     expect((await getActivity(db(), tenantId, activity.id))?.durationMin).toBe(50)
   })
 
-  /**
-   * One preset or the other, never both. The input schema refuses first; this
-   * goes around it, because the guarantee has to hold for anything that
-   * reaches the table.
-   */
-  it('cannot name a service and a group at once', async () => {
+  /** References only — `service_id`, `quantity`, `position` — never a copy of
+   *  price or description, and never a group id (CLAUDE.md rule 5). */
+  it('keeps the order the preset items were given in', async () => {
+    const first = await someService()
+    const second = await createService(db(), tenantId, {
+      shortCode: null,
+      description: 'Erstgespräch',
+      feeCode: null,
+      defaultPriceCents: 13500,
+      defaultDurationMin: 80,
+      sortOrder: 0,
+      active: true,
+    })
+
+    const created = await createActivityType(
+      db(),
+      tenantId,
+      typeInput({
+        presetItems: [
+          { serviceId: second.id, quantity: 1 },
+          { serviceId: first.id, quantity: 2 },
+        ],
+      }),
+    )
+
+    expect(created.presetItems.map((item) => item.serviceId)).toEqual([second.id, first.id])
+    expect(created.presetItems.map((item) => item.quantity)).toEqual([1, 2])
+    expect(created.presetItems.map((item) => item.description)).toEqual([
+      'Erstgespräch',
+      'Folgesitzung',
+    ])
+  })
+
+  it('refuses the same service twice in one preset', async () => {
     const entry = await someService()
 
-    let constraint: string | null = null
-    try {
-      await db().insert(activityType).values({
-        id: newId(),
+    await expect(
+      createActivityType(
+        db(),
         tenantId,
-        code: 'both',
-        label: 'Beides',
-        defaultServiceId: entry.id,
-        defaultServiceGroupId: newId(),
-      })
-      throw new Error('expected the database to refuse, but the insert succeeded')
-    } catch (error) {
-      constraint = checkViolationConstraint(error)
-    }
-    expect(constraint).toBe('activity_type_single_preset')
+        typeInput({
+          presetItems: [
+            { serviceId: entry.id, quantity: 1 },
+            { serviceId: entry.id, quantity: 2 },
+          ],
+        }),
+      ),
+    ).rejects.toThrow()
+  })
+
+  it('refuses a service id that does not exist', async () => {
+    await expect(
+      createActivityType(
+        db(),
+        tenantId,
+        typeInput({ presetItems: [{ serviceId: newId(), quantity: 1 }] }),
+      ),
+    ).rejects.toBeInstanceOf(UnknownServiceError)
+  })
+
+  it('refuses a service from another tenant', async () => {
+    const otherTenant = await createTenant(db(), 'Mandant B')
+    const foreign = await createService(db(), otherTenant, {
+      shortCode: null,
+      description: 'Folgesitzung',
+      feeCode: null,
+      defaultPriceCents: 9000,
+      defaultDurationMin: 50,
+      sortOrder: 0,
+      active: true,
+    })
+
+    await expect(
+      createActivityType(
+        db(),
+        tenantId,
+        typeInput({ presetItems: [{ serviceId: foreign.id, quantity: 1 }] }),
+      ),
+    ).rejects.toBeInstanceOf(UnknownServiceError)
   })
 
   /**
    * A service a type prefills cannot be deleted out from under it: `RESTRICT`
    * rather than `SET NULL`, because a bare `SET NULL` on a composite key nulls
    * `tenant_id` with it — the trap slice 4 hit on `activity.appointment_id`.
+   * Mirrors the equivalent guarantee for `service_group_item`.
    */
-  it('holds the service it points at', async () => {
+  it('holds the services it points at', async () => {
     const entry = await someService()
-    await createActivityType(db(), tenantId, typeInput({ defaultServiceId: entry.id }))
+    await createActivityType(
+      db(),
+      tenantId,
+      typeInput({ presetItems: [{ serviceId: entry.id, quantity: 1 }] }),
+    )
 
     let constraint: string | null = null
     try {
@@ -228,6 +290,30 @@ describe('the presets', () => {
     } catch (error) {
       constraint = foreignKeyViolationConstraint(error)
     }
-    expect(constraint).toBe('activity_type_service_tenant_fk')
+    expect(constraint).toBe('activity_type_preset_item_service_tenant_fk')
+  })
+
+  /** Replacing the items is delete-and-insert, like `service_group_item` — a
+   *  type that had a preset and is edited to have none must end up with none. */
+  it('replaces the preset items wholesale on update', async () => {
+    const entry = await someService()
+    const created = await createActivityType(
+      db(),
+      tenantId,
+      typeInput({ presetItems: [{ serviceId: entry.id, quantity: 1 }] }),
+    )
+
+    const updated = await updateActivityType(db(), tenantId, created.id, {
+      ...created,
+      presetItems: [],
+    })
+
+    expect(updated?.presetItems).toEqual([])
+    expect(
+      await db()
+        .select()
+        .from(activityTypePresetItem)
+        .where(eq(activityTypePresetItem.activityTypeId, created.id)),
+    ).toEqual([])
   })
 })

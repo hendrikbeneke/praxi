@@ -1,4 +1,4 @@
-import { type Contact, formatContactNameSorted } from '@praxi/shared'
+import { type ContactListItem, formatContactNameSorted } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { Search, X } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
@@ -93,7 +93,7 @@ export function ContactPicker({
   const items = results.data?.items ?? []
   const activeIndex = items.length === 0 ? -1 : Math.min(active, items.length - 1)
 
-  function choose(contact: Contact) {
+  function choose(contact: ContactListItem) {
     setTerm('')
     setActive(0)
     onChange(contact.id)

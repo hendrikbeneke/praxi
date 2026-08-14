@@ -40,6 +40,7 @@ function testPerson(lastName: string): ContactInput {
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [],
   }
 }

@@ -150,40 +150,23 @@ const DEFAULT_DURATION_MIN = 50
 /** True when a type has anything to prefill at all. Without this, changing to
  *  a type that prefills nothing would announce that nothing happened. */
 function hasPreset(entry: ActivityType): boolean {
-  return (
-    entry.defaultDurationMin !== null ||
-    entry.defaultServiceId !== null ||
-    entry.defaultServiceGroupId !== null
-  )
+  return entry.defaultDurationMin !== null || entry.presetItems.length > 0
 }
 
 /**
- * The positions a type prefills: its default service, or its default group
- * resolved into one row per member.
- *
- * The resolution happens here, at entry time, exactly as it does when a group
- * is picked by hand — no group id is ever sent or stored (CLAUDE.md rule 5).
- * The rows go back as service references, so the server still does the copying.
+ * The positions a type prefills, already resolved to service references by
+ * the time they reach here — a group picked in the settings was flattened
+ * into `presetItems` at that moment (CLAUDE.md rule 5), so there is no group
+ * to resolve on this side. Looked up against the full catalogue rather than
+ * trusting the denormalized fields on `presetItems`, because those do not
+ * carry `feeCode` — the same reason `addGroup` below re-resolves group
+ * members through `services` instead of using `group.items` directly.
  */
-function presetItemsOf(
-  entry: ActivityType,
-  services: readonly Service[],
-  groups: readonly ServiceGroup[],
-): DraftItem[] {
-  if (entry.defaultServiceId !== null) {
-    const service = services.find((candidate) => candidate.id === entry.defaultServiceId)
-    return service ? [fromService(service, 1)] : []
-  }
-
-  if (entry.defaultServiceGroupId !== null) {
-    const group = groups.find((candidate) => candidate.id === entry.defaultServiceGroupId)
-    return (group?.items ?? []).flatMap((member) => {
-      const service = services.find((candidate) => candidate.id === member.serviceId)
-      return service ? [fromService(service, member.quantity)] : []
-    })
-  }
-
-  return []
+function presetItemsOf(entry: ActivityType, services: readonly Service[]): DraftItem[] {
+  return entry.presetItems.flatMap((preset) => {
+    const service = services.find((candidate) => candidate.id === preset.serviceId)
+    return service ? [fromService(service, preset.quantity)] : []
+  })
 }
 
 export function ActivityDialog({
@@ -314,12 +297,12 @@ export function ActivityDialog({
         setDurationText(text)
         setPresetDurationText(text)
       }
-      const rows = presetItemsOf(entry, services.data ?? [], groups.data ?? [])
+      const rows = presetItemsOf(entry, services.data ?? [])
       // Appended, not replaced: pressing the button must not make positions
       // disappear. On a fresh activity the list is empty, so it is the same.
       if (rows.length > 0) setItems((current) => [...current, ...rows])
     },
-    [services.data, groups.data],
+    [services.data],
   )
 
   /**

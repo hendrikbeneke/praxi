@@ -57,6 +57,7 @@ function person(overrides: Partial<Extract<ContactInput, { kind: 'person' }>> = 
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [],
     ...overrides,
   }
@@ -79,6 +80,7 @@ function organization(
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [],
     ...overrides,
   }
@@ -412,6 +414,30 @@ describe('listContacts', () => {
     expect(total).toBe(4)
     expect(items.map((item) => item.lastName)).not.toContain('Fremd')
   })
+
+  /**
+   * A health datum under Art. 9 GDPR must never reach the contact list
+   * (CLAUDE.md rule 12). This is checked at the object level, not just the
+   * type level: `listColumns` in `domain/contact.ts` never selects the column
+   * in the first place, so there is nothing to leak even if the response
+   * schema were loosened later.
+   */
+  it('never carries diagnosis on a list row, even though it is set', async () => {
+    await createContact(
+      db(),
+      tenantId,
+      person({ lastName: 'Vertraulich', diagnosis: 'Anpassungsstörung' }),
+    )
+
+    const { items } = await listContacts(db(), tenantId, query({ q: 'Vertraulich' }))
+    const row = items[0]
+    if (!row) throw new Error('fixture missing')
+
+    expect('diagnosis' in row).toBe(false)
+
+    const created = await getContact(db(), tenantId, row.id)
+    expect(created?.diagnosis).toBe('Anpassungsstörung')
+  })
 })
 
 /**
@@ -584,6 +610,7 @@ describe('roles have their own path', () => {
       phoneMobile: null,
       phoneLandline: null,
       internalNote: null,
+      diagnosis: null,
     })
 
     expect(updated?.city).toBe('Musterstadt')

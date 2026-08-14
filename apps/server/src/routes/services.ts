@@ -5,7 +5,14 @@ import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
-import { createService, getService, listServices, updateService } from '../domain/service.js'
+import {
+  createService,
+  deleteService,
+  getService,
+  listServices,
+  ServiceInUseError,
+  updateService,
+} from '../domain/service.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
@@ -20,6 +27,9 @@ function notFound(): never {
 function translate(error: unknown): never {
   if (uniqueViolationConstraint(error) === 'service_tenant_short_code_key') {
     throw new HTTPException(409, { message: messages.service.shortCodeTaken })
+  }
+  if (error instanceof ServiceInUseError) {
+    throw new HTTPException(409, { message: messages.service.inUse })
   }
   throw error
 }
@@ -62,3 +72,11 @@ export const servicesRoute = new Hono<AppEnv>()
       return updated ? c.json(updated) : notFound()
     },
   )
+
+  .delete('/:serviceId', validate('param', serviceParam), async (c) => {
+    const deleted = await deleteService(db(), tenantId(c), c.req.valid('param').serviceId).catch(
+      translate,
+    )
+    if (!deleted) notFound()
+    return c.body(null, 204)
+  })

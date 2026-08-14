@@ -4,6 +4,7 @@ import {
   DEFAULT_COLOR,
   formatEuro,
   readableTextOn,
+  type ServiceGroup,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus } from 'lucide-react'
@@ -49,10 +50,14 @@ import { strings } from '@/lib/strings'
  * type existing. What cannot be deleted is a type that is in use, and the
  * server says so.
  *
- * The two preset fields are one control on screen, because at most one of them
- * may be set: a select over services *and* groups, prefixed by their kind.
- * Modelling them as two fields would let both be filled and then be refused by
- * the check constraint.
+ * The preset is a list of service references (`presetItems`), but this dialog
+ * still offers a single-select over services *and* groups, prefixed by their
+ * kind, exactly as before D1 — picking a group here resolves it into its
+ * members immediately and writes the whole list in one step. The full "add,
+ * reorder, remove multiple" editor from the design handoff is D4's job; this
+ * is the smallest change that keeps the screen working against the new shape.
+ * With more than one item already on a type, the picker shows a count instead
+ * of a single choice, and picking a new option replaces the whole list.
  */
 export function ActivityTypeSettings() {
   const queryClient = useQueryClient()
@@ -195,30 +200,53 @@ function toValues(type: ActivityType): ActivityTypeCreate {
     label: type.label,
     color: type.color,
     defaultDurationMin: type.defaultDurationMin,
-    defaultServiceId: type.defaultServiceId,
-    defaultServiceGroupId: type.defaultServiceGroupId,
+    presetItems: type.presetItems.map((item) => ({
+      serviceId: item.serviceId,
+      quantity: item.quantity,
+    })),
     isDefault: type.isDefault,
     sortOrder: type.sortOrder,
     active: type.active,
   }
 }
 
-/** The two preset columns as one value, so the "at most one" rule cannot be
- *  broken in the form at all. */
 const NO_PRESET = 'none'
+/** More than one item is not representable as a single choice; the picker
+ *  shows a count for it instead (see the note on `ActivityTypeSettings`). */
+const MULTIPLE_PRESET = 'multiple'
+
 const presetValue = (values: ActivityTypeCreate): string => {
-  if (values.defaultServiceId) return `service:${values.defaultServiceId}`
-  if (values.defaultServiceGroupId) return `group:${values.defaultServiceGroupId}`
-  return NO_PRESET
+  if (values.presetItems.length === 0) return NO_PRESET
+  if (values.presetItems.length === 1) return `service:${values.presetItems[0]?.serviceId}`
+  return MULTIPLE_PRESET
 }
 
-function withPreset(values: ActivityTypeCreate, selected: string): ActivityTypeCreate {
+/** Picking a service sets a single-item list; picking a group resolves it
+ *  into its members right here, at selection time, so no row ever holds a
+ *  group id (CLAUDE.md rule 5) — the same resolution the activity dialog does
+ *  when a type's preset is applied to a new activity. */
+function withPreset(
+  values: ActivityTypeCreate,
+  selected: string,
+  groups: readonly ServiceGroup[],
+): ActivityTypeCreate {
+  if (selected === NO_PRESET) return { ...values, presetItems: [] }
+
   const [kind, id] = selected.split(':')
-  return {
-    ...values,
-    defaultServiceId: kind === 'service' ? (id ?? null) : null,
-    defaultServiceGroupId: kind === 'group' ? (id ?? null) : null,
+  if (kind === 'service' && id) {
+    return { ...values, presetItems: [{ serviceId: id, quantity: 1 }] }
   }
+  if (kind === 'group' && id) {
+    const group = groups.find((candidate) => candidate.id === id)
+    return {
+      ...values,
+      presetItems: (group?.items ?? []).map((item) => ({
+        serviceId: item.serviceId,
+        quantity: item.quantity,
+      })),
+    }
+  }
+  return values
 }
 
 function ActivityTypeDialog({
@@ -243,8 +271,7 @@ function ActivityTypeDialog({
           label: '',
           color: DEFAULT_COLOR,
           defaultDurationMin: null,
-          defaultServiceId: null,
-          defaultServiceGroupId: null,
+          presetItems: [],
           isDefault: false,
           sortOrder: 100,
           active: true,
@@ -334,13 +361,20 @@ function ActivityTypeDialog({
             <Label htmlFor="activity-type-preset">{strings.activityType.preset}</Label>
             <Select
               value={presetValue(values)}
-              onValueChange={(selected) => setValues(withPreset(values, selected))}
+              onValueChange={(selected) =>
+                setValues(withPreset(values, selected, groups.data ?? []))
+              }
             >
               <SelectTrigger id="activity-type-preset" className="mt-2 w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_PRESET}>{strings.activityType.presetNone}</SelectItem>
+                {values.presetItems.length > 1 && (
+                  <SelectItem value={MULTIPLE_PRESET}>
+                    {strings.activityType.presetMultiple(values.presetItems.length)}
+                  </SelectItem>
+                )}
                 {(services.data ?? []).map((service) => (
                   <SelectItem key={service.id} value={`service:${service.id}`}>
                     {strings.activityType.presetService}: {service.description} —{' '}

@@ -102,6 +102,10 @@ export const invoiceUpdateSchema = z.object({
   paymentTermDays: z.number().int().min(0).max(365),
   introText: optionalText(4000),
   outroText: optionalText(4000),
+  /** Prefilled from `contact.diagnosis` when the draft is created, then free
+   *  to edit — same reasoning as the intro and outro texts (CLAUDE.md rule
+   *  12: appears on the draft and the PDF, never in a log or an error). */
+  diagnosis: optionalText(4000),
   lines: z.array(invoiceLineInputSchema).max(200).default([]),
 })
 
@@ -122,6 +126,7 @@ export const invoiceSchema = z.object({
   recipientSnapshot: recipientSnapshotSchema.nullable(),
   introText: z.string().nullable(),
   outroText: z.string().nullable(),
+  diagnosis: z.string().nullable(),
   totalCents: z.number().int(),
   /**
    * The sum of this invoice's payments (slice 8). Derived, never stored — it

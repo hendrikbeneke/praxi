@@ -327,6 +327,7 @@ const EMPTY_TEMPLATE: EmailTemplateInput = {
   subject: '',
   body: '',
   isDefault: false,
+  sortOrder: 0,
   active: true,
 }
 
@@ -431,6 +432,7 @@ function EmailTemplateForm({
           subject: template.subject,
           body: template.body,
           isDefault: template.isDefault,
+          sortOrder: template.sortOrder,
           active: template.active,
         }
       : EMPTY_TEMPLATE,

@@ -141,6 +141,7 @@ function InvoiceDetailPage() {
   const [paymentTermDays, setPaymentTermDays] = useState(14)
   const [introText, setIntroText] = useState('')
   const [outroText, setOutroText] = useState('')
+  const [diagnosis, setDiagnosis] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([])
   const [sendOpen, setSendOpen] = useState(false)
   /**
@@ -172,6 +173,7 @@ function InvoiceDetailPage() {
     setPaymentTermDays(invoice.paymentTermDays)
     setIntroText(invoice.introText ?? '')
     setOutroText(invoice.outroText ?? '')
+    setDiagnosis(invoice.diagnosis ?? '')
     setLines(invoice.lines.map(fromStored))
   }, [invoice])
 
@@ -182,6 +184,7 @@ function InvoiceDetailPage() {
     setPaymentTermDays(invoice.paymentTermDays)
     setIntroText(invoice.introText ?? '')
     setOutroText(invoice.outroText ?? '')
+    setDiagnosis(invoice.diagnosis ?? '')
     setLines(invoice.lines.map(fromStored))
     setEditing(false)
   }
@@ -197,6 +200,7 @@ function InvoiceDetailPage() {
         paymentTermDays,
         introText: introText.trim() === '' ? null : introText.trim(),
         outroText: outroText.trim() === '' ? null : outroText.trim(),
+        diagnosis: diagnosis.trim() === '' ? null : diagnosis.trim(),
         lines: lines.map(toInput),
       }),
     onSuccess: async () => {
@@ -412,6 +416,19 @@ function InvoiceDetailPage() {
           templates={(templates.data ?? []).filter((t) => t.kind === 'intro' && t.active)}
           onInsert={insertTemplate}
         />
+
+        <div>
+          <Label htmlFor={`${formId}-diagnosis`}>{strings.invoice.diagnosis}</Label>
+          <Textarea
+            id={`${formId}-diagnosis`}
+            rows={2}
+            className="mt-2"
+            disabled={!canEdit}
+            value={diagnosis}
+            onChange={(event) => setDiagnosis(event.target.value)}
+          />
+          <p className="mt-1 text-muted-foreground text-xs">{strings.invoice.diagnosisHint}</p>
+        </div>
 
         <section>
           <div className="flex items-center justify-between">

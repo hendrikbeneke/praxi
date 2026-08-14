@@ -63,6 +63,7 @@ const contactFormSchema = z
     phoneMobile: z.string().trim().max(40),
     phoneLandline: z.string().trim().max(40),
     internalNote: z.string().trim().max(4000),
+    diagnosis: z.string().trim().max(4000),
     /**
      * Only filled while creating. On an existing contact the roles are ticked
      * in the page header, which saves immediately — see the note on
@@ -103,6 +104,7 @@ function toContactUpdate(values: ContactFormOutput): ContactUpdate {
     phoneMobile: emptyToNull(values.phoneMobile),
     phoneLandline: emptyToNull(values.phoneLandline),
     internalNote: emptyToNull(values.internalNote),
+    diagnosis: emptyToNull(values.diagnosis),
   }
 
   return values.kind === 'person'
@@ -153,6 +155,7 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     phoneMobile: contact?.phoneMobile ?? '',
     phoneLandline: contact?.phoneLandline ?? '',
     internalNote: contact?.internalNote ?? '',
+    diagnosis: contact?.diagnosis ?? '',
     roles: [],
   }
 }
@@ -476,6 +479,12 @@ export function ContactForm({
               {...form.register('internalNote')}
             />
             <p className="mt-1 text-muted-foreground text-xs">{strings.contact.internalNoteHint}</p>
+
+            <Label htmlFor="diagnosis" className="mt-4 block">
+              {strings.contact.diagnosis}
+            </Label>
+            <Textarea id="diagnosis" rows={3} className="mt-2" {...form.register('diagnosis')} />
+            <p className="mt-1 text-muted-foreground text-xs">{strings.contact.diagnosisHint}</p>
           </CardContent>
         </Card>
       </ReadModeFieldset>

@@ -102,6 +102,7 @@ function person(): ContactInput {
     phoneMobile: null,
     phoneLandline: null,
     internalNote: null,
+    diagnosis: null,
     roles: [],
   }
 }
