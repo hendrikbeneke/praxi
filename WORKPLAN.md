@@ -38,6 +38,27 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D7 | Zahlungen | todo |
 | D8 | Vorgänge | todo |
 | D9 | Kalender | todo |
+| D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
+
+## D10 — Rich Text für Notizen
+
+Eigenes Paket, aus den Prototyp-Funden vom D2-Vorlauf: `Kontaktdetail.dc.html` zeigt einen
+`contentEditable`-Editor mit Werkzeugleiste (Fett, Kursiv, Zwischenüberschrift, Aufzählung,
+Nummerierung) für `note.text`, zweimal — im Notizen-Tab und inline im Notizfeld eines Vorgangs.
+
+Entscheidung: ja, aber nicht als Nachbau des Prototyps.
+
+- Gespeichert wird **Markdown**, nicht HTML — bleibt ein String, `note.text` und die
+  Hash-Kette aus Regel 7 ändern sich nicht, das Rendern ist kontrollierbar.
+- **Kein** `document.execCommand` (abgekündigt) und kein `contentEditable`-HTML-Editor —
+  bei einem Feld mit Behandlungsdokumentation ist HTML im Feld eine XSS-Frage, die nicht
+  eingegangen wird.
+- Der Editor aus dem Design ist ausdrücklich nur ein Beispiel für die Werkzeugleiste
+  (welche Formatierungen), nicht für die Umsetzung. Vor dem Bauen: Plan zuerst, insbesondere
+  welche Markdown-Bibliothek fürs Rendern, wie die Werkzeugleiste einen Markdown-Editor ohne
+  `contentEditable` bedient, und ob das rückwirkend bestehende Notizen (reiner Text) unberührt
+  lässt.
+- Nicht vor D9 einordnen, nicht ungefragt anfangen.
 
 ## D1 — Modelländerungen
 
