@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+[data-aktion=entfernen]:hover{color:var(--destructive)!important}
+@media (max-width:900px){[style*="--felder"]>div{grid-column:span 6!important}}
+@media (max-width:620px){[style*="--felder"]>div{grid-column:span 12!important}}
+@media (max-width:1000px){[style*="--abschnitt"]{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+</style>
+</helmet>
+<div style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5" data-theme="{{ theme }}">
+<dc-import name="AppSidebar" active="Kontakte" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Kontakte" seite="Kontakt anlegen" hint-size="100%,56px"></dc-import>
+<div style="flex:1;min-width:0;overflow:auto">
+<main data-screen-label="Kontakt anlegen" style="display:flex;flex-direction:column;min-height:100%">
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:22px 32px 18px;border-bottom:1px solid var(--border);background:var(--card)">
+<div>
+<h1 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">Kontakt anlegen</h1>
+<p style="margin:5px 0 0;color:var(--muted-foreground);font-size:13.5px">Die Kontaktnummer wird beim Speichern vergeben.</p>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ zurueck }}" hint-size="104px,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>Zurück</x-import>
+</div>
+
+<div style="flex:1;padding:24px 32px 44px">
+<div style="max-width:1000px">
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,900px">
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ false }}" hint-size="100%,900px">
+<x-import component-from-global-scope="PraxiWeb.CardContent" className="pt-6" hint-size="100%,900px">
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding-bottom:24px">
+<div><p style="margin:0;font-weight:600">Name</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Art ist strukturell und später nicht mehr änderbar.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ artProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="n-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="80px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="200px,72px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="person" hint-size="100%,32px">Person</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="org" hint-size="100%,32px">Organisation</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-anrede" hint-size="56px,16px">Anrede</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ anredeProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="n-anrede" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Keine" hint-size="70px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="200px,140px">
+<sc-for list="{{ anredeOptionen }}" as="opt" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ opt.value }}" hint-size="100%,32px">{{ opt.label }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<sc-if value="{{ istOrg }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-firma" hint-size="90px,16px">Firmenname *</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-firma" required="{{ true }}" dc-props="{{ firmaProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-ansprech" hint-size="110px,16px">Ansprechpartner</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-ansprech" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+</sc-if>
+<sc-if value="{{ istPerson }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-titel" hint-size="36px,16px">Titel</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-titel" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-vorname" hint-size="60px,16px">Vorname</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-vorname" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-nachname" hint-size="88px,16px">Nachname *</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-nachname" required="{{ true }}" dc-props="{{ nachnameProps }}" hint-size="100%,36px"></x-import>
+</div>
+</sc-if>
+</div>
+</div>
+
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Rollen</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Nur beim Anlegen hier wählbar, später über den Kopfbereich.</p></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 18px">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer"><x-import component-from-global-scope="PraxiWeb.Checkbox" defaultChecked="{{ true }}" hint-size="16px,16px"></x-import>Patienten</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer"><x-import component-from-global-scope="PraxiWeb.Checkbox" hint-size="16px,16px"></x-import>Angehörige</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer"><x-import component-from-global-scope="PraxiWeb.Checkbox" hint-size="16px,16px"></x-import>Zuweiser</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer"><x-import component-from-global-scope="PraxiWeb.Checkbox" hint-size="16px,16px"></x-import>Krankenkassen</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer"><x-import component-from-global-scope="PraxiWeb.Checkbox" hint-size="16px,16px"></x-import>Lieferanten</label>
+</div>
+</div>
+
+<sc-if value="{{ istPerson }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Person</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Geburtsdatum und Geschlecht stehen auf Rezept und Abrechnung.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-gebdat" hint-size="88px,16px">Geburtsdatum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="n-gebdat" dc-props="{{ gebdatProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-gebort" hint-size="76px,16px">Geburtsort</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-gebort" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-geschlecht" hint-size="76px,16px">Geschlecht</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ geschlechtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="n-geschlecht" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="90px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="220px,140px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="keine" hint-size="100%,32px">Keine Angabe</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="weiblich" hint-size="100%,32px">weiblich</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="maennlich" hint-size="100%,32px">männlich</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="divers" hint-size="100%,32px">divers</x-import>
+</x-import>
+</x-import>
+</div>
+</div>
+</div>
+</sc-if>
+
+
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Anschrift</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Hausnummer separat, für Rechnung und Anzeige wieder zusammengesetzt.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 9">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-strasse" hint-size="56px,16px">Straße</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-strasse" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-hausnr" hint-size="88px,16px">Hausnummer</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-hausnr" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-plz" hint-size="36px,16px">PLZ</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-plz" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 9">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-ort" hint-size="36px,16px">Ort</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-ort" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-land" hint-size="44px,16px">Land</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ landProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="n-land" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="90px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="220px,180px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="DE" hint-size="100%,32px">Deutschland</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="AT" hint-size="100%,32px">Österreich</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="CH" hint-size="100%,32px">Schweiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="NL" hint-size="100%,32px">Niederlande</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="DK" hint-size="100%,32px">Dänemark</x-import>
+</x-import>
+</x-import>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Kontakt</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Mobil und Festnetz getrennt — die Art entscheidet, ob man anruft oder schreibt.</p></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px 18px">
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-mail" hint-size="108px,16px">E-Mail-Adresse</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-mail" type="email" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-mobil" hint-size="46px,16px">Mobil</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-mobil" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-festnetz" hint-size="66px,16px">Festnetz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-festnetz" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ istOrg }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Steuer</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Erscheint auf Rechnungen an diesen Kontakt.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-steuernr" hint-size="94px,16px">Steuernummer</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-steuernr" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-ustid" hint-size="76px,16px">USt-IdNr.</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="n-ustid" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding-top:24px;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Intern</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Nur intern sichtbar, erscheint auf keinem Dokument.</p></div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="n-notiz" hint-size="104px,16px">Interne Notiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="n-notiz" rows="4" placeholder="Nur intern sichtbar" defaultValue="" hint-size="100%,96px"></x-import>
+</div>
+</div>
+
+</x-import>
+</x-import>
+</x-import>
+
+<div style="position:sticky;bottom:0;display:flex;align-items:center;justify-content:flex-end;gap:16px;margin-top:16px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:0 -2px 12px oklch(25% .012 62 / .05)">
+<span style="display:inline-flex;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ zurueck }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" disabled="{{ unfertig }}" onClick="{{ anlegen }}" hint-size="150px,36px">Kontakt anlegen</x-import>
+</span>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;schiefer&quot;,&quot;blau&quot;,&quot;salbei&quot;,&quot;rose&quot;,&quot;nacht&quot;],&quot;default&quot;:&quot;schiefer&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = {nachname: '', firma: '', art: 'person', anrede: '', geschlecht: '', gebdat: '', land: 'DE'};
+
+  renderVals(){
+    return {
+      theme: this.props.theme ?? 'schiefer',
+      unfertig: (this.state.art === 'org' ? this.state.firma : this.state.nachname).trim().length === 0,
+      nachnameProps: {value: this.state.nachname, onChange: e => this.setState({nachname: e.target.value})},
+      artProps: {value: this.state.art, onValueChange: v => this.setState({art: v})},
+      landProps: {value: this.state.land, onValueChange: v => this.setState({land: v})},
+      istOrg: this.state.art === 'org',
+      istPerson: this.state.art !== 'org',
+      firmaProps: {value: this.state.firma, onChange: e => this.setState({firma: e.target.value})},
+      anredeProps: {value: this.state.anrede, onValueChange: v => this.setState({anrede: v})},
+      anredeOptionen: this.state.art === 'org'
+        ? [{value:'keine', label:'Keine'}, {value:'Firma', label:'Firma'}]
+        : [{value:'keine', label:'Keine'}, {value:'Frau', label:'Frau'}, {value:'Herr', label:'Herr'}],
+      geschlechtProps: {value: this.state.geschlecht, onValueChange: v => this.setState({geschlecht: v})},
+      gebdatProps: {value: this.state.gebdat, onChange: v => this.setState({gebdat: v}), twoDigitYear: true},
+      zurueck: () => { window.location.href = './Kontaktliste.dc.html'; },
+      anlegen: () => { window.location.href = './Kontaktdetail.dc.html'; }
+    };
+  }
+}
+</script>
+</body>
+</html>

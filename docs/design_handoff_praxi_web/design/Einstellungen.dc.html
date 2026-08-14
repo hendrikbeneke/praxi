@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+fieldset[disabled] input,fieldset[disabled] [data-slot="select-trigger"]{
+  opacity:1!important;background:transparent!important;border-color:transparent!important;
+  box-shadow:none!important;color:var(--foreground)!important;padding-left:0!important;cursor:default!important;
+}
+fieldset[disabled] [data-slot="select-trigger"] svg{display:none}
+@media (max-width:1120px){[style*="--kreisraster"]{grid-template-columns:minmax(120px,1fr) 96px 80px 116px 96px!important;gap:0 12px!important}}
+@media (max-width:1240px){[style*="--abschnitt"]{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}}
+@media (max-width:1080px){[style*="--seitenraster"]{grid-template-columns:minmax(0,1fr)!important;gap:18px!important}
+[style*="--seitenraster"]>nav{position:static!important;flex-direction:row!important;flex-wrap:wrap}}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5">
+<dc-import name="AppSidebar" active="Einstellungen" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Einstellungen" seite="{{ bereichName }}" hint-size="100%,56px"></dc-import>
+<div style="flex:1;min-width:0;overflow:auto">
+<main style="display:flex;flex-direction:column;padding:22px 32px 48px;max-width:1180px">
+
+<div style="min-width:0">
+<h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.022em;line-height:1.1">Einstellungen</h1>
+<p style="margin:5px 0 0;color:var(--muted-foreground)">Was für die ganze Praxis gilt.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:236px minmax(0,1fr);gap:28px;margin-top:22px;--seitenraster:1">
+
+<nav style="display:flex;flex-direction:column;gap:2px;align-self:start;position:sticky;top:0">
+<sc-for list="{{ bereiche }}" as="b" hint-placeholder-count="6">
+<button onClick="{{ b.onClick }}" style="display:flex;flex-direction:column;gap:1px;padding:9px 12px;border-radius:8px;background:{{ b.bg }};color:{{ b.farbe }}" style-hover="background:var(--accent)">
+<span style="font-weight:{{ b.gewicht }}">{{ b.label }}</span>
+<span style="color:var(--muted-foreground);font-size:12px">{{ b.zusatz }}</span>
+</button>
+</sc-for>
+</nav>
+
+<div style="min-width:0;display:flex;flex-direction:column;gap:20px">
+
+<sc-if value="{{ istPraxis }}" hint-placeholder-val="{{ true }}">
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">Praxisstammdaten</span>
+
+<span style="margin-left:auto">
+<sc-if value="{{ praxisLesen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ praxisBearbeiten }}" hint-size="112px,32px">Bearbeiten</x-import>
+</sc-if>
+</span>
+</div>
+<div style="padding:18px 16px 16px">
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ praxisLesen }}" hint-size="100%,520px">
+<div style="display:flex;flex-direction:column;gap:22px">
+<sc-for list="{{ praxisAbschnitte }}" as="a" hint-placeholder-count="4">
+<div style="display:grid;grid-template-columns:180px minmax(0,1fr);gap:24px;--abschnitt:1;padding-top:{{ a.abstand }};border-top:{{ a.linie }}">
+<div>
+<p style="margin:0;font-weight:600">{{ a.titel }}</p>
+<p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">{{ a.hinweis }}</p>
+</div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px 18px">
+<sc-for list="{{ a.felder }}" as="f" hint-placeholder-count="3">
+<div style="grid-column:span {{ f.breite }};display:flex;flex-direction:column;gap:5px;min-width:132px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="{{ f.id }}" hint-size="110px,16px">{{ f.label }}</x-import>
+<sc-if value="{{ f.istFeld }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Input" id="{{ f.id }}" dc-props="{{ f.props }}" hint-size="100%,36px"></x-import>
+</sc-if>
+<sc-if value="{{ f.istAuswahl }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ f.props }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="{{ f.id }}" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="140px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,200px">
+<sc-for list="{{ f.optionen }}" as="o" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ o.wert }}" hint-size="100%,32px">{{ o.text }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</x-import>
+<sc-if value="{{ praxisBearbeiten2 }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ praxisAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ praxisSpeichern }}" hint-size="108px,36px">Speichern</x-import>
+</div>
+</sc-if>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{ istRechnung }}" hint-placeholder-val="{{ false }}">
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">Nummernkreise</span>
+</div>
+<div style="padding:16px">
+<p style="margin:0 0 14px;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">Die Nummer wird beim Festschreiben vergeben und danach nie wieder geändert.</p>
+<div style="display:grid;grid-template-columns:minmax(150px,1fr) 108px 88px 128px 132px;gap:0 16px;align-items:center;--kreisraster:1">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Kreis</span>
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Präfix</span>
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Stellen</span>
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Nächste Nummer</span>
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Vorschau</span>
+
+<sc-for list="{{ nummernkreise }}" as="n" hint-placeholder-count="2">
+<span style="grid-column:1/-1;height:1px;margin-top:10px;background:var(--border)"></span>
+<span style="grid-column:1;font-weight:600;padding:10px 0;color:{{ n.labelFarbe }}">{{ n.label }}</span>
+<sc-if value="{{ n.angelegt }}" hint-placeholder-val="{{ true }}">
+<span style="grid-column:2;padding:10px 0">
+<x-import component-from-global-scope="PraxiWeb.Input" placeholder="YYYY-" dc-props="{{ n.praefixProps }}" hint-size="100%,36px"></x-import>
+</span>
+<span style="grid-column:3;padding:10px 0">
+<x-import component-from-global-scope="PraxiWeb.Input" type="number" dc-props="{{ n.stellenProps }}" hint-size="100%,36px"></x-import>
+</span>
+<span style="grid-column:4;padding:10px 0">
+<x-import component-from-global-scope="PraxiWeb.Input" type="number" dc-props="{{ n.wertProps }}" hint-size="100%,36px"></x-import>
+</span>
+<span class="tabular-nums" style="grid-column:5;padding:10px 0;color:var(--muted-foreground);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ n.vorschau }}</span>
+</sc-if>
+<sc-if value="{{ n.offen }}" hint-placeholder-val="{{ false }}">
+<span style="grid-column:2/span 3;display:flex;align-items:center;gap:12px;padding:10px 0;color:var(--muted-foreground);font-size:13px">{{ n.fehlt }}</span>
+<span style="grid-column:5;padding:10px 0">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ n.onAnlegen }}" hint-size="98px,32px">Anlegen</x-import>
+</span>
+</sc-if>
+</sc-for>
+</div>
+<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+<span style="color:var(--muted-foreground);font-size:12.5px">Platzhalter im Präfix:</span>
+<sc-for list="{{ praefixPlatzhalter }}" as="p" hint-placeholder-count="4">
+<span style="display:inline-flex;align-items:baseline;gap:6px;color:var(--muted-foreground);font-size:12.5px"><code class="tabular-nums" style="padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:color-mix(in oklab, var(--muted) 45%, var(--card));color:var(--foreground);font-size:12px">{{ p.marke }}</code>{{ p.bedeutung }}</span>
+</sc-for>
+<span style="flex:1 1 100%;color:var(--muted-foreground);font-size:12.5px;text-wrap:pretty">Sobald ein Platzhalter im Präfix steht, beginnt der Zähler mit jedem Wechsel seines Werts wieder bei 1: bei <code style="padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:color-mix(in oklab, var(--muted) 45%, var(--card));color:var(--foreground);font-size:12px">YYYY-MM-</code> zu jedem Monatsbeginn, bei <code style="padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:color-mix(in oklab, var(--muted) 45%, var(--card));color:var(--foreground);font-size:12px">YYYY-</code> zu jedem Jahresbeginn.</span>
+</div>
+</div>
+</section>
+
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">Textbausteine</span>
+<span style="color:var(--muted-foreground);font-size:13px">Einleitung und Schluss für neue Rechnungen</span>
+<span style="margin-left:auto"><x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ bausteinNeu }}" hint-size="132px,32px">Neuer Baustein</x-import></span>
+</div>
+<div style="display:flex;flex-direction:column">
+<sc-if value="{{ bausteinNeuOffen }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px;border-top:1px solid var(--border);background:color-mix(in oklab, var(--muted) 25%, var(--card))">
+<dc-import name="BausteinForm" form="{{ bausteinForm }}" titel="Neuer Baustein" hint-size="100%,300px"></dc-import>
+</div>
+</sc-if>
+<sc-for list="{{ bausteine }}" as="b" hint-placeholder-count="3">
+<button onClick="{{ b.onOeffnen }}" style="display:block;width:100%;text-align:left;padding:12px 16px;border-top:1px solid var(--border);background:{{ b.bg }}" style-hover="background:var(--accent)">
+<span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<span style="font-weight:600">{{ b.name }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="outline" hint-size="86px,20px">{{ b.art }}</x-import>
+<sc-if value="{{ b.standard }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="72px,20px">Standard</x-import>
+</sc-if>
+<span style="flex:1 1 240px;min-width:0;color:var(--muted-foreground);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.text }}</span>
+</span>
+</button>
+<sc-if value="{{ b.offen }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px;border-top:1px solid var(--border);background:color-mix(in oklab, var(--muted) 25%, var(--card))">
+<sc-if value="{{ baustein.lesen }}" hint-placeholder-val="{{ true }}">
+<p style="margin:0;max-width:70ch;text-wrap:pretty">{{ baustein.text }}</p>
+<div style="display:flex;align-items:center;gap:10px;margin-top:16px">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ baustein.onBearbeiten }}" hint-size="112px,32px">Bearbeiten</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="ghost" onClick="{{ baustein.onSchliessen }}" hint-size="106px,32px">Schließen</x-import>
+<button onClick="{{ baustein.onLoeschen }}" style="display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 10px;border-radius:6px;color:var(--destructive);font-size:13.5px" style-hover="background:color-mix(in oklab, var(--destructive) 10%, transparent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"></path></svg>Löschen</button>
+<span style="margin-left:auto;color:var(--muted-foreground);font-size:12.5px">{{ baustein.hinweis }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ baustein.bearbeiten }}" hint-placeholder-val="{{ false }}">
+<dc-import name="BausteinForm" form="{{ bausteinForm }}" titel="Baustein bearbeiten" hint-size="100%,300px"></dc-import>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</section>
+
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card);padding:16px">
+<p style="margin:0;font-weight:600">Rechnungsvorlage</p>
+<p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">Ein PDF mit Ihrem Briefkopf. Eine Seite trägt jede Seite der Rechnung; bei zwei Seiten trägt Seite 1 die erste und Seite 2 alle weiteren.</p>
+<div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+<span style="color:var(--muted-foreground);font-size:13.5px">{{ vorlageStand }}</span>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ vorlageHochladen }}" hint-size="150px,32px">{{ vorlageAktion }}</x-import>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{ istListen }}" hint-placeholder-val="{{ false }}">
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">{{ listeTitel }}</span>
+<span style="color:var(--muted-foreground);font-size:13px">{{ listeHinweis }}</span>
+<span style="margin-left:auto"><x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ eintragNeu }}" hint-size="140px,32px">{{ listeNeuLabel }}</x-import></span>
+</div>
+<div style="display:flex;flex-direction:column">
+<sc-if value="{{ eintragNeuOffen }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px;border-top:1px solid var(--border);background:color-mix(in oklab, var(--muted) 25%, var(--card))">
+<dc-import name="ListenForm" form="{{ eintragForm }}" hint-size="100%,220px"></dc-import>
+</div>
+</sc-if>
+<sc-for list="{{ eintraege }}" as="e" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:12px;padding:0 16px;border-top:1px solid var(--border);background:{{ e.bg }}">
+<button onClick="{{ e.onOeffnen }}" style="flex:1 1 auto;min-width:0;padding:11px 0" style-hover="opacity:.72">
+<span style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<sc-if value="{{ e.hatFarbe }}" hint-placeholder-val="{{ false }}">
+<span style="width:11px;height:11px;border-radius:999px;flex-shrink:0;background:{{ e.farbe }}"></span>
+</sc-if>
+<span style="font-weight:600">{{ e.label }}</span>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">{{ e.kuerzel }}</span>
+<sc-for list="{{ e.marken }}" as="m" hint-placeholder-count="1">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ m.variante }}" hint-size="76px,20px">{{ m.text }}</x-import>
+</sc-for>
+<span style="flex:1 1 160px;min-width:0;color:var(--muted-foreground);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.zusatz }}</span>
+</span>
+</button>
+<span style="display:flex;align-items:center;gap:7px;flex-shrink:0;width:66px;color:var(--muted-foreground);font-size:12.5px">
+<span style="width:7px;height:7px;border-radius:999px;background:{{ e.statusPunkt }}"></span>{{ e.statusText }}
+</span>
+<button onClick="{{ e.onHoch }}" aria-label="Nach oben" title="Nach oben" style="display:flex;align-items:center;justify-content:center;flex-shrink:0;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></button>
+<button onClick="{{ e.onRunter }}" aria-label="Nach unten" title="Nach unten" style="display:flex;align-items:center;justify-content:center;flex-shrink:0;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"></path></svg></button>
+</div>
+<sc-if value="{{ e.offen }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px;border-top:1px solid var(--border);background:color-mix(in oklab, var(--muted) 25%, var(--card))">
+<sc-if value="{{ eintrag.lesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-wrap:wrap;gap:32px">
+<sc-for list="{{ eintrag.felder }}" as="f" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:3px;min-width:110px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">{{ f.label }}</span>
+<span>{{ f.wert }}</span>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{ eintrag.hatLeistungen }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:3px;margin-top:18px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Leistungen</span>
+<sc-if value="{{ eintrag.leistungenLeer }}" hint-placeholder-val="{{ false }}">
+<span>keine vorbelegt</span>
+</sc-if>
+<sc-for list="{{ eintrag.leistungsZeilen }}" as="z" hint-placeholder-count="2">
+<span style="display:flex;align-items:baseline;gap:8px">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12px">{{ z.nr }}</span>{{ z.text }}
+</span>
+</sc-for>
+</div>
+</sc-if>
+<div style="display:flex;align-items:center;gap:10px;margin-top:16px">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ eintrag.onBearbeiten }}" hint-size="112px,32px">Bearbeiten</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="ghost" onClick="{{ eintrag.onSchliessen }}" hint-size="106px,32px">Schließen</x-import>
+<sc-if value="{{ eintrag.loeschbar }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ eintrag.onLoeschen }}" style="display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 10px;border-radius:6px;color:var(--destructive);font-size:13.5px" style-hover="background:color-mix(in oklab, var(--destructive) 10%, transparent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"></path></svg>Löschen</button>
+</sc-if>
+<sc-if value="{{ eintrag.gesperrt }}" hint-placeholder-val="{{ false }}">
+<span aria-disabled="true" style="display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 10px;border-radius:6px;color:var(--muted-foreground);font-size:13.5px;opacity:.6;cursor:not-allowed"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"></path></svg>Löschen</span>
+</sc-if>
+</div>
+<sc-if value="{{ eintrag.gesperrt }}" hint-placeholder-val="{{ false }}">
+<p style="margin:7px 0 0;color:var(--muted-foreground);font-size:12.5px">{{ eintrag.sperrgrund }}</p>
+</sc-if>
+</sc-if>
+<sc-if value="{{ eintrag.bearbeiten }}" hint-placeholder-val="{{ false }}">
+<dc-import name="ListenForm" form="{{ eintragForm }}" hint-size="100%,220px"></dc-import>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</section>
+<p style="margin:0;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">{{ listeFuss }}</p>
+</sc-if>
+
+<sc-if value="{{ istMail }}" hint-placeholder-val="{{ false }}">
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">Mailkonto</span>
+<span style="margin-left:auto">
+<sc-if value="{{ mailLesen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ mailBearbeiten }}" hint-size="112px,32px">Bearbeiten</x-import>
+</sc-if>
+</span>
+</div>
+<div style="padding:16px">
+<p style="margin:0 0 14px;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">Über dieses Konto werden Rechnungen versendet.</p>
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ mailLesen }}" hint-size="100%,180px">
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px 18px">
+<sc-for list="{{ mailFelder }}" as="f" hint-placeholder-count="4">
+<div style="grid-column:span {{ f.breite }};display:flex;flex-direction:column;gap:5px;min-width:132px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="{{ f.id }}" hint-size="110px,16px">{{ f.label }}</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="{{ f.id }}" dc-props="{{ f.props }}" hint-size="100%,36px"></x-import>
+</div>
+</sc-for>
+</div>
+</x-import>
+<sc-if value="{{ mailBearbeitet }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ mailAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ mailSpeichern }}" hint-size="108px,36px">Speichern</x-import>
+</div>
+</sc-if>
+<sc-if value="{{ mailLesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ testmail }}" hint-size="140px,32px">Testmail senden</x-import>
+<span style="flex:1 1 260px;min-width:0;color:var(--muted-foreground);font-size:12.5px;text-wrap:pretty">{{ testmailHinweis }}</span>
+</div>
+</sc-if>
+</div>
+</section>
+
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">Mailvorlagen</span>
+<span style="color:var(--muted-foreground);font-size:13px">Betreff und Text für den Rechnungsversand</span>
+</div>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ mailvorlagen }}" as="v" hint-placeholder-count="2">
+<button onClick="{{ v.onOeffnen }}" style="display:block;width:100%;padding:12px 16px;border-top:1px solid var(--border);background:{{ v.bg }}" style-hover="opacity:.72">
+<span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<span style="font-weight:600">{{ v.name }}</span>
+<sc-if value="{{ v.standard }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="72px,20px">Standard</x-import>
+</sc-if>
+<span style="flex:1 1 260px;min-width:0;color:var(--muted-foreground);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ v.betreff }}</span>
+</span>
+</button>
+<sc-if value="{{ v.offen }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px;border-top:1px solid var(--border);background:color-mix(in oklab, var(--muted) 25%, var(--card))">
+<sc-if value="{{ vorlage.lesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Betreff</span>
+<span>{{ vorlage.betreff }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Text</span>
+<p style="margin:0;max-width:70ch;white-space:pre-line;text-wrap:pretty">{{ vorlage.text }}</p>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:10px;margin-top:16px">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ vorlage.onBearbeiten }}" hint-size="112px,32px">Bearbeiten</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="ghost" onClick="{{ vorlage.onSchliessen }}" hint-size="106px,32px">Schließen</x-import>
+<span style="margin-left:auto;color:var(--muted-foreground);font-size:12.5px">{{ vorlage.standardText }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ vorlage.bearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px 18px">
+<div style="grid-column:span 8;display:flex;flex-direction:column;gap:5px;min-width:0">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="mv-betreff" hint-size="60px,16px">Betreff</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="mv-betreff" dc-props="{{ vorlageForm.betreffProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="grid-column:span 4;display:flex;flex-direction:column;gap:5px;min-width:0">
+<label style="display:flex;align-items:center;gap:9px;height:36px;margin-top:21px;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ vorlageForm.standardProps }}" hint-size="16px,16px"></x-import>Standard
+</label>
+</div>
+<div style="grid-column:span 12;display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="mv-text" hint-size="40px,16px">Text</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="mv-text" rows="6" dc-props="{{ vorlageForm.textProps }}" hint-size="100%,150px"></x-import>
+<p style="margin:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;color:var(--muted-foreground);font-size:12px">Im Betreff und im Text lassen sich Platzhalter verwenden.
+<button onClick="{{ platzhalterOeffnen }}" style="color:var(--foreground);text-decoration:underline;text-underline-offset:3px" style-hover="opacity:.7">Platzhalter ansehen</button>
+</p>
+</div>
+</div>
+<div style="display:flex;justify-content:flex-end;gap:10px;padding-top:12px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ vorlageForm.onAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ vorlageForm.onSpeichern }}" hint-size="108px,36px">Speichern</x-import>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</section>
+</sc-if>
+
+<x-import component-from-global-scope="PraxiWeb.AlertDialog" dc-props="{{ platzhalterDialogProps }}" hint-size="0px,0px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogContent" hint-size="480px,420px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogHeader" hint-size="100%,64px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogTitle" hint-size="100%,24px">Platzhalter</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogDescription" hint-size="100%,20px">Werden beim Versand durch die Werte der Rechnung ersetzt.</x-import>
+</x-import>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ platzhalter }}" as="p" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:baseline;padding:8px 0;border-top:1px solid var(--border)">
+<span class="tabular-nums" style="font-size:13px">{{ p.name }}</span>
+<span style="color:var(--muted-foreground);font-size:13px">{{ p.bedeutung }}</span>
+</div>
+</sc-for>
+</div>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogFooter" hint-size="100%,48px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ platzhalterSchliessen }}" hint-size="106px,36px">Schließen</x-import>
+</x-import>
+</x-import>
+</x-import>
+</sc-if>
+
+<sc-if value="{{ istGoogle }}" hint-placeholder-val="{{ false }}">
+<section style="border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 40%, var(--card))">
+<span style="font-weight:600">Google-Kalender</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ googleVariante }}" hint-size="104px,20px">{{ googleStatus }}</x-import>
+</div>
+<div style="padding:16px">
+<p style="margin:0 0 14px;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">Termine erscheinen im Google-Kalender ausschließlich mit der Kontaktnummer — ohne Namen, ohne Leistung, ohne Vorgangsart. Die Praxisdatenbank bleibt das führende System; der Google-Kalender ist eine Projektion.</p>
+<sc-if value="{{ googleVerbunden }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-wrap:wrap;gap:28px">
+<sc-for list="{{ googleWerte }}" as="w" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">{{ w.label }}</span>
+<span class="tabular-nums">{{ w.wert }}</span>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;max-width:420px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="g-kalender" hint-size="110px,16px">Praxiskalender</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ googleKalenderProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="g-kalender" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="180px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,140px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Keiner" hint-size="100%,32px">Keiner — es wird nichts geschrieben</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Praxis Ostertor" hint-size="100%,32px">Praxis Ostertor</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Termine (privat)" hint-size="100%,32px">Termine (privat)</x-import>
+</x-import>
+</x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Hierhin werden Termine geschrieben. Am besten ein eigener Kalender, kein privater.</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-weight:600">Kalender für die Belegtzeiten</span>
+<p style="margin:0;color:var(--muted-foreground);font-size:12.5px;text-wrap:pretty">Beim Planen werden aus diesen Kalendern nur die belegten Zeiträume abgefragt — keine Titel, keine Teilnehmer.</p>
+<sc-for list="{{ googleFrei }}" as="k" hint-placeholder-count="2">
+<label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ k.props }}" hint-size="16px,16px"></x-import>{{ k.name }}
+</label>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ googleSync }}" hint-size="170px,32px">Jetzt synchronisieren</x-import>
+<button onClick="{{ googleTrennen }}" style="color:var(--destructive);font-size:13.5px;text-decoration:underline;text-underline-offset:3px">Verbindung trennen</button>
+<span style="margin-left:auto;color:var(--muted-foreground);font-size:12.5px">{{ googleMeldung }}</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ googleGetrennt }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ googleVerbinden }}" hint-size="180px,32px">Mit Google verbinden</x-import>
+<span style="color:var(--muted-foreground);font-size:12.5px">Die Anmeldung öffnet sich in einem neuen Fenster.</span>
+</div>
+</sc-if>
+</div>
+</section>
+</sc-if>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;schiefer&quot;,&quot;blau&quot;,&quot;salbei&quot;,&quot;rose&quot;,&quot;nacht&quot;],&quot;default&quot;:&quot;schiefer&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;ohneNummernkreis&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Zustände&quot;,&quot;label&quot;:&quot;Noch kein Nummernkreis&quot;}}">
+/** Einstellungen nach `routes/_app/settings.tsx`: die Praxisstammdaten im
+ *  Lesemodus, daneben die Listen, aus denen die übrigen Screens ihre Auswahl
+ *  beziehen. Statt einer sehr langen Seite eine Bereichsspalte. */
+const BEREICHE = [
+  {key:'praxis', label:'Praxis', zusatz:'Stammdaten, Anschrift, Bank'},
+  {key:'rechnung', label:'Rechnungsstellung', zusatz:'Nummernkreise, Texte, Vorlage'},
+  {key:'rollen', label:'Rollen', zusatz:'Wer in welcher Liste auftaucht'},
+  {key:'beziehungen', label:'Beziehungen', zusatz:'Verbindungen zwischen Kontakten'},
+  {key:'vorgangsarten', label:'Vorgangsarten', zusatz:'Farbe, Dauer, Vorbelegung'},
+  {key:'mail', label:'Mailversand', zusatz:'Konto und Vorlagen'},
+  {key:'google', label:'Google-Kalender', zusatz:'Projektion der Termine'}
+];
+
+const LAENDER = [
+  {wert:'DE', text:'Deutschland'},
+  {wert:'AT', text:'Österreich'},
+  {wert:'CH', text:'Schweiz'},
+  {wert:'LU', text:'Luxemburg'},
+  {wert:'NL', text:'Niederlande'},
+  {wert:'BE', text:'Belgien'},
+  {wert:'DK', text:'Dänemark'},
+  {wert:'FR', text:'Frankreich'}
+];
+
+const FARBEN = [
+  {name:'Bernstein', wert:'oklch(75% .12 85)', hex:'#d8a24a'},
+  {name:'Blau', wert:'oklch(72% .1 200)', hex:'#4fa8bd'},
+  {name:'Violett', wert:'oklch(70% .11 300)', hex:'#a48ad4'},
+  {name:'Grün', wert:'oklch(73% .1 145)', hex:'#6fb583'},
+  {name:'Rot', wert:'oklch(70% .13 25)', hex:'#d78272'},
+  {name:'Schiefer', wert:'oklch(68% .04 250)', hex:'#9aa4b4'}
+];
+
+/* Auszug aus dem Leistungskatalog — Vorgangsarten belegen Leistungen vor. */
+const KATALOG = [
+  {id:'s1', text:'Ergotherapie, Einzelbehandlung', cent:4500},
+  {id:'s2', text:'Ergotherapie, Gruppenbehandlung', cent:2800},
+  {id:'s3', text:'Erstgespräch mit Anamnese', cent:9000},
+  {id:'s4', text:'Befundbericht', cent:3500},
+  {id:'s5', text:'Telefonat mit der Schule, 30 Minuten', cent:3800},
+  {id:'s6', text:'Ausfallhonorar', cent:2250},
+  {id:'s7', text:'Hausbesuch, Zuschlag', cent:1500},
+  {id:'s8', text:'Elterngespräch', cent:6000}
+];
+const KATALOGGRUPPEN = [
+  {id:'g1', name:'Erstkontakt', teile:['s3','s4']},
+  {id:'g2', name:'Hausbesuch komplett', teile:['s1','s7']}
+];
+const euro = c => (c / 100).toFixed(2).replace('.', ',') + ' €';
+const katalogNach = id => KATALOG.find(l => l.id === id) || {text:'Unbekannt', cent:0};
+
+const PRAXIS = {
+  name:'Praxis Ostertor', steuer:'75/123/45678', ustid:'',
+  strasse:'Ostertorsteinweg 42', plz:'28203', ort:'Bremen', land:'DE',
+  telefon:'0421 123456', email:'praxis@ostertor.de', web:'www.praxis-ostertor.de',
+  bank:'Sparkasse Bremen', iban:'DE02 2905 0101 0001 2345 67', bic:'SBREDE22XXX',
+  ziel:'14'
+};
+
+const ROLLEN = [
+  {id:'r1', label:'Patienten', kuerzel:'patient', system:true, aktiv:true, zusatz:''},
+  {id:'r2', label:'Angehörige', kuerzel:'angehoeriger', aktiv:true, zusatz:''},
+  {id:'r3', label:'Zuweiser', kuerzel:'zuweiser', aktiv:true, zusatz:''},
+  {id:'r4', label:'Krankenkassen', kuerzel:'kasse', aktiv:true, zusatz:''},
+  {id:'r5', label:'Interessent', kuerzel:'interessent', aktiv:true, zusatz:''},
+  {id:'r6', label:'Ehemalige', kuerzel:'ehemalig', aktiv:false, zusatz:''}
+];
+const BEZIEHUNGEN = [
+  {id:'b1', label:'Sorgeberechtigt für', kuerzel:'sorge', aktiv:true, einmal:false, beidseitig:false,
+   zusatz:'Gegenstück: Kind von'},
+  {id:'b2', label:'Rechnungsempfänger', kuerzel:'rechnung', aktiv:true, einmal:true, beidseitig:false,
+   zusatz:'Höchstens einmal pro Kontakt'},
+  {id:'b3', label:'Ehepartner von', kuerzel:'ehe', aktiv:true, einmal:false, beidseitig:true,
+   zusatz:'Gilt in beide Richtungen gleich'},
+  {id:'b4', label:'Ärztliche Zuweisung', kuerzel:'zuweisung', aktiv:true, einmal:false, beidseitig:false,
+   zusatz:'Gegenstück: zugewiesen von'}
+];
+const VORGANGSARTEN = [
+  {id:'v1', label:'Erstgespräch', kuerzel:'erst', farbe:'oklch(75% .12 85)', aktiv:true, standard:false,
+   dauer:60, leistungen:['s3']},
+  {id:'v2', label:'Folgesitzung', kuerzel:'folge', farbe:'oklch(72% .1 200)', aktiv:true, standard:true,
+   dauer:45, leistungen:['s1']},
+  {id:'v3', label:'Bericht', kuerzel:'bericht', farbe:'oklch(70% .11 300)', aktiv:true, standard:false,
+   dauer:30, leistungen:['s4']},
+  {id:'v4', label:'Hausbesuch', kuerzel:'haus', farbe:'oklch(73% .1 145)', aktiv:false, standard:false,
+   dauer:null, leistungen:['s1','s7']}
+];
+const BAUSTEINE = [
+  {id:'t1', name:'Standard', art:'Einleitung', standard:true,
+   text:'hiermit stelle ich Ihnen die folgenden Leistungen in Rechnung.'},
+  {id:'t2', name:'Mit Zeitraum', art:'Einleitung', standard:false,
+   text:'für die im genannten Zeitraum erbrachten Leistungen erlaube ich mir …'},
+  {id:'t3', name:'Zahlungsziel', art:'Schluss', standard:true,
+   text:'Bitte überweisen Sie den Betrag innerhalb des Zahlungsziels …'},
+  {id:'t4', name:'Bereits bezahlt', art:'Schluss', standard:false,
+   text:'Der Betrag wurde bereits beglichen. Vielen Dank.'}
+];
+/* Was in Betreff und Text einer Mailvorlage ersetzt wird. */
+const MAILPLATZHALTER = [
+  {name:'{{number}}', bedeutung:'Rechnungsnummer'},
+  {name:'{{date}}', bedeutung:'Rechnungsdatum'},
+  {name:'{{due_date}}', bedeutung:'Fällig am'},
+  {name:'{{amount}}', bedeutung:'Rechnungsbetrag'},
+  {name:'{{recipient}}', bedeutung:'Name des Rechnungsempfängers'},
+  {name:'{{practice}}', bedeutung:'Praxisname'}
+];
+const MAILVORLAGEN = [
+  {id:'m1', name:'Rechnung', standard:true, betreff:'Ihre Rechnung {{number}} vom {{date}}',
+   text:'Guten Tag,\n\nim Anhang finden Sie die Rechnung {{number}} vom {{date}}.\n\nMit freundlichen Grüßen\nPraxis Ostertor'},
+  {id:'m2', name:'Erinnerung', standard:false, betreff:'Zahlungserinnerung zu Rechnung {{number}}',
+   text:'Guten Tag,\n\nzu Rechnung {{number}} vom {{date}} ist noch kein Zahlungseingang verbucht.\n\nMit freundlichen Grüßen\nPraxis Ostertor'}
+];
+
+/** Platzhalter im Präfix werden erst beim Festschreiben ersetzt. */
+const PLATZHALTER = [
+  {marke:'YYYY', bedeutung:'Jahr, vierstellig'},
+  {marke:'YY', bedeutung:'Jahr, zweistellig'},
+  {marke:'MM', bedeutung:'Monat, zweistellig'},
+  {marke:'M', bedeutung:'Monat, einstellig'},
+  {marke:'Q', bedeutung:'Quartal'}
+];
+const platzhalterErsetzen = text => {
+  const jetzt = new Date();
+  const jahr = String(jetzt.getFullYear());
+  return String(text || '')
+    .replace(/YYYY/g, jahr)
+    .replace(/YY/g, jahr.slice(2))
+    .replace(/MM/g, String(jetzt.getMonth() + 1).padStart(2, '0'))
+    .replace(/M/g, String(jetzt.getMonth() + 1))
+    .replace(/Q/g, String(Math.floor(jetzt.getMonth() / 3) + 1));
+};
+
+class Component extends DCLogic {
+  state = {
+    bereich: 'praxis',
+    praxis: PRAXIS, praxisEntwurf: null,
+    kreise: null,
+    rollen: ROLLEN, beziehungen: BEZIEHUNGEN, arten: VORGANGSARTEN,
+    eintragOffen: null, eintragForm: null,
+    bausteine: BAUSTEINE, bausteinOffen: null, bausteinForm: null,
+    mail: {host:'mail.ostertor.de', port:'587', benutzer:'praxis@ostertor.de',
+      absender:'praxis@ostertor.de', name:'Praxis Ostertor', passwort:''},
+    mailEntwurf: null,
+    vorlagen: MAILVORLAGEN, vorlageOffen: null, vorlageForm: null,
+    platzhalterOffen: false,
+    vorlageDa: false,
+    googleVerbunden: true, googleKalender: 'Praxis Ostertor',
+    googleFrei: [{name:'Privat', an:true}, {name:'Familie', an:false}],
+    googleMeldung: 'Zuletzt synchronisiert: heute, 07:40 · nichts offen'
+  };
+
+  patchPraxis(feld, wert){
+    this.setState(s => ({praxisEntwurf: {...s.praxisEntwurf, [feld]: wert}}));
+  }
+
+  schieben(liste, i, richtung){
+    this.setState(s => {
+      const kopie = s[liste].slice();
+      const ziel = i + richtung;
+      if (ziel < 0 || ziel >= kopie.length) return {};
+      const merk = kopie[i];
+      kopie[i] = kopie[ziel];
+      kopie[ziel] = merk;
+      return {[liste]: kopie};
+    });
+  }
+
+  aktivSchalten(liste, id, an){
+    this.setState(s => ({[liste]: s[liste].map(e => e.id === id ? {...e, aktiv: an} : e)}));
+  }
+
+  /** Ein Eintrag der Praxisstammdaten, im Lesemodus wie im Formular. */
+  praxisFelder(){
+    const quelle = this.state.praxisEntwurf || this.state.praxis;
+    const feld = (id, label, breite) => ({
+      id, label, breite, istFeld: true, istAuswahl: false,
+      props: {value: quelle[id], onChange: ev => this.patchPraxis(id, ev.target.value)}
+    });
+    const auswahl = (id, label, breite, optionen) => ({
+      id, label, breite, istFeld: false, istAuswahl: true, optionen,
+      props: {value: quelle[id], onValueChange: v => this.patchPraxis(id, v)}
+    });
+    return [
+      {titel:'Praxis', hinweis:'Der Name steht auf jeder Rechnung.', abstand:'0', linie:'0',
+       felder:[feld('name','Praxisname',12)]},
+      {titel:'Anschrift', hinweis:'Erscheint im Briefkopf, wenn keine Vorlage hinterlegt ist.',
+       abstand:'22px', linie:'1px solid var(--border)',
+       felder:[feld('strasse','Straße und Hausnummer',12), feld('plz','PLZ',3),
+               feld('ort','Ort',5), auswahl('land','Land',4, LAENDER)]},
+      {titel:'Kontakt', hinweis:'Für Rückfragen der Empfänger.',
+       abstand:'22px', linie:'1px solid var(--border)',
+       felder:[feld('telefon','Telefon',6), feld('email','E-Mail-Adresse',6), feld('web','Website',12)]},
+      {titel:'Bankverbindung', hinweis:'Steht unter dem Schlusstext der Rechnung.',
+       abstand:'22px', linie:'1px solid var(--border)',
+       felder:[feld('bank','Bank',12), feld('iban','IBAN',7), feld('bic','BIC',5)]},
+      {titel:'Steuern', hinweis:'Eines von beiden steht auf jeder Rechnung.',
+       abstand:'22px', linie:'1px solid var(--border)',
+       felder:[feld('steuer','Steuernummer',6), feld('ustid','Umsatzsteuer-ID',6)]},
+      {titel:'Rechnungsstellung', hinweis:'Vorbelegung für neue Rechnungen.',
+       abstand:'22px', linie:'1px solid var(--border)',
+       felder:[feld('ziel','Zahlungsziel in Tagen',3)]}
+    ];
+  }
+
+  /** Rollen, Beziehungsarten und Vorgangsarten teilen sich eine Darstellung. */
+  listeWerte(){
+    const st = this.state;
+    const auswahl = {
+      rollen: {liste:'rollen', titel:'Rollen', neu:'Neue Rolle',
+        hinweis:'bestimmen, in welchen Listen ein Kontakt auftaucht',
+        fuss:'Ein System-Eintrag lässt sich umbenennen, aber nicht löschen — sein Kürzel bleibt, wie es ist.'},
+      beziehungen: {liste:'beziehungen', titel:'Beziehungsarten', neu:'Neue Beziehungsart',
+        hinweis:'verbinden zwei Kontakte und erscheinen in beiden Akten',
+        fuss:'Der erste Kontakt ist der, in dessen Akte der Sachverhalt eine Eigenschaft dieses Kontakts ist — das Kind hat einen Sorgeberechtigten. Der zweite Kontakt ist das Gegenüber.'},
+      vorgangsarten: {liste:'arten', titel:'Vorgangsarten', neu:'Neue Vorgangsart',
+        hinweis:'Farbe im Kalender und Vorbelegung beim Anlegen',
+        fuss:'Inaktive Arten erscheinen in keiner Auswahlliste, bleiben aber an bestehenden Vorgängen.'}
+    };
+    const wahl = st.bereich === 'rollen' ? auswahl.rollen
+      : st.bereich === 'vorgangsarten' ? auswahl.vorgangsarten
+      : auswahl.beziehungen;
+    const liste = st[wahl.liste];
+    return {
+      key: wahl.liste,
+      titel: wahl.titel, neuLabel: wahl.neu, hinweis: wahl.hinweis, fuss: wahl.fuss,
+      eintraege: liste.map((e, i) => ({
+        id: e.id,
+        system: !!e.system,
+        offen: st.eintragOffen === e.id,
+        bg: st.eintragOffen === e.id ? 'color-mix(in oklab, var(--muted) 40%, var(--card))' : 'transparent',
+        onOeffnen: () => this.setState(s => s.eintragOffen === e.id
+          ? {eintragOffen: null, eintragForm: null}
+          : {eintragOffen: e.id, eintragForm: null}),
+        label: e.label,
+        kuerzel: e.kuerzel,
+        hatFarbe: !!e.farbe,
+        farbe: e.farbe || 'transparent',
+        zusatz: e.leistungen
+          ? [e.dauer ? e.dauer + ' Minuten' : 'ohne übliche Dauer']
+              .concat(e.leistungen.map(id => katalogNach(id).text)).join(' · ')
+          : e.zusatz,
+        marken: []
+          .concat(e.system ? [{text:'System', variante:'outline'}] : [])
+          .concat(e.standard ? [{text:'Standard', variante:'secondary'}] : [])
+          .concat(e.einmal ? [{text:'Nur einmal', variante:'outline'}] : [])
+          .concat(e.beidseitig ? [{text:'Beidseitig', variante:'outline'}] : []),
+        statusText: e.aktiv ? 'Aktiv' : 'Inaktiv',
+        statusPunkt: e.aktiv ? 'var(--foreground)' : 'var(--border)',
+        onHoch: () => this.schieben(wahl.liste, i, -1),
+        onRunter: () => this.schieben(wahl.liste, i, 1)
+      })),
+      onNeu: () => this.setState({eintragOffen: null, eintragForm: {
+        id: null, label: '', kuerzel: '', aktiv: true, zusatz: '',
+        farbe: st.bereich === 'vorgangsarten' ? FARBEN[0].wert : undefined,
+        dauer: '', leistungen: [], einmal: false, beidseitig: false
+      }})
+    };
+  }
+
+  /** Die Felder unterscheiden sich je Liste; alles andere ist gleich. */
+  eintragFelder(){
+    const st = this.state;
+    const f = st.eintragForm;
+    if (!f) return {felder: []};
+    const patch = p => this.setState(s => ({eintragForm: {...s.eintragForm, ...p}}));
+    const text = (id, label, breite, hinweis) => ({
+      id, label, breite, hinweis: hinweis || '', hatHinweis: !!hinweis, istText: true, istSchalter: false, istFarbe: false,
+      props: {value: f[id] || '', onChange: ev => patch({[id]: ev.target.value})}
+    });
+    const schalter = (id, label, breite, hinweis) => ({
+      id, label, breite, hinweis: hinweis || '', hatHinweis: !!hinweis, istText: false, istSchalter: true, istFarbe: false,
+      props: {checked: !!f[id], onCheckedChange: v => patch({[id]: v === true})}
+    });
+    const farbwahl = breite => {
+      const treffer = FARBEN.find(c => c.wert === f.farbe);
+      const eigen = !treffer && !!f.farbe;
+      return {
+        id: 'farbe', label: 'Farbe', breite, hinweis: 'im Kalender', hatHinweis: true,
+        istText: false, istSchalter: false, istFarbe: true, istGruppe: false,
+        eigenWert: f.farbe || 'transparent',
+        eigenHex: eigen ? f.farbe : (treffer ? treffer.hex : '#d8a24a'),
+        onEigen: ev => patch({farbe: ev.target.value})
+      };
+    };
+
+    /* Vorbelegte Leistungen: hinzufügen, umsortieren, entfernen — wie im
+     *  Leistungskatalog bei den Gruppen. */
+    const leistungswahl = () => {
+      const gewaehlt = f.leistungen || [];
+      const schieben = (i, richtung) => {
+        const ziel = i + richtung;
+        if (ziel < 0 || ziel >= gewaehlt.length) return;
+        const neu = gewaehlt.slice();
+        const merk = neu[i];
+        neu[i] = neu[ziel];
+        neu[ziel] = merk;
+        patch({leistungen: neu});
+      };
+      return {
+        id: 'leistungen', label: 'Leistungen', breite: 12,
+        hinweis: 'werden beim Anlegen eines Vorgangs kopiert', hatHinweis: true,
+        istText: false, istSchalter: false, istFarbe: false, istGruppe: false, istListe: true,
+        leer: gewaehlt.length === 0,
+        zeilen: gewaehlt.map((id, i) => ({
+          text: katalogNach(id).text,
+          betrag: euro(katalogNach(id).cent),
+          onHoch: () => schieben(i, -1),
+          onRunter: () => schieben(i, 1),
+          onEntfernen: () => patch({leistungen: gewaehlt.filter((x, j) => j !== i)})
+        })),
+        katalog: KATALOG.map(l => ({wert: 'l:' + l.text, text: l.text, betrag: euro(l.cent)})),
+        katalogGruppen: KATALOGGRUPPEN.map(g => ({
+          wert: 'g:' + g.name, name: g.name,
+          umfang: g.teile.length + ' Leistungen'
+        })),
+        katalogProps: {value: '', onValueChange: wert => {
+          if (wert.startsWith('l:')) {
+            const l = KATALOG.find(x => x.text === wert.slice(2));
+            if (l) patch({leistungen: gewaehlt.concat([l.id])});
+            return;
+          }
+          const g = KATALOGGRUPPEN.find(x => x.name === wert.slice(2));
+          if (g) patch({leistungen: gewaehlt.concat(g.teile)});
+        }}
+      };
+    };
+
+    /* Aktiv steht bereits in der Zeile selbst, deshalb hier nicht noch einmal. */
+    const einseitig = f.beidseitig !== true;
+    /* Alle Kästchen sitzen in einer Zelle nebeneinander, sonst sprengen die
+     *  Mindestbreiten der Zellen das Raster. Ein Feld, das von einem Kästchen
+     *  abhängt, kommt immer in die Zeile darunter. */
+    const gruppe = (breite, schalterListe) => ({
+      id: 'gruppe', breite, hinweis: '', hatHinweis: false,
+      istText: false, istSchalter: false, istFarbe: false, istGruppe: true,
+      schalter: schalterListe
+    });
+    const kaestchen = (id, label, hinweis) => ({
+      label, hinweis: hinweis || '', hatHinweis: !!hinweis,
+      props: {checked: !!f[id], onCheckedChange: v => patch({[id]: v === true})}
+    });
+
+    const felder = st.bereich === 'rollen'
+      ? [text('label','Bezeichnung',6), text('kuerzel','Kürzel',4), gruppe(2, [kaestchen('aktiv','Aktiv')])]
+      : st.bereich === 'vorgangsarten'
+      ? [text('label','Bezeichnung',4), text('kuerzel','Kürzel',2), farbwahl(2),
+         gruppe(4, [kaestchen('standard','Standard','für neue Vorgänge'), kaestchen('aktiv','Aktiv')]),
+         text('dauer','Dauer',3,'in Minuten'), leistungswahl()]
+      : [text('label','Bezeichnung',4), text('kuerzel','Kürzel',3),
+         gruppe(5, [
+           kaestchen('einmal','Nur einmal'),
+           {label: 'Einseitig', props: {checked: einseitig, onCheckedChange: v => patch({beidseitig: v !== true})}},
+           kaestchen('aktiv','Aktiv')
+         ])]
+        .concat(einseitig ? [] : [text('zusatz','Gegenstück in der anderen Akte',4)]);
+
+    const key = st.bereich === 'rollen' ? 'rollen'
+      : st.bereich === 'vorgangsarten' ? 'arten' : 'beziehungen';
+    return {
+      felder,
+      onAbbrechen: () => this.setState({eintragForm: null}),
+      onSpeichern: () => this.setState(s => {
+        const werte = st.bereich === 'vorgangsarten'
+          ? {...f, dauer: String(f.dauer).trim() === '' ? null : Number(String(f.dauer).replace(/[^0-9]/g,'')) || null}
+          : f;
+        return {
+        [key]: f.id
+          ? s[key].map(e => e.id === f.id
+              ? {...e, ...werte}
+              : (f.standard ? {...e, standard: false} : e))
+          : s[key].concat([{...werte, id: 'n' + Date.now()}]),
+        eintragForm: null
+      };})
+    };
+  }
+
+  /** Jede Art führt ihren eigenen Nummernkreis. Fehlt er, steht die Zeile
+   *  trotzdem da — mit dem, was ohne ihn nicht geht. Der Tweak
+   *  „ohneNummernkreis" zeigt den Zustand vor der ersten Einrichtung. */
+  kreisArten(){
+    return [
+      {key:'invoice', label:'Rechnungen', praefix:'YYYY-', stellen:'4', wert:'50',
+       fehlt:'Ohne Nummernkreis lässt sich keine Rechnung festschreiben. Entwürfe gehen trotzdem.'},
+      {key:'contact', label:'Kontaktnummern', praefix:'', stellen:'4', wert:'1064',
+       fehlt:'Ohne Nummernkreis bekommen neue Kontakte keine Nummer.'}
+    ];
+  }
+
+  kreise(){
+    const gesetzt = this.state.kreise || {};
+    return this.kreisArten().map(a => {
+      const eigen = gesetzt[a.key];
+      if (eigen) return {...a, ...eigen, angelegt: true};
+      if (this.props.ohneNummernkreis) return {...a, angelegt: false};
+      return {...a, angelegt: true};
+    });
+  }
+
+  patchKreis(key, patch){
+    this.setState(s => {
+      const alt = (s.kreise || {})[key] || this.kreisArten().find(a => a.key === key);
+      return {kreise: {...(s.kreise || {}), [key]: {...alt, ...patch}}};
+    });
+  }
+
+  /** Ein Textbaustein wird in der Liste gelesen und dort auch bearbeitet. */
+  bausteinWerte(){
+    const st = this.state;
+    const f = st.bausteinForm;
+    if (!f) return {};
+    const patch = p => this.setState(s => ({bausteinForm: {...s.bausteinForm, ...p}}));
+    return {
+      nameProps: {value: f.name, onChange: ev => patch({name: ev.target.value})},
+      artProps: {value: f.art, onValueChange: v => patch({art: v})},
+      standardProps: {checked: f.standard, onCheckedChange: v => patch({standard: v === true})},
+      textProps: {value: f.text, onChange: ev => patch({text: ev.target.value})},
+      onAbbrechen: () => this.setState({bausteinForm: null}),
+      onSpeichern: () => this.setState(s => ({
+        bausteine: f.id
+          ? s.bausteine.map(b => b.id === f.id
+              ? f : (f.standard && b.art === f.art ? {...b, standard: false} : b))
+          : s.bausteine.concat([{...f, id: 't' + Date.now()}])
+            .map(b => f.standard && b.art === f.art && b.name !== f.name ? {...b, standard: false} : b),
+        bausteinForm: null
+      }))
+    };
+  }
+
+  renderVals(){
+    const st = this.state;
+    const listen = this.listeWerte();
+    const offenerBaustein = st.bausteinOffen && st.bausteine.find(b => b.id === st.bausteinOffen);
+    const offenerEintrag = st.eintragOffen && st[listen.key].find(e => e.id === st.eintragOffen);
+    const kreise = this.kreise();
+    const bereich = BEREICHE.find(b => b.key === st.bereich) || BEREICHE[0];
+    /* Das Mailkonto liest wie die Stammdaten: erst Lesemodus, dann Bearbeiten.
+     *  Das Passwort wird nie zurückgegeben — im Lesemodus stehen Punkte, im
+     *  Formular bleibt das Feld leer, solange niemand ein neues eingibt. */
+    const offeneVorlage = st.vorlageOffen && st.vorlagen.find(v => v.id === st.vorlageOffen);
+    const vf = st.vorlageForm;
+    const mailQuelle = st.mailEntwurf || st.mail;
+    const mailFeld = (id, label, breite, typ) => ({
+      id, label, breite,
+      props: {
+        value: id === 'passwort' && !st.mailEntwurf ? '••••••••••' : (mailQuelle[id] || ''),
+        type: typ || 'text',
+        placeholder: id === 'passwort' ? (st.mailPasswortGesetzt ? 'unverändert lassen' : 'Passwort') : undefined,
+        onChange: ev => this.setState(s => ({mailEntwurf: {...(s.mailEntwurf || s.mail), [id]: ev.target.value}}))
+      }
+    });
+
+    return {
+      theme: this.props.theme ?? 'schiefer',
+      bereichName: bereich.label,
+      bereiche: BEREICHE.map(b => ({
+        label: b.label, zusatz: b.zusatz,
+        onClick: () => this.setState({bereich: b.key, praxisEntwurf: null, mailEntwurf: null,
+          vorlageOffen: null, vorlageForm: null,
+          eintragOffen: null, eintragForm: null, bausteinOffen: null, bausteinForm: null}),
+        bg: st.bereich === b.key ? 'color-mix(in oklab, var(--primary) 10%, var(--card))' : 'transparent',
+        farbe: st.bereich === b.key ? 'var(--foreground)' : 'var(--muted-foreground)',
+        gewicht: st.bereich === b.key ? '600' : '400'
+      })),
+
+      istPraxis: st.bereich === 'praxis',
+      istRechnung: st.bereich === 'rechnung',
+      istListen: st.bereich === 'rollen' || st.bereich === 'beziehungen' || st.bereich === 'vorgangsarten',
+      istMail: st.bereich === 'mail',
+      istGoogle: st.bereich === 'google',
+
+      praxisLesen: !st.praxisEntwurf,
+      praxisBearbeiten2: !!st.praxisEntwurf,
+      praxisAbschnitte: this.praxisFelder(),
+      praxisBearbeiten: () => this.setState({praxisEntwurf: {...st.praxis}}),
+      praxisAbbrechen: () => this.setState({praxisEntwurf: null}),
+      praxisSpeichern: () => this.setState(s => ({praxis: s.praxisEntwurf, praxisEntwurf: null})),
+
+      nummernkreise: kreise.map(k => ({
+        label: k.label,
+        angelegt: k.angelegt,
+        offen: !k.angelegt,
+        fehlt: k.fehlt,
+        labelFarbe: k.angelegt ? 'var(--foreground)' : 'var(--muted-foreground)',
+        onAnlegen: () => this.patchKreis(k.key, {praefix: k.praefix, stellen: k.stellen, wert: '1'}),
+        praefixProps: {value: k.praefix, onChange: ev => this.patchKreis(k.key, {praefix: ev.target.value})},
+        stellenProps: {value: k.stellen, onChange: ev => this.patchKreis(k.key, {stellen: ev.target.value})},
+        wertProps: {value: k.wert, onChange: ev => this.patchKreis(k.key, {wert: ev.target.value})},
+        vorschau: 'wäre ' + platzhalterErsetzen(k.praefix)
+          + String(k.wert).padStart(Number(k.stellen) || 1, '0')
+      })),
+      praefixPlatzhalter: PLATZHALTER,
+      bausteine: st.bausteine.map(b => ({
+        name: b.name, art: b.art, standard: b.standard, text: b.text,
+        offen: st.bausteinOffen === b.id,
+        bg: st.bausteinOffen === b.id ? 'color-mix(in oklab, var(--muted) 40%, var(--card))' : 'transparent',
+        onOeffnen: () => this.setState(s => s.bausteinOffen === b.id
+          ? {bausteinOffen: null, bausteinForm: null}
+          : {bausteinOffen: b.id, bausteinForm: null})
+      })),
+      baustein: offenerBaustein ? {
+        lesen: !st.bausteinForm,
+        bearbeiten: !!(st.bausteinForm && st.bausteinForm.id === offenerBaustein.id),
+        text: offenerBaustein.text || 'Noch kein Text hinterlegt.',
+        hinweis: offenerBaustein.standard
+          ? 'Wird in neue Rechnungen vorbelegt.'
+          : 'Steht in der Auswahl, wird aber nicht vorbelegt.',
+        onBearbeiten: () => this.setState({bausteinForm: {...offenerBaustein}}),
+        onSchliessen: () => this.setState({bausteinOffen: null, bausteinForm: null}),
+        onLoeschen: () => this.setState(s => ({
+          bausteine: s.bausteine.filter(b => b.id !== offenerBaustein.id),
+          bausteinOffen: null, bausteinForm: null
+        }))
+      } : {lesen: false, bearbeiten: false},
+      bausteinNeuOffen: !!(st.bausteinForm && !st.bausteinForm.id),
+      bausteinForm: this.bausteinWerte(),
+      bausteinNeu: () => this.setState({bausteinOffen: null, bausteinForm:
+        {id: null, name: '', art: 'Einleitung', standard: false, text: ''}}),
+      vorlageStand: st.vorlageDa
+        ? 'Zweiseitige Vorlage hinterlegt.'
+        : 'Keine Vorlage hinterlegt — Rechnungen drucken auf weißem Grund.',
+      vorlageAktion: st.vorlageDa ? 'Vorlage ersetzen' : 'Vorlage hochladen',
+      vorlageHochladen: () => this.setState(s => ({vorlageDa: !s.vorlageDa})),
+
+      listeTitel: listen.titel,
+      listeHinweis: listen.hinweis,
+      listeFuss: listen.fuss,
+      listeNeuLabel: listen.neuLabel,
+      eintraege: listen.eintraege,
+      eintragNeu: listen.onNeu,
+      eintragNeuOffen: !!(st.eintragForm && !st.eintragForm.id),
+      eintragForm: this.eintragFelder(),
+      eintrag: offenerEintrag ? {
+        lesen: !st.eintragForm,
+        bearbeiten: !!(st.eintragForm && st.eintragForm.id === offenerEintrag.id),
+        /* Jede Zeile zeigt dieselben Felder in derselben Reihenfolge — fehlt
+         *  ein Wert, steht dort „—", damit die Zeilen gleich aussehen. */
+        felder: [
+          {label:'Kürzel', wert: offenerEintrag.kuerzel || '—', istWert: true},
+          {label:'Status', wert: offenerEintrag.aktiv ? 'Aktiv' : 'Inaktiv', istWert: true}
+        ].concat(st.bereich === 'beziehungen' ? [
+            {label:'Gegenstück', wert: offenerEintrag.zusatz || '—', istWert: true}
+          ] : [])
+          .concat(st.bereich === 'vorgangsarten' ? [
+            {label:'Dauer', istWert: true,
+             wert: offenerEintrag.dauer ? offenerEintrag.dauer + ' Minuten' : '—'},
+            {label:'Farbe', istWert: true,
+             wert: (FARBEN.find(c => c.wert === offenerEintrag.farbe) || {name:'Eigene'}).name},
+            {label:'Bei neuen Vorgängen', istWert: true,
+             wert: offenerEintrag.standard ? 'vorausgewählt' : '—'}
+          ] : []),
+        hatLeistungen: st.bereich === 'vorgangsarten',
+        leistungenLeer: (offenerEintrag.leistungen || []).length === 0,
+        leistungsZeilen: (offenerEintrag.leistungen || [])
+          .map((id, i) => ({nr: (i + 1) + '.', text: katalogNach(id).text})),
+        loeschbar: !offenerEintrag.system,
+        gesperrt: !!offenerEintrag.system,
+        sperrgrund: 'Ein System-Eintrag lässt sich umbenennen, aber nicht löschen — sein Kürzel bleibt, wie es ist.',
+        onBearbeiten: () => this.setState({eintragForm: {...offenerEintrag,
+          dauer: offenerEintrag.dauer === null || offenerEintrag.dauer === undefined ? '' : String(offenerEintrag.dauer),
+          leistungen: (offenerEintrag.leistungen || []).slice()}}),
+        onSchliessen: () => this.setState({eintragOffen: null, eintragForm: null}),
+        onLoeschen: () => this.setState(s => ({
+          [listen.key]: s[listen.key].filter(e => e.id !== offenerEintrag.id),
+          eintragOffen: null, eintragForm: null
+        }))
+      } : {lesen: false, bearbeiten: false, felder: [], leistungsZeilen: []},
+
+      mailLesen: !st.mailEntwurf,
+      mailBearbeitet: !!st.mailEntwurf,
+      mailBearbeiten: () => this.setState({mailEntwurf: {...st.mail, passwort: ''}}),
+      mailAbbrechen: () => this.setState({mailEntwurf: null}),
+      mailSpeichern: () => this.setState(s => ({
+        mail: {...s.mailEntwurf, passwort: s.mailEntwurf.passwort || s.mail.passwort},
+        mailPasswortGesetzt: !!(s.mailEntwurf.passwort || s.mail.passwort),
+        mailEntwurf: null
+      })),
+      mailFelder: [mailFeld('host','Server',6), mailFeld('port','Port',2),
+        mailFeld('benutzer','Benutzername',6), mailFeld('passwort','Passwort',6,'password'),
+        mailFeld('absender','Absenderadresse',6), mailFeld('name','Absendername',6)],
+      testmail: () => {},
+      testmailHinweis: 'Die Testmail geht ausschließlich an die Absenderadresse. Eine andere Adresse lässt sich hier nicht eintragen.',
+      platzhalter: MAILPLATZHALTER,
+      platzhalterDialogProps: {open: st.platzhalterOffen, onOpenChange: v => this.setState({platzhalterOffen: v === true})},
+      platzhalterOeffnen: () => this.setState({platzhalterOffen: true}),
+      platzhalterSchliessen: () => this.setState({platzhalterOffen: false}),
+      /* Mailvorlagen wie die Textbausteine: Zeile anklicken, lesen, bearbeiten. */
+      mailvorlagen: st.vorlagen.map(v => ({
+        name: v.name, standard: v.standard, betreff: v.betreff,
+        offen: st.vorlageOffen === v.id,
+        bg: st.vorlageOffen === v.id ? 'color-mix(in oklab, var(--muted) 40%, var(--card))' : 'transparent',
+        onOeffnen: () => this.setState(s => s.vorlageOffen === v.id
+          ? {vorlageOffen: null, vorlageForm: null}
+          : {vorlageOffen: v.id, vorlageForm: null})
+      })),
+      vorlage: offeneVorlage ? {
+        lesen: !st.vorlageForm,
+        bearbeiten: !!st.vorlageForm,
+        betreff: offeneVorlage.betreff,
+        text: offeneVorlage.text,
+        standardText: offeneVorlage.standard
+          ? 'Wird beim Rechnungsversand vorbelegt.'
+          : 'Steht in der Auswahl, wird aber nicht vorbelegt.',
+        onBearbeiten: () => this.setState({vorlageForm: {...offeneVorlage}}),
+        onSchliessen: () => this.setState({vorlageOffen: null, vorlageForm: null})
+      } : {lesen: false, bearbeiten: false},
+      vorlageForm: vf ? {
+        betreffProps: {value: vf.betreff,
+          onChange: ev => this.setState(s => ({vorlageForm: {...s.vorlageForm, betreff: ev.target.value}}))},
+        textProps: {value: vf.text,
+          onChange: ev => this.setState(s => ({vorlageForm: {...s.vorlageForm, text: ev.target.value}}))},
+        standardProps: {checked: !!vf.standard,
+          onCheckedChange: v => this.setState(s => ({vorlageForm: {...s.vorlageForm, standard: v === true}}))},
+        onAbbrechen: () => this.setState({vorlageForm: null}),
+        onSpeichern: () => this.setState(s => ({
+          vorlagen: s.vorlagen.map(v => v.id === vf.id
+            ? {...v, betreff: vf.betreff, text: vf.text, standard: vf.standard}
+            : (vf.standard ? {...v, standard: false} : v)),
+          vorlageForm: null
+        }))
+      } : {},
+
+      googleVerbunden: st.googleVerbunden,
+      googleGetrennt: !st.googleVerbunden,
+      googleStatus: st.googleVerbunden ? 'Verbunden als praxis@ostertor.de' : 'Nicht verbunden',
+      googleVariante: st.googleVerbunden ? 'secondary' : 'outline',
+      googleWerte: [
+        {label:'Letzte Synchronisation', wert:'heute, 07:40'},
+        {label:'Warteschlange', wert:'nichts offen'},
+        {label:'Letzter Fehler', wert:'—'}
+      ],
+      googleKalenderProps: {value: st.googleKalender, onValueChange: v => this.setState({googleKalender: v})},
+      googleFrei: st.googleFrei.map((k, i) => ({
+        name: k.name,
+        props: {checked: k.an, onCheckedChange: v => this.setState(s => ({
+          googleFrei: s.googleFrei.map((x, j) => j === i ? {...x, an: v === true} : x)}))}
+      })),
+      googleMeldung: st.googleMeldung,
+      googleSync: () => this.setState({googleMeldung: 'Gerade synchronisiert: 3 gesendet, 0 fehlgeschlagen, 1 übernommen.'}),
+      googleTrennen: () => this.setState({googleVerbunden: false}),
+      googleVerbinden: () => this.setState({googleVerbunden: true, googleMeldung: 'Verbunden. Noch nicht synchronisiert.'})
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5">
+<dc-import name="AppSidebar" active="Zahlungen" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Zahlungen" hint-size="100%,56px"></dc-import>
+<div style="flex:1;min-width:0;overflow:auto">
+<main style="display:flex;flex-direction:column;padding:20px 32px 28px;max-width:1180px">
+
+<div style="position:sticky;top:0;z-index:5;background:var(--background);padding:0 0 16px">
+<div style="min-width:0">
+<h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.022em;line-height:1.1">Zahlungen</h1>
+<p style="margin:5px 0 0;color:var(--muted-foreground)">Vom erbrachten Vorgang bis zum Geldeingang.</p>
+</div>
+
+<div role="tablist" style="display:grid;grid-template-columns:repeat(2,minmax(240px,1fr));gap:14px;margin-top:20px">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+<button role="tab" aria-selected="{{ t.aktiv }}" onClick="{{ t.onClick }}" style="display:flex;flex-direction:column;gap:4px;padding:15px 18px 14px;border:1px solid {{ t.rahmen }};border-radius:12px;background:{{ t.bg }};box-shadow:{{ t.schatten }}" style-hover="border-color:var(--primary)">
+<span style="display:flex;align-items:baseline;gap:12px;width:100%">
+<span style="font-size:15.5px;font-weight:600;white-space:nowrap">{{ t.label }}</span>
+<span class="tabular-nums" style="margin-left:auto;flex-shrink:0;white-space:nowrap;font-size:23px;font-weight:600;letter-spacing:-.02em;color:{{ t.wertFarbe }};line-height:1.1">{{ t.wert }}</span>
+</span>
+<span style="display:flex;align-items:baseline;gap:8px;width:100%;color:var(--muted-foreground);font-size:12.5px">
+<span>{{ t.zusatz }}</span>
+<span class="tabular-nums" style="margin-left:auto">{{ t.wertLabel }}</span>
+</span>
+<sc-if value="{{ t.hatWarnung }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--destructive);font-size:12.5px;font-weight:600">{{ t.warnung }}</span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+
+<sc-if value="{{ zeigeVorgaenge }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;min-height:32px">
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">{{ auswahlText }}</p>
+</div>
+
+<div style="height:calc(100vh - 348px);min-height:200px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:2px">
+<sc-if value="{{ keineVorgaenge }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground)">Nichts offen — alles Erbrachte steht auf einer Rechnung.</p>
+</sc-if>
+<sc-for list="{{ kontakte }}" as="k" hint-placeholder-count="4">
+<section style="flex:0 0 auto;border:1px solid {{ k.rahmen }};border-radius:10px;background:var(--card);overflow:hidden">
+<header style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 16px;border-bottom:1px solid var(--border);background:{{ k.kopfBg }}">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" id="{{ k.boxId }}" dc-props="{{ k.boxProps }}" hint-size="16px,16px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="{{ k.boxId }}" className="font-medium" hint-size="150px,20px">{{ k.kontakt }}</x-import>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">Nr. {{ k.nr }}</span>
+<span style="color:var(--muted-foreground);font-size:12.5px">{{ k.anzahlText }}</span>
+<span style="display:flex;align-items:center;gap:12px;margin-left:auto">
+<sc-if value="{{ k.hatAuswahl }}" hint-placeholder-val="{{ false }}">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">{{ k.auswahlText }}</span>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ k.onRechnung }}" hint-size="164px,32px">Rechnung erstellen</x-import>
+</sc-if>
+<span class="tabular-nums" style="font-weight:600">{{ k.summe }}</span>
+</span>
+</header>
+<sc-for list="{{ k.vorgaenge }}" as="vg" hint-placeholder-count="2">
+<div style="border-top:1px solid var(--border)">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 16px">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" id="{{ vg.boxId }}" dc-props="{{ vg.boxProps }}" hint-size="16px,16px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="{{ vg.boxId }}" className="font-normal tabular-nums" hint-size="86px,20px">{{ vg.datum }}</x-import>
+<span style="padding:2px 7px;border-radius:5px;font-size:11.5px;background:{{ vg.farbe }};color:#241f18">{{ vg.art }}</span>
+<sc-if value="{{ vg.hatTitel }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">{{ vg.titel }}</span>
+</sc-if>
+<sc-if value="{{ vg.zeigeStatus }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.statusVariante }}" hint-size="96px,20px">{{ vg.status }}</x-import>
+</sc-if>
+<span class="tabular-nums" style="margin-left:auto;color:var(--muted-foreground);font-size:13px">{{ vg.summe }}</span>
+</div>
+<sc-for list="{{ vg.posten }}" as="p" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:12px;padding:6px 16px 6px 42px;background:{{ p.bg }}">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" id="{{ p.boxId }}" dc-props="{{ p.boxProps }}" hint-size="16px,16px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="{{ p.boxId }}" className="font-normal" hint-size="240px,20px">{{ p.menge }}× {{ p.text }}</x-import>
+<span class="tabular-nums" style="margin-left:auto">{{ p.betrag }}</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</section>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ zeigeRechnungen }}" hint-placeholder-val="{{ false }}">
+<div>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+<p style="margin:0 12px 0 0;color:var(--muted-foreground);font-size:13px">{{ gestelltText }}</p>
+<sc-for list="{{ filter }}" as="f" hint-placeholder-count="5">
+<button onClick="{{ f.onClick }}" style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border:1px solid {{ f.rahmen }};border-radius:999px;background:{{ f.bg }};color:{{ f.farbe }};font-size:12.5px" style-hover="border-color:var(--primary)"><span class="tabular-nums" style="font-weight:600">{{ f.anzahl }}</span>{{ f.label }}</button>
+</sc-for>
+<span style="margin-left:auto">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ rechnungNeu }}" hint-size="152px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Neue Rechnung</x-import>
+</span>
+<div style="position:relative">
+<button onClick="{{ spaltenUmschalten }}" aria-haspopup="menu" style="display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:6px;font-size:13.5px;color:var(--muted-foreground);white-space:nowrap" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>Spalten</button>
+<sc-if value="{{ spaltenOffen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ spaltenSchliessen }}" style="position:fixed;inset:0;z-index:20"></div>
+<div style="position:absolute;top:calc(100% + 6px);right:0;z-index:21;width:220px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--popover);color:var(--popover-foreground);box-shadow:0 10px 28px oklch(25% .012 62 / .14)">
+<p style="margin:0 0 10px;color:var(--muted-foreground);font-size:12.5px">Sichtbare Spalten</p>
+<div style="display:flex;flex-direction:column;gap:4px">
+<sc-for list="{{ spalten }}" as="s" hint-placeholder-count="6">
+<label style="display:flex;align-items:center;gap:9px;padding:4px 2px;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ s.props }}" hint-size="16px,16px"></x-import>{{ s.label }}
+</label>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+
+<div style="height:calc(100vh - 348px);min-height:200px;overflow:auto;display:flex;flex-direction:column;gap:12px">
+<sc-if value="{{ re.neu }}" hint-placeholder-val="{{ false }}">
+<div style="flex:0 0 auto">
+<dc-import name="RechnungEditor" re="{{ re }}" leistungen="{{ leistungen }}" hint-size="100%,620px"></dc-import>
+</div>
+</sc-if>
+<div style="flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden">
+<x-import component-from-global-scope="PraxiWeb.Table" hint-size="100%,420px">
+<x-import component-from-global-scope="PraxiWeb.TableHeader" hint-size="100%,40px">
+<x-import component-from-global-scope="PraxiWeb.TableRow" hint-size="100%,40px">
+<sc-for list="{{ koepfe }}" as="h" hint-placeholder-count="7">
+<x-import component-from-global-scope="PraxiWeb.TableHead" className="{{ h.cls }}" hint-size="140px,40px">
+<sc-if value="{{ h.sortierbar }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ h.onSort }}" style="display:flex;width:100%;align-items:center;gap:5px;justify-content:{{ h.justify }};white-space:nowrap">{{ h.label }}<span style="color:var(--muted-foreground);font-size:11px">{{ h.pfeil }}</span></button>
+</sc-if>
+<sc-if value="{{ h.festerKopf }}" hint-placeholder-val="{{ false }}">
+<span style="display:block;white-space:nowrap">{{ h.label }}</span>
+</sc-if>
+</x-import>
+</sc-for>
+</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.TableBody" hint-size="100%,380px">
+<sc-for list="{{ gestellt }}" as="r" hint-placeholder-count="8">
+<x-import component-from-global-scope="PraxiWeb.TableRow" className="cursor-pointer {{ r.zeilenKlasse }}" onClick="{{ r.onOeffnen }}" hint-size="100%,46px">
+<sc-for list="{{ r.zellen }}" as="c" hint-placeholder-count="7">
+<x-import component-from-global-scope="PraxiWeb.TableCell" className="{{ c.cls }}" hint-size="140px,46px">
+<sc-if value="{{ c.istLink }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ c.onOeffnen }}" class="tabular-nums" style="color:var(--primary);text-decoration:underline;text-underline-offset:4px" style-hover="color:var(--foreground)">{{ c.text }}</button>
+</sc-if>
+<sc-if value="{{ c.istFaellig }}" hint-placeholder-val="{{ false }}">
+<span style="display:inline-flex;align-items:baseline;gap:8px">{{ c.text }}
+<sc-if value="{{ c.warnung }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--destructive);font-size:12px;font-weight:600;white-space:nowrap">{{ c.warnungText }}</span>
+</sc-if>
+</span>
+</sc-if>
+<sc-if value="{{ c.istStatus }}" hint-placeholder-val="{{ false }}">
+<span style="display:inline-flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ c.variante }}" hint-size="104px,20px">{{ c.text }}</x-import>
+<sc-if value="{{ c.hatZusatz }}" hint-placeholder-val="{{ false }}">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12px">{{ c.zusatz }}</span>
+</sc-if>
+</span>
+</sc-if>
+<sc-if value="{{ c.istAktion }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ c.istEntwurf }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ c.onFestschreiben }}" hint-size="128px,32px">Festschreiben</x-import>
+</sc-if>
+<sc-if value="{{ c.istOffen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ c.onBezahlt }}" hint-size="140px,32px">Betrag erhalten</x-import>
+</sc-if>
+</sc-if>
+<sc-if value="{{ c.istText }}" hint-placeholder-val="{{ true }}">{{ c.text }}</sc-if>
+</x-import>
+</sc-for>
+</x-import>
+<sc-if value="{{ r.offen }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.TableRow" className="hover:bg-transparent" hint-size="100%,420px">
+<x-import component-from-global-scope="PraxiWeb.TableCell" colSpan="{{ spaltenZahl }}" className="p-0" hint-size="100%,420px">
+<div style="padding:14px 16px 18px;background:color-mix(in oklab, var(--muted) 25%, var(--card))">
+<sc-if value="{{ rd.lesen }}" hint-placeholder-val="{{ true }}">
+<div style="border:1px solid var(--primary);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<span class="tabular-nums" style="font-weight:600">{{ rd.nummer }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ rd.statusVariante }}" hint-size="104px,20px">{{ rd.status }}</x-import>
+<span style="color:var(--muted-foreground);font-size:13px">{{ rd.hinweis }}</span>
+<span class="tabular-nums" style="margin-left:auto;font-weight:600">{{ rd.summe }}</span>
+</div>
+<div style="padding:18px 16px 16px">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:34px;align-items:start;--zweispaltig:1">
+<div>
+<p style="margin:0 0 14px;color:var(--muted-foreground);font-size:13.5px;text-wrap:pretty">{{ rd.einleitung }}</p>
+<sc-for list="{{ rd.positionen }}" as="p" hint-placeholder-count="2">
+<div style="display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:9px 0;border-top:1px solid var(--border)">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ p.menge }}×</span>
+<span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+<span>{{ p.text }}<span style="margin-left:8px;color:var(--muted-foreground);font-size:12.5px">{{ p.ziffer }}</span></span>
+<sc-if value="{{ p.hatVorgang }}" hint-placeholder-val="{{ true }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">Vorgang <span class="tabular-nums">{{ p.vorgang }}</span></span>
+</sc-if>
+</span>
+<span class="tabular-nums" style="text-align:right">{{ p.betrag }}</span>
+</div>
+</sc-for>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:2px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Rechnungsbetrag</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ rd.summe }}</span>
+</div>
+<p style="margin:14px 0 0;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">{{ rd.schluss }}</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:16px;padding-left:26px;border-left:1px solid var(--border)">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Empfänger</span>
+<a href="Kontaktdetail.dc.html" style="text-decoration:underline;text-underline-offset:3px">{{ rd.kontakt }}</a>
+<sc-if value="{{ rd.hatFuer }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:13px">{{ rd.fuer }}</span>
+</sc-if>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Rechnung</span>
+<span class="tabular-nums">{{ rd.nummer }} · {{ rd.datum }}</span>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">Zahlungsziel {{ rd.ziel }} Tage · fällig {{ rd.faellig }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Zahlungsstand</span>
+<span>{{ rd.status }}</span>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ rd.zahlZeile }}</span>
+</div>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" className="text-muted-foreground" hint-size="132px,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path></svg>Dokument öffnen</x-import>
+<span style="display:inline-flex;gap:8px">
+<sc-if value="{{ rd.kannBearbeiten }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ rd.onBearbeiten }}" hint-size="120px,36px">Bearbeiten</x-import>
+</sc-if>
+<sc-if value="{{ rd.kannZahlen }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ rd.onBezahlt }}" hint-size="150px,36px">Betrag erhalten</x-import>
+</sc-if>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ rd.onSchliessen }}" hint-size="106px,36px">Schließen</x-import>
+</span>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ rd.bearbeiten }}" hint-placeholder-val="{{ false }}">
+<dc-import name="RechnungEditor" re="{{ re }}" leistungen="{{ leistungen }}" hint-size="100%,620px"></dc-import>
+</sc-if>
+</div>
+</x-import>
+</x-import>
+</sc-if>
+</sc-for>
+</x-import>
+</x-import>
+<sc-if value="{{ keineGestellt }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;padding:18px 16px;color:var(--muted-foreground)">Keine Rechnung passt zu diesem Filter.</p>
+</sc-if>
+</div>
+</div>
+</div>
+</sc-if>
+
+</main>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;schiefer&quot;,&quot;blau&quot;,&quot;salbei&quot;,&quot;rose&quot;,&quot;nacht&quot;],&quot;default&quot;:&quot;schiefer&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+/** Die drei Stationen des Geldes auf einem Screen, untereinander: erbracht →
+ *  gestellt → bezahlt. Abgerechnet werden Vorgänge; die Positionen eines
+ *  Vorgangs lassen sich einzeln auswählen. Je Kontakt entsteht ein Entwurf —
+ *  hat ein Kontakt schon einen, kommen die Positionen dort dazu. */
+const HEUTE = '2026-08-12';
+const ZIEL_TAGE = 14;
+
+const ARTFARBE = {
+  'Erstgespräch':'oklch(75% .12 85)', 'Folgesitzung':'oklch(72% .1 200)', 'Bericht':'oklch(70% .11 300)'
+};
+
+const VORGAENGE = [
+  {id:'a1', kontakt:'Dohrmann, Til', nr:1033, iso:'2026-08-07', art:'Folgesitzung', status:'Stattgefunden', titel:'',
+   posten:[{id:'a1p1', menge:1, text:'Ergotherapie, Einzelbehandlung', cent:4500}]},
+  {id:'a2', kontakt:'Cordes, Annelie', nr:1029, iso:'2026-08-06', art:'Folgesitzung', status:'Stattgefunden', titel:'',
+   posten:[{id:'a2p1', menge:1, text:'Ergotherapie, Einzelbehandlung', cent:4500}]},
+  {id:'a3', kontakt:'Achterberg, Miriam', nr:1004, iso:'2026-08-04', art:'Folgesitzung', status:'Nicht erschienen', titel:'',
+   posten:[{id:'a3p1', menge:1, text:'Ausfallhonorar', cent:2250}]},
+  {id:'a4', kontakt:'Bergmann, Anke', nr:1008, iso:'2026-08-03', art:'Folgesitzung', status:'Geplant', titel:'',
+   posten:[{id:'a4p1', menge:1, text:'Ergotherapie, Einzelbehandlung', cent:4500}]},
+  {id:'a5', kontakt:'Bergmann, Anke', nr:1008, iso:'2026-07-31', art:'Folgesitzung', status:'Stattgefunden', titel:'',
+   posten:[{id:'a5p1', menge:1, text:'Ergotherapie, Einzelbehandlung', cent:4500}]},
+  {id:'a6', kontakt:'Bruns, Levke', nr:1014, iso:'2026-07-29', art:'Erstgespräch', status:'Stattgefunden', titel:'Anamnese und Zielklärung',
+   posten:[{id:'a6p1', menge:1, text:'Erstgespräch mit Anamnese', cent:9000},
+           {id:'a6p2', menge:1, text:'Befundbericht', cent:3500}]},
+  {id:'a7', kontakt:'Eggers, Sonja', nr:1041, iso:'2026-07-20', art:'Bericht', status:'Stattgefunden', titel:'Bericht an die Krankenkasse',
+   posten:[{id:'a7p1', menge:1, text:'Befundbericht', cent:3500}]},
+  {id:'a8', kontakt:'Dohrmann, Til', nr:1033, iso:'2026-07-10', art:'Bericht', status:'Stattgefunden', titel:'Telefonat mit der Schule',
+   posten:[{id:'a8p1', menge:1, text:'Telefonat mit der Schule, 30 Minuten', cent:3800},
+           {id:'a8p2', menge:1, text:'Kopien und Porto', cent:450}]}
+];
+
+/** stufe: entwurf | offen | bezahlt. Die Positionen tragen ihren Vorgang mit,
+ *  damit der Editor sie beim Öffnen wieder gruppieren kann. */
+const rp = (text, cent, ziffer, wann, art) => ({menge:1, text, cent, ziffer: ziffer || '', wann: wann || '', art: art || ''});
+const RECHNUNGEN = [
+  {id:'e1', nummer:'', kontakt:'Gerdes, Nele', iso:'2026-08-11', stufe:'entwurf', cent:9000, bezahlt:0, posten:2,
+   positionen:[rp('Erstgespräch mit Anamnese', 9000, 'A2', '30.07.2026', 'Erstgespräch')]},
+  {id:'o1', nummer:'2026-0048', kontakt:'Dohrmann, Jens', iso:'2026-07-31', stufe:'offen', cent:3800, bezahlt:0, posten:1,
+   positionen:[rp('Telefonat mit der Schule, 30 Minuten', 3800, '', '10.07.2026', 'Bericht')]},
+  {id:'o2', nummer:'2026-0047', kontakt:'Achterberg, Miriam', iso:'2026-07-28', stufe:'offen', cent:2250, bezahlt:0, posten:1,
+   positionen:[rp('Ausfallhonorar', 2250, '', '21.07.2026', 'Folgesitzung')]},
+  {id:'o3', nummer:'2026-0046', kontakt:'Hinrichs, Milan', iso:'2026-07-24', stufe:'offen', cent:9000, bezahlt:4500, posten:2,
+   positionen:[rp('Ergotherapie, Einzelbehandlung', 4500, 'A1', '10.07.2026', 'Folgesitzung'),
+               rp('Ergotherapie, Einzelbehandlung', 4500, 'A1', '17.07.2026', 'Folgesitzung')]},
+  {id:'b1', nummer:'2026-0045', kontakt:'Gerdes, Nele', iso:'2026-07-20', stufe:'bezahlt', cent:9000, bezahlt:9000, bezahltAm:'2026-08-03',
+   positionen:[rp('Erstgespräch mit Anamnese', 9000, 'A2', '06.07.2026', 'Erstgespräch')]},
+  {id:'b2', nummer:'2026-0044', kontakt:'Bergmann, Anke', iso:'2026-07-17', stufe:'bezahlt', cent:4500, bezahlt:4500, bezahltAm:'2026-07-29',
+   positionen:[rp('Ergotherapie, Einzelbehandlung', 4500, 'A1', '03.07.2026', 'Folgesitzung')]},
+  {id:'b3', nummer:'2026-0042', kontakt:'Eggers, Sonja', iso:'2026-07-03', stufe:'bezahlt', cent:3500, bezahlt:3500, bezahltAm:'2026-07-15',
+   positionen:[rp('Befundbericht', 3500, 'B1', '24.06.2026', 'Bericht')]},
+  {id:'b4', nummer:'2026-0041', kontakt:'Dohrmann, Jens', iso:'2026-06-30', stufe:'bezahlt', cent:9000, bezahlt:9500, bezahltAm:'2026-07-09', hinweis:'Überzahlt',
+   positionen:[rp('Erstgespräch mit Anamnese', 9000, 'A2', '18.06.2026', 'Erstgespräch')]},
+  {id:'b5', nummer:'2026-0043', kontakt:'Balzer, Kim', iso:'2026-07-10', stufe:'bezahlt', cent:4500, bezahlt:0, bezahltAm:'2026-07-18', hinweis:'Storniert',
+   positionen:[rp('Ergotherapie, Einzelbehandlung', 4500, 'A1', '26.06.2026', 'Folgesitzung')]}
+];
+
+const LEISTUNGEN = [
+  {text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', cent:4500},
+  {text:'Erstgespräch mit Anamnese', ziffer:'A2', cent:9000},
+  {text:'Befundbericht', ziffer:'B1', cent:3500},
+  {text:'Ausfallhonorar', ziffer:'', cent:2250}
+];
+const TEXTE = {
+  einleitung: [
+    {name:'Standard', text:'hiermit stelle ich Ihnen die folgenden Leistungen in Rechnung.'},
+    {name:'Mit Zeitraum', text:'für die im genannten Zeitraum erbrachten Leistungen erlaube ich mir, folgenden Betrag in Rechnung zu stellen.'}
+  ],
+  schluss: [
+    {name:'Standard', text:'Bitte überweisen Sie den Betrag innerhalb des Zahlungsziels auf das unten genannte Konto.'},
+    {name:'Bereits bezahlt', text:'Der Betrag wurde bereits beglichen. Vielen Dank.'}
+  ]
+};
+/** Die Spalten der Rechnungsliste — Reihenfolge fest, Sichtbarkeit wählbar. */
+const SPALTEN = [
+  {key:'nummer', label:'Nummer', typ:'link'},
+  {key:'kontakt', label:'Empfänger', typ:'text'},
+  {key:'datum', label:'Rechnungsdatum', typ:'text', cls:'tabular-nums'},
+  {key:'faellig', label:'Zahlbar bis', typ:'faellig', cls:'tabular-nums'},
+  {key:'status', label:'Status', typ:'status'},
+  {key:'betrag', label:'Betrag', typ:'text', cls:'text-right tabular-nums', rechts:true},
+  {key:'offen', label:'Offen', typ:'text', cls:'text-right tabular-nums font-medium', rechts:true}
+];
+/** Nach dem, was in der Zeile steht — nicht nach der internen Stufe. */
+/** Die Kontakte der Praxis — für die Suche im Rechnungseditor. */
+const KONTAKTE = [
+  {name:'Achterberg, Miriam', nr:1004}, {name:'Ahlers, Bettina', nr:1002},
+  {name:'Balzer, Kim', nr:1006}, {name:'Baumgart, Jonas', nr:1017},
+  {name:'Bergmann, Anke', nr:1008}, {name:'Bruns, Levke', nr:1014},
+  {name:'Claussen, Ole', nr:1019}, {name:'Cordes, Annelie', nr:1029},
+  {name:'Dettmer, Frauke', nr:1021}, {name:'Dohrmann, Jens', nr:1034},
+  {name:'Dohrmann, Til', nr:1033}, {name:'Eggers, Sonja', nr:1041},
+  {name:'Ehlers, Marit', nr:1024}, {name:'Feldmann, Ruth', nr:1027},
+  {name:'Garbe, Jost', nr:1031}, {name:'Gerdes, Nele', nr:1052},
+  {name:'Hinrichs, Milan', nr:1063}, {name:'AOK Bremen/Bremerhaven', nr:3002},
+  {name:'Techniker Krankenkasse', nr:3006}
+];
+const ZUSTANDSRANG = {'Entwurf':0, 'Offen':1, 'Teilweise bezahlt':2, 'Bezahlt':3, 'Überzahlt':4, 'Storniert':5};
+const euro = c => (c / 100).toFixed(2).replace('.', ',') + ' €';
+const centAus = text => Math.round(parseFloat(String(text || '0').replace(/[^0-9,.-]/g,'').replace(',', '.')) * 100) || 0;
+const tag = iso => iso.slice(8,10) + '.' + iso.slice(5,7) + '.' + iso.slice(0,4);
+const plus = (iso, tage) => {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + tage);
+  return d.toISOString().slice(0, 10);
+};
+const tageSeit = iso => Math.round((new Date(HEUTE + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 86400000);
+const summeVon = posten => posten.reduce((s, p) => s + p.menge * p.cent, 0);
+
+class Component extends DCLogic {
+  state = {vorgaenge: VORGAENGE, rechnungen: RECHNUNGEN, gewaehlt: [], naechsteNummer: 50, filter: null,
+    tab: 'vorgaenge', re: null, spaltenOffen: false, sort: {key: null, ab: false},
+    sichtbareSpalten: SPALTEN.map(sp => sp.key), rd: null};
+
+  sortieren(key){
+    this.setState(s => ({sort: s.sort.key === key
+      ? (s.sort.ab ? {key: null, ab: false} : {key, ab: true})
+      : {key, ab: false}}));
+  }
+
+  spalteSchalten(key, an){
+    this.setState(s => ({sichtbareSpalten: an
+      ? SPALTEN.map(sp => sp.key).filter(k => k === key || s.sichtbareSpalten.indexOf(k) !== -1)
+      : s.sichtbareSpalten.filter(k => k !== key)}));
+  }
+
+  /** Sortiert wird nach dem Wert dahinter, nicht nach dem angezeigten Text. */
+  sortWert(r, key){
+    if (key === 'nummer') return r.nummer || 'zzzz';
+    if (key === 'kontakt') return r.kontakt;
+    if (key === 'datum') return r.iso;
+    if (key === 'faellig') return r.stufe === 'entwurf' ? '9999' : plus(r.iso, ZIEL_TAGE);
+    if (key === 'status') return ZUSTANDSRANG[this.zustand(r)];
+    if (key === 'betrag') return r.cent;
+    if (key === 'offen') return r.stufe === 'bezahlt' ? 0 : r.cent - r.bezahlt;
+    return 0;
+  }
+
+  /** Der Entwurf entsteht immer für genau einen Kontakt, aus dem, was in
+   *  seiner Gruppe angehakt ist — derselbe Editor wie in der Kontaktakte. */
+  rechnungStarten(gruppe){
+    const gruppen = gruppe.vorgaenge
+      .map(vg => ({
+        vgId: vg.id, wann: tag(vg.iso), art: vg.art, farbe: ARTFARBE[vg.art], gewaehlt: true,
+        positionen: vg.posten.filter(p => this.gewaehltIst(p.id))
+          .map(p => ({id: p.id, menge: p.menge, text: p.text, ziffer: p.ziffer || '', betragText: euro(p.cent)}))
+      }))
+      .filter(g => g.positionen.length > 0);
+    const daten = gruppe.vorgaenge.filter(vg => vg.posten.some(p => this.gewaehltIst(p.id)))
+      .map(vg => vg.iso).sort();
+    this.setState({tab: 'rechnungen', rd: null, re: {
+      kontakt: gruppe.kontakt, nr: gruppe.nr, datum: HEUTE, ziel: '14', diagnose: '',
+      zeitraumAn: daten.length > 1, von: daten[0] || '', bis: daten[daten.length - 1] || '',
+      einleitung: TEXTE.einleitung[0].text, schluss: TEXTE.schluss[0].text,
+      gruppen, freie: []
+    }});
+  }
+
+  patchRe(patch){ this.setState(s => ({re: {...s.re, ...patch}})); }
+
+  patchPosition(gi, pi, patch){
+    this.setState(s => ({re: {...s.re, gruppen: s.re.gruppen.map((g, i) => i !== gi ? g
+      : {...g, positionen: g.positionen.map((p, j) => j === pi ? {...p, ...patch} : p)})}}));
+  }
+
+  patchFreie(pi, patch){
+    this.setState(s => ({re: {...s.re,
+      freie: s.re.freie.map((p, j) => j === pi ? {...p, ...patch} : p)}}));
+  }
+
+  /** Die Positionen, die dieser Entwurf trägt. */
+  reSumme(re){
+    const ausGruppen = re.gruppen.filter(g => g.gewaehlt)
+      .reduce((s, g) => s + g.positionen.reduce((t, p) => t + (Number(p.menge) || 1) * centAus(p.betragText), 0), 0);
+    return ausGruppen + re.freie.reduce((s, p) => s + (Number(p.menge) || 1) * centAus(p.betragText), 0);
+  }
+
+  /** Entwurf sichern oder gleich festschreiben — beides nimmt die
+   *  abgerechneten Positionen aus der Liste der offenen Vorgänge. */
+  reAbschliessen(festschreiben){
+    const re = this.state.re;
+    const cent = this.reSumme(re);
+    const ids = re.gruppen.filter(g => g.gewaehlt)
+      .reduce((liste, g) => liste.concat(g.positionen.map(p => p.id).filter(Boolean)), []);
+    const positionen = re.gruppen.filter(g => g.gewaehlt)
+      .reduce((liste, g) => liste.concat(g.positionen.map(p => ({
+        menge: Number(p.menge) || 1, text: p.text, ziffer: p.ziffer,
+        cent: centAus(p.betragText), wann: g.wann, art: g.art
+      }))), [])
+      .concat(re.freie.map(p => ({
+        menge: Number(p.menge) || 1, text: p.text, ziffer: p.ziffer,
+        cent: centAus(p.betragText), wann: '', art: ''
+      })));
+    this.setState(s => {
+      const felder = {
+        kontakt: re.empfaenger || re.kontakt,
+        fuer: re.empfaenger && re.empfaenger !== re.kontakt ? re.kontakt : '',
+        iso: re.datum, ziel: Number(re.ziel) || 14,
+        diagnose: re.diagnose || '',
+        zeitraum: re.zeitraumAn && re.von && re.bis ? tag(re.von) + ' – ' + tag(re.bis) : '',
+        einleitung: re.einleitung, schluss: re.schluss,
+        cent, posten: positionen.length, positionen
+      };
+      const bestehend = re.id && s.rechnungen.some(r => r.id === re.id);
+      return {
+        re: null,
+        rd: null,
+        gewaehlt: s.gewaehlt.filter(id => ids.indexOf(id) === -1),
+        naechsteNummer: festschreiben ? s.naechsteNummer + 1 : s.naechsteNummer,
+        rechnungen: bestehend
+          ? s.rechnungen.map(r => r.id !== re.id ? r : {...r, ...felder,
+              stufe: festschreiben ? 'offen' : 'entwurf',
+              nummer: festschreiben ? '2026-00' + s.naechsteNummer : r.nummer})
+          : [{id: 'neu' + Date.now(),
+              nummer: festschreiben ? '2026-00' + s.naechsteNummer : '',
+              stufe: festschreiben ? 'offen' : 'entwurf', bezahlt: 0, ...felder}].concat(s.rechnungen),
+        vorgaenge: s.vorgaenge
+          .map(vg => ({...vg, posten: vg.posten.filter(p => ids.indexOf(p.id) === -1)}))
+          .filter(vg => vg.posten.length > 0)
+      };
+    });
+  }
+
+  /** Aus der Rechnungsliste: Entwürfe öffnen den Editor, alles andere die
+   *  Leseansicht — dieselbe Aufteilung wie in der Kontaktakte. */
+  rechnungOeffnen(r){
+    this.setState(s => s.rd === r.id ? {rd: null, re: null} : {rd: r.id, re: null});
+  }
+
+  /** Von Hand: Empfänger wählen, Positionen aus dem Katalog oder aus den
+   *  offenen Vorgängen dieses Kontakts. */
+  rechnungNeu = () => {
+    this.setState({rd: null, re: {
+      id: null, manuell: true, kontakt: '', datum: HEUTE, ziel: '14',
+      einleitung: TEXTE.einleitung[0].text, schluss: TEXTE.schluss[0].text,
+      gruppen: [], freie: []
+    }});
+  };
+
+  /** Steht der Kontakt fest, kommt alles Offene sofort in den Entwurf —
+   *  abwählen geht Vorgang für Vorgang. */
+  kontaktWaehlen(k){
+    const offene = this.state.vorgaenge.filter(vg => vg.kontakt === k.name);
+    const gruppen = offene.map(vg => ({
+      schluessel: vg.id, vgId: vg.id, wann: tag(vg.iso), art: vg.art, farbe: ARTFARBE[vg.art],
+      gewaehlt: true,
+      positionen: vg.posten.map(p => ({id: p.id, menge: p.menge, text: p.text,
+        ziffer: p.ziffer || '', betragText: euro(p.cent)}))
+    }));
+    const daten = offene.map(vg => vg.iso).sort();
+    this.patchRe({
+      kontakt: k.name, nr: k.nr, suchtext: '', gruppen,
+      zeitraumAn: daten.length > 1,
+      von: daten[0] || '', bis: daten[daten.length - 1] || ''
+    });
+  }
+
+  /** Einen offenen Vorgang in den Entwurf holen oder wieder herausnehmen. */
+  vorgangSchalten(vg, an){
+    this.setState(s => ({re: {...s.re, gruppen: an
+      ? s.re.gruppen.concat([{schluessel: vg.id, vgId: vg.id, wann: tag(vg.iso), art: vg.art,
+          farbe: ARTFARBE[vg.art], gewaehlt: true,
+          positionen: vg.posten.map(p => ({id: p.id, menge: p.menge, text: p.text,
+            ziffer: p.ziffer || '', betragText: euro(p.cent)}))}])
+      : s.re.gruppen.filter(g => g.vgId !== vg.id)}}));
+  }
+
+  /** Aus der Leseansicht in den Editor — nur Entwürfe lassen sich ändern. */
+  entwurfBearbeiten(r){
+    const gruppen = [];
+    (r.positionen || []).forEach(p => {
+      const schluessel = p.wann || 'frei';
+      const letzte = gruppen.find(g => g.schluessel === schluessel);
+      const eintrag = {menge: p.menge, text: p.text, ziffer: p.ziffer, betragText: euro(p.cent)};
+      if (letzte) letzte.positionen.push(eintrag);
+      else gruppen.push({schluessel, vgId: '', wann: p.wann || tag(r.iso), art: p.art || 'Position',
+        farbe: ARTFARBE[p.art] || 'var(--muted)', gewaehlt: true, positionen: [eintrag]});
+    });
+    this.setState({rd: r.id, re: {
+      id: r.id, kontakt: r.fuer || r.kontakt, empfaenger: r.kontakt, nr: '',
+      datum: r.iso, ziel: String(r.ziel || 14),
+      einleitung: r.einleitung || TEXTE.einleitung[0].text,
+      schluss: r.schluss || TEXTE.schluss[0].text,
+      gruppen, freie: []
+    }});
+  }
+
+  /** Der Zustand einer Rechnung, wie er in der Liste steht. */
+  zustand(r){
+    if (r.stufe === 'entwurf') return 'Entwurf';
+    if (r.stufe === 'bezahlt') return r.hinweis || 'Bezahlt';
+    return r.bezahlt > 0 ? 'Teilweise bezahlt' : 'Offen';
+  }
+
+  gewaehltIst(id){ return this.state.gewaehlt.indexOf(id) !== -1; }
+
+  /** Ein Kontakt kann mehrere offene Vorgänge haben; abgerechnet wird je Kontakt. */
+  nachKontakt(){
+    const gruppen = [];
+    this.state.vorgaenge.slice()
+      .sort((a, b) => a.kontakt === b.kontakt ? (a.iso > b.iso ? -1 : 1) : (a.kontakt < b.kontakt ? -1 : 1))
+      .forEach(vg => {
+        const letzte = gruppen[gruppen.length - 1];
+        if (letzte && letzte.kontakt === vg.kontakt) letzte.vorgaenge.push(vg);
+        else gruppen.push({kontakt: vg.kontakt, nr: vg.nr, vorgaenge: [vg]});
+      });
+    return gruppen;
+  }
+
+  schalten(ids, an){
+    this.setState(s => ({gewaehlt: an
+      ? s.gewaehlt.concat(ids.filter(id => s.gewaehlt.indexOf(id) === -1))
+      : s.gewaehlt.filter(id => ids.indexOf(id) === -1)}));
+  }
+
+  /** Ausgewählte Positionen wandern in je einen Entwurf pro Kontakt. */
+  entwuerfeErstellen = () => {
+    const gewaehlt = this.state.gewaehlt;
+    const proKontakt = {};
+    this.state.vorgaenge.forEach(vg => {
+      vg.posten.filter(p => gewaehlt.indexOf(p.id) !== -1).forEach(p => {
+        const eintrag = proKontakt[vg.kontakt] || (proKontakt[vg.kontakt] = {cent: 0, posten: 0});
+        eintrag.cent += p.menge * p.cent;
+        eintrag.posten += 1;
+      });
+    });
+    this.setState(s => {
+      let rechnungen = s.rechnungen.slice();
+      Object.keys(proKontakt).forEach((kontakt, i) => {
+        const teil = proKontakt[kontakt];
+        const vorhanden = rechnungen.find(r => r.stufe === 'entwurf' && r.kontakt === kontakt);
+        if (vorhanden) {
+          rechnungen = rechnungen.map(r => r === vorhanden
+            ? {...r, cent: r.cent + teil.cent, posten: r.posten + teil.posten, iso: HEUTE} : r);
+        } else {
+          rechnungen = [{id: 'neu' + Date.now() + i, nummer: '', kontakt, iso: HEUTE, stufe: 'entwurf',
+            cent: teil.cent, bezahlt: 0, posten: teil.posten}].concat(rechnungen);
+        }
+      });
+      return {
+        rechnungen,
+        gewaehlt: [],
+        vorgaenge: s.vorgaenge
+          .map(vg => ({...vg, posten: vg.posten.filter(p => gewaehlt.indexOf(p.id) === -1)}))
+          .filter(vg => vg.posten.length > 0)
+      };
+    });
+  };
+
+  festschreiben(id){
+    this.setState(s => ({
+      naechsteNummer: s.naechsteNummer + 1,
+      rechnungen: s.rechnungen.map(r => r.id === id
+        ? {...r, stufe: 'offen', nummer: '2026-00' + s.naechsteNummer, iso: HEUTE} : r)
+    }));
+  }
+
+  bezahlt(id){
+    this.setState(s => ({
+      rechnungen: s.rechnungen.map(r => r.id === id
+        ? {...r, stufe: 'bezahlt', bezahlt: r.cent, bezahltAm: HEUTE} : r)
+    }));
+  }
+
+  /** Der Editor, so wie ihn die Vorlage aus der Kontaktakte erwartet. */
+  entwurfWerte(){
+    const re = this.state.re;
+    if (!re) return {offen: false, zu: true, neu: false, gruppen: [], freie: [], empfaenger: [],
+      einleitungVorlagen: [], schlussVorlagen: []};
+    const tage = parseInt(String(re.ziel).replace(/[^0-9]/g, ''), 10) || 0;
+    const feld = (wert, setzen) => ({value: wert, onChange: ev => setzen(ev.target.value)});
+    const offeneDesKontakts = re.manuell && re.kontakt
+      ? this.state.vorgaenge.filter(vg => vg.kontakt === re.kontakt) : [];
+    /** Höchstens acht Vorschläge — der Rest wird weitergetippt. */
+    const suche = (re.suchtext || '').trim().toLowerCase();
+    const treffer = re.manuell && !re.kontakt && suche
+      ? KONTAKTE.filter(k => k.name.toLowerCase().indexOf(suche) !== -1
+          || String(k.nr).indexOf(suche) !== -1).slice(0, 8)
+      : [];
+    return {
+      offen: true, zu: false, neu: !re.id,
+      nummer: '2026-00' + this.state.naechsteNummer,
+      zeigeVorgaenge: !!re.manuell,
+      ohneKontakt: !!re.manuell && !re.kontakt,
+      keineOffenen: !!re.manuell && !!re.kontakt && offeneDesKontakts.length === 0,
+      offeneVorgaenge: offeneDesKontakts.map(vg => ({
+        wann: tag(vg.iso), art: vg.art, farbe: ARTFARBE[vg.art],
+        posten: vg.posten.length === 1 ? '1 Position' : vg.posten.length + ' Positionen',
+        summe: euro(vg.posten.reduce((s, p) => s + p.menge * p.cent, 0)),
+        checkProps: {checked: re.gruppen.some(g => g.vgId === vg.id),
+          onCheckedChange: v => this.vorgangSchalten(vg, v === true)}
+      })),
+      kontakt: re.kontakt,
+      /** Wie in der Kontaktakte: der Empfänger ist eine kleine Auswahl —
+       *  der Kontakt selbst oder wer für ihn zahlt. */
+      empfaenger: re.kontakt
+        ? [{name: re.kontakt, rolle: 'Kontakt'},
+           {name: 'AOK Bremen/Bremerhaven', rolle: 'Kostenträger'}]
+        : [],
+      empfProps: {value: re.empfaenger || re.kontakt, onValueChange: v => this.patchRe({empfaenger: v})},
+      pickerAn: !!re.manuell && !re.kontakt,
+      gewaehltAn: !!re.kontakt,
+      manuellAn: !!re.manuell,
+      festAn: !re.manuell,
+      kontaktNr: (KONTAKTE.find(k => k.name === re.kontakt) || {}).nr || re.nr || '—',
+      sucheProps: {value: re.suchtext || '', placeholder: 'Name oder Kontaktnummer tippen',
+        onChange: ev => this.patchRe({suchtext: ev.target.value})},
+      trefferAn: treffer.length > 0,
+      keinTreffer: (re.suchtext || '').trim().length > 0 && treffer.length === 0,
+      treffer: treffer.map(k => ({
+        name: k.name, nr: k.nr,
+        onWaehlen: () => this.kontaktWaehlen(k)
+      })),
+      onAnderer: () => this.patchRe({kontakt: '', nr: '', suchtext: '', gruppen: []}),
+      diagnoseProps: feld(re.diagnose || '', v => this.patchRe({diagnose: v})),
+      zeitraumProps: {checked: !!re.zeitraumAn, onCheckedChange: v => this.patchRe({zeitraumAn: v === true})},
+      zeitraumDeckkraft: re.zeitraumAn ? '1' : '.45',
+      vonProps: {value: re.von || '', onChange: v => this.patchRe({von: v})},
+      bisProps: {value: re.bis || '', onChange: v => this.patchRe({bis: v})},
+      datumProps: {value: re.datum, onChange: v => this.patchRe({datum: v})},
+      zielProps: feld(re.ziel, v => this.patchRe({ziel: v})),
+      faellig: tag(plus(re.datum, tage)),
+      einleitungVorlagen: TEXTE.einleitung,
+      einleitungVorlageProps: {value: undefined, onValueChange: v => {
+        const t = TEXTE.einleitung.find(x => x.name === v);
+        if (t) this.patchRe({einleitung: t.text});
+      }},
+      einleitungProps: feld(re.einleitung, v => this.patchRe({einleitung: v})),
+      schlussVorlagen: TEXTE.schluss,
+      schlussVorlageProps: {value: undefined, onValueChange: v => {
+        const t = TEXTE.schluss.find(x => x.name === v);
+        if (t) this.patchRe({schluss: t.text});
+      }},
+      schlussProps: feld(re.schluss, v => this.patchRe({schluss: v})),
+      gruppen: re.gruppen.map((g, gi) => ({
+        wann: g.wann, art: g.art, farbe: g.farbe, gewaehlt: g.gewaehlt,
+        checkProps: {checked: g.gewaehlt, onCheckedChange: v => this.setState(s => ({re: {...s.re,
+          gruppen: s.re.gruppen.map((x, i) => i === gi ? {...x, gewaehlt: v === true} : x)}}))},
+        summe: euro(g.positionen.reduce((s, p) => s + (Number(p.menge) || 1) * centAus(p.betragText), 0)),
+        positionen: g.positionen.map((p, pi) => ({
+          mengeProps: feld(p.menge, v => this.patchPosition(gi, pi, {menge: v})),
+          textProps: feld(p.text, v => this.patchPosition(gi, pi, {text: v})),
+          zifferProps: feld(p.ziffer, v => this.patchPosition(gi, pi, {ziffer: v})),
+          betragProps: feld(p.betragText, v => this.patchPosition(gi, pi, {betragText: v})),
+          onEntfernen: () => this.setState(s => ({re: {...s.re, gruppen: s.re.gruppen.map((x, i) => i !== gi ? x
+            : {...x, positionen: x.positionen.filter((y, j) => j !== pi)})}}))
+        }))
+      })),
+      hatFreie: re.freie.length > 0,
+      freie: re.freie.map((p, pi) => ({
+        mengeProps: feld(p.menge, v => this.patchFreie(pi, {menge: v})),
+        textProps: feld(p.text, v => this.patchFreie(pi, {text: v})),
+        zifferProps: feld(p.ziffer, v => this.patchFreie(pi, {ziffer: v})),
+        betragProps: feld(p.betragText, v => this.patchFreie(pi, {betragText: v})),
+        onEntfernen: () => this.setState(s => ({re: {...s.re,
+          freie: s.re.freie.filter((y, j) => j !== pi)}}))
+      })),
+      katalogProps: {value: undefined, onValueChange: v => {
+        const l = LEISTUNGEN.find(x => x.text === v);
+        if (l) this.setState(s => ({re: {...s.re, freie: s.re.freie.concat(
+          [{menge: 1, text: l.text, ziffer: l.ziffer, betragText: euro(l.cent)}])}}));
+      }},
+      onFreiePosition: () => this.setState(s => ({re: {...s.re, freie: s.re.freie.concat(
+        [{menge: 1, text: 'Freie Position', ziffer: '', betragText: '0,00 €'}])}})),
+      summe: euro(this.reSumme(re)),
+      onAbbrechen: () => this.setState({re: null}),
+      onEntwurf: () => this.reAbschliessen(false),
+      onFestschreiben: () => this.reAbschliessen(true)
+    };
+  }
+
+  /** Die Leseansicht einer festgeschriebenen Rechnung. */
+  leseWerte(){
+    const r = this.state.rd && this.state.rechnungen.find(x => x.id === this.state.rd);
+    if (!r) return {offen: false, positionen: []};
+    const zustand = this.zustand(r);
+    const faellig = plus(r.iso, r.ziel || ZIEL_TAGE);
+    const ueberfaellig = r.stufe === 'offen' && faellig < HEUTE;
+    return {
+      offen: true,
+      nummer: r.nummer || 'Entwurf',
+      kontakt: r.kontakt,
+      hatFuer: !!r.fuer,
+      fuer: r.fuer ? 'für ' + r.fuer : '',
+      datum: tag(r.iso),
+      ziel: r.ziel || ZIEL_TAGE,
+      faellig: tag(faellig),
+      status: zustand,
+      statusVariante: zustand === 'Offen' ? 'outline' : 'secondary',
+      hinweis: ueberfaellig
+        ? 'überfällig seit ' + tag(faellig)
+        : (r.stufe === 'bezahlt' ? 'abgeschlossen am ' + tag(r.bezahltAm) : 'festgeschrieben'),
+      einleitung: r.einleitung || TEXTE.einleitung[0].text,
+      schluss: r.schluss || TEXTE.schluss[0].text,
+      positionen: (r.positionen || []).map(p => ({
+        menge: p.menge, text: p.text, ziffer: p.ziffer,
+        betrag: euro(p.menge * p.cent),
+        hatVorgang: !!p.wann, vorgang: p.wann
+      })),
+      summe: euro(r.cent),
+      zahlZeile: r.stufe === 'bezahlt'
+        ? euro(r.bezahlt) + ' bezahlt am ' + tag(r.bezahltAm)
+        : euro(r.bezahlt) + ' bezahlt · ' + euro(r.cent - r.bezahlt) + ' offen',
+      lesen: !this.state.re,
+      bearbeiten: !!(this.state.re && this.state.re.id === r.id),
+      kannBearbeiten: r.stufe === 'entwurf',
+      onBearbeiten: () => this.entwurfBearbeiten(r),
+      kannZahlen: r.stufe === 'offen',
+      onBezahlt: () => { this.bezahlt(r.id); this.setState({rd: null}); },
+      onSchliessen: () => this.setState({rd: null, re: null})
+    };
+  }
+
+  renderVals(){
+    const st = this.state;
+    const allePosten = st.vorgaenge.reduce((liste, vg) => liste.concat(vg.posten), []);
+    const gewaehltePosten = allePosten.filter(p => this.gewaehltIst(p.id));
+    const kontakteGewaehlt = st.vorgaenge
+      .filter(vg => vg.posten.some(p => this.gewaehltIst(p.id)))
+      .map(vg => vg.kontakt)
+      .filter((name, i, alle) => alle.indexOf(name) === i);
+
+    const entwuerfe = st.rechnungen.filter(r => r.stufe === 'entwurf');
+    const offene = st.rechnungen.filter(r => r.stufe === 'offen');
+    const bezahlte = st.rechnungen.filter(r => r.stufe === 'bezahlt');
+    const offenCent = offene.reduce((s, r) => s + (r.cent - r.bezahlt), 0);
+    const ueberfaellige = offene.filter(r => plus(r.iso, ZIEL_TAGE) < HEUTE);
+    /** Entwürfe zuerst, dann die offenen nach Fälligkeit, zuletzt das Erledigte. */
+    const alle = entwuerfe
+      .concat(offene.slice().sort((a, b) => a.iso < b.iso ? -1 : 1))
+      .concat(bezahlte.slice().sort((a, b) => a.bezahltAm > b.bezahltAm ? -1 : 1));
+    const passt = {
+      'Entwurf': r => r.stufe === 'entwurf',
+      'Offen': r => r.stufe === 'offen',
+      'Überfällig': r => r.stufe === 'offen' && plus(r.iso, r.ziel || ZIEL_TAGE) < HEUTE,
+      'Bezahlt': r => r.stufe === 'bezahlt' && r.hinweis !== 'Storniert',
+      'Storniert': r => r.hinweis === 'Storniert'
+    };
+    const gefiltert = st.filter ? alle.filter(passt[st.filter]) : alle;
+    const aktiveSpalten = SPALTEN.filter(sp => st.sichtbareSpalten.indexOf(sp.key) !== -1);
+    /** Ohne Sortierung bleibt die Reihenfolge des Geldes: Entwurf, offen, erledigt. */
+    const reihen = st.sort.key
+      ? gefiltert.slice().sort((a, b) => {
+          const links = this.sortWert(a, st.sort.key);
+          const rechts = this.sortWert(b, st.sort.key);
+          if (links === rechts) return 0;
+          return (links < rechts ? -1 : 1) * (st.sort.ab ? -1 : 1);
+        })
+      : gefiltert;
+    const knopf = (label, wert) => ({
+      label,
+      anzahl: wert ? alle.filter(passt[wert]).length : alle.length,
+      /* zurücksetzen, damit nach dem Filtern nichts halb Sortiertes stehen bleibt */
+      onClick: () => this.setState({filter: wert}),
+      rahmen: st.filter === wert ? 'var(--primary)' : 'var(--border)',
+      bg: st.filter === wert ? 'color-mix(in oklab, var(--primary) 12%, var(--card))' : 'var(--card)',
+      farbe: st.filter === wert ? 'var(--foreground)' : 'var(--muted-foreground)'
+    });
+
+    return {
+      theme: this.props.theme ?? 'schiefer',
+      istVorgaenge: st.tab === 'vorgaenge',
+      istRechnungen: st.tab === 'rechnungen',
+      tabs: [
+        {
+          label: 'Offene Vorgänge',
+          anzahl: allePosten.length + (allePosten.length === 1 ? ' Position' : ' Positionen'),
+          wert: euro(summeVon(allePosten)),
+          wertLabel: 'abrechenbar',
+          wertFarbe: 'var(--foreground)',
+          zusatz: st.vorgaenge.length + (st.vorgaenge.length === 1 ? ' Vorgang · ' : ' Vorgänge · ')
+            + allePosten.length + (allePosten.length === 1 ? ' Position' : ' Positionen'),
+          hatWarnung: false,
+          warnung: '',
+          aktiv: st.tab === 'vorgaenge',
+          /* Zurück in die Liste — ein offener Entwurf wird dabei verlassen. */
+          onClick: () => this.setState({tab: 'vorgaenge', re: null, rd: null}),
+          rahmen: st.tab === 'vorgaenge' ? 'var(--primary)' : 'var(--border)',
+          bg: st.tab === 'vorgaenge' ? 'color-mix(in oklab, var(--primary) 8%, var(--card))' : 'var(--card)',
+          schatten: st.tab === 'vorgaenge' ? '0 1px 2px oklch(25% .012 62 / .08)' : 'none'
+        },
+        {
+          label: 'Rechnungen',
+          anzahl: alle.length + (alle.length === 1 ? ' Rechnung' : ' Rechnungen'),
+          wert: euro(offenCent),
+          wertLabel: 'offen',
+          wertFarbe: ueberfaellige.length ? 'var(--destructive)' : 'var(--foreground)',
+          zusatz: entwuerfe.length + (entwuerfe.length === 1 ? ' Entwurf · ' : ' Entwürfe · ')
+            + offene.length + ' offen',
+          hatWarnung: ueberfaellige.length > 0,
+          warnung: ueberfaellige.length === 1
+            ? '1 Rechnung überfällig'
+            : ueberfaellige.length + ' Rechnungen überfällig',
+          aktiv: st.tab === 'rechnungen',
+          onClick: () => this.setState({tab: 'rechnungen'}),
+          rahmen: st.tab === 'rechnungen' ? 'var(--primary)' : 'var(--border)',
+          bg: st.tab === 'rechnungen' ? 'color-mix(in oklab, var(--primary) 8%, var(--card))' : 'var(--card)',
+          schatten: st.tab === 'rechnungen' ? '0 1px 2px oklch(25% .012 62 / .08)' : 'none'
+        }
+      ],
+      keineVorgaenge: st.vorgaenge.length === 0,
+      leistungen: LEISTUNGEN.map(l => ({text: l.text, betrag: euro(l.cent)})),
+      re: this.entwurfWerte(),
+      rd: this.leseWerte(),
+      spaltenZahl: aktiveSpalten.length,
+      rechnungNeu: this.rechnungNeu,
+      zeigeVorgaenge: st.tab === 'vorgaenge' && !st.re,
+      zeigeRechnungen: st.tab === 'rechnungen',
+      auswahlText: gewaehltePosten.length === 0
+        ? 'Vergangene Vorgänge, deren Positionen auf keiner Rechnung stehen. Abgerechnet wird je Kontakt.'
+        : gewaehltePosten.length + (gewaehltePosten.length === 1 ? ' Position gewählt · ' : ' Positionen gewählt · ')
+          + euro(summeVon(gewaehltePosten))
+          + ' · bei ' + (kontakteGewaehlt.length === 1 ? '1 Kontakt' : kontakteGewaehlt.length + ' Kontakten'),
+      entwuerfeErstellen: this.entwuerfeErstellen,
+      kontakte: this.nachKontakt().map(gruppe => {
+        const alleIds = gruppe.vorgaenge.reduce((liste, vg) => liste.concat(vg.posten.map(p => p.id)), []);
+        const alleGewaehlt = alleIds.every(id => this.gewaehltIst(id));
+        const einigeGewaehlt = !alleGewaehlt && alleIds.some(id => this.gewaehltIst(id));
+        return {
+          boxId: 'k-' + gruppe.nr,
+          boxProps: {checked: alleGewaehlt ? true : (einigeGewaehlt ? 'indeterminate' : false),
+            onCheckedChange: v => this.schalten(alleIds, v === true)},
+          kontakt: gruppe.kontakt,
+          nr: gruppe.nr,
+          anzahlText: gruppe.vorgaenge.length === 1 ? '1 Vorgang' : gruppe.vorgaenge.length + ' Vorgänge',
+          hatAuswahl: alleIds.some(id => this.gewaehltIst(id)),
+          auswahlText: (() => {
+            const gewaehlt = gruppe.vorgaenge.reduce((liste, vg) =>
+              liste.concat(vg.posten.filter(p => this.gewaehltIst(p.id))), []);
+            return gewaehlt.length + (gewaehlt.length === 1 ? ' Position · ' : ' Positionen · ')
+              + euro(summeVon(gewaehlt));
+          })(),
+          /** Abgerechnet wird je Kontakt — der Entwurf entsteht in der Akte,
+           *  im selben Editor wie dort. */
+          onRechnung: () => this.rechnungStarten(gruppe),
+          summe: euro(gruppe.vorgaenge.reduce((s, vg) => s + summeVon(vg.posten), 0)),
+          rahmen: alleGewaehlt || einigeGewaehlt ? 'var(--primary)' : 'var(--border)',
+          kopfBg: alleGewaehlt || einigeGewaehlt ? 'color-mix(in oklab, var(--primary) 7%, var(--card))' : 'color-mix(in oklab, var(--muted) 40%, var(--card))',
+          vorgaenge: gruppe.vorgaenge.map(vg => {
+        const ids = vg.posten.map(p => p.id);
+        const alle = ids.every(id => this.gewaehltIst(id));
+        const einige = !alle && ids.some(id => this.gewaehltIst(id));
+        return {
+          boxId: 'vg-' + vg.id,
+          boxProps: {checked: alle ? true : (einige ? 'indeterminate' : false),
+            onCheckedChange: v => this.schalten(ids, v === true)},
+          datum: tag(vg.iso),
+          art: vg.art,
+          farbe: ARTFARBE[vg.art],
+          titel: vg.titel,
+          hatTitel: !!vg.titel,
+          status: vg.status,
+          zeigeStatus: vg.status !== 'Stattgefunden',
+          statusVariante: vg.status === 'Nicht erschienen' ? 'secondary' : 'outline',
+          summe: euro(summeVon(vg.posten)),
+          posten: vg.posten.map(p => ({
+            boxId: 'p-' + p.id,
+            boxProps: {checked: this.gewaehltIst(p.id), onCheckedChange: v => this.schalten([p.id], v === true)},
+            menge: p.menge, text: p.text, betrag: euro(p.menge * p.cent),
+            bg: this.gewaehltIst(p.id) ? 'color-mix(in oklab, var(--primary) 5%, var(--card))' : 'var(--card)'
+          }))
+        };
+          })
+        };
+      }),
+
+      keineGestellt: reihen.length === 0,
+      gestelltText: entwuerfe.length + (entwuerfe.length === 1 ? ' Entwurf · ' : ' Entwürfe · ')
+        + offene.length + ' offen · ' + euro(offenCent) + ' ausstehend',
+      filter: [
+        knopf('Alle', null), knopf('Entwurf', 'Entwurf'), knopf('Offen', 'Offen'),
+        knopf('Überfällig', 'Überfällig'),
+        knopf('Bezahlt', 'Bezahlt'), knopf('Storniert', 'Storniert')
+      ],
+      spaltenOffen: st.spaltenOffen,
+      spaltenUmschalten: () => this.setState(s => ({spaltenOffen: !s.spaltenOffen})),
+      spaltenSchliessen: () => this.setState({spaltenOffen: false}),
+      spalten: SPALTEN.map(sp => ({
+        label: sp.label,
+        props: {checked: st.sichtbareSpalten.indexOf(sp.key) !== -1,
+          onCheckedChange: v => this.spalteSchalten(sp.key, v === true)}
+      })),
+      koepfe: aktiveSpalten.map(sp => ({
+        label: sp.label,
+        cls: sp.cls || '',
+        justify: sp.rechts ? 'flex-end' : 'flex-start',
+        sortierbar: sp.sortierbar !== false,
+        festerKopf: sp.sortierbar === false,
+        pfeil: st.sort.key === sp.key ? (st.sort.ab ? '▼' : '▲') : '',
+        onSort: () => this.sortieren(sp.key)
+      })),
+      gestellt: reihen.map(r => {
+        const zustand = this.zustand(r);
+        const entwurf = r.stufe === 'entwurf';
+        const erledigt = r.stufe === 'bezahlt';
+        const faellig = plus(r.iso, ZIEL_TAGE);
+        const ueberfaellig = r.stufe === 'offen' && faellig < HEUTE;
+        const tage = ueberfaellig ? tageSeit(faellig) : 0;
+        const werte = {
+          nummer: entwurf ? 'Entwurf' : r.nummer,
+          kontakt: r.fuer ? r.kontakt + ' · für ' + r.fuer : r.kontakt,
+          datum: tag(r.iso),
+          faellig: entwurf ? '—' : tag(faellig),
+          status: zustand,
+          betrag: euro(r.cent),
+          offen: erledigt ? '—' : euro(r.cent - r.bezahlt),
+          aktion: ''
+        };
+        return {
+          zeilenKlasse: ueberfaellig ? 'bg-destructive/5' : '',
+          offen: st.rd === r.id,
+          onOeffnen: () => this.rechnungOeffnen(r),
+          zellen: aktiveSpalten.map(sp => ({
+            cls: sp.cls || '',
+            text: werte[sp.key],
+            istLink: sp.typ === 'link',
+            istFaellig: sp.typ === 'faellig',
+            istStatus: sp.typ === 'status',
+            istAktion: sp.typ === 'aktion',
+            istText: sp.typ === 'text',
+            warnung: ueberfaellig,
+            warnungText: tage === 1 ? 'seit 1 Tag' : 'seit ' + tage + ' Tagen',
+            variante: zustand === 'Offen' || zustand === 'Entwurf' ? 'outline' : 'secondary',
+            hatZusatz: erledigt || r.bezahlt > 0,
+            zusatz: erledigt
+              ? (zustand === 'Storniert' ? 'am ' + tag(r.bezahltAm) : 'bezahlt am ' + tag(r.bezahltAm))
+              : euro(r.bezahlt) + ' bezahlt',
+            istEntwurf: entwurf,
+            istOffen: r.stufe === 'offen',
+            onOeffnen: () => this.rechnungOeffnen(r),
+            onFestschreiben: () => this.festschreiben(r.id),
+            onBezahlt: () => this.bezahlt(r.id)
+          }))
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

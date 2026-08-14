@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+fieldset[disabled] input,fieldset[disabled] textarea,fieldset[disabled] [data-slot="select-trigger"]{
+  opacity:1!important;background:transparent!important;border-color:transparent!important;
+  box-shadow:none!important;color:var(--foreground)!important;padding-left:0!important;cursor:default!important;
+}
+fieldset[disabled] [data-slot="select-trigger"] svg{display:none}
+fieldset[disabled] textarea{resize:none!important}
+[data-slot-frei]:hover{background:color-mix(in oklab,var(--primary) 12%,transparent)!important}
+[data-termin]:hover{filter:brightness(.97)}
+@media (max-width:1180px){[data-leiste=links]{display:none!important}}
+@media (max-width:1040px){
+[data-leiste=rechts][data-modus=overlay]{position:absolute!important;right:0;top:0;bottom:0;z-index:20;box-shadow:-10px 0 30px rgba(0,0,0,.14)}
+[data-leiste=rechts][data-modus=ruhe]{display:none!important}
+}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5">
+<dc-import name="AppSidebar" active="Kalender" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Kalender" seite="Kalender" hint-size="100%,56px"></dc-import>
+<div style="position:relative;display:flex;flex:1;min-width:0;overflow:hidden">
+
+<aside data-leiste="links" style="display:flex;flex-direction:column;gap:22px;width:238px;flex-shrink:0;padding:16px 16px 28px;border-right:1px solid var(--border);background:var(--card);overflow:auto">
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.neuerTermin }}" className="w-full" size="sm" hint-size="100%,32px">Neuer Termin</x-import>
+
+<div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:9px">
+<button onClick="{{ v.miniZurueck }}" aria-label="Vorheriger Monat" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:5px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"></path></svg>
+</button>
+<span style="font-weight:600;font-size:13.5px">{{ v.miniTitel }}</span>
+<button onClick="{{ v.miniVor }}" aria-label="Nächster Monat" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:5px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l6 6-6 6"></path></svg>
+</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">
+<sc-for list="{{ v.wtKurz }}" as="w" hint-placeholder-count="7">
+<span style="padding-bottom:3px;text-align:center;font-size:10.5px;color:var(--muted-foreground)">{{ w }}</span>
+</sc-for>
+<sc-for list="{{ v.miniTage }}" as="d" hint-placeholder-count="35">
+<button onClick="{{ d.onClick }}" class="tabular-nums" style="position:relative;display:flex;align-items:center;justify-content:center;height:26px;border-radius:5px;font-size:12px;background:{{ d.bg }};color:{{ d.fg }};font-weight:{{ d.fw }}" style-hover="outline:1px solid var(--border)">{{ d.nr }}<span style="position:absolute;bottom:3px;left:50%;width:3px;height:3px;margin-left:-1.5px;border-radius:999px;background:{{ d.punkt }}"></span></button>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<p style="margin:0;font-weight:600;font-size:13.5px">Freien Termin finden</p>
+<div style="display:flex;flex-direction:column;gap:5px">
+<sc-for list="{{ v.freiArten }}" as="a" hint-placeholder-count="4">
+<button onClick="{{ a.onClick }}" style="display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid {{ a.rahmen }};border-radius:8px;background:{{ a.bg }};text-align:left">
+<span style="width:10px;height:10px;flex-shrink:0;border-radius:3px;background:{{ a.farbe }}"></span>
+<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;font-weight:{{ a.fw }};color:{{ a.fg }}">{{ a.name }}</span>
+<span class="tabular-nums" style="color:{{ a.fg2 }};font-size:12.5px">{{ a.dauer }}</span>
+</button>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;padding-top:6px;border-top:1px solid var(--border)">
+<span style="color:var(--muted-foreground);font-size:12.5px">Oder nach freier Dauer</span>
+<div style="display:flex;gap:5px">
+<sc-for list="{{ v.freiDauern }}" as="d" hint-placeholder-count="3">
+<button onClick="{{ d.onClick }}" class="tabular-nums" style="display:flex;align-items:center;justify-content:center;flex:1;height:34px;border:1px solid {{ d.rahmen }};border-radius:7px;background:{{ d.bg }};color:{{ d.fg }};font-size:13px;font-weight:{{ d.fw }};line-height:1">{{ d.label }}</button>
+</sc-for>
+</div>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12.5px;line-height:1.45">{{ v.freiHinweis }}</p>
+<button onClick="{{ v.freiAus }}" style="display:{{ v.freiAusAn }};align-self:flex-start;color:var(--primary);font-size:12.5px;font-weight:600" style-hover="color:var(--foreground)">Auswahl aufheben</button>
+</div>
+
+</aside>
+
+<section style="display:flex;flex-direction:column;flex:1;min-width:0">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--card)">
+<div style="display:flex;align-items:center;gap:12px;min-width:0">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" onClick="{{ v.heute }}" hint-size="66px,32px">Heute</x-import>
+<div style="display:flex;align-items:center;gap:2px">
+<button onClick="{{ v.zurueck }}" aria-label="Zurück" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"></path></svg>
+</button>
+<button onClick="{{ v.vor }}" aria-label="Vor" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l6 6-6 6"></path></svg>
+</button>
+</div>
+<h1 style="margin:0;font-size:19px;font-weight:600;letter-spacing:-.015em;white-space:nowrap">{{ v.titel }}</h1>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px;white-space:nowrap">{{ v.untertitel }}</span>
+</div>
+<div style="display:flex;gap:2px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--background)">
+<sc-for list="{{ v.ansichten }}" as="a" hint-placeholder-count="4">
+<button onClick="{{ a.onClick }}" style="height:26px;padding:0 12px;border-radius:6px;font-size:13px;font-weight:{{ a.fw }};background:{{ a.bg }};color:{{ a.fg }}">{{ a.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div ref="{{ v.scrollRef }}" style="flex:1;min-width:0;overflow:auto">
+
+<sc-if value="{{ v.istRaster }}" hint-placeholder-val="{{ true }}">
+<div style="min-width:600px">
+<div style="position:sticky;top:0;z-index:4;display:flex;border-bottom:1px solid var(--border);background:var(--card)">
+<div style="width:58px;flex-shrink:0"></div>
+<sc-for list="{{ v.tage }}" as="tag" hint-placeholder-count="7">
+<div style="flex:{{ tag.flex }};min-width:0;padding:8px 8px 7px;border-left:1px solid var(--border);background:{{ tag.kopfBg }}">
+<p style="margin:0;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:{{ tag.kopfFg }}">{{ tag.wt }}</p>
+<p class="tabular-nums" style="margin:1px 0 0;font-size:16px;font-weight:{{ tag.kopfFw }};letter-spacing:-.01em;color:{{ tag.kopfFg2 }}">{{ tag.tagNr }}</p>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;padding-top:9px">
+<div style="width:58px;flex-shrink:0">
+<sc-for list="{{ v.zeitleiste }}" as="z" hint-placeholder-count="20">
+<div style="position:relative;height:{{ z.hoehe }}px">
+<span class="tabular-nums" style="position:absolute;top:-8px;right:9px;font-size:11.5px;color:{{ z.fg }}">{{ z.label }}</span>
+</div>
+</sc-for>
+</div>
+<sc-for list="{{ v.tage }}" as="tag" hint-placeholder-count="7">
+<div style="position:relative;flex:{{ tag.flex }};min-width:0;border-left:1px solid var(--border);background:{{ tag.spalteBg }}">
+<sc-for list="{{ tag.zellen }}" as="z" hint-placeholder-count="20">
+<div data-slot-frei="1" onClick="{{ z.onClick }}" onDragOver="{{ z.onDragOver }}" onDrop="{{ z.onDrop }}" style="height:{{ z.hoehe }}px;border-top:1px solid {{ z.linie }};background:{{ z.bg }};cursor:{{ z.cursor }}"></div>
+</sc-for>
+<sc-for list="{{ tag.frei }}" as="f" hint-placeholder-count="0">
+<button onClick="{{ f.onClick }}" title="{{ f.tooltip }}" style="position:absolute;left:3px;right:3px;top:{{ f.top }}px;height:{{ f.hoehe }}px;display:flex;flex-direction:column;justify-content:center;overflow:hidden;padding:3px 7px;border:1px dashed color-mix(in oklab,var(--primary) 50%,transparent);border-radius:6px;background:color-mix(in oklab,var(--primary) 8%,transparent);color:var(--primary);font-size:11.5px;line-height:1.25;text-align:left" style-hover="background:color-mix(in oklab,var(--primary) 18%,transparent)"><span class="tabular-nums" style="font-weight:600">{{ f.zeit }}</span><span style="display:{{ f.artAn }};opacity:.75">{{ f.art }}</span></button>
+</sc-for>
+<sc-if value="{{ tag.entwurfAn }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:3px;right:3px;top:{{ tag.entwurfTop }}px;height:{{ tag.entwurfHoehe }}px;z-index:6;overflow:hidden;padding:4px 8px;border:2px solid {{ tag.entwurfTon }};border-radius:7px;background:color-mix(in oklab,{{ tag.entwurfTon }} 22%,var(--card));box-shadow:0 4px 14px color-mix(in oklab,{{ tag.entwurfTon }} 30%,transparent);font-size:12.5px;line-height:1.3">
+<p class="tabular-nums" style="margin:0;display:flex;align-items:center;gap:4px;color:{{ tag.entwurfTon }};font-size:11.5px;font-weight:600">
+<span style="display:{{ tag.entwurfMiniWarnAn }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 1.8 20.5h20.4z"></path><path d="M12 10v4.5M12 17.6v.01"></path></svg></span>{{ tag.entwurfZeit }}
+</p>
+<p style="margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ tag.entwurfName }}</p>
+<p style="margin:0;display:{{ tag.entwurfArtAn }};color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ tag.entwurfArt }}</p>
+<p style="margin:1px 0 0;display:{{ tag.entwurfWarnAn }};align-items:center;gap:4px;color:var(--destructive);font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true"><path d="M12 3.5 1.8 20.5h20.4z"></path><path d="M12 10v4.5M12 17.6v.01"></path></svg>Überschneidet sich
+</p>
+</div>
+</sc-if>
+<sc-for list="{{ tag.termine }}" as="t" hint-placeholder-count="5">
+<div data-termin="1" draggable="{{ t.ziehbar }}" onDragStart="{{ t.onDragStart }}" onDragEnd="{{ t.onDragEnd }}" onClick="{{ t.onClick }}" title="{{ t.tooltip }}" style="position:absolute;left:{{ t.links }};right:3px;width:{{ t.breite }};top:{{ t.top }}px;height:{{ t.hoehe }}px;z-index:2;overflow:hidden;padding:{{ t.polster }};border:{{ t.rand }};border-left:{{ t.randLinks }};border-radius:6px;background:{{ t.bg }};opacity:{{ t.deckung }};box-shadow:{{ t.schatten }};cursor:pointer;font-size:12.5px;line-height:1.3">
+<p class="tabular-nums" style="margin:0;color:{{ t.fg2 }};font-size:11.5px">{{ t.zeit }}</p>
+<p style="margin:0;font-weight:600;color:{{ t.fg }};text-decoration:{{ t.deko }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.kunde }}</p>
+<p style="margin:0;display:{{ t.zeileArt }};color:{{ t.fg2 }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.zusatz }}</p>
+</div>
+</sc-for>
+<div style="position:absolute;left:0;right:0;top:{{ tag.jetztTop }}px;z-index:3;display:{{ tag.jetztAn }};height:1px;background:var(--destructive)">
+<span style="position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:999px;background:var(--destructive)"></span>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.istMonat }}" hint-placeholder-val="{{ false }}">
+<div style="padding:16px 20px 24px">
+<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)">
+<sc-for list="{{ v.wtLang }}" as="w" hint-placeholder-count="7">
+<div style="padding:7px 10px;border-bottom:1px solid var(--border);background:var(--muted);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground)">{{ w }}</div>
+</sc-for>
+<sc-for list="{{ v.monatTage }}" as="d" hint-placeholder-count="35">
+<div onClick="{{ d.onClick }}" style="display:flex;flex-direction:column;gap:3px;min-height:112px;padding:7px 8px;border-top:1px solid {{ d.linie }};border-left:1px solid var(--border);background:{{ d.bg }};cursor:pointer" style-hover="background:var(--accent)">
+<span class="tabular-nums" style="align-self:flex-start;padding:1px 6px;border-radius:999px;background:{{ d.nrBg }};color:{{ d.fg }};font-size:12.5px;font-weight:{{ d.fw }}">{{ d.nr }}</span>
+<sc-for list="{{ d.termine }}" as="t" hint-placeholder-count="3">
+<button onClick="{{ t.onClick }}" style="display:flex;align-items:center;gap:5px;width:100%;min-width:0;padding:1px 3px;border-radius:4px;font-size:11.5px" style-hover="background:var(--background)">
+<span style="width:6px;height:6px;flex-shrink:0;border-radius:999px;background:{{ t.farbe }}"></span>
+<span class="tabular-nums" style="color:var(--muted-foreground)">{{ t.zeit }}</span>
+<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;text-decoration:{{ t.deko }}">{{ t.kunde }}</span>
+</button>
+</sc-for>
+<span style="display:{{ d.mehrAn }};color:var(--muted-foreground);font-size:11.5px">{{ d.mehr }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.istListe }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:820px;padding:16px 20px 32px;display:flex;flex-direction:column;gap:18px">
+<sc-for list="{{ v.listeTage }}" as="d" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:88px minmax(0,1fr);gap:16px">
+<div style="padding-top:2px">
+<p style="margin:0;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:{{ d.fg }}">{{ d.wt }}</p>
+<p class="tabular-nums" style="margin:1px 0 0;font-size:17px;font-weight:600;letter-spacing:-.01em;color:{{ d.fg2 }}">{{ d.datum }}</p>
+</div>
+<div style="border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden">
+<p style="margin:0;display:{{ d.leerAn }};padding:14px 16px;color:var(--muted-foreground);font-size:13.5px">{{ d.leerText }}</p>
+<sc-for list="{{ d.termine }}" as="t" hint-placeholder-count="4">
+<button onClick="{{ t.onClick }}" style="display:flex;align-items:center;gap:14px;width:100%;padding:11px 16px;border-top:1px solid {{ t.linie }}" style-hover="background:var(--accent)">
+<span class="tabular-nums" style="width:104px;flex-shrink:0;text-align:left;color:var(--muted-foreground);font-size:13px">{{ t.zeit }}</span>
+<span style="width:9px;height:9px;flex-shrink:0;border-radius:2px;background:{{ t.farbe }}"></span>
+<span style="flex:1;min-width:0;text-align:left;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:{{ t.deko }}">{{ t.kunde }}</span>
+<span style="color:var(--muted-foreground);font-size:13px">{{ t.art }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ t.variante }}" hint-size="80px,20px">{{ t.status }}</x-import>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+</div>
+</section>
+
+<aside data-leiste="rechts" data-modus="{{ v.panelModus }}" style="display:flex;flex-direction:column;width:330px;flex-shrink:0;border-left:1px solid var(--border);background:var(--card);overflow:auto">
+
+<sc-if value="{{ v.panelTag }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:18px 20px 28px">
+<div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px;letter-spacing:.04em;text-transform:uppercase">Tagesüberblick</p>
+<p style="margin:3px 0 0;font-size:17px;font-weight:600;letter-spacing:-.015em">{{ v.tagTitel }}</p>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+<sc-for list="{{ v.tagZahlen }}" as="z" hint-placeholder-count="3">
+<div style="padding:9px 10px;border:1px solid var(--border);border-radius:8px">
+<p class="tabular-nums" style="margin:0;font-size:19px;font-weight:600;letter-spacing:-.02em;color:{{ z.fg }}">{{ z.wert }}</p>
+<p style="margin:1px 0 0;color:var(--muted-foreground);font-size:11.5px">{{ z.label }}</p>
+</div>
+</sc-for>
+</div>
+<div style="padding:11px 12px;border:1px solid color-mix(in oklab,var(--primary) 30%,var(--border));border-radius:8px;background:color-mix(in oklab,var(--primary) 6%,transparent)">
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Nächste freie Zeit</p>
+<p class="tabular-nums" style="margin:2px 0 0;font-weight:600">{{ v.naechsteLuecke }}</p>
+<button onClick="{{ v.luckeNutzen }}" style="display:{{ v.lueckeAn }};margin-top:6px;color:var(--primary);font-size:13px;font-weight:600" style-hover="color:var(--foreground)">Termin dort anlegen</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:1px">
+<p style="margin:0 0 5px;font-weight:600;font-size:13.5px">Ablauf</p>
+<p style="margin:0;display:{{ v.tagLeerAn }};color:var(--muted-foreground);font-size:13.5px">Keine Termine an diesem Tag.</p>
+<sc-for list="{{ v.tagListe }}" as="t" hint-placeholder-count="6">
+<button onClick="{{ t.onClick }}" style="display:flex;align-items:center;gap:10px;width:100%;padding:6px 7px;border-radius:6px" style-hover="background:var(--accent)">
+<span class="tabular-nums" style="width:44px;flex-shrink:0;text-align:left;color:var(--muted-foreground);font-size:12.5px">{{ t.von }}</span>
+<span style="width:3px;flex-shrink:0;align-self:stretch;border-radius:999px;background:{{ t.farbe }}"></span>
+<span style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:{{ t.deko }};color:{{ t.fg }}">{{ t.kunde }}</span>
+<span style="color:var(--muted-foreground);font-size:12px">{{ t.dauer }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.panelDetail }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;flex:1;min-height:0">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px 13px;border-bottom:1px solid var(--border)">
+<div style="min-width:0">
+<div style="display:flex;align-items:center;gap:7px">
+<span style="width:9px;height:9px;flex-shrink:0;border-radius:2px;background:{{ v.dFarbe }}"></span>
+<span style="color:var(--muted-foreground);font-size:12.5px">{{ v.dArt }}</span>
+</div>
+<p style="margin:4px 0 0;font-size:18px;font-weight:600;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis">{{ v.dKunde }}</p>
+<p class="tabular-nums" style="margin:2px 0 0;color:var(--muted-foreground);font-size:13px">{{ v.dWann }}</p>
+</div>
+<button onClick="{{ v.schliessen }}" aria-label="Schließen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+</button>
+</div>
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" dc-props="{{ v.fieldsetProps }}" hint-size="100%,320px">
+<div style="display:flex;flex-direction:column;gap:14px;padding:16px 20px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-art" hint-size="40px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.artProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="t-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="120px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,140px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Erstgespräch" hint-size="100%,32px">Erstgespräch</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Folgesitzung" hint-size="100%,32px">Folgesitzung</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Bericht" hint-size="100%,32px">Bericht</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Praxis-intern" hint-size="100%,32px">Praxis-intern</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="t-datum" dc-props="{{ v.datumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-status" hint-size="46px,16px">Status</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.statusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="t-status" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,170px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Angefragt" hint-size="100%,32px">Angefragt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Bestätigt" hint-size="100%,32px">Bestätigt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Abgesagt" hint-size="100%,32px">Abgesagt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Kurzfristig abgesagt" hint-size="100%,32px">Kurzfristig abgesagt</x-import>
+</x-import>
+</x-import>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-von" hint-size="36px,16px">Von</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="t-von" dc-props="{{ v.vonProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-bis" hint-size="30px,16px">Bis</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="t-bis" dc-props="{{ v.bisProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-dauer" hint-size="52px,16px">Dauer</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="t-dauer" dc-props="{{ v.dauerProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+<sc-if value="{{ v.dIstVorgang }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-vgstatus" hint-size="120px,16px">Status des Vorgangs</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.dVgStatusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="t-vgstatus" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Stattgefunden" hint-size="100%,32px">Stattgefunden</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Nicht erschienen" hint-size="100%,32px">Nicht erschienen</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-titel" hint-size="150px,16px">Bezeichnung <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="t-titel" dc-props="{{ v.dTitelProps }}" hint-size="100%,36px"></x-import>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="t-notiz" hint-size="46px,16px">Notiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="t-notiz" rows="3" dc-props="{{ v.notizProps }}" hint-size="100%,72px"></x-import>
+</div>
+</div>
+</x-import>
+<sc-if value="{{ v.dIstVorgang }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:9px;padding:0 20px 16px">
+<p style="margin:0;font-weight:600;font-size:13.5px">Positionen</p>
+<p style="margin:0;display:{{ v.dPosLeerAn }};color:var(--muted-foreground);font-size:13px">Noch keine Position.</p>
+<sc-for list="{{ v.dPositionen }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;align-items:baseline;gap:12px;padding-bottom:7px;border-bottom:1px solid var(--border);font-size:13.5px">
+<span class="tabular-nums" style="width:22px;flex-shrink:0;color:var(--muted-foreground)">{{ p.menge }}×</span>
+<span style="flex:1;min-width:0">{{ p.text }}</span>
+<span class="tabular-nums">{{ p.betrag }}</span>
+</div>
+</sc-for>
+<p style="margin:0;display:flex;justify-content:space-between;gap:12px;font-size:13.5px"><span>Abrechenbar</span><span class="tabular-nums" style="font-weight:600">{{ v.dSumme }}</span></p>
+</div>
+</sc-if>
+<div style="display:{{ v.dLesenAn }};flex-direction:column;gap:9px;padding:2px 20px 18px">
+<a href="Kontaktdetail.dc.html" style="display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;text-decoration:none">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 20v-1.5A3.5 3.5 0 0 0 11.5 15h-4A3.5 3.5 0 0 0 4 18.5V20M9.5 5.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.4"></path></svg>Kontakt öffnen
+</a>
+<a href="Kontaktdetail.dc.html" style="display:{{ v.dVorgangLinkAn }};align-items:center;gap:7px;font-size:13.5px;font-weight:600;text-decoration:none">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 3h6v3H9zM9 12h6M9 16h4"></path></svg>Vorgang im Kontakt öffnen
+</a>
+<p style="margin:0;display:{{ v.dVorgangAn }};color:var(--muted-foreground);font-size:12.5px">{{ v.dVorgangText }}</p>
+</div>
+<div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:1px solid var(--border);background:var(--card)">
+<div style="display:{{ v.dLesenAn }};align-items:center;gap:8px;width:100%">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" onClick="{{ v.absagen }}" hint-size="86px,32px">Absagen</x-import>
+<span style="flex:1"></span>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.bearbeiten }}" hint-size="96px,32px">Bearbeiten</x-import>
+</div>
+<div style="display:{{ v.dEditAn }};align-items:center;gap:8px;width:100%;justify-content:flex-end">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" size="sm" onClick="{{ v.abbrechen }}" hint-size="86px,32px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.speichern }}" hint-size="92px,32px">Speichern</x-import>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.panelEntwurf }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;flex:1;min-height:0">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border)">
+<div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px;letter-spacing:.04em;text-transform:uppercase">Neuer Eintrag</p>
+<p class="tabular-nums" style="margin:3px 0 0;font-size:17px;font-weight:600;letter-spacing:-.015em">{{ v.eWann }}</p>
+</div>
+<button onClick="{{ v.schliessen }}" aria-label="Schließen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+</button>
+</div>
+<div style="display:flex;gap:2px;margin:16px 20px 0;padding:3px;border:1px solid var(--border);border-radius:9px;background:var(--background)">
+<sc-for list="{{ v.eModi }}" as="m" hint-placeholder-count="2">
+<button onClick="{{ m.onClick }}" style="display:flex;align-items:center;justify-content:center;flex:1;min-width:0;height:30px;padding:0 10px;border-radius:6px;font-size:12.5px;font-weight:{{ m.fw }};line-height:1;white-space:nowrap;background:{{ m.bg }};color:{{ m.fg }};box-shadow:{{ m.schatten }}">{{ m.label }}</button>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:14px;padding:16px 20px 20px">
+<div style="position:relative;display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-kunde" hint-size="140px,16px">Kontakt <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-kunde" placeholder="Name suchen" dc-props="{{ v.eKundeProps }}" hint-size="100%,36px"></x-import>
+<div style="display:{{ v.eTrefferAn }};position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:22;flex-direction:column;gap:1px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--popover);box-shadow:0 8px 24px rgba(0,0,0,.12)">
+<sc-for list="{{ v.eTreffer }}" as="k" hint-placeholder-count="3">
+<button onClick="{{ k.onClick }}" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;padding:7px 9px;border-radius:6px;font-size:13.5px" style-hover="background:var(--accent)">
+<span>{{ k.name }}</span><span class="tabular-nums" style="color:var(--muted-foreground);font-size:12px">{{ k.nr }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ v.eIstVorgang }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-art" hint-size="40px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.eArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="e-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="120px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,140px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Erstgespräch" hint-size="100%,32px">Erstgespräch · 60 Min</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Folgesitzung" hint-size="100%,32px">Folgesitzung · 45 Min</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Bericht" hint-size="100%,32px">Bericht · 30 Min</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Praxis-intern" hint-size="100%,32px">Praxis-intern</x-import>
+</x-import>
+</x-import>
+</div>
+</sc-if>
+<sc-if value="{{ v.eIstVorgang }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-vgstatus" hint-size="120px,16px">Status des Vorgangs</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.eVgStatusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="e-vgstatus" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Stattgefunden" hint-size="100%,32px">Stattgefunden</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Nicht erschienen" hint-size="100%,32px">Nicht erschienen</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-titel" hint-size="150px,16px">Bezeichnung <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-titel" dc-props="{{ v.eTitelProps }}" hint-size="100%,36px"></x-import>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-datum" dc-props="{{ v.eDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<sc-if value="{{ v.eIstVorgang }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-von" hint-size="36px,16px">Von</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-von" dc-props="{{ v.eVonProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-dauer" hint-size="78px,16px">Dauer <span style="color:var(--muted-foreground);font-weight:400">(Min)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-dauer" dc-props="{{ v.eDauerProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ v.eIstTermin }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-von-t" hint-size="36px,16px">Von</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-von-t" dc-props="{{ v.eVonProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-bis" hint-size="30px,16px">Bis</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-bis" dc-props="{{ v.eBisProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-dauer-t" hint-size="78px,16px">Dauer <span style="color:var(--muted-foreground);font-weight:400">(Min)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="e-dauer-t" dc-props="{{ v.eDauerProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ v.eIstVorgang }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:9px;padding-top:14px;border-top:1px solid var(--border)">
+<p style="margin:0;font-weight:600;font-size:13.5px">Positionen</p>
+<p style="margin:0;display:{{ v.ePosLeerAn }};color:var(--muted-foreground);font-size:13px">Noch keine Position.</p>
+<sc-for list="{{ v.ePositionen }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;flex-direction:column;gap:7px;padding:9px 10px;border:1px solid var(--border);border-radius:8px">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" placeholder="Leistung" hint-size="100%,32px"></x-import>
+<div style="display:flex;align-items:center;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-14 tabular-nums" hint-size="56px,32px"></x-import>
+<span style="color:var(--muted-foreground);font-size:12.5px">×</span>
+<span style="flex:1"></span>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="92px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</div>
+</sc-for>
+<div style="display:flex;align-items:center;gap:8px">
+<span style="flex:1;min-width:0">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.eKatalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog" hint-size="130px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="300px,180px">
+<sc-for list="{{ v.leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.text }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" onClick="{{ v.eFreiePosition }}" hint-size="60px,32px">Frei</x-import>
+</div>
+<p style="margin:0;text-align:right;font-size:13px">Abrechenbar <span class="tabular-nums" style="font-weight:600">{{ v.eSumme }}</span></p>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:6px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="e-notiz" hint-size="46px,16px">Notiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="e-notiz" rows="3" dc-props="{{ v.eNotizProps }}" hint-size="100%,72px"></x-import>
+</div>
+<p style="margin:0;color:{{ v.eHinweisFg }};font-size:12.5px">{{ v.eHinweis }}</p>
+</div>
+<div style="margin-top:auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" size="sm" onClick="{{ v.schliessen }}" hint-size="86px,32px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.anlegen }}" hint-size="112px,32px">{{ v.eAnlegenLabel }}</x-import>
+</div>
+</div>
+</sc-if>
+
+</aside>
+</div>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;oeffnung&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;8–18 Uhr&quot;,&quot;7–20 Uhr&quot;],&quot;default&quot;:&quot;8–18 Uhr&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Kalender&quot;}}">
+/** Kalender einer Ein-Behandler-Praxis. Die Woche entsteht aus wiederkehrenden
+ *  Terminen plus einzelnen Einträgen; Verschiebungen und neue Termine liegen
+ *  im State, damit Ziehen und Anlegen sich echt anfühlen. */
+const ARTEN = [
+  {name:'Erstgespräch', farbe:'oklch(75% .12 85)', dauer:60},
+  {name:'Folgesitzung', farbe:'oklch(72% .1 200)', dauer:45},
+  {name:'Bericht', farbe:'oklch(70% .11 300)', dauer:30},
+  {name:'Praxis-intern', farbe:'oklch(62% .012 250)', dauer:30}
+];
+const ART = Object.fromEntries(ARTEN.map(a => [a.name, a]));
+
+/** Wiederkehrende Termine, Tag 0 = Montag. `zwei` markiert einen 14-tägigen Rhythmus. */
+const SERIEN = [
+  {tag:0,start:'08:00',art:'Praxis-intern',kunde:'Teambesprechung',dauer:30},
+  {tag:0,start:'09:00',art:'Folgesitzung',kunde:'Mara Lentz',nr:'1041'},
+  {tag:0,start:'10:00',art:'Folgesitzung',kunde:'Jonas Krüger',nr:'1008'},
+  {tag:0,start:'11:00',art:'Folgesitzung',kunde:'Elif Sahin',nr:'1017'},
+  {tag:0,start:'13:00',art:'Folgesitzung',kunde:'Ben Osterloh',nr:'1052'},
+  {tag:0,start:'14:00',art:'Folgesitzung',kunde:'Lea Winter',nr:'1029',zwei:1},
+  {tag:0,start:'15:00',art:'Folgesitzung',kunde:'Paul Reimann',nr:'1063'},
+  {tag:1,start:'09:00',art:'Folgesitzung',kunde:'Nils Baumann',nr:'1012'},
+  {tag:1,start:'10:00',art:'Folgesitzung',kunde:'Frieda Holst',nr:'1044'},
+  {tag:1,start:'11:30',art:'Folgesitzung',kunde:'Marek Sobota',nr:'1071'},
+  {tag:1,start:'13:30',art:'Folgesitzung',kunde:'Ida Cornelius',nr:'1005'},
+  {tag:1,start:'14:30',art:'Folgesitzung',kunde:'Tom Ehlers',nr:'1038',zwei:2},
+  {tag:2,start:'08:00',art:'Praxis-intern',kunde:'Doku & Telefonzeit',dauer:60},
+  {tag:2,start:'09:30',art:'Folgesitzung',kunde:'Oskar Behrens',nr:'1026'},
+  {tag:2,start:'10:30',art:'Folgesitzung',kunde:'Clara Vogt',nr:'1049'},
+  {tag:2,start:'13:00',art:'Folgesitzung',kunde:'Milan Petrović',nr:'1058'},
+  {tag:2,start:'14:00',art:'Folgesitzung',kunde:'Sophie Ahrens',nr:'1014'},
+  {tag:3,start:'09:00',art:'Folgesitzung',kunde:'Emil Sander',nr:'1031'},
+  {tag:3,start:'10:00',art:'Folgesitzung',kunde:'Lina Torres',nr:'1067'},
+  {tag:3,start:'11:00',art:'Folgesitzung',kunde:'Jakob Renner',nr:'1023'},
+  {tag:3,start:'13:00',art:'Folgesitzung',kunde:'Nora Fink',nr:'1055'},
+  {tag:3,start:'14:00',art:'Folgesitzung',kunde:'Levi Baum',nr:'1077',zwei:1},
+  {tag:3,start:'15:30',art:'Folgesitzung',kunde:'Mia Kollberg',nr:'1002'},
+  {tag:4,start:'09:00',art:'Folgesitzung',kunde:'Anton Weiß',nr:'1019'},
+  {tag:4,start:'10:00',art:'Folgesitzung',kunde:'Ruth Iversen',nr:'1046'},
+  {tag:4,start:'11:00',art:'Folgesitzung',kunde:'Theo Marquardt',nr:'1061'},
+  {tag:4,start:'13:30',art:'Folgesitzung',kunde:'Greta Lund',nr:'1035'},
+  {tag:4,start:'15:00',art:'Folgesitzung',kunde:'Til Dohrmann',nr:'1033'},
+  {tag:4,start:'16:00',art:'Praxis-intern',kunde:'Doku & Telefonzeit',dauer:30}
+];
+/** Einzelne Termine mit festem Datum. */
+const EXTRAS = [
+  {iso:'2026-08-10',start:'16:30',art:'Bericht',kunde:'Mara Lentz',nr:'1041',notiz:'Zwischenbericht an die Krankenkasse.'},
+  {iso:'2026-08-11',start:'16:30',art:'Erstgespräch',kunde:'Nele Grothe',nr:'1084',status:'Angefragt',notiz:'Anfrage über das Kontaktformular, Rückruf steht aus.'},
+  {iso:'2026-08-12',start:'15:00',art:'Erstgespräch',kunde:'Yusuf Kaya',nr:'1082',status:'Bestätigt',notiz:'Verordnung liegt vor.'},
+  {iso:'2026-08-13',start:'16:00',art:'Bericht',kunde:'Jakob Renner',nr:'1023',notiz:'Befundbericht für die verordnende Ärztin.'},
+  {iso:'2026-08-14',start:'12:00',art:'Bericht',kunde:'Greta Lund',nr:'1035'},
+  {iso:'2026-08-18',start:'16:00',art:'Erstgespräch',kunde:'Ida Ohlsen',nr:'1086',status:'Angefragt'},
+  {iso:'2026-08-20',start:'08:30',art:'Praxis-intern',kunde:'Supervision',dauer:60}
+];
+/** Absagen liegen auf Serienterminen. */
+const ABSAGEN = {'2026-08-10|11:00':'Abgesagt', '2026-08-13|09:00':'Kurzfristig abgesagt', '2026-08-19|10:30':'Abgesagt'};
+
+/** Leistungskatalog und Vorbelegung wie in der Kontaktdetailseite. */
+const LEISTUNGEN = [
+  {text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'},
+  {text:'Erstgespräch mit Anamnese', ziffer:'A2', betrag:'90,00 €'},
+  {text:'Ausfallhonorar', ziffer:'', betrag:'22,50 €'},
+  {text:'Befundbericht', ziffer:'B1', betrag:'35,00 €'}
+];
+const VORBELEGUNG = {
+  'Erstgespräch': ['Erstgespräch mit Anamnese'],
+  'Folgesitzung': ['Ergotherapie, Einzelbehandlung'],
+  'Bericht': ['Befundbericht'],
+  'Praxis-intern': []
+};
+const cent = text => Math.round(parseFloat(String(text || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) * 100) || 0;
+const euro = betrag => (betrag / 100).toFixed(2).replace('.', ',') + ' €';
+const positionAus = text => {
+  const l = LEISTUNGEN.find(x => x.text === text) || {text, ziffer: '', betrag: '0,00 €'};
+  return {menge: '1', text: l.text, ziffer: l.ziffer, betrag: l.betrag};
+};
+
+const WT_KURZ = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+const WT_LANG = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const HEUTE = new Date(2026, 7, 12);
+const JETZT_MIN = 11 * 60 + 20;
+const ABGESAGT = s => s === 'Abgesagt' || s === 'Kurzfristig abgesagt';
+
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const vonIso = s => { const [j, m, t] = s.split('-').map(Number); return new Date(j, m - 1, t); };
+const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const wtIdx = d => (d.getDay() + 6) % 7;
+const montag = d => plus(d, -wtIdx(d));
+const m2s = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+const s2m = s => { const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0); };
+const dt = s => { const d = vonIso(s); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear(); };
+const wochenIndex = d => Math.round((montag(d) - montag(new Date(2026, 0, 5))) / 6048e5);
+
+class Component extends DCLogic {
+  state = {
+    bisText: null,
+    theme: 'schiefer',
+    ansicht: null,
+    anker: iso(HEUTE),
+    miniAnker: iso(HEUTE),
+    wahl: null,
+    bearbeiten: false,
+    formular: null,
+    entwurf: null,
+    neue: [],
+    verschoben: {},
+    statusWahl: {},
+    notizWahl: {},
+    vgStatusWahl: {},
+    modusWahl: {},
+    titelWahl: {},
+    arten: {'Erstgespräch': true, 'Folgesitzung': true, 'Bericht': true, 'Praxis-intern': true},
+    freiArt: null,
+    freiAktiv: false,
+    freiDauer: 45,
+    zieht: null
+  };
+
+  scrollRef = React.createRef();
+
+  componentDidMount(){
+    try {
+      const p = JSON.parse(window.localStorage.getItem('praxi.prefs') || 'null');
+      if (p && p.theme) this.setState({theme: p.theme});
+    } catch (e) {}
+    this.zumKern();
+  }
+
+  componentDidUpdate(vorherigeProps, vorherigerState){
+    if (vorherigerState.ansicht !== this.state.ansicht) this.zumKern();
+  }
+
+  /** Der Tag reicht über 24 Stunden, aufgeschlagen wird er bei den Öffnungszeiten. */
+  zumKern(){
+    const el = this.scrollRef.current;
+    if (!el) return;
+    const ziel = Math.max(Math.round(this.oeffnung[0] * (this.zeile / 30)) - 8, 0);
+    const setzen = () => { if (this.scrollRef.current) this.scrollRef.current.scrollTop = ziel; };
+    window.requestAnimationFrame(setzen);
+    window.setTimeout(setzen, 120);
+    window.setTimeout(setzen, 400);
+  }
+
+  get ansicht(){ return this.state.ansicht ?? 'Arbeitswoche'; }
+  get oeffnung(){ return (this.props.oeffnung || '8–18 Uhr') === '7–20 Uhr' ? [420, 1200] : [480, 1080]; }
+  get zeile(){ return this.ansicht === 'Tag' ? 56 : 44; }
+
+  /** Alle Termine eines Datumsbereichs, inklusive Verschiebungen und neuer Einträge. */
+  termineFuer(vonD, bisD){
+    const roh = [];
+    let d = plus(vonD, -8);
+    const ende = plus(bisD, 8);
+    while (d <= ende) {
+      const t = iso(d), wt = wtIdx(d), wi = wochenIndex(d);
+      SERIEN.forEach(s => {
+        if (s.tag !== wt) return;
+        if (s.zwei && wi % 2 !== s.zwei - 1) return;
+        roh.push(this.bauen(t, s, 'Bestätigt'));
+      });
+      EXTRAS.filter(e => e.iso === t).forEach(e => roh.push(this.bauen(t, e, e.status || 'Geplant')));
+      d = plus(d, 1);
+    }
+    this.state.neue.forEach(n => roh.push(this.bauen(n.iso, n, n.status || 'Geplant')));
+    const v = iso(vonD), b = iso(bisD);
+    return roh.filter(t => t.iso >= v && t.iso <= b).sort((a, c) => a.iso === c.iso ? a.von - c.von : (a.iso < c.iso ? -1 : 1));
+  }
+
+  bauen(t, s, standard){
+    const a = ART[s.art] || ART['Folgesitzung'];
+    const id = s.id || (t + '|' + s.start + '|' + s.kunde);
+    const move = this.state.verschoben[id];
+    const datum = move ? move.iso : t;
+    const start = move ? move.start : s.start;
+    const status = this.state.statusWahl[id] || ABSAGEN[t + '|' + s.start] || standard;
+    const intern = s.art === 'Praxis-intern';
+    // Außer den internen Zeiten hängt jeder Termin an einem Vorgang.
+    const vorgang = this.state.modusWahl[id] ?? s.vorgang ?? !intern;
+    const positionen = vorgang ? (s.positionen || (VORBELEGUNG[s.art] || []).map(positionAus)) : [];
+    return {
+      id, iso: datum, von: s2m(start), dauer: s.dauer || a.dauer,
+      art: s.art, farbe: a.farbe, kunde: s.kunde, nr: s.nr || '',
+      status, notiz: this.state.notizWahl[id] ?? s.notiz ?? '',
+      intern, verschoben: !!move,
+      vorgang, titel: this.state.titelWahl[id] ?? s.titel ?? '', positionen,
+      vgStatus: this.state.vgStatusWahl[id] || s.vgStatus || (datum < iso(HEUTE) ? 'Stattgefunden' : 'Geplant'),
+      summe: s.summe || euro(positionen.reduce((t, p) => t + cent(p.betrag) * (Number(p.menge) || 1), 0))
+    };
+  }
+
+  sichtbar(t){ return this.state.arten[t.art] !== false; }
+
+  /** Zerlegt jede Lücke in buchbare Startzeiten der gewählten Dauer, am Viertelstundenraster ausgerichtet. */
+  passendeSlots(termine, dauer){
+    const out = [];
+    this.luecken(termine, dauer).forEach(([a, b]) => {
+      let start = Math.ceil(a / 15) * 15;
+      while (start + dauer <= b) { out.push(start); start += dauer; }
+    });
+    return out;
+  }
+
+  luecken(termine, dauer){
+    const [auf, zu] = this.oeffnung;
+    const belegt = termine.filter(t => !ABGESAGT(t.status)).map(t => [t.von, t.von + t.dauer]).sort((a, b) => a[0] - b[0]);
+    const out = [];
+    let cur = auf;
+    belegt.forEach(([a, b]) => { if (a - cur >= dauer) out.push([cur, a]); cur = Math.max(cur, b); });
+    if (zu - cur >= dauer) out.push([cur, zu]);
+    return out;
+  }
+
+  waehle = id => () => this.setState({wahl: id, entwurf: null, bearbeiten: false, formular: null});
+  /** Tippen soll immer sichtbar sein: der Rohtext bleibt in `bisText`, bis er eine gültige Zeit ist. */
+  setzeEntwurfBis = wert => {
+    this.setState(s => {
+      if (!s.entwurf) return {bisText: wert};
+      const dauer = /^\d{1,2}:\d{2}$/.test(wert) ? s2m(wert) - s2m(s.entwurf.start) : null;
+      return dauer !== null && dauer >= 5
+        ? {bisText: null, entwurf: {...s.entwurf, dauer}}
+        : {bisText: wert};
+    });
+  };
+
+  setzeBis = wert => {
+    this.setState(s => {
+      if (!s.formular) return {bisText: wert};
+      const dauer = /^\d{1,2}:\d{2}$/.test(wert) ? s2m(wert) - s2m(s.formular.von) : null;
+      return dauer !== null && dauer >= 5
+        ? {bisText: null, formular: {...s.formular, dauer: String(dauer)}}
+        : {bisText: wert};
+    });
+  };
+
+  /** Beim Verlassen zurück auf die berechnete Zeit. */
+  bisFertig = () => this.setState({bisText: null});
+
+  schliessen = () => this.setState({wahl: null, entwurf: null, bearbeiten: false, formular: null});
+
+  /** `art` gesetzt = aus einer freien Zeit heraus: dann direkt als Vorgang mit Termin. */
+  entwerfen = (datum, start, dauer, art) => () => {
+    const gewaehlteArt = art || 'Folgesitzung';
+    this.setState({
+      wahl: null, bearbeiten: false, formular: null,
+      entwurf: {
+        iso: datum, start, dauer: art ? (ART[art] || {}).dauer : (dauer || 45),
+        art: gewaehlteArt, kunde: '', nr: '', notiz: '', suche: '',
+        modus: art ? 'Vorgang' : 'Termin', vgStatus: 'Geplant', titel: '',
+        positionen: art ? (VORBELEGUNG[art] || []).map(positionAus) : []
+      }
+    });
+  };
+
+  setzeEntwurf = feld => wert => this.setState(s => {
+    const e = {...s.entwurf, [feld]: wert};
+    if (feld === 'art') {
+      e.dauer = (ART[wert] || {}).dauer || e.dauer;
+      if (e.modus === 'Vorgang') e.positionen = (VORBELEGUNG[wert] || []).map(positionAus);
+    }
+    return {entwurf: e};
+  });
+
+  /** Der Modus entscheidet, ob nur ein Kalendereintrag entsteht oder ein Vorgang, an dem er hängt. */
+  setzeModus = modus => () => this.setState(s => {
+    const e = {...s.entwurf, modus};
+    if (modus === 'Vorgang' && !e.positionen.length) e.positionen = (VORBELEGUNG[e.art] || []).map(positionAus);
+    return {entwurf: e};
+  });
+
+  setzePosition = (ix, feld) => wert => this.setState(s => {
+    const positionen = s.entwurf.positionen.map((p, i) => i === ix ? {...p, [feld]: wert} : p);
+    return {entwurf: {...s.entwurf, positionen}};
+  });
+  entfernePosition = ix => () => this.setState(s => ({
+    entwurf: {...s.entwurf, positionen: s.entwurf.positionen.filter((p, i) => i !== ix)}
+  }));
+  ergaenzePosition = text => this.setState(s => ({
+    entwurf: {...s.entwurf, positionen: s.entwurf.positionen.concat([positionAus(text)])}
+  }));
+
+  anlegen = () => {
+    const e = this.state.entwurf;
+    if (!e) return;
+    const id = 'neu-' + Date.now();
+    const n = {id, iso: e.iso, start: e.start, dauer: Number(e.dauer) || 45, art: e.art,
+      kunde: e.kunde || 'Neuer Termin', nr: e.nr, notiz: e.notiz, status: 'Geplant',
+      vorgang: e.modus === 'Vorgang', titel: e.titel,
+      positionen: e.modus === 'Vorgang' ? e.positionen : [],
+      summe: e.modus === 'Vorgang' ? euro(e.positionen.reduce((s2, p) => s2 + cent(p.betrag) * (Number(p.menge) || 1), 0)) : ''};
+    this.setState(s => ({neue: s.neue.concat([n]), entwurf: null, wahl: id, anker: e.iso}));
+  };
+
+  ziehStart = t => ev => {
+    try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', t.id); } catch (e) {}
+    this.setState({zieht: t.id});
+  };
+  ziehEnde = () => this.setState({zieht: null});
+  ueberZelle = ev => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch (e) {} };
+  ablegen = (datum, start) => ev => {
+    ev.preventDefault();
+    const id = this.state.zieht || (ev.dataTransfer && ev.dataTransfer.getData('text/plain'));
+    if (!id) return;
+    this.setState(s => ({verschoben: {...s.verschoben, [id]: {iso: datum, start}}, zieht: null, wahl: id}));
+  };
+
+  bearbeitenStart = t => () => this.setState({bearbeiten: true, formular: {
+    art: t.art, datum: dt(t.iso), von: m2s(t.von), dauer: String(t.dauer), status: t.status,
+    notiz: t.notiz, modus: t.vorgang ? 'Vorgang' : 'Termin', vgStatus: t.vgStatus, titel: t.titel
+  }});
+  setzeFormular = feld => wert => this.setState(s => ({formular: {...s.formular, [feld]: wert}}));
+
+  speichern = () => {
+    const f = this.state.formular, id = this.state.wahl;
+    if (!f || !id) return;
+    this.setState(s => ({
+      bearbeiten: false, formular: null,
+      statusWahl: {...s.statusWahl, [id]: f.status},
+      notizWahl: {...s.notizWahl, [id]: f.notiz},
+      vgStatusWahl: {...s.vgStatusWahl, [id]: f.vgStatus},
+      modusWahl: {...s.modusWahl, [id]: f.modus === 'Vorgang'},
+      titelWahl: {...s.titelWahl, [id]: f.modus === 'Vorgang' ? f.titel : ''}
+    }));
+  };
+
+  absagen = () => {
+    const id = this.state.wahl;
+    if (id) this.setState(s => ({statusWahl: {...s.statusWahl, [id]: 'Abgesagt'}}));
+  };
+
+  blattern = richtung => () => this.setState(s => {
+    const d = vonIso(s.anker);
+    const n = this.ansicht === 'Tag' ? 1 : this.ansicht === 'Monat' ? 0 : 7;
+    const neu = n === 0 ? new Date(d.getFullYear(), d.getMonth() + richtung, 1) : plus(d, richtung * n);
+    return {anker: iso(neu), miniAnker: iso(neu)};
+  });
+
+  renderVals(){
+    const st = this.state;
+    const ansicht = this.ansicht;
+    const [auf, zu] = this.oeffnung;
+    const ZEILE = this.zeile;
+    const proMin = ZEILE / 30;
+    const anker = vonIso(st.anker);
+    const heuteIso = iso(HEUTE);
+
+    let tageDaten = [];
+    if (ansicht === 'Tag') tageDaten = [anker];
+    else {
+      const mo = montag(anker);
+      const n = ansicht === 'Arbeitswoche' ? 5 : 7;
+      for (let i = 0; i < n; i++) tageDaten.push(plus(mo, i));
+    }
+
+    const bereichVon = ansicht === 'Monat' ? new Date(anker.getFullYear(), anker.getMonth(), 1) : tageDaten[0];
+    const bereichBis = ansicht === 'Monat' ? new Date(anker.getFullYear(), anker.getMonth() + 1, 0) : tageDaten[tageDaten.length - 1];
+    const alle = this.termineFuer(plus(bereichVon, -7), plus(bereichBis, 14));
+
+    const zaehler = {};
+    ARTEN.forEach(a => zaehler[a.name] = 0);
+    alle.filter(t => t.iso >= iso(bereichVon) && t.iso <= iso(bereichBis)).forEach(t => { zaehler[t.art] = (zaehler[t.art] || 0) + 1; });
+
+    const ent = st.entwurf;
+    const entDauer = ent ? (Number(ent.dauer) || 45) : 0;
+    const entKollision = ent ? alle.some(t => t.iso === ent.iso && !ABGESAGT(t.status) && this.sichtbar(t) &&
+      s2m(ent.start) < t.von + t.dauer && s2m(ent.start) + entDauer > t.von) : false;
+    const stil = t => {
+      const gewaehlt = st.wahl === t.id;
+      if (ABGESAGT(t.status)) return {
+        bg: 'var(--muted)', rand: '1px dashed var(--border)', randLinks: '1px dashed var(--border)',
+        fg: 'var(--muted-foreground)', fg2: 'var(--muted-foreground)', deko: 'line-through'
+      };
+      if (t.status === 'Angefragt') return {
+        bg: 'color-mix(in oklab,' + t.farbe + ' 9%,var(--card))',
+        rand: '1px dashed ' + t.farbe, randLinks: '1px dashed ' + t.farbe,
+        fg: 'var(--foreground)', fg2: 'var(--muted-foreground)', deko: 'none'
+      };
+      return {
+        bg: 'color-mix(in oklab,' + t.farbe + (t.intern ? ' 12%' : ' 20%') + ',var(--card))',
+        rand: '1px solid transparent', randLinks: '3px solid ' + t.farbe,
+        fg: 'var(--foreground)', fg2: 'var(--muted-foreground)', deko: 'none'
+      };
+    };
+
+    const zeitleiste = [];
+    for (let m = 0; m < 1440; m += 30) zeitleiste.push({
+      hoehe: ZEILE, label: m % 60 === 0 ? m2s(m) : '',
+      fg: m % 60 !== 0 ? 'transparent' : (m >= auf && m < zu ? 'var(--muted-foreground)' : 'color-mix(in oklab,var(--muted-foreground) 50%,transparent)')
+    });
+
+    const tage = tageDaten.map(d => {
+      const key = iso(d);
+      const wt = wtIdx(d);
+      const frei = wt < 5;
+      const tagTermine = alle.filter(t => t.iso === key && this.sichtbar(t));
+      const zellen = [];
+      for (let m = 0; m < 1440; m += 30) zellen.push({
+        hoehe: ZEILE, linie: m % 60 === 0 ? 'var(--border)' : 'color-mix(in oklab,var(--border) 45%,transparent)',
+        bg: (m >= auf && m < zu) ? 'transparent' : 'color-mix(in oklab,var(--muted) 60%,transparent)',
+        cursor: frei ? 'pointer' : 'default',
+        onClick: frei ? this.entwerfen(key, m2s(m), st.freiDauer) : undefined,
+        onDragOver: this.ueberZelle, onDrop: this.ablegen(key, m2s(m))
+      });
+      const slots = (st.freiAktiv && frei) ? this.passendeSlots(tagTermine, st.freiDauer) : [];
+      return {
+        wt: WT_KURZ[wt], tagNr: String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.',
+        flex: frei ? 1 : 0.62,
+        kopfBg: key === heuteIso ? 'color-mix(in oklab,var(--primary) 8%,var(--card))' : 'var(--card)',
+        kopfFg: key === heuteIso ? 'var(--primary)' : 'var(--muted-foreground)',
+        kopfFg2: key === heuteIso ? 'var(--primary)' : 'var(--foreground)',
+        kopfFw: key === heuteIso ? '700' : '600',
+        spalteBg: frei ? (key === heuteIso ? 'color-mix(in oklab,var(--primary) 3%,transparent)' : 'transparent') : 'color-mix(in oklab,var(--muted) 55%,transparent)',
+        entwurfAn: !!ent && ent.iso === key,
+        entwurfTon: entKollision ? 'var(--destructive)' : 'var(--primary)',
+        entwurfTop: ent ? Math.round(s2m(ent.start) * proMin) : 0,
+        entwurfHoehe: ent ? Math.max(Math.round(entDauer * proMin) - 2, 22) : 0,
+        entwurfZeit: ent ? m2s(s2m(ent.start)) + '–' + m2s(s2m(ent.start) + entDauer) : '',
+        entwurfName: ent ? (ent.kunde || 'Neuer Termin') : '',
+        entwurfArt: ent ? (ent.modus === 'Vorgang' ? 'Vorgang · ' + ent.art : ent.art) : '',
+        // Bei Kollision hat die Warnung Vorrang: die Art-Zeile weicht, wenn beide nicht passen.
+        entwurfArtAn: ent && Math.round(entDauer * proMin) >= (entKollision ? 74 : 58) ? 'block' : 'none',
+        entwurfWarnAn: entKollision && Math.round(entDauer * proMin) >= 42 ? 'flex' : 'none',
+        entwurfMiniWarnAn: entKollision && Math.round(entDauer * proMin) < 42 ? 'flex' : 'none',
+        jetztAn: key === heuteIso ? 'block' : 'none',
+        jetztTop: Math.round(JETZT_MIN * proMin),
+        zellen,
+        frei: slots.map(a => {
+          const hoehe = Math.round(st.freiDauer * proMin) - 2;
+          return {
+            top: Math.round(a * proMin), hoehe,
+            zeit: m2s(a) + '–' + m2s(a + st.freiDauer),
+            art: st.freiArt || (st.freiDauer + ' Min frei'),
+            artAn: hoehe >= 40 ? 'block' : 'none',
+            tooltip: (st.freiArt || 'Freie Zeit') + ' · ' + st.freiDauer + ' Min · ' + m2s(a),
+            onClick: this.entwerfen(key, m2s(a), st.freiDauer, st.freiArt)
+          };
+        }),
+        termine: tagTermine.map(t => {
+          const s = stil(t);
+          const hoehe = Math.max(Math.round(t.dauer * proMin) - 2, 22);
+          // Im Frei-Modus schrumpft eine Absage auf einen Randstreifen: die Lücke gehört jetzt der freien Zeit.
+          const streifen = st.freiAktiv && ABGESAGT(t.status);
+          return {
+            ...s, top: Math.round(t.von * proMin), hoehe,
+            links: streifen ? 'auto' : '3px', breite: streifen ? '7px' : 'auto',
+            polster: streifen ? '0' : '3px 7px',
+            zeit: streifen ? '' : m2s(t.von) + '–' + m2s(t.von + t.dauer),
+            kunde: streifen ? '' : t.kunde,
+            zusatz: ABGESAGT(t.status) ? t.status : (t.status === 'Angefragt' ? 'Angefragt · ' + t.art : t.art),
+            zeileArt: (hoehe >= 58 && !streifen) ? 'block' : 'none',
+            tooltip: t.kunde + ' · ' + t.art + ' · ' + t.status,
+            deckung: (st.freiAktiv || ent) ? '.5' : (st.zieht === t.id ? '.4' : '1'),
+            schatten: st.wahl === t.id ? '0 0 0 2px var(--ring)' : 'none',
+            ziehbar: true, onDragStart: this.ziehStart(t), onDragEnd: this.ziehEnde, onClick: this.waehle(t.id)
+          };
+        })
+      };
+    });
+
+    // Mini-Monat
+    const mini = vonIso(st.miniAnker);
+    const mErster = new Date(mini.getFullYear(), mini.getMonth(), 1);
+    const mStart = montag(mErster);
+    const miniTage = [];
+    for (let i = 0; i < 42; i++) {
+      const d = plus(mStart, i);
+      const key = iso(d);
+      const imMonat = d.getMonth() === mini.getMonth();
+      const inWoche = ansicht !== 'Monat' && tageDaten.some(x => iso(x) === key);
+      const hat = alle.some(t => t.iso === key && this.sichtbar(t) && !ABGESAGT(t.status));
+      const gewaehlterTag = key === iso(anker);
+      miniTage.push({
+        nr: d.getDate(),
+        bg: key === heuteIso
+          ? 'var(--primary)'
+          : (gewaehlterTag ? 'color-mix(in oklab,var(--primary) 20%,transparent)' : (inWoche ? 'var(--accent)' : 'transparent')),
+        fg: key === heuteIso ? 'var(--primary-foreground)' : (imMonat ? 'var(--foreground)' : 'var(--muted-foreground)'),
+        fw: key === heuteIso || gewaehlterTag ? '700' : '400',
+        punkt: hat && key !== heuteIso ? 'color-mix(in oklab,var(--primary) 70%,transparent)' : 'transparent',
+        onClick: () => this.setState({anker: key, miniAnker: key})
+      });
+    }
+
+    // Monatsansicht
+    const monatTage = [];
+    if (ansicht === 'Monat') {
+      const erster = new Date(anker.getFullYear(), anker.getMonth(), 1);
+      const start = montag(erster);
+      for (let i = 0; i < 42; i++) {
+        const d = plus(start, i);
+        const key = iso(d);
+        const liste = alle.filter(t => t.iso === key && this.sichtbar(t));
+        monatTage.push({
+          nr: d.getDate(),
+          bg: d.getMonth() === anker.getMonth() ? (key === heuteIso ? 'color-mix(in oklab,var(--primary) 6%,var(--card))' : 'var(--card)') : 'color-mix(in oklab,var(--muted) 45%,var(--card))',
+          linie: 'var(--border)',
+          nrBg: key === heuteIso ? 'var(--primary)' : 'transparent',
+          fg: key === heuteIso ? 'var(--primary-foreground)' : (d.getMonth() === anker.getMonth() ? 'var(--foreground)' : 'var(--muted-foreground)'),
+          fw: key === heuteIso ? '700' : '400',
+          onClick: () => {
+            if (this._terminGeklickt) { this._terminGeklickt = false; return; }
+            this.setState({anker: key, miniAnker: key, wahl: null, entwurf: null, bearbeiten: false, formular: null});
+          },
+          termine: liste.slice(0, 3).map(t => ({
+            zeit: m2s(t.von), kunde: t.kunde, farbe: ABGESAGT(t.status) ? 'var(--muted-foreground)' : t.farbe,
+            deko: ABGESAGT(t.status) ? 'line-through' : 'none',
+            onClick: ev => {
+              this._terminGeklickt = true;
+              if (ev && ev.stopPropagation) ev.stopPropagation();
+              this.waehle(t.id)();
+            }
+          })),
+          mehr: liste.length > 3 ? '+ ' + (liste.length - 3) + ' weitere' : '',
+          mehrAn: liste.length > 3 ? 'block' : 'none'
+        });
+      }
+    }
+
+    // Liste
+    const listeTage = [];
+    if (ansicht === 'Liste') {
+      const start = montag(anker);
+      for (let i = 0; i < 14; i++) {
+        const d = plus(start, i);
+        const key = iso(d);
+        const liste = alle.filter(t => t.iso === key && this.sichtbar(t));
+        if (!liste.length && wtIdx(d) > 4) continue;
+        listeTage.push({
+          wt: WT_LANG[wtIdx(d)],
+          datum: String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.',
+          fg: key === heuteIso ? 'var(--primary)' : 'var(--muted-foreground)',
+          fg2: key === heuteIso ? 'var(--primary)' : 'var(--foreground)',
+          leerAn: liste.length ? 'none' : 'block',
+          leerText: 'Keine Termine.',
+          termine: liste.map((t, ix) => ({
+            zeit: m2s(t.von) + '–' + m2s(t.von + t.dauer), kunde: t.kunde, art: t.art,
+            farbe: ABGESAGT(t.status) ? 'var(--muted-foreground)' : t.farbe,
+            deko: ABGESAGT(t.status) ? 'line-through' : 'none',
+            status: t.status, variante: ABGESAGT(t.status) ? 'outline' : (t.status === 'Angefragt' ? 'secondary' : 'outline'),
+            linie: ix === 0 ? 'transparent' : 'var(--border)',
+            onClick: this.waehle(t.id)
+          }))
+        });
+      }
+    }
+
+    // Titel
+    let titel = '', untertitel = '';
+    if (ansicht === 'Tag') {
+      titel = WT_LANG[wtIdx(anker)] + ', ' + anker.getDate() + '. ' + MONATE[anker.getMonth()];
+      untertitel = String(anker.getFullYear());
+    } else if (ansicht === 'Monat') {
+      titel = MONATE[anker.getMonth()] + ' ' + anker.getFullYear();
+    } else {
+      const mo = montag(anker), bis = tageDaten[tageDaten.length - 1];
+      titel = mo.getDate() + '. – ' + bis.getDate() + '. ' + MONATE[bis.getMonth()] + ' ' + bis.getFullYear();
+      untertitel = 'KW ' + (wochenIndex(anker) + 1);
+    }
+
+    // Tagesüberblick im rechten Bereich
+    const uebersichtIso = (ansicht === 'Tag' || ansicht === 'Monat') ? st.anker
+       : (tageDaten.some(d => iso(d) === st.anker) ? st.anker
+       : (tageDaten.some(d => iso(d) === heuteIso) ? heuteIso : iso(tageDaten[0])));
+    const uebersichtD = vonIso(uebersichtIso);
+    const tagListeRoh = alle.filter(t => t.iso === uebersichtIso && this.sichtbar(t));
+    const belegtMin = tagListeRoh.filter(t => !ABGESAGT(t.status)).reduce((s, t) => s + t.dauer, 0);
+    const absagen = tagListeRoh.filter(t => ABGESAGT(t.status)).length;
+    const slotsHeute = this.passendeSlots(tagListeRoh, st.freiDauer);
+    const naechsterSlot = slotsHeute.find(a => uebersichtIso !== heuteIso || a >= JETZT_MIN);
+    const naechste = naechsterSlot != null ? [naechsterSlot, naechsterSlot + st.freiDauer] : null;
+
+    // Detail
+    const gewaehlt = alle.find(t => t.id === st.wahl);
+    const f = st.formular || {};
+    const bearbeiten = st.bearbeiten && !!gewaehlt;
+
+    // Entwurf
+    const e = st.entwurf;
+    let eTreffer = [];
+    if (e && e.suche && e.suche.length >= 2) {
+      const q = e.suche.toLowerCase();
+      const namen = [];
+      SERIEN.concat(EXTRAS).forEach(s => { if (s.nr && !namen.some(n => n.nr === s.nr)) namen.push({name: s.kunde, nr: s.nr}); });
+      eTreffer = namen.filter(n => n.name.toLowerCase().includes(q)).slice(0, 5)
+        .map(n => ({...n, onClick: () => this.setState(s2 => ({entwurf: {...s2.entwurf, kunde: n.name, nr: n.nr, suche: ''}}))}));
+    }
+    const eKollision = entKollision;
+
+    return {
+      theme: st.theme,
+      v: {
+        wtKurz: WT_KURZ, wtLang: WT_LANG,
+        istRaster: ansicht === 'Woche' || ansicht === 'Arbeitswoche' || ansicht === 'Tag',
+        istMonat: ansicht === 'Monat',
+        istListe: ansicht === 'Liste',
+        titel, untertitel, zeitleiste, tage, monatTage, listeTage, miniTage, scrollRef: this.scrollRef,
+        miniTitel: MONATE[mini.getMonth()] + ' ' + mini.getFullYear(),
+        miniZurueck: () => this.setState(s => { const d = vonIso(s.miniAnker); return {miniAnker: iso(new Date(d.getFullYear(), d.getMonth() - 1, 1))}; }),
+        miniVor: () => this.setState(s => { const d = vonIso(s.miniAnker); return {miniAnker: iso(new Date(d.getFullYear(), d.getMonth() + 1, 1))}; }),
+        heute: () => this.setState({anker: heuteIso, miniAnker: heuteIso}),
+        zurueck: this.blattern(-1), vor: this.blattern(1),
+        ansichten: ['Tag', 'Arbeitswoche', 'Woche', 'Monat', 'Liste'].map(a => ({
+          label: a, onClick: () => this.setState({ansicht: a}),
+          bg: a === ansicht ? 'var(--card)' : 'transparent',
+          fg: a === ansicht ? 'var(--foreground)' : 'var(--muted-foreground)',
+          fw: a === ansicht ? '600' : '400'
+        })),
+        neuerTermin: this.entwerfen(uebersichtIso, m2s(naechste ? naechste[0] : 540), st.freiDauer),
+        freiHinweis: st.freiAktiv
+          ? 'Klick auf eine freie Zeit legt dort einen Vorgang mit Termin an.'
+          : 'Vorgangsart wählen — der Kalender zeigt dann alle Zeiten, in die sie passt.',
+        freiArten: ARTEN.map(a => {
+          const aktiv = st.freiArt === a.name;
+          return {
+            name: a.name, farbe: a.farbe, dauer: a.dauer + ' Min',
+            onClick: () => this.setState(s => s.freiArt === a.name
+              ? {freiArt: null, freiAktiv: false}
+              : {freiArt: a.name, freiDauer: a.dauer, freiAktiv: true}),
+            bg: aktiv ? 'color-mix(in oklab,var(--primary) 10%,transparent)' : 'transparent',
+            rahmen: aktiv ? 'color-mix(in oklab,var(--primary) 45%,transparent)' : 'var(--border)',
+            fg: aktiv ? 'var(--primary)' : 'var(--foreground)',
+            fg2: aktiv ? 'var(--primary)' : 'var(--muted-foreground)',
+            fw: aktiv ? '600' : '400'
+          };
+        }),
+        freiDauern: [15, 30, 60].map(d => {
+          const aktiv = st.freiAktiv && !st.freiArt && st.freiDauer === d;
+          return {
+            label: d + ' Min',
+            onClick: () => this.setState(s => (s.freiAktiv && !s.freiArt && s.freiDauer === d)
+              ? {freiAktiv: false, freiArt: null}
+              : {freiArt: null, freiDauer: d, freiAktiv: true}),
+            bg: aktiv ? 'color-mix(in oklab,var(--primary) 10%,transparent)' : 'transparent',
+            rahmen: aktiv ? 'color-mix(in oklab,var(--primary) 45%,transparent)' : 'var(--border)',
+            fg: aktiv ? 'var(--primary)' : 'var(--muted-foreground)',
+            fw: aktiv ? '600' : '400'
+          };
+        }),
+        freiAus: () => this.setState({freiArt: null, freiAktiv: false}),
+        freiAusAn: st.freiAktiv ? 'block' : 'none',
+        artenFilter: ARTEN.map(a => ({
+          name: a.name, farbe: a.farbe, anzahl: zaehler[a.name] || 0,
+          fg: st.arten[a.name] === false ? 'var(--muted-foreground)' : 'var(--foreground)',
+          props: {checked: st.arten[a.name] !== false, onCheckedChange: c => this.setState(s => ({arten: {...s.arten, [a.name]: c === true}}))}
+        })),
+
+        panelModus: (gewaehlt || e) ? 'overlay' : 'ruhe',
+        panelTag: !gewaehlt && !e,
+        panelDetail: !!gewaehlt && !e,
+        panelEntwurf: !!e,
+        tagTitel: WT_LANG[wtIdx(uebersichtD)] + ', ' + uebersichtD.getDate() + '. ' + MONATE[uebersichtD.getMonth()],
+        tagZahlen: [
+          {wert: String(tagListeRoh.filter(t => !ABGESAGT(t.status)).length), label: 'Termine', fg: 'var(--foreground)'},
+          {wert: (Math.round(belegtMin / 6) / 10).toFixed(1).replace('.', ',') + ' h', label: 'belegt', fg: 'var(--foreground)'},
+          {wert: String(absagen), label: 'Absagen', fg: absagen ? 'var(--destructive)' : 'var(--muted-foreground)'}
+        ],
+        naechsteLuecke: naechste ? m2s(naechste[0]) + '–' + m2s(naechste[1]) + ' · ' + (naechste[1] - naechste[0]) + ' Min' : 'Keine freie Zeit ab ' + st.freiDauer + ' Min',
+        lueckeAn: naechste ? 'block' : 'none',
+        luckeNutzen: naechste ? this.entwerfen(uebersichtIso, m2s(naechste[0]), st.freiDauer, st.freiArt) : undefined,
+        tagLeerAn: tagListeRoh.length ? 'none' : 'block',
+        tagListe: tagListeRoh.map(t => ({
+          von: m2s(t.von), kunde: t.kunde, dauer: t.dauer + ' Min',
+          farbe: ABGESAGT(t.status) ? 'var(--border)' : t.farbe,
+          deko: ABGESAGT(t.status) ? 'line-through' : 'none',
+          fg: ABGESAGT(t.status) ? 'var(--muted-foreground)' : 'var(--foreground)',
+          onClick: this.waehle(t.id)
+        })),
+
+        dArt: gewaehlt ? gewaehlt.art : '',
+        dFarbe: gewaehlt ? gewaehlt.farbe : 'transparent',
+        dKunde: gewaehlt ? gewaehlt.kunde : '',
+        dWann: gewaehlt ? WT_KURZ[wtIdx(vonIso(gewaehlt.iso))] + ', ' + dt(gewaehlt.iso) + ' · ' + m2s(gewaehlt.von) + '–' + m2s(gewaehlt.von + gewaehlt.dauer) : '',
+        dLesenAn: bearbeiten ? 'none' : 'flex',
+        dEditAn: bearbeiten ? 'flex' : 'none',
+        dVorgangAn: gewaehlt && (gewaehlt.verschoben || !gewaehlt.vorgang) ? 'block' : 'none',
+        dVorgangLinkAn: gewaehlt && gewaehlt.vorgang && !bearbeiten ? 'flex' : 'none',
+        dVorgangText: gewaehlt && gewaehlt.verschoben ? 'Verschoben – der Kontakt wurde noch nicht benachrichtigt.'
+          : 'Nur ein Kalendereintrag, ohne Vorgang in der Akte.',
+        dIstVorgang: !!(gewaehlt && gewaehlt.vorgang),
+        dVgStatusProps: {value: bearbeiten ? f.vgStatus : (gewaehlt ? gewaehlt.vgStatus : ''), onValueChange: this.setzeFormular('vgStatus')},
+        dTitelProps: {value: bearbeiten ? f.titel : (gewaehlt ? gewaehlt.titel : ''), placeholder: bearbeiten ? 'z. B. Anamnese und Zielklärung' : '—', onChange: ev => this.setzeFormular('titel')(ev.target.value)},
+        dPositionen: gewaehlt ? gewaehlt.positionen : [],
+        dPosLeerAn: gewaehlt && gewaehlt.positionen.length ? 'none' : 'block',
+        dSumme: gewaehlt ? gewaehlt.summe : '0,00 €',
+        fieldsetProps: {disabled: !bearbeiten},
+        artProps: {value: bearbeiten ? f.art : (gewaehlt ? gewaehlt.art : ''), onValueChange: this.setzeFormular('art')},
+        datumProps: {value: bearbeiten ? f.datum : (gewaehlt ? dt(gewaehlt.iso) : ''), onChange: ev => this.setzeFormular('datum')(ev.target.value)},
+        vonProps: {value: bearbeiten ? f.von : (gewaehlt ? m2s(gewaehlt.von) : ''), onChange: ev => this.setzeFormular('von')(ev.target.value)},
+        bisProps: {
+          value: bearbeiten && st.bisText !== null && st.bisText !== undefined
+            ? st.bisText
+            : (bearbeiten
+                ? m2s(s2m(f.von) + (Number(f.dauer) || 0))
+                : (gewaehlt ? m2s(gewaehlt.von + gewaehlt.dauer) : '')),
+          onChange: ev => this.setzeBis(ev.target.value),
+          onBlur: this.bisFertig
+        },
+        dauerProps: {value: bearbeiten ? f.dauer + ' Min' : (gewaehlt ? gewaehlt.dauer + ' Min' : ''), onChange: ev => this.setzeFormular('dauer')(ev.target.value.replace(/\D/g, ''))},
+        statusProps: {value: bearbeiten ? f.status : (gewaehlt ? gewaehlt.status : ''), onValueChange: this.setzeFormular('status')},
+        notizProps: {value: bearbeiten ? f.notiz : (gewaehlt ? gewaehlt.notiz : ''), placeholder: bearbeiten ? 'Notiz zum Termin' : '—', onChange: ev => this.setzeFormular('notiz')(ev.target.value)},
+        bearbeiten: gewaehlt ? this.bearbeitenStart(gewaehlt) : undefined,
+        abbrechen: () => this.setState({bearbeiten: false, formular: null}),
+        speichern: this.speichern,
+        absagen: this.absagen,
+        schliessen: this.schliessen,
+
+        eWann: e ? WT_KURZ[wtIdx(vonIso(e.iso))] + ', ' + dt(e.iso) + ' · ' + e.start : '',
+        eKundeProps: {value: e ? (e.suche || e.kunde) : '', onChange: ev => this.setState(s => ({entwurf: {...s.entwurf, suche: ev.target.value, kunde: ev.target.value}}))},
+        eTreffer, eTrefferAn: eTreffer.length ? 'flex' : 'none',
+        eArtProps: {value: e ? e.art : '', onValueChange: this.setzeEntwurf('art')},
+        eDatumProps: {value: e ? dt(e.iso) : '', readOnly: true},
+        eVonProps: {value: e ? e.start : '', onChange: ev => this.setzeEntwurf('start')(ev.target.value)},
+        eIstTermin: !!(e && e.modus === 'Termin'),
+        eBisProps: {
+          value: st.bisText !== null && st.bisText !== undefined
+            ? st.bisText
+            : (e ? m2s(s2m(e.start) + (Number(e.dauer) || 0)) : ''),
+          onChange: ev => this.setzeEntwurfBis(ev.target.value),
+          onBlur: this.bisFertig
+        },
+        eDauerProps: {value: e ? String(e.dauer) : '', inputMode: 'numeric', onChange: ev => this.setzeEntwurf('dauer')(Number(ev.target.value.replace(/\D/g, '')) || 0)},
+        eNotizProps: {value: e ? e.notiz : '', placeholder: 'Notiz zum Termin', onChange: ev => this.setzeEntwurf('notiz')(ev.target.value)},
+        eHinweis: eKollision ? 'Diese Zeit überschneidet sich mit einem bestehenden Termin.'
+          : (e && e.modus === 'Vorgang' ? 'Der Vorgang erscheint beim Kontakt und wird über den Termin abgerechnet.' : 'Der Termin erscheint beim Kontakt, ohne einen Vorgang anzulegen.'),
+        eHinweisFg: eKollision ? 'var(--destructive)' : 'var(--muted-foreground)',
+        eModi: ['Vorgang', 'Termin'].map(m => ({
+          label: m === 'Termin' ? 'Nur Termin' : 'Vorgang mit Termin',
+          onClick: this.setzeModus(m),
+          bg: e && e.modus === m ? 'var(--card)' : 'transparent',
+          fg: e && e.modus === m ? 'var(--foreground)' : 'var(--muted-foreground)',
+          fw: e && e.modus === m ? '600' : '400',
+          schatten: e && e.modus === m ? '0 1px 2px rgba(0,0,0,.08)' : 'none'
+        })),
+        eIstVorgang: !!e && e.modus === 'Vorgang',
+        eVgStatusProps: {value: e ? e.vgStatus : '', onValueChange: this.setzeEntwurf('vgStatus')},
+        eTitelProps: {value: e ? e.titel : '', placeholder: 'z. B. Anamnese und Zielklärung', onChange: ev => this.setzeEntwurf('titel')(ev.target.value)},
+        ePositionen: e ? e.positionen.map((p, ix) => ({
+          mengeProps: {value: p.menge, onChange: ev => this.setzePosition(ix, 'menge')(ev.target.value)},
+          textProps: {value: p.text, onChange: ev => this.setzePosition(ix, 'text')(ev.target.value)},
+          betragProps: {value: p.betrag, onChange: ev => this.setzePosition(ix, 'betrag')(ev.target.value)},
+          onEntfernen: this.entfernePosition(ix)
+        })) : [],
+        ePosLeerAn: e && e.positionen.length ? 'none' : 'block',
+        leistungen: LEISTUNGEN,
+        eKatalogProps: {value: '', onValueChange: t => this.ergaenzePosition(t)},
+        eFreiePosition: () => this.ergaenzePosition(''),
+        eSumme: e ? euro(e.positionen.reduce((s2, p) => s2 + cent(p.betrag) * (Number(p.menge) || 1), 0)) : '0,00 €',
+        eAnlegenLabel: e && e.modus === 'Vorgang' ? 'Vorgang anlegen' : 'Termin anlegen',
+        anlegen: this.anlegen
+      }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

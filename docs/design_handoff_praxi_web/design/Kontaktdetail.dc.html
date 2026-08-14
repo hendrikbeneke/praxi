@@ -1,0 +1,2500 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+[data-aktion=entfernen]:hover{color:var(--destructive)!important}
+[data-editor=notiz] p{margin:0 0 12px}
+[data-editor=notiz] ul,[data-editor=notiz] ol{margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+/* Lesemodus: Werte lesen sich als Text, nicht als graue Felder */
+fieldset[disabled] input,fieldset[disabled] textarea,fieldset[disabled] [data-slot="select-trigger"]{
+  opacity:1!important;background:transparent!important;border-color:transparent!important;
+  box-shadow:none!important;color:var(--foreground)!important;padding-left:0!important;cursor:default!important;
+}
+fieldset[disabled] [data-slot="select-trigger"] svg,fieldset[disabled] button svg{display:none}
+fieldset[disabled] button{pointer-events:none;opacity:0!important}
+fieldset[disabled] a[data-aktion=link] svg{display:block}
+fieldset[disabled] textarea{resize:none!important}
+/* Im Bearbeitungsmodus stören die Sprungziele */
+fieldset:not([disabled]) a[data-aktion=link]{display:none!important}
+fieldset:not([disabled]) input.pr-8{padding-right:12px}
+fieldset[disabled] input.pr-8{padding-right:34px!important}
+@media (max-width:1000px){[style*="--abschnitt"]{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}}
+@media (max-width:900px){[style*="--felder"]>div{grid-column:span 6!important}}
+@media (max-width:620px){[style*="--felder"]>div{grid-column:span 12!important}}
+/* Schmale Fenster: die Notizenliste legt sich über den Text, statt ihn zu quetschen */
+@media (max-width:900px){[style*="--lesen"]{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:180px minmax(0,1fr)!important}
+[style*="--lesen"]>div:first-child{border-right:0!important;border-bottom:1px solid var(--border)}}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5">
+<dc-import name="AppSidebar" active="Kontakte" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Kontakte" seite="Til Dohrmann" hint-size="100%,56px"></dc-import>
+<div style="flex:1;min-width:0;overflow:auto">
+<main style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="border-bottom:1px solid var(--border);background:var(--card);padding:20px 32px 0;position:sticky;top:0;z-index:5">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:28px;flex-wrap:wrap;margin:0">
+<div style="min-width:0">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+<h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.022em;line-height:1.1">Til Dohrmann</h1>
+<span class="tabular-nums" style="color:var(--muted-foreground)">Nr. 1033</span>
+<span style="color:var(--muted-foreground)">·</span>
+<span style="color:var(--muted-foreground)">11 Jahre</span>
+<sc-if value="{{ archiviert }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="78px,20px">Archiviert</x-import></sc-if>
+</div>
+<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="outline" hint-size="92px,20px">Patienten</x-import>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialog" hint-size="124px,36px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogTrigger" className="inline-flex h-9 shrink-0 items-center justify-center rounded-md px-4 text-sm font-medium whitespace-nowrap text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground" hint-size="124px,36px">{{ archivLabel }}</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogContent" hint-size="440px,220px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogHeader" hint-size="100%,90px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogTitle" hint-size="100%,24px">Kontakt archivieren?</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogDescription" hint-size="100%,48px">Der Kontakt verschwindet aus den Listen, bleibt aber mit allen Vorgängen und Rechnungen erhalten und kann wiederhergestellt werden.</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogFooter" hint-size="100%,48px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogCancel" hint-size="108px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogAction" hint-size="124px,36px">Archivieren</x-import>
+</x-import>
+</x-import>
+</x-import>
+</div>
+</div>
+<div style="display:flex;gap:2px;margin-top:16px">
+<sc-for list="{{ v.tabs }}" as="t" hint-placeholder-count="6">
+<button onClick="{{ t.onClick }}" style="padding:9px 14px;border-bottom:2px solid {{ t.line }};color:{{ t.fg }};font-weight:{{ t.fw }};font-size:13.5px">{{ t.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex:1;padding:24px 32px 44px">
+<sc-if value="{{ v.isUebersicht }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<sc-if value="{{ warnung }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:flex-start;gap:11px;border:1px solid color-mix(in oklab, var(--color-amber-500) 50%, transparent);border-radius:8px;background:color-mix(in oklab, var(--color-amber-500) 12%, var(--card));color:var(--card-foreground);padding:13px 15px">
+<span style="display:flex;flex-shrink:0;margin-top:1px;color:var(--color-amber-600)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"></path></svg></span>
+<p style="margin:0">Dieser Kontakt ist minderjährig und hat keinen Sorgeberechtigten hinterlegt. Unter „Verknüpfte Kontakte“ nachtragen.</p>
+</div>
+</sc-if>
+
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px">
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,190px">
+<x-import component-from-global-scope="PraxiWeb.CardHeader" hint-size="100%,44px"><x-import component-from-global-scope="PraxiWeb.CardTitle" hint-size="180px,20px">Termine und Vorgänge</x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.CardContent" hint-size="100%,140px">
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">Nächster Termin</p>
+<p style="margin:4px 0 0;font-size:19px;font-weight:600;letter-spacing:-.015em" class="tabular-nums">Fr, 14.08. · 15:00</p>
+<p style="margin:2px 0 12px;color:var(--muted-foreground);font-size:13px">in 2 Tagen · Ergotherapie, Folgetermin</p>
+<div style="padding-top:12px;border-top:1px solid var(--border)">
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">Letzter Vorgang</p>
+<p style="margin:3px 0 0" class="tabular-nums">07.08.2026 · 15:00</p>
+<p style="margin:0 0 12px;color:var(--muted-foreground);font-size:13px">Ergotherapie, Einzelbehandlung</p>
+<x-import component-from-global-scope="PraxiWeb.Button" className="w-full" hint-size="100%,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5M9 13h6M9 17h4"></path></svg>Dokumentieren</x-import>
+</div>
+</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,190px">
+<x-import component-from-global-scope="PraxiWeb.CardHeader" hint-size="100%,44px"><x-import component-from-global-scope="PraxiWeb.CardTitle" hint-size="110px,20px">Abrechenbar</x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.CardContent" hint-size="100%,140px">
+<p style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em" class="tabular-nums">112,50 €</p>
+<p style="margin:4px 0 14px;color:var(--muted-foreground)">3 offene Positionen</p>
+<a href="#" style="text-decoration:none" style-hover="text-decoration:underline">Zum Rechnungsentwurf</a>
+</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,190px">
+<x-import component-from-global-scope="PraxiWeb.CardHeader" hint-size="100%,44px"><x-import component-from-global-scope="PraxiWeb.CardTitle" hint-size="110px,20px">Rechnungen</x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.CardContent" hint-size="100%,140px">
+<div style="display:flex;align-items:center;gap:8px">
+<span style="color:var(--muted-foreground);font-size:13px">3 festgeschrieben</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="destructive" hint-size="88px,20px">1 überfällig</x-import>
+</div>
+<p style="margin:10px 0 0;font-size:28px;font-weight:600;letter-spacing:-.02em" class="tabular-nums">124,00 €</p>
+<p style="margin:2px 0 12px;color:var(--muted-foreground);font-size:13px">offen</p>
+<div style="display:flex;flex-direction:column;gap:7px;padding-top:12px;border-top:1px solid var(--border)">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px"><span style="color:var(--muted-foreground);font-size:13px">davon überfällig</span><span class="tabular-nums" style="color:var(--destructive);font-weight:600">86,00 €</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px"><span style="color:var(--muted-foreground);font-size:13px">abgerechnet 2026</span><span class="tabular-nums">1.284,00 €</span></div>
+</div>
+<p style="margin:12px 0 0"><a href="#" onClick="{{ zuRechnungen }}" style="text-decoration:none" style-hover="text-decoration:underline">Zu den Rechnungen</a></p>
+</x-import>
+</x-import>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:18px;align-items:start">
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,290px">
+<x-import component-from-global-scope="PraxiWeb.CardHeader" hint-size="100%,44px"><x-import component-from-global-scope="PraxiWeb.CardTitle" hint-size="90px,20px">Kontakt</x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.CardContent" hint-size="100%,230px">
+<div style="display:grid;grid-template-columns:88px minmax(0,1fr);gap:11px 14px;align-items:baseline">
+<span style="color:var(--muted-foreground);font-size:13px">Mobil</span><a href="tel:+4917612345678" class="tabular-nums" style="text-decoration:none" style-hover="text-decoration:underline">+49 176 1234 5678</a>
+<span style="color:var(--muted-foreground);font-size:13px">Festnetz</span><a href="tel:+4942112345" class="tabular-nums" style="text-decoration:none" style-hover="text-decoration:underline">+49 421 12345</a>
+<span style="color:var(--muted-foreground);font-size:13px">E-Mail</span><a href="mailto:familie.dohrmann@example.de" style="text-decoration:none;word-break:break-word" style-hover="text-decoration:underline">familie.dohrmann@example.de</a>
+<span style="color:var(--muted-foreground);font-size:13px">Anschrift</span><address style="font-style:normal;margin:0">Wallstraße 14<br>26123 Oldenburg</address>
+</div>
+</x-import>
+</x-import>
+
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,290px">
+<x-import component-from-global-scope="PraxiWeb.CardHeader" hint-size="100%,44px"><x-import component-from-global-scope="PraxiWeb.CardTitle" hint-size="150px,20px">Letzte Vorgänge</x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.CardContent" hint-size="100%,230px">
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ vorgaenge }}" as="v" hint-placeholder-count="5">
+<button onClick="{{ v.onOeffnen }}" style="display:flex;align-items:center;gap:16px;width:calc(100% + 8px);margin:0 -4px;padding:9px 4px;border-top:1px solid var(--border);border-radius:{{ v.radius }}" style-hover="background:var(--accent)">
+<span style="width:104px;flex-shrink:0;color:var(--muted-foreground);text-align:left" class="tabular-nums">{{ v.datum }}</span>
+<span style="flex:1;min-width:0;text-align:left">{{ v.bezeichnung }}</span>
+<sc-if value="{{ v.ok }}" hint-placeholder-val="{{ true }}"><x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="98px,20px">Dokumentiert</x-import></sc-if>
+<sc-if value="{{ v.offen }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="PraxiWeb.Badge" variant="destructive" hint-size="122px,20px">Nicht dokumentiert</x-import></sc-if>
+</button>
+</sc-for>
+</div>
+</x-import>
+</x-import>
+</div>
+
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,230px">
+<x-import component-from-global-scope="PraxiWeb.CardHeader" hint-size="100%,44px">
+<x-import component-from-global-scope="PraxiWeb.CardTitle" hint-size="200px,20px">Verknüpfte Kontakte</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.CardContent" className="px-0" hint-size="100%,160px">
+<x-import component-from-global-scope="PraxiWeb.Table" hint-size="100%,150px">
+<x-import component-from-global-scope="PraxiWeb.TableHeader" hint-size="100%,38px">
+<x-import component-from-global-scope="PraxiWeb.TableRow" hint-size="100%,38px">
+<x-import component-from-global-scope="PraxiWeb.TableHead" className="pl-6" hint-size="240px,38px">Art der Beziehung</x-import>
+<x-import component-from-global-scope="PraxiWeb.TableHead" hint-size="320px,38px">Kontakt</x-import>
+<x-import component-from-global-scope="PraxiWeb.TableHead" className="pr-6 text-right" hint-size="200px,38px">Aktionen</x-import>
+</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.TableBody" hint-size="100%,110px">
+<sc-for list="{{ beziehungen }}" as="rel" hint-placeholder-count="2">
+<sc-if value="{{ rel.bearbeiten }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.TableRow" className="bg-muted/40 hover:bg-muted/40" hint-size="100%,72px">
+<x-import component-from-global-scope="PraxiWeb.TableCell" colSpan="3" className="px-6 py-3" hint-size="100%,72px">
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+<div style="width:220px;display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bez-art-zeile" hint-size="130px,16px">Art der Beziehung</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ bezArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="bez-art-zeile" className="w-full bg-card" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Bitte wählen" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,220px">
+<sc-for list="{{ bezArten }}" as="art" hint-placeholder-count="6">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ art }}" hint-size="100%,32px">{{ art }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:7px;position:relative">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bez-kontakt-zeile" hint-size="80px,16px">Kontakt</x-import>
+<span style="position:relative;display:block">
+<x-import component-from-global-scope="PraxiWeb.Input" id="bez-kontakt-zeile" className="bg-card pr-9" placeholder="Name oder Kontaktnummer" value="{{ bezSuche }}" onChange="{{ bezSuchen }}" hint-size="100%,36px"></x-import>
+<sc-if value="{{ bezHatText }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ bezLeeren }}" aria-label="Kontakt entfernen" title="Entfernen" style="position:absolute;top:50%;right:6px;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</sc-if>
+</span>
+<sc-if value="{{ bezTreffer }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:22;display:flex;flex-direction:column;gap:1px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--popover);box-shadow:0 10px 28px oklch(25% .012 62 / .14)">
+<sc-for list="{{ bezVorschlaege }}" as="k" hint-placeholder-count="3">
+<button onClick="{{ k.onClick }}" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;padding:7px 9px;border-radius:6px;font-size:13.5px" style-hover="background:var(--accent);color:var(--accent-foreground)"><span>{{ k.name }}</span><span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">{{ k.nr }}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="display:flex;gap:8px;padding-bottom:1px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ bezSchliessen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" disabled="{{ bezUnfertig }}" onClick="{{ bezSchliessen }}" hint-size="106px,36px">Speichern</x-import>
+</div>
+</div>
+</x-import>
+</x-import>
+</sc-if>
+<sc-if value="{{ rel.lesen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.TableRow" hint-size="100%,52px">
+<x-import component-from-global-scope="PraxiWeb.TableCell" className="pl-6 text-muted-foreground" hint-size="240px,52px">{{ rel.art }}</x-import>
+<x-import component-from-global-scope="PraxiWeb.TableCell" hint-size="320px,52px"><a href="#" style="text-decoration:none" style-hover="text-decoration:underline">{{ rel.name }}</a></x-import>
+<x-import component-from-global-scope="PraxiWeb.TableCell" className="pr-6 text-right" hint-size="200px,52px">
+<span style="display:inline-flex;gap:2px"><x-import component-from-global-scope="PraxiWeb.Button" size="icon" variant="ghost" className="size-8 text-muted-foreground" onClick="{{ rel.onEdit }}" aria-label="Beziehung bearbeiten" title="Bearbeiten" hint-size="32px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3.5a2.1 2.1 0 0 1 3 3L8.5 18 4 19.5 5.5 15z"></path></svg></x-import><x-import component-from-global-scope="PraxiWeb.Button" size="icon" variant="ghost" className="size-8 text-muted-foreground" data-aktion="entfernen" aria-label="Beziehung entfernen" title="Entfernen" hint-size="32px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"></path></svg></x-import></span>
+</x-import>
+</x-import>
+</sc-if>
+</sc-for>
+</x-import>
+</x-import>
+<div style="padding:12px 14px 4px;border-top:1px solid var(--border)">
+<sc-if value="{{ bezZu }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="ghost" className="text-muted-foreground" onClick="{{ bezOeffnen }}" hint-size="196px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Beziehung hinzufügen</x-import>
+</sc-if>
+<sc-if value="{{ bezOffen }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:14px;margin:0 10px 8px;border:1px solid var(--border);border-radius:8px;background:color-mix(in oklab, var(--muted) 60%, var(--card))">
+<div style="width:220px;display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bez-art" hint-size="130px,16px">Art der Beziehung</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ bezArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="bez-art" className="w-full bg-card" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Bitte wählen" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,220px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Sorgeberechtigt" hint-size="100%,32px">Sorgeberechtigt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Mutter" hint-size="100%,32px">Mutter</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Vater" hint-size="100%,32px">Vater</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Kind" hint-size="100%,32px">Kind</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Behandelnde Praxis" hint-size="100%,32px">Behandelnde Praxis</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Rechnungsempfänger" hint-size="100%,32px">Rechnungsempfänger</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:7px;position:relative">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bez-kontakt" hint-size="80px,16px">Kontakt</x-import>
+<span style="position:relative;display:block">
+<x-import component-from-global-scope="PraxiWeb.Input" id="bez-kontakt" className="bg-card pr-9" placeholder="Name oder Kontaktnummer" value="{{ bezSuche }}" onChange="{{ bezSuchen }}" hint-size="100%,36px"></x-import>
+<sc-if value="{{ bezHatText }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ bezLeeren }}" aria-label="Kontakt entfernen" title="Entfernen" style="position:absolute;top:50%;right:6px;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</sc-if>
+</span>
+<sc-if value="{{ bezTreffer }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:22;display:flex;flex-direction:column;gap:1px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--popover);box-shadow:0 10px 28px oklch(25% .012 62 / .14)">
+<sc-for list="{{ bezVorschlaege }}" as="k" hint-placeholder-count="3">
+<button onClick="{{ k.onClick }}" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;padding:7px 9px;border-radius:6px;font-size:13.5px" style-hover="background:var(--accent);color:var(--accent-foreground)"><span>{{ k.name }}</span><span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">{{ k.nr }}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="display:flex;gap:8px;padding-bottom:1px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ bezSchliessen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" disabled="{{ bezUnfertig }}" onClick="{{ bezSchliessen }}" hint-size="106px,36px">Speichern</x-import>
+</div>
+</div>
+</sc-if>
+</div>
+</x-import>
+</x-import>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.isStammdaten }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1100px">
+<sc-if value="{{ v.readonly }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Stammdaten werden erst nach „Bearbeiten" änderbar.</p>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.startEdit }}" hint-size="120px,32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>Bearbeiten</x-import>
+</div>
+</sc-if>
+<x-import component-from-global-scope="PraxiWeb.Card" hint-size="100%,900px">
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ v.readonly }}" hint-size="100%,900px">
+<x-import component-from-global-scope="PraxiWeb.CardContent" className="pt-6" hint-size="100%,900px">
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding-bottom:24px">
+<div><p style="margin:0;font-weight:600">Name</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Art ist strukturell und nach dem Anlegen nicht mehr änderbar.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" value="person" disabled="{{ true }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="b-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="80px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="200px,72px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="person" hint-size="100%,32px">Person</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="org" hint-size="100%,32px">Organisation</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-anrede" hint-size="56px,16px">Anrede</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.anredeProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="b-anrede" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Keine" hint-size="70px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="200px,108px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="keine" hint-size="100%,32px">Keine</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Frau" hint-size="100%,32px">Frau</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Herr" hint-size="100%,32px">Herr</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-titel" hint-size="36px,16px">Titel</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-titel" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-vorname" hint-size="60px,16px">Vorname</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-vorname" defaultValue="Til" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-nachname" hint-size="88px,16px">Nachname *</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-nachname" required="{{ true }}" defaultValue="Dohrmann" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Rollen</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Bestimmen, in welchen Listen der Kontakt auftaucht.</p></div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-if value="{{ v.readonly }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ v.rollenAktiv }}" as="r" hint-placeholder-count="1">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="86px,22px">{{ r.name }}</x-import>
+</sc-for>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">{{ v.rollenAusText }}</p>
+</sc-if>
+<sc-if value="{{ v.editing }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(3,minmax(150px,220px));gap:12px 20px">
+<sc-for list="{{ v.rollenListe }}" as="r" hint-placeholder-count="5">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:14px">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ r.props }}" hint-size="16px,16px"></x-import>{{ r.name }}
+</label>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Person</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Geburtsdatum und Geschlecht stehen auf Rezept und Abrechnung.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-gebdat" hint-size="88px,16px">Geburtsdatum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="b-gebdat" dc-props="{{ v.gebdatProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-gebort" hint-size="76px,16px">Geburtsort</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-gebort" defaultValue="Oldenburg" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-geschlecht" hint-size="76px,16px">Geschlecht</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.geschlechtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="b-geschlecht" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="90px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="220px,140px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="keine" hint-size="100%,32px">Keine Angabe</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="weiblich" hint-size="100%,32px">weiblich</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="maennlich" hint-size="100%,32px">männlich</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="divers" hint-size="100%,32px">divers</x-import>
+</x-import>
+</x-import>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Anschrift</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Hausnummer separat, für Rechnung und Anzeige wieder zusammengesetzt.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 9">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-strasse" hint-size="56px,16px">Straße</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-strasse" defaultValue="Wallstraße" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-hausnr" hint-size="88px,16px">Hausnummer</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-hausnr" defaultValue="14" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-plz" hint-size="36px,16px">PLZ</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-plz" defaultValue="26123" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 9">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-ort" hint-size="36px,16px">Ort</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-ort" defaultValue="Oldenburg" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-land" hint-size="44px,16px">Land</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.landProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="b-land" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="90px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="220px,180px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="DE" hint-size="100%,32px">Deutschland</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="AT" hint-size="100%,32px">Österreich</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="CH" hint-size="100%,32px">Schweiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="NL" hint-size="100%,32px">Niederlande</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="DK" hint-size="100%,32px">Dänemark</x-import>
+</x-import>
+</x-import>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Kontakt</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Mobil und Festnetz getrennt — die Art entscheidet, ob man anruft oder schreibt.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-mail" hint-size="108px,16px">E-Mail-Adresse</x-import>
+<span style="position:relative;display:block"><x-import component-from-global-scope="PraxiWeb.Input" id="b-mail" type="email" defaultValue="familie.dohrmann@example.de" className="pr-8" hint-size="100%,36px"></x-import><a href="mailto:familie.dohrmann@example.de" title="E-Mail schreiben" data-aktion="link" style="position:absolute;top:50%;right:4px;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground);text-decoration:none" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3.5 7 8.5 6 8.5-6"></path></svg></a></span>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-mobil" hint-size="46px,16px">Mobil</x-import>
+<span style="position:relative;display:block"><x-import component-from-global-scope="PraxiWeb.Input" id="b-mobil" defaultValue="+49 176 1234 5678" className="pr-8" hint-size="100%,36px"></x-import><a href="tel:+4917612345678" title="Anrufen" data-aktion="link" style="position:absolute;top:50%;right:4px;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground);text-decoration:none" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 0 0 5.5 5.5L16 12l4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.2 2 2 0 0 1 6.5 3z"></path></svg></a></span>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-festnetz" hint-size="66px,16px">Festnetz</x-import>
+<span style="position:relative;display:block"><x-import component-from-global-scope="PraxiWeb.Input" id="b-festnetz" defaultValue="+49 421 12345" className="pr-8" hint-size="100%,36px"></x-import><a href="tel:+4942112345" title="Anrufen" data-aktion="link" style="position:absolute;top:50%;right:4px;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground);text-decoration:none" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 0 0 5.5 5.5L16 12l4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.2 2 2 0 0 1 6.5 3z"></path></svg></a></span>
+</div>
+</div>
+</div>
+
+
+<sc-if value="{{ v.istOrg }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding:24px 0;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Steuer</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Erscheint auf Rechnungen an diesen Kontakt.</p></div>
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-steuernr" hint-size="94px,16px">Steuernummer</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-steuernr" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-ustid" hint-size="76px,16px">USt-IdNr.</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="b-ustid" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;--abschnitt:1;padding-top:24px;border-top:1px solid var(--border)">
+<div><p style="margin:0;font-weight:600">Intern</p><p style="margin:4px 0 0;color:var(--muted-foreground);font-size:13px">Nur intern sichtbar, erscheint auf keinem Dokument.</p></div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="b-notiz" hint-size="104px,16px">Interne Notiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="b-notiz" rows="4" defaultValue="Kommt in Begleitung der Mutter. Termine bevorzugt vormittags." hint-size="100%,96px"></x-import>
+</div>
+</div>
+
+</x-import>
+</x-import>
+</x-import>
+<sc-if value="{{ v.editing }}" hint-placeholder-val="{{ false }}">
+<div style="position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:0 -2px 12px oklch(25% .012 62 / .05)">
+<span style="color:var(--muted-foreground);font-size:13px">Ungespeicherte Änderungen</span>
+<span style="display:inline-flex;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.cancelEdit }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.cancelEdit }}" hint-size="106px,36px">Speichern</x-import>
+</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+
+<sc-if value="{{ v.isNotizen }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1100px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">{{ v.notizenZahl }}</p>
+<sc-for list="{{ v.notizenFilter }}" as="f" hint-placeholder-count="3">
+<button onClick="{{ f.onClick }}" style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid {{ f.rahmen }};border-radius:999px;background:{{ f.bg }};color:{{ f.farbe }};font-size:12.5px" style-hover="border-color:var(--primary)"><span class="tabular-nums" style="font-weight:600">{{ f.anzahl }}</span>{{ f.label }}</button>
+</sc-for>
+</div>
+<span style="display:inline-flex;align-items:center;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" hint-size="188px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="9"></circle></svg>Dokumentation prüfen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.notizNeu }}" hint-size="128px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Neue Notiz</x-import>
+</span>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(220px,300px) minmax(320px,1fr);--lesen:1;border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden;height:calc(100vh - 300px);min-height:520px">
+<div style="border-right:1px solid var(--border);overflow:auto;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<sc-if value="{{ v.inlineNeu }}" hint-placeholder-val="{{ false }}">
+<div style="display:block;width:100%;padding:11px 14px 12px;border-bottom:1px solid var(--border);background:var(--card);border-left:3px solid var(--primary)">
+<span style="display:flex;align-items:center;gap:8px">
+<span style="font-weight:600;font-size:13.5px" class="tabular-nums">{{ v.entwurfDatum }}</span>
+<span style="margin-left:auto;color:var(--muted-foreground);font-size:11.5px">{{ v.entwurfArt }}</span>
+</span>
+<span style="display:block;margin-top:4px;color:var(--muted-foreground);font-size:12.5px">Neue Notiz — wird noch geschrieben</span>
+</div>
+</sc-if>
+<sc-for list="{{ v.notizen }}" as="n" hint-placeholder-count="4">
+<button onClick="{{ n.onWaehlen }}" style="display:block;width:100%;padding:11px 14px 12px {{ n.listenEinzug }};border-bottom:1px solid var(--border);background:{{ n.listenBg }};border-left:3px solid {{ n.listenMarke }}">
+<span style="display:flex;align-items:center;gap:8px">
+<span style="font-weight:600;font-size:13.5px" class="tabular-nums">{{ n.datum }}</span>
+<sc-if value="{{ n.gesperrt }}" hint-placeholder-val="{{ false }}">
+<span style="display:flex;color:var(--muted-foreground)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg></span>
+</sc-if>
+<sc-if value="{{ n.hatDateien }}" hint-placeholder-val="{{ false }}">
+<span style="display:inline-flex;align-items:center;gap:3px;color:var(--muted-foreground);font-size:11.5px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5"></path></svg>{{ n.dateienZahl }}</span>
+</sc-if>
+<span style="margin-left:auto;color:var(--muted-foreground);font-size:11.5px">{{ n.art }}</span>
+</span>
+<span style="display:block;margin-top:4px;color:var(--muted-foreground);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ n.auszug }}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;min-width:0;overflow:auto">
+<sc-if value="{{ v.inlineZu }}" hint-placeholder-val="{{ true }}">
+<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 22px;border-bottom:1px solid var(--border);background:var(--card)">
+<span style="font-weight:600;font-size:15px" class="tabular-nums">{{ v.aktuell.datum }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="outline" hint-size="82px,20px">{{ v.aktuell.art }}</x-import>
+<sc-if value="{{ v.aktuell.gesperrt }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" className="gap-1" hint-size="86px,20px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Gesperrt</x-import>
+</sc-if>
+<sc-if value="{{ v.aktuell.offen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="outline" hint-size="62px,20px">Offen</x-import>
+</sc-if>
+<span style="margin-left:auto;display:inline-flex;gap:8px">
+<sc-if value="{{ v.aktuell.zeigeNachtrag }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" onClick="{{ v.aktuell.onNachtrag }}" hint-size="112px,32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Nachtrag</x-import>
+</sc-if>
+<sc-if value="{{ v.aktuell.offen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" onClick="{{ v.aktuell.onEdit }}" hint-size="120px,32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path></svg>Bearbeiten</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" hint-size="104px,32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Sperren</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" size="sm" className="text-muted-foreground" data-aktion="entfernen" hint-size="96px,32px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"></path></svg>Löschen</x-import>
+</sc-if>
+</span>
+</div>
+</sc-if>
+<sc-if value="{{ v.inlineOffen }}" hint-placeholder-val="{{ false }}">
+<div style="position:sticky;top:0;z-index:2;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--card)">
+<div style="display:flex;flex-direction:column;gap:6px;flex:1 1 150px;min-width:130px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="inline-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="inline-datum" dc-props="{{ v.inlineDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;flex:1 1 170px;min-width:150px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="inline-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.inlineArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="inline-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="100px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,200px">
+<sc-for list="{{ v.notizArten }}" as="a" hint-placeholder-count="5">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ a }}" hint-size="100%,32px">{{ a }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;flex:2 1 220px;min-width:180px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="inline-vorgang" hint-size="86px,16px">Zum Vorgang</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.inlineVorgangProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="inline-vorgang" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="140px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="420px,180px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="keiner" hint-size="100%,32px">Kein Vorgang</x-import>
+<sc-for list="{{ vorgaenge }}" as="vg" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ vg.datum }}" hint-size="100%,32px">{{ vg.datum }} · {{ vg.bezeichnung }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+</div>
+<div style="position:sticky;top:73px;z-index:2;display:flex;align-items:center;flex-wrap:wrap;gap:6px 2px;padding:7px 20px;border-bottom:1px solid var(--border);background:color-mix(in oklab, var(--muted) 55%, var(--card))">
+<sc-for list="{{ v.werkzeuge }}" as="w" hint-placeholder-count="5">
+<button onMouseDown="{{ w.onMouseDown }}" title="{{ w.titel }}" aria-label="{{ w.titel }}" style="display:flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 7px;border-radius:6px;color:var(--muted-foreground);font-size:13.5px;font-weight:{{ w.gewicht }};font-style:{{ w.stil }}" style-hover="background:var(--accent);color:var(--accent-foreground)">{{ w.zeichen }}</button>
+</sc-for>
+<span style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" size="sm" onClick="{{ v.inlineAbbrechen }}" hint-size="96px,30px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.inlineSpeichern }}" hint-size="96px,30px">Speichern</x-import>
+</span>
+</div>
+</sc-if>
+
+
+<sc-if value="{{ v.inlineZu }}" hint-placeholder-val="{{ true }}">
+<div style="padding:22px 26px 40px;max-width:78ch;width:100%">
+<p style="margin:0 0 18px;color:var(--muted-foreground);font-size:12.5px">{{ v.aktuell.herkunft }}</p>
+<sc-for list="{{ v.aktuell.bloecke }}" as="b" hint-placeholder-count="3">
+<sc-if value="{{ b.istUeberschrift }}" hint-placeholder-val="{{ false }}">
+<p style="margin:22px 0 6px;font-weight:600">{{ b.text }}</p>
+</sc-if>
+<sc-if value="{{ b.istAbsatz }}" hint-placeholder-val="{{ true }}">
+<p style="margin:0 0 12px;line-height:1.65;text-wrap:pretty">{{ b.text }}</p>
+</sc-if>
+<sc-if value="{{ b.istListe }}" hint-placeholder-val="{{ false }}">
+<ul style="margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:5px">
+<sc-for list="{{ b.punkte }}" as="p" hint-placeholder-count="3">
+<li style="line-height:1.6">{{ p }}</li>
+</sc-for>
+</ul>
+</sc-if>
+</sc-for>
+
+<sc-if value="{{ v.aktuell.hatDateien }}" hint-placeholder-val="{{ false }}">
+<div style="margin-top:22px;padding-top:14px;border-top:1px solid var(--border)">
+<p style="margin:0 0 8px;color:var(--muted-foreground);font-size:12.5px">Anhänge</p>
+<div style="display:flex;flex-wrap:wrap;gap:8px">
+<sc-for list="{{ v.aktuell.dateien }}" as="d" hint-placeholder-count="1">
+<a href="#" style="display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;text-decoration:none;font-size:13px" style-hover="background:var(--accent);color:var(--accent-foreground)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"></path></svg>{{ d }}</a>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ v.inlineOffen }}" hint-placeholder-val="{{ false }}">
+<div ref="{{ v.editorRef }}" contentEditable="{{ true }}" suppressContentEditableWarning="{{ true }}" data-editor="notiz" style="flex:1;padding:22px 26px 40px;max-width:78ch;width:100%;outline:none;line-height:1.65"></div>
+</sc-if>
+
+</div>
+</div>
+</sc-if>
+
+<x-import component-from-global-scope="PraxiWeb.AlertDialog" dc-props="{{ v.notizDialogProps }}" hint-size="0px,0px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogContent" className="sm:max-w-xl" hint-size="576px,520px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogHeader" hint-size="100%,64px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogTitle" hint-size="100%,24px">{{ v.notizTitel }}</x-import>
+<sc-if value="{{ v.notizIstNachtrag }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogDescription" hint-size="100%,20px">Nachtrag zu {{ v.notizBezug }}</x-import>
+</sc-if>
+</x-import>
+<div style="display:flex;flex-direction:column;gap:16px;padding:2px 0 6px">
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:1/span 5">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="notiz-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="notiz-datum" dc-props="{{ v.notizDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;grid-column:span 7">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="notiz-art" hint-size="30px,16px">Art</x-import>
+<sc-if value="{{ v.notizIstNachtrag }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;display:flex;align-items:center;height:36px">Nachtrag</p>
+</sc-if>
+<sc-if value="{{ v.notizArtWaehlbar }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.notizArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="notiz-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="100px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,200px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Allgemein" hint-size="100%,32px">Allgemein</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Sitzung" hint-size="100%,32px">Sitzung</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Dokument" hint-size="100%,32px">Dokument</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Korrespondenz" hint-size="100%,32px">Korrespondenz</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Sonstiges" hint-size="100%,32px">Sonstiges</x-import>
+</x-import>
+</x-import>
+</sc-if>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="notiz-vorgang" hint-size="86px,16px">Zum Vorgang</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.notizVorgangProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="notiz-vorgang" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="140px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="420px,180px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="keiner" hint-size="100%,32px">Kein Vorgang</x-import>
+<sc-for list="{{ vorgaenge }}" as="vg" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ vg.datum }}" hint-size="100%,32px">{{ vg.datum }} · {{ vg.bezeichnung }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="notiz-text" hint-size="30px,16px">Text</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="notiz-text" rows="7" dc-props="{{ v.notizTextProps }}" hint-size="100%,160px"></x-import>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">{{ v.notizAnhangHinweis }}</p>
+</div>
+<x-import component-from-global-scope="PraxiWeb.DialogFooter" hint-size="100%,48px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.notizAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" disabled="{{ v.notizUnfertig }}" onClick="{{ v.notizSpeichern }}" hint-size="106px,36px">Speichern</x-import>
+</x-import>
+</x-import>
+</x-import>
+</div>
+</sc-if>
+
+
+<sc-if value="{{ v.isVorgaenge }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1100px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">{{ v.vorgangZahl }}</p>
+<sc-for list="{{ v.vorgangFilter }}" as="f" hint-placeholder-count="3">
+<button onClick="{{ f.onClick }}" style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid {{ f.rahmen }};border-radius:999px;background:{{ f.bg }};color:{{ f.farbe }};font-size:12.5px" style-hover="border-color:var(--primary)"><span class="tabular-nums" style="font-weight:600">{{ f.anzahl }}</span>{{ f.label }}</button>
+</sc-for>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.vgNeu }}" hint-size="146px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Neuer Vorgang</x-import>
+</div>
+
+<sc-if value="{{ v.vgIstNeu }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--primary);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<span style="font-weight:600">Neuer Vorgang</span>
+<span style="color:var(--muted-foreground);font-size:13px">wird noch angelegt</span>
+</div>
+<div style="padding:18px 16px 16px">
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ v.vgLesen }}" hint-size="100%,520px">
+<div style="display:flex;flex-direction:column;gap:22px">
+
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vgn-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,140px">
+<sc-for list="{{ v.vgArten }}" as="a" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ a.name }}" hint-size="100%,32px"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:8px;background:{{ a.farbe }}"></span>{{ a.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-status" hint-size="44px,16px">Status</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgStatusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vgn-status" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Stattgefunden" hint-size="100%,32px">Stattgefunden</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Nicht erschienen" hint-size="100%,32px">Nicht erschienen</x-import>
+</x-import>
+</x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Der Status ist nur Dokumentation und steuert die Abrechnung nicht.</p>
+</div>
+<div style="grid-column:1/span 6;display:flex;flex-direction:column;gap:5px;min-width:0">
+<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;min-width:0">
+<div style="display:flex;flex-direction:column;gap:5px;flex:1 1 130px;min-width:126px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="vgn-datum" dc-props="{{ v.vgDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;width:72px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-zeit" hint-size="56px,16px">Uhrzeit</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vgn-zeit" placeholder="15:00" dc-props="{{ v.vgZeitProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;width:78px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-dauer" hint-size="80px,16px">Dauer (Min.)</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vgn-dauer" type="number" dc-props="{{ v.vgDauerProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Ende {{ v.vgEnde }}</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-titel" hint-size="86px,16px">Bezeichnung <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vgn-titel" dc-props="{{ v.vgTitelProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+
+<section>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+<p style="margin:0;font-weight:600">Positionen</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+<sc-if value="{{ v.vgOhnePositionen }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Noch keine Position.</p>
+</sc-if>
+<sc-for list="{{ v.vgPositionen }}" as="p" hint-placeholder-count="2">
+<sc-if value="{{ v.vgLesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px solid var(--border)">
+<span class="tabular-nums" style="width:26px;color:var(--muted-foreground)">{{ p.menge }}×</span>
+<span style="flex:1 1 auto;min-width:0">{{ p.text }}</span>
+<sc-if value="{{ p.nichtAbrechenbar }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">nicht abrechenbar</span>
+</sc-if>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">{{ p.ziffer }}</span>
+<span class="tabular-nums" style="width:84px;text-align:right">{{ p.betrag }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<sc-if value="{{ p.nichtAbrechenbar }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">nicht abrechenbar</span>
+</sc-if>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+<span style="flex:1 1 260px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgKatalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog hinzufügen" hint-size="190px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,300px">
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,150px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungen</x-import>
+<sc-for list="{{ v.leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.wert }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungsgruppen</x-import>
+<sc-for list="{{ v.gruppen }}" as="g" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ g.wert }}" hint-size="100%,32px">{{ g.name }} · {{ g.umfang }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</x-import>
+</span>
+<span style="color:var(--muted-foreground);font-size:13px">oder</span>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ v.vgFreiePosition }}" hint-size="140px,36px">Freie Position</x-import>
+</div>
+<p style="margin:8px 0 0;color:var(--muted-foreground);font-size:12px">Aus dem Katalog wird kopiert; die Vorbelegung kommt aus der Art. Eine Gruppe wird sofort in einzelne Positionen aufgelöst.</p>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:2px;margin-top:10px;text-align:right">
+<p style="margin:0">Abrechenbar: <span class="tabular-nums" style="font-weight:600">{{ v.vgSummeAbrechenbar }}</span></p>
+<sc-if value="{{ v.vgZeigeGesamt }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">Gesamt: <span class="tabular-nums">{{ v.vgSummeGesamt }}</span></p>
+</sc-if>
+</div>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:600">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ v.vgTerminProps }}" hint-size="16px,16px"></x-import>Termin anlegen
+</label>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ v.vgTerminZeile }}</span>
+</div>
+<sc-if value="{{ v.vgTerminAnlegen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:10px">
+<div style="display:flex;flex-direction:column;gap:5px;width:200px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-terminstatus" hint-size="44px,16px">Status</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgTerminStatusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vgn-terminstatus" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,170px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Angefragt" hint-size="100%,32px">Angefragt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Bestätigt" hint-size="100%,32px">Bestätigt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Abgesagt" hint-size="100%,32px">Abgesagt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Kurzfristig abgesagt" hint-size="100%,32px">Kurzfristig abgesagt</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;flex:1 1 240px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-terminnotiz" hint-size="120px,16px">Notiz zum Termin</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vgn-terminnotiz" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<p style="margin:0;width:100%;color:var(--muted-foreground);font-size:12px">{{ v.vgSlotHinweis }}</p>
+</div>
+</sc-if>
+</section>
+
+<sc-if value="{{ v.vgHatRechnung }}" hint-placeholder-val="{{ false }}">
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<p style="margin:0 0 8px;font-weight:600">Rechnungen</p>
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<a href="#" onClick="{{ v.zuRechnungen }}" style="text-decoration:underline;text-underline-offset:3px">{{ v.vgRechnungNr }}</a>
+<span class="tabular-nums">{{ v.vgRechnungBetrag }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="72px,20px">{{ v.vgRechnungStatus }}</x-import>
+</div>
+</section>
+</sc-if>
+
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgn-notiz" hint-size="104px,16px">Interne Notiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="vgn-notiz" rows="3" defaultValue="" hint-size="100%,76px"></x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Nur intern sichtbar, erscheint auf keinem Dokument.</p>
+</div>
+</section>
+</div>
+</x-import>
+
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+<sc-if value="{{ v.vgLesen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.vgSchliessen }}" hint-size="106px,36px">Zuklappen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.vgBearbeitenStart }}" hint-size="120px,36px">Bearbeiten</x-import>
+</sc-if>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.vgSchliessen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.vgSchliessen }}" hint-size="106px,36px">Speichern</x-import>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-for list="{{ v.vorgangsListe }}" as="vg" hint-placeholder-count="5">
+<div>
+<p style="display:{{ vg.abschnittAn }};margin:{{ vg.abschnittRand }} 0 8px;font-weight:600">{{ vg.abschnitt }}</p>
+<div style="border:1px solid {{ vg.rahmen }};border-radius:10px;background:var(--card);overflow:hidden">
+<button onClick="{{ vg.onOeffnen }}" style="display:block;width:100%;text-align:left;padding:13px 16px;background:{{ vg.kopfBg }}" style-hover="background:var(--accent)">
+<span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<span style="font-weight:600" class="tabular-nums">{{ vg.wannLang }}</span>
+<span style="padding:2px 7px;border-radius:5px;font-size:11.5px;background:{{ vg.farbe }};color:{{ vg.farbeText }}">{{ vg.art }}</span>
+<sc-if value="{{ vg.zeigeTermin }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.terminVariante }}" hint-size="128px,20px">Termin {{ vg.terminStatus }}</x-import>
+</sc-if>
+<sc-if value="{{ vg.ohneTermin }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">ohne Termin</span>
+</sc-if>
+<sc-if value="{{ vg.zeigeStatus }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.statusVariante }}" hint-size="112px,20px">{{ vg.status }}</x-import>
+</sc-if>
+<sc-if value="{{ vg.zeigeAbrechnung }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.abrechnungVariante }}" hint-size="94px,20px">{{ vg.abrechnung }}</x-import>
+</sc-if>
+<sc-if value="{{ vg.hatTitel }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:13.5px">{{ vg.titel }}</span>
+</sc-if>
+<span style="margin-left:auto;font-weight:600" class="tabular-nums">{{ vg.summe }}</span>
+</span>
+<sc-if value="{{ vg.hatZeit }}" hint-placeholder-val="{{ false }}">
+<span style="display:block;margin-top:3px;color:var(--muted-foreground);font-size:12px" class="tabular-nums">{{ vg.zeit }}</span>
+</sc-if>
+<span style="display:block;margin-top:8px;color:var(--muted-foreground);font-size:13.5px">
+<sc-for list="{{ vg.positionen }}" as="p" hint-placeholder-count="2">
+<span style="display:block">{{ p }}</span>
+</sc-for>
+</span>
+<sc-if value="{{ vg.zeigeGesamt }}" hint-placeholder-val="{{ false }}">
+<span style="display:block;margin-top:4px;color:var(--muted-foreground);font-size:12px">Gesamt: {{ vg.gesamt }}</span>
+</sc-if>
+</button>
+<sc-if value="{{ vg.offen }}" hint-placeholder-val="{{ false }}">
+<div style="border-top:1px solid var(--border);padding:18px 16px 16px">
+<sc-if value="{{ v.vgLesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 236px;gap:34px;align-items:start">
+
+<div>
+<sc-if value="{{ v.vgHatTitelText }}" hint-placeholder-val="{{ true }}">
+<p style="margin:0 0 14px;font-size:17px;font-weight:600">{{ v.vgTitelText }}</p>
+</sc-if>
+<sc-if value="{{ v.vgOhnePositionen }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Noch keine Position erfasst.</p>
+</sc-if>
+<sc-for list="{{ v.vgPositionen }}" as="p" hint-placeholder-count="3">
+<div style="display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:9px 0;border-top:1px solid var(--border)">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ p.menge }}×</span>
+<span style="min-width:0">{{ p.text }}<span style="margin-left:8px;color:var(--muted-foreground);font-size:12.5px">{{ p.ziffer }}</span>
+<sc-if value="{{ p.nichtAbrechenbar }}" hint-placeholder-val="{{ false }}">
+<span style="margin-left:8px;color:var(--muted-foreground);font-size:12.5px">nicht abrechenbar</span>
+</sc-if>
+</span>
+<span class="tabular-nums" style="text-align:right">{{ p.betrag }}</span>
+</div>
+</sc-for>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:2px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Abrechenbar</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ v.vgSummeAbrechenbar }}</span>
+</div>
+<sc-if value="{{ v.vgKannAbrechnen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;justify-content:flex-end;margin-top:12px">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.zuRechnungen }}" hint-size="112px,32px">Abrechnen</x-import>
+</div>
+</sc-if>
+<sc-if value="{{ v.vgZeigeGesamt }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:5px;color:var(--muted-foreground);font-size:12.5px">
+<span>Gesamt inkl. nicht abrechenbarer Positionen</span>
+<span class="tabular-nums">{{ v.vgSummeGesamt }}</span>
+</div>
+</sc-if>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:16px;padding-left:26px;border-left:1px solid var(--border)">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Termin</span>
+<sc-if value="{{ v.vgTerminAnlegen }}" hint-placeholder-val="{{ true }}">
+<span class="tabular-nums">{{ v.vgDatumText }}</span>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ v.vgZeitText }}</span>
+<span style="margin-top:3px">{{ v.vgTerminRail }}</span>
+<span style="color:var(--muted-foreground);font-size:12px">{{ v.vgSlotHinweis }}</span>
+</sc-if>
+<sc-if value="{{ v.vgOhneTermin }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground)">Kein Kalendertermin</span>
+</sc-if>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Vorgang</span>
+<span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:999px;background:{{ v.vgArtFarbe }}"></span>{{ v.vgArtText }}</span>
+<span>{{ v.vgStatusText }}</span>
+</div>
+<sc-if value="{{ v.vgHatRechnung }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Rechnung</span>
+<a href="#" onClick="{{ v.zuRechnungen }}" style="text-decoration:underline;text-underline-offset:3px">{{ v.vgRechnungNr }}</a>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ v.vgRechnungBetrag }} · {{ v.vgRechnungStatus }}</span>
+</div>
+</sc-if>
+</div>
+
+</div>
+</sc-if>
+
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ v.vgLesen }}" hint-size="100%,520px">
+<div style="display:flex;flex-direction:column;gap:22px">
+
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px 18px;--felder:1">
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vg-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,140px">
+<sc-for list="{{ v.vgArten }}" as="a" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ a.name }}" hint-size="100%,32px"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:8px;background:{{ a.farbe }}"></span>{{ a.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-status" hint-size="44px,16px">Status</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgStatusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vg-status" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Stattgefunden" hint-size="100%,32px">Stattgefunden</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Nicht erschienen" hint-size="100%,32px">Nicht erschienen</x-import>
+</x-import>
+</x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Der Status ist nur Dokumentation und steuert die Abrechnung nicht.</p>
+</div>
+<div style="grid-column:1/span 6;display:flex;flex-direction:column;gap:5px;min-width:0">
+<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;min-width:0">
+<div style="display:flex;flex-direction:column;gap:5px;flex:1 1 130px;min-width:126px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="vg-datum" dc-props="{{ v.vgDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;width:72px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-zeit" hint-size="56px,16px">Uhrzeit</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-zeit" placeholder="15:00" dc-props="{{ v.vgZeitProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;width:78px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-dauer" hint-size="80px,16px">Dauer (Min.)</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-dauer" type="number" dc-props="{{ v.vgDauerProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Ende {{ v.vgEnde }}</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-titel" hint-size="86px,16px">Bezeichnung <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-titel" dc-props="{{ v.vgTitelProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ true }}">
+<section>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+<p style="margin:0;font-weight:600">Positionen</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+<sc-if value="{{ v.vgOhnePositionen }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Noch keine Position.</p>
+</sc-if>
+<sc-for list="{{ v.vgPositionen }}" as="p" hint-placeholder-count="2">
+<sc-if value="{{ v.vgLesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px solid var(--border)">
+<span class="tabular-nums" style="width:26px;color:var(--muted-foreground)">{{ p.menge }}×</span>
+<span style="flex:1 1 auto;min-width:0">{{ p.text }}</span>
+<sc-if value="{{ p.nichtAbrechenbar }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">nicht abrechenbar</span>
+</sc-if>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:12.5px">{{ p.ziffer }}</span>
+<span class="tabular-nums" style="width:84px;text-align:right">{{ p.betrag }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<sc-if value="{{ p.nichtAbrechenbar }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">nicht abrechenbar</span>
+</sc-if>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+<span style="flex:1 1 260px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgKatalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog hinzufügen" hint-size="190px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,300px">
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,150px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungen</x-import>
+<sc-for list="{{ v.leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.wert }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungsgruppen</x-import>
+<sc-for list="{{ v.gruppen }}" as="g" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ g.wert }}" hint-size="100%,32px">{{ g.name }} · {{ g.umfang }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</x-import>
+</span>
+<span style="color:var(--muted-foreground);font-size:13px">oder</span>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ v.vgFreiePosition }}" hint-size="140px,36px">Freie Position</x-import>
+</div>
+<p style="margin:8px 0 0;color:var(--muted-foreground);font-size:12px">Aus dem Katalog wird kopiert; die Vorbelegung kommt aus der Art. Eine Gruppe wird sofort in einzelne Positionen aufgelöst.</p>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:2px;margin-top:10px;text-align:right">
+<p style="margin:0">Abrechenbar: <span class="tabular-nums" style="font-weight:600">{{ v.vgSummeAbrechenbar }}</span></p>
+<sc-if value="{{ v.vgZeigeGesamt }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13px">Gesamt: <span class="tabular-nums">{{ v.vgSummeGesamt }}</span></p>
+</sc-if>
+</div>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:600">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ v.vgTerminProps }}" hint-size="16px,16px"></x-import>Termin anlegen
+</label>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ v.vgTerminZeile }}</span>
+</div>
+<sc-if value="{{ v.vgTerminAnlegen }}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{ v.vgLesen }}" hint-placeholder-val="{{ true }}">
+<p style="margin:6px 0 0;color:var(--muted-foreground);font-size:13px">{{ v.vgTerminStatusText }} · {{ v.vgSlotHinweis }}</p>
+</sc-if>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:10px">
+<div style="display:flex;flex-direction:column;gap:5px;width:200px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-terminstatus" hint-size="44px,16px">Status</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgTerminStatusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vg-terminstatus" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="260px,170px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Angefragt" hint-size="100%,32px">Angefragt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Bestätigt" hint-size="100%,32px">Bestätigt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Abgesagt" hint-size="100%,32px">Abgesagt</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Kurzfristig abgesagt" hint-size="100%,32px">Kurzfristig abgesagt</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;flex:1 1 240px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-terminnotiz" hint-size="120px,16px">Notiz zum Termin</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-terminnotiz" defaultValue="" hint-size="100%,36px"></x-import>
+</div>
+<p style="margin:0;width:100%;color:var(--muted-foreground);font-size:12px">{{ v.vgSlotHinweis }}</p>
+</div>
+</sc-if>
+</sc-if>
+</section>
+
+<sc-if value="{{ v.vgHatRechnung }}" hint-placeholder-val="{{ false }}">
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<p style="margin:0 0 8px;font-weight:600">Rechnungen</p>
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<a href="#" onClick="{{ v.zuRechnungen }}" style="text-decoration:underline;text-underline-offset:3px">{{ v.vgRechnungNr }}</a>
+<span class="tabular-nums">{{ v.vgRechnungBetrag }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="72px,20px">{{ v.vgRechnungStatus }}</x-import>
+</div>
+</section>
+</sc-if>
+</sc-if>
+
+
+</div>
+</x-import>
+
+<section style="border-top:1px solid var(--border);margin-top:22px;padding-top:16px">
+<p style="margin:0 0 8px;font-weight:600">Notizen</p>
+<sc-if value="{{ v.vgNotizLesen }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+<span class="tabular-nums" style="font-size:13.5px">{{ v.vgNotizDatum }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="outline" hint-size="74px,20px">{{ v.vgNotizArt }}</x-import>
+<sc-if value="{{ v.vgNotizGesperrt }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="80px,20px">Gesperrt</x-import>
+</sc-if>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" size="sm" onClick="{{ v.vgNotizBearbeiten }}" className="ml-auto text-muted-foreground" hint-size="118px,28px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path></svg>Bearbeiten</x-import>
+</div>
+<p style="margin:6px 0 0;color:var(--muted-foreground);font-size:13.5px">{{ v.vgNotizText }}</p>
+</div>
+</sc-if>
+<sc-if value="{{ v.vgOhneNotiz }}" hint-placeholder-val="{{ true }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Noch keine Notizen.</p>
+</sc-if>
+
+<sc-if value="{{ v.vgNotizZu }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" size="sm" onClick="{{ v.vgNotizNeu }}" className="mt-3" hint-size="176px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Notiz hinzufügen</x-import>
+</sc-if>
+
+<sc-if value="{{ v.vgNotizOffen }}" hint-placeholder-val="{{ false }}">
+<div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px 14px;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<div style="display:flex;flex-direction:column;gap:6px;flex:1 1 150px;min-width:130px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgnotiz-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="vgnotiz-datum" dc-props="{{ v.vgNotizDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;flex:1 1 170px;min-width:150px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vgnotiz-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.vgNotizArtProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vgnotiz-art" className="w-full bg-card" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="100px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,200px">
+<sc-for list="{{ v.notizArten }}" as="a" hint-placeholder-count="5">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ a }}" hint-size="100%,32px">{{ a }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px 2px;padding:7px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:color-mix(in oklab, var(--muted) 30%, var(--card))">
+<sc-for list="{{ v.werkzeuge }}" as="w" hint-placeholder-count="5">
+<button onMouseDown="{{ w.onMouseDown }}" title="{{ w.titel }}" aria-label="{{ w.titel }}" style="display:flex;align-items:center;justify-content:center;min-width:30px;height:28px;padding:0 7px;border-radius:6px;color:var(--muted-foreground);font-size:13.5px;font-weight:{{ w.gewicht }};font-style:{{ w.stil }}" style-hover="background:var(--accent);color:var(--accent-foreground)">{{ w.zeichen }}</button>
+</sc-for>
+<span style="margin-left:auto;display:inline-flex;align-items:center;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" size="sm" onClick="{{ v.vgNotizAbbrechen }}" hint-size="96px,30px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.vgNotizSpeichern }}" hint-size="96px,30px">Speichern</x-import>
+</span>
+</div>
+<div ref="{{ v.vgNotizEditorRef }}" contentEditable="{{ true }}" suppressContentEditableWarning="{{ true }}" data-editor="notiz" style="min-height:120px;padding:14px 16px;outline:none;line-height:1.65;background:var(--card)"></div>
+</div>
+</sc-if>
+</section>
+
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" disabled="{{ v.vgLesen }}" hint-size="100%,120px">
+<section style="border-top:1px solid var(--border);margin-top:22px;padding-top:16px">
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-notiz" hint-size="104px,16px">Interne Notiz</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="vg-notiz" rows="3" defaultValue="" hint-size="100%,76px"></x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Nur intern sichtbar, erscheint auf keinem Dokument.</p>
+</div>
+</section>
+</x-import>
+
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+<sc-if value="{{ v.vgLesen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.vgSchliessen }}" hint-size="106px,36px">Zuklappen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.vgBearbeitenStart }}" hint-size="120px,36px">Bearbeiten</x-import>
+</sc-if>
+<sc-if value="{{ v.vgBearbeiten }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.vgSchliessen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.vgSchliessen }}" hint-size="106px,36px">Speichern</x-import>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+
+</div>
+</sc-if>
+
+<sc-if value="{{ v.isRechnungen }}" hint-placeholder-val="{{ false }}">
+<div style="max-width:1100px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">{{ v.rechnungenZahl }}</p>
+<sc-for list="{{ v.rechnungenFilter }}" as="f" hint-placeholder-count="3">
+<button onClick="{{ f.onClick }}" style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid {{ f.rahmen }};border-radius:999px;background:{{ f.bg }};color:{{ f.farbe }};font-size:12.5px" style-hover="border-color:var(--primary)"><span class="tabular-nums" style="font-weight:600">{{ f.anzahl }}</span>{{ f.label }}</button>
+</sc-for>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ v.reNeu }}" hint-size="164px,32px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rechnung erstellen</x-import>
+</div>
+
+<sc-if value="{{ v.reZu }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<div>
+<p style="margin:0;font-weight:600">Abrechenbar, noch nicht in Rechnung</p>
+<p style="margin:3px 0 0;color:var(--muted-foreground);font-size:13px">{{ v.abrechenbarZeile }}</p>
+</div>
+<span style="display:flex;align-items:center;gap:14px">
+<span class="tabular-nums" style="font-size:19px;font-weight:600">{{ v.abrechenbarSumme }}</span>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ v.reNeu }}" hint-size="150px,32px">Rechnung erstellen</x-import>
+</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.reOffen }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--primary);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<span style="font-weight:600">Neue Rechnung</span>
+<span style="color:var(--muted-foreground);font-size:13px">Entwurf, noch nicht festgeschrieben</span>
+<span style="margin-left:auto;color:var(--muted-foreground);font-size:13px" class="tabular-nums">Nr. {{ v.reNummer }} nach dem Festschreiben</span>
+</div>
+<div style="padding:18px 16px 16px;display:flex;flex-direction:column;gap:22px">
+
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px 18px">
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-empf" hint-size="150px,16px">Rechnungsempfänger</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.reEmpfProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="re-empf" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="180px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ v.reEmpfaenger }}" as="e" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ e.name }}" hint-size="100%,32px">{{ e.name }} <span style="color:var(--muted-foreground)">· {{ e.rolle }}</span></x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-datum" hint-size="118px,16px">Rechnungsdatum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="re-datum" dc-props="{{ v.reDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:11/span 2">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-ziel" hint-size="90px,16px">Zahlungsziel</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="re-ziel" dc-props="{{ v.reZielProps }}" hint-size="100%,36px"></x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Fällig {{ v.reFaellig }}</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-diagnose" hint-size="70px,16px">Diagnose</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="re-diagnose" dc-props="{{ v.reDiagnoseProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:4/span 9">
+<label style="display:flex;align-items:center;gap:9px;height:16px;cursor:pointer;font-size:13.5px;line-height:16px">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ v.reZeitraumProps }}" hint-size="16px,16px"></x-import>Leistungszeitraum ausweisen
+</label>
+<div style="display:flex;align-items:center;gap:10px;opacity:{{ v.reZeitraumDeckkraft }}">
+<span style="flex:0 0 176px"><x-import component-from-global-scope="PraxiWeb.DateField" dc-props="{{ v.reVonProps }}" hint-size="100%,36px"></x-import></span>
+<span style="color:var(--muted-foreground)">bis</span>
+<span style="flex:0 0 176px"><x-import component-from-global-scope="PraxiWeb.DateField" dc-props="{{ v.reBisProps }}" hint-size="100%,36px"></x-import></span>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">{{ v.reZeitraumHinweis }}</p>
+</div>
+</div>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<p style="margin:0;font-weight:600">Einleitungstext</p>
+<span style="width:260px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.reEinleitungVorlageProps }}" hint-size="100%,32px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" size="sm" className="w-full" hint-size="100%,32px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Vorlage wählen" hint-size="150px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ v.reEinleitungVorlagen }}" as="t" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ t.name }}" hint-size="100%,32px">{{ t.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="re-einleitung" rows="2" className="mt-2" dc-props="{{ v.reEinleitungProps }}" placeholder="Steht über den Positionen." hint-size="100%,60px"></x-import>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<p style="margin:0;font-weight:600">Positionen</p>
+<p style="margin:3px 0 0;color:var(--muted-foreground);font-size:12.5px">Aus den abrechenbaren Vorgängen kopiert. Vorgang abwählen entfernt seine Positionen wieder.</p>
+<div style="display:flex;flex-direction:column;gap:14px;margin-top:12px">
+<sc-for list="{{ v.reGruppen }}" as="g" hint-placeholder-count="3">
+<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<label style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:color-mix(in oklab, var(--muted) 45%, var(--card));cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ g.checkProps }}" hint-size="16px,16px"></x-import>
+<span class="tabular-nums" style="font-weight:600">{{ g.wann }}</span>
+<span style="display:flex;align-items:center;gap:7px;color:var(--muted-foreground);font-size:13px"><span style="width:9px;height:9px;border-radius:999px;background:{{ g.farbe }}"></span>{{ g.art }}</span>
+<span class="tabular-nums" style="margin-left:auto;font-size:13.5px">{{ g.summe }}</span>
+</label>
+<sc-if value="{{ g.gewaehlt }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px">
+<sc-for list="{{ g.positionen }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-for>
+
+<sc-if value="{{ v.reHatFreie }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<p style="margin:0;padding:9px 12px;background:color-mix(in oklab, var(--muted) 45%, var(--card));font-weight:600">Frei erfasst</p>
+<div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px">
+<sc-for list="{{ v.reFreie }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+<span style="flex:1 1 260px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.reKatalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog hinzufügen" hint-size="190px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,300px">
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,150px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungen</x-import>
+<sc-for list="{{ v.leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.wert }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungsgruppen</x-import>
+<sc-for list="{{ v.gruppen }}" as="g" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ g.wert }}" hint-size="100%,32px">{{ g.name }} · {{ g.umfang }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</x-import>
+</span>
+<span style="color:var(--muted-foreground);font-size:13px">oder</span>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ v.reFreiePosition }}" hint-size="140px,36px">Freie Position</x-import>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:14px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Rechnungsbetrag</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ v.reSumme }}</span>
+</div>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<p style="margin:0;font-weight:600">Schlusstext</p>
+<span style="width:260px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.reSchlussVorlageProps }}" hint-size="100%,32px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" size="sm" className="w-full" hint-size="100%,32px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Vorlage wählen" hint-size="150px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ v.reSchlussVorlagen }}" as="t" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ t.name }}" hint-size="100%,32px">{{ t.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="re-schluss" rows="2" className="mt-2" dc-props="{{ v.reSchlussProps }}" placeholder="Steht unter den Positionen, z. B. Zahlungshinweis." hint-size="100%,60px"></x-import>
+</section>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" className="text-muted-foreground" hint-size="132px,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path></svg>PDF-Vorschau</x-import>
+<span style="display:inline-flex;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.reSchliessen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ v.reSchliessen }}" hint-size="150px,36px">Als Entwurf sichern</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.reSchliessen }}" hint-size="180px,36px">Rechnung festschreiben</x-import>
+</span>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden">
+<sc-if value="{{ v.ohneRechnungen }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;padding:18px 16px;color:var(--muted-foreground);font-size:13.5px">Keine Rechnung in dieser Auswahl.</p>
+</sc-if>
+<sc-for list="{{ v.rechnungen }}" as="r" hint-placeholder-count="4">
+<div style="border-top:1px solid {{ r.linie }}">
+<button onClick="{{ r.onOeffnen }}" style="display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:13px 16px;background:{{ r.kopfBg }}" style-hover="background:var(--accent)">
+<span style="width:84px;flex-shrink:0;font-weight:600" class="tabular-nums">{{ r.nr }}</span>
+<span style="width:84px;flex-shrink:0;color:var(--muted-foreground);font-size:13.5px" class="tabular-nums">{{ r.datum }}</span>
+<span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted-foreground);font-size:13.5px">{{ r.umfang }}</span>
+<span style="width:84px;flex-shrink:0;text-align:right" class="tabular-nums">{{ r.betrag }}</span>
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ r.statusVariante }}" hint-size="88px,20px">{{ r.status }}</x-import>
+<span style="flex:0 0 auto;white-space:nowrap;text-align:right;color:var(--muted-foreground);font-size:12.5px" class="tabular-nums">{{ r.hinweis }}</span>
+</button>
+
+<sc-if value="{{ r.offen }}" hint-placeholder-val="{{ false }}">
+<div style="border-top:1px solid var(--border);padding:18px 16px 16px">
+
+<sc-if value="{{ v.rdLesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 236px;gap:34px;align-items:start">
+<div>
+<p style="margin:0 0 14px;color:var(--muted-foreground);font-size:13.5px;text-wrap:pretty">{{ v.rdEinleitung }}</p>
+<sc-for list="{{ v.rdPositionen }}" as="p" hint-placeholder-count="2">
+<div style="display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:9px 0;border-top:1px solid var(--border)">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ p.menge }}×</span>
+<span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+<span>{{ p.text }}<span style="margin-left:8px;color:var(--muted-foreground);font-size:12.5px">{{ p.ziffer }}</span></span>
+<sc-if value="{{ p.hatVorgang }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ p.onVorgang }}" style="align-self:flex-start;color:var(--muted-foreground);font-size:12.5px;text-decoration:underline;text-underline-offset:3px" style-hover="color:var(--foreground)">Vorgang <span class="tabular-nums">{{ p.vorgangLabel }}</span></button>
+</sc-if>
+</span>
+<span class="tabular-nums" style="text-align:right">{{ p.betrag }}</span>
+</div>
+</sc-for>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:2px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Rechnungsbetrag</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ v.rdSumme }}</span>
+</div>
+<p style="margin:14px 0 0;color:var(--muted-foreground);font-size:13px;text-wrap:pretty">{{ v.rdSchluss }}</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:16px;padding-left:26px;border-left:1px solid var(--border)">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Empfänger</span>
+<span>{{ v.rdEmpf }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Rechnung</span>
+<span class="tabular-nums">{{ v.rdNr }} · {{ v.rdDatum }}</span>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">Zahlungsziel {{ v.rdZiel }} · fällig {{ v.rdFaellig }}</span>
+<sc-if value="{{ v.rdHatZeitraum }}" hint-placeholder-val="{{ true }}">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">Leistungszeitraum {{ v.rdZeitraum }}</span>
+</sc-if>
+<span style="color:var(--muted-foreground);font-size:13px">Diagnose {{ v.rdDiagnose }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Status</span>
+<span>{{ v.rdStatus }}</span>
+<span style="color:var(--muted-foreground);font-size:13px">{{ v.rdHinweis }}</span>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.rdBearbeiten }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:22px">
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px 18px">
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="rd-empf" hint-size="150px,16px">Rechnungsempfänger</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.rdEmpfProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="rd-empf" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="180px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ v.reEmpfaenger }}" as="e" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ e.name }}" hint-size="100%,32px">{{ e.name }} <span style="color:var(--muted-foreground)">· {{ e.rolle }}</span></x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="rd-datum" hint-size="118px,16px">Rechnungsdatum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="rd-datum" dc-props="{{ v.rdDatumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:11/span 2">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="rd-ziel" hint-size="90px,16px">Zahlungsziel</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="rd-ziel" dc-props="{{ v.rdZielProps }}" hint-size="100%,36px"></x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Fällig {{ v.rdFaellig }}</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="rd-diagnose" hint-size="70px,16px">Diagnose</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="rd-diagnose" dc-props="{{ v.rdDiagnoseProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:4/span 9">
+<label style="display:flex;align-items:center;gap:9px;height:16px;cursor:pointer;font-size:13.5px;line-height:16px">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ v.rdZeitraumProps }}" hint-size="16px,16px"></x-import>Leistungszeitraum ausweisen
+</label>
+<div style="display:flex;align-items:center;gap:10px;opacity:{{ v.rdZeitraumDeckkraft }}">
+<span style="flex:0 0 176px"><x-import component-from-global-scope="PraxiWeb.DateField" dc-props="{{ v.rdVonProps }}" hint-size="100%,36px"></x-import></span>
+<span style="color:var(--muted-foreground)">bis</span>
+<span style="flex:0 0 176px"><x-import component-from-global-scope="PraxiWeb.DateField" dc-props="{{ v.rdBisProps }}" hint-size="100%,36px"></x-import></span>
+</div>
+</div>
+</div>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<p style="margin:0;font-weight:600">Einleitungstext</p>
+<span style="width:260px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.rdEinleitungVorlageProps }}" hint-size="100%,32px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" size="sm" className="w-full" hint-size="100%,32px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Vorlage wählen" hint-size="150px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ v.reEinleitungVorlagen }}" as="t" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ t.name }}" hint-size="100%,32px">{{ t.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Textarea" rows="2" className="mt-2" dc-props="{{ v.rdEinleitungProps }}" hint-size="100%,60px"></x-import>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<p style="margin:0;font-weight:600">Positionen</p>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+<sc-for list="{{ v.rdZeilen }}" as="p" hint-placeholder-count="2">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+<sc-if value="{{ p.hatVorgang }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ p.onVorgang }}" style="width:100%;text-align:left;color:var(--muted-foreground);font-size:12px;text-decoration:underline;text-underline-offset:3px" style-hover="color:var(--foreground)" class="tabular-nums">Aus Vorgang {{ p.vorgangLabel }}</button>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+<span style="flex:1 1 260px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.rdKatalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog hinzufügen" hint-size="190px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,300px">
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,150px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungen</x-import>
+<sc-for list="{{ v.leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.wert }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectGroup" hint-size="100%,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectLabel" hint-size="100%,26px">Leistungsgruppen</x-import>
+<sc-for list="{{ v.gruppen }}" as="g" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ g.wert }}" hint-size="100%,32px">{{ g.name }} · {{ g.umfang }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</x-import>
+</span>
+<span style="color:var(--muted-foreground);font-size:13px">oder</span>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ v.rdFreiePosition }}" hint-size="140px,36px">Freie Position</x-import>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:14px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Rechnungsbetrag</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ v.rdSumme }}</span>
+</div>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<p style="margin:0;font-weight:600">Schlusstext</p>
+<span style="width:260px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ v.rdSchlussVorlageProps }}" hint-size="100%,32px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" size="sm" className="w-full" hint-size="100%,32px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Vorlage wählen" hint-size="150px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ v.reSchlussVorlagen }}" as="t" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ t.name }}" hint-size="100%,32px">{{ t.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Textarea" rows="2" className="mt-2" dc-props="{{ v.rdSchlussProps }}" hint-size="100%,60px"></x-import>
+</section>
+</div>
+</sc-if>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" className="text-muted-foreground" hint-size="132px,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path></svg>PDF-Vorschau</x-import>
+<span style="display:inline-flex;gap:8px">
+<sc-if value="{{ v.rdLesen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.rdSchliessen }}" hint-size="106px,36px">Zuklappen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.rdBearbeitenStart }}" hint-size="120px,36px">Bearbeiten</x-import>
+</sc-if>
+<sc-if value="{{ v.rdBearbeiten }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ v.rdAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ v.rdAbbrechen }}" hint-size="106px,36px">Speichern</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ v.rdAbbrechen }}" hint-size="180px,36px">Rechnung festschreiben</x-import>
+</sc-if>
+</span>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ v.isPlaceholder }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px dashed var(--border);border-radius:10px;padding:70px 24px;text-align:center">
+<p style="margin:0;font-weight:600">{{ v.tabLabel }}</p>
+<p style="margin:6px 0 0;color:var(--muted-foreground)">Eigener Screen, hier nicht Teil des Redesigns.</p>
+</div>
+</sc-if>
+</div>
+</main>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;schiefer&quot;,&quot;blau&quot;,&quot;salbei&quot;,&quot;rose&quot;,&quot;nacht&quot;],&quot;default&quot;:&quot;schiefer&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;bearbeiten&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Zustand&quot;},&quot;neuanlage&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Zustand&quot;},&quot;archiviert&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Zustand&quot;},&quot;warnung&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Zustand&quot;}}">
+const ROLLEN = ['Patienten', 'Angehörige', 'Zuweiser', 'Krankenkassen', 'Lieferanten'];
+
+const TABS = [
+  {value:'uebersicht',label:'Übersicht'},
+  {value:'stammdaten',label:'Stammdaten'},
+  {value:'notizen',label:'Notizen'},
+  {value:'vorgaenge',label:'Vorgänge'},
+  {value:'rechnungen',label:'Rechnungen'}
+];
+const PLACEHOLDER = {};
+/** Textbausteine für Rechnungen; frei editierbar, sobald sie übernommen sind. */
+const RECHNUNGSTEXTE = {
+  einleitung: [
+    {name:'Standard', text:'für die folgenden Leistungen erlaube ich mir, Ihnen wie vereinbart in Rechnung zu stellen:'},
+    {name:'Privatrechnung Beihilfe', text:'für die folgenden Leistungen stelle ich Ihnen den nachstehenden Betrag in Rechnung. Die Rechnung ist zur Vorlage bei Beihilfe und privater Krankenversicherung geeignet.'},
+    {name:'Selbstzahler', text:'vielen Dank für Ihr Vertrauen. Für die erbrachten Leistungen berechne ich Ihnen:'}
+  ],
+  schluss: [
+    {name:'Zahlungsziel', text:'Bitte überweisen Sie den Betrag innerhalb des angegebenen Zahlungsziels auf das unten genannte Konto. Bitte geben Sie die Rechnungsnummer als Verwendungszweck an.'},
+    {name:'Beihilfe-Hinweis', text:'Die Leistungen wurden nach der Gebührenordnung abgerechnet. Eine Erstattung durch Beihilfe und private Krankenversicherung ist nach den jeweiligen Bestimmungen möglich.'},
+    {name:'Kurz', text:'Zahlbar ohne Abzug innerhalb des angegebenen Zahlungsziels.'}
+  ]
+};
+/** Rechnungen dieses Kontakts, jüngste zuerst. */
+const RECHNUNGEN = [
+  {nr:'2026-0048', datum:'31.07.2026', iso:'2026-07-31', umfang:'1 Vorgang · Juli', betrag:'38,00 €',
+   status:'Offen', empf:'Jens Dohrmann', ziel:'14 Tage', diagnose:'F82.0',
+   von:'', bis:'', zeitraum:'',
+   einleitung: RECHNUNGSTEXTE.einleitung[2].text, schluss: RECHNUNGSTEXTE.schluss[2].text,
+   positionen:[{menge:1, text:'Telefonat mit der Schule, 30 Minuten', ziffer:'', betrag:'38,00 €'}]},
+  {nr:'2026-0042', datum:'20.07.2026', iso:'2026-07-20', umfang:'2 Vorgänge · Juli', betrag:'90,00 €',
+   status:'Bezahlt', hinweis:'bezahlt 28.07.2026', empf:'Anke Dohrmann', ziel:'14 Tage', diagnose:'F82.0',
+   von:'2026-07-10', bis:'2026-07-17', zeitraum:'10.07.2026 – 17.07.2026',
+   einleitung: RECHNUNGSTEXTE.einleitung[0].text, schluss: RECHNUNGSTEXTE.schluss[0].text,
+   positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €', vorgang:'17.07.2026, 15:00'},
+               {menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €', vorgang:'24.07.2026, 15:00'}]},
+  {nr:'2026-0031', datum:'30.06.2026', iso:'2026-06-30', umfang:'2 Vorgänge · Juni', betrag:'86,00 €',
+   status:'Überfällig', empf:'Anke Dohrmann', ziel:'14 Tage', diagnose:'F82.0',
+   von:'2026-06-05', bis:'2026-06-26', zeitraum:'05.06.2026 – 26.06.2026',
+   einleitung: RECHNUNGSTEXTE.einleitung[1].text, schluss: RECHNUNGSTEXTE.schluss[1].text,
+   positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'},
+               {menge:1, text:'Ausfallhonorar', ziffer:'', betrag:'22,50 €'},
+               {menge:1, text:'Bericht an die verordnende Ärztin', ziffer:'B1', betrag:'18,50 €'}]}
+];
+/** Vorgänge wie in `activity-list.tsx`: je Zeile Zeitpunkt, Art in ihrer Farbe,
+ *  nur die erzählenswerten Status, die Positionen und die abrechenbare Summe. */
+/** Was ein Vorgang im Detail trägt — Positionen, Termin, Beleg, Dokumentation. */
+const VORGANGSDETAIL = {
+  '07.08.2026, 15:00': {datum:'2026-08-07', zeit:'15:00', dauer:'45', titel:'', terminStatus:'Bestätigt',
+    positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'}],
+    abrechenbar:'45,00 €', notiz:{datum:'07.08.2026', art:'Sitzung', gesperrt:false, text:'Feinmotorik am Stifthalter geübt. Til hält die Spannung inzwischen über etwa zehn Minuten.'}},
+  '31.07.2026, 15:00': {datum:'2026-07-31', zeit:'15:00', dauer:'45', titel:'', terminStatus:'Kurzfristig abgesagt',
+    positionen:[{menge:1, text:'Ausfallhonorar', ziffer:'', betrag:'22,50 €'}],
+    abrechenbar:'22,50 €'},
+  '24.07.2026, 15:00': {datum:'2026-07-24', zeit:'15:00', dauer:'60', titel:'Anamnese und Zielklärung', terminStatus:'Bestätigt',
+    positionen:[{menge:1, text:'Erstgespräch mit Anamnese', ziffer:'A2', betrag:'90,00 €'},
+                {menge:1, text:'Befundbericht', ziffer:'', betrag:'0,00 €', nichtAbrechenbar:true}],
+    abrechenbar:'90,00 €', gesamt:'90,00 €',
+    rechnung:{nr:'2026-0042', betrag:'90,00 €', status:'Bezahlt'},
+    notiz:{datum:'24.07.2026', art:'Sitzung', gesperrt:true, text:'Erstgespräch mit der Mutter. Ziele für das Quartal abgestimmt.'}},
+  '17.07.2026, 15:00': {datum:'2026-07-17', zeit:'15:00', dauer:'45', titel:'', terminStatus:'Bestätigt',
+    positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'}],
+    abrechenbar:'45,00 €', rechnung:{nr:'2026-0042', betrag:'90,00 €', status:'Bezahlt'}},
+  '14.08.2026, 15:00': {datum:'2026-08-14', zeit:'15:00', dauer:'45', titel:'', terminStatus:'Geplant',
+    positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'}],
+    abrechenbar:'45,00 €'},
+  '21.08.2026, 15:00': {datum:'2026-08-21', zeit:'15:00', dauer:'45', titel:'', terminStatus:'Angefragt',
+    positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'}],
+    abrechenbar:'45,00 €'},
+  '28.08.2026, 15:00': {datum:'2026-08-28', zeit:'15:00', dauer:'45', titel:'', terminStatus:'Geplant',
+    positionen:[{menge:1, text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'}],
+    abrechenbar:'45,00 €'},
+  '10.07.2026': {datum:'2026-07-10', zeit:'', dauer:'', titel:'Telefonat mit der Schule', terminStatus:'',
+    positionen:[{menge:1, text:'Telefonat mit der Schule, 30 Minuten', ziffer:'', betrag:'38,00 €'}],
+    abrechenbar:'38,00 €',
+    notiz:{datum:'10.07.2026', art:'Telefonat', gesperrt:false, text:'Rücksprache mit der Klassenlehrerin zur Stifthaltung im Unterricht.'}}
+};
+/** Ein Termin hält den Zeitraum belegt, solange er nicht abgesagt ist. */
+/** Der Leistungskatalog als Vorlage — beim Hinzufügen wird kopiert. */
+/** Vorgangsarten: Farbe für den Kalender, Vorbelegung für die Positionen. */
+const VORGANGSARTEN = [
+  {name:'Erstgespräch', farbe:'oklch(75% .12 85)', dauer:'60', vorbelegung:['Erstgespräch mit Anamnese']},
+  {name:'Folgesitzung', farbe:'oklch(72% .1 200)', dauer:'45', vorbelegung:['Ergotherapie, Einzelbehandlung']},
+  {name:'Bericht', farbe:'oklch(70% .11 300)', dauer:'30', vorbelegung:['Befundbericht']}
+];
+const LEISTUNGEN = [
+  {text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', betrag:'45,00 €'},
+  {text:'Erstgespräch mit Anamnese', ziffer:'A2', betrag:'90,00 €'},
+  {text:'Ausfallhonorar', ziffer:'', betrag:'22,50 €'},
+  {text:'Befundbericht', ziffer:'B1', betrag:'35,00 €'}
+];
+const GRUPPEN = [
+  {name:'Erstkontakt', teile:['Erstgespräch mit Anamnese','Befundbericht']},
+  {name:'Doppelstunde', teile:['Ergotherapie, Einzelbehandlung','Ergotherapie, Einzelbehandlung']}
+];
+const cent = text => Math.round(parseFloat((text || '0').replace(/[^0-9,.-]/g,'').replace(',', '.')) * 100) || 0;
+const euro = betrag => (betrag / 100).toFixed(2).replace('.', ',') + ' €';
+const HAELT_SLOT = ['Angefragt','Geplant','Bestätigt'];
+/** Sortierschlüssel eines Termins: kommende aufsteigend, vergangene absteigend. */
+const terminSchluessel = t => Number(t.datum.split('.').reverse().join(''));
+/** Fälligkeit aus Rechnungsdatum und Zahlungsziel; der Listenhinweis kommt aus derselben Rechnung. */
+const faelligAm = (iso, ziel) => {
+  const tage = parseInt(String(ziel).replace(/[^0-9]/g, ''), 10);
+  if (!tage) return 'sofort';
+  const dat = new Date(iso);
+  dat.setDate(dat.getDate() + tage);
+  return String(dat.getDate()).padStart(2,'0') + '.' + String(dat.getMonth()+1).padStart(2,'0') + '.' + dat.getFullYear();
+};
+const rechnungHinweis = r => r.hinweis
+  ?? (r.status === 'Überfällig' ? 'fällig seit ' : 'fällig ') + faelligAm(r.iso, r.ziel);
+/** Heute im Prototyp — trennt kommende von vergangenen Vorgängen. */
+const HEUTE_KEY = 20260812;
+const VORGANGSLISTE = [
+  {wann:'28.08.2026, 15:00', wochentag:'Fr', zeit:'15:00–15:45', art:'Folgesitzung', farbe:'oklch(72% .1 200)', status:'Geplant',
+   terminStatus:'Geplant', abrechnung:'', summe:'45,00 €', positionen:['1× Ergotherapie, Einzelbehandlung'], titel:''},
+  {wann:'21.08.2026, 15:00', wochentag:'Fr', zeit:'15:00–15:45', art:'Folgesitzung', farbe:'oklch(72% .1 200)', status:'Geplant',
+   terminStatus:'Angefragt', abrechnung:'', summe:'45,00 €', positionen:['1× Ergotherapie, Einzelbehandlung'], titel:''},
+  {wann:'14.08.2026, 15:00', wochentag:'Fr', zeit:'15:00–15:45', art:'Folgesitzung', farbe:'oklch(72% .1 200)', status:'Geplant',
+   terminStatus:'Geplant', abrechnung:'', summe:'45,00 €', positionen:['1× Ergotherapie, Einzelbehandlung'], titel:''},
+  {wann:'07.08.2026, 15:00', wochentag:'Fr', zeit:'15:00–15:45', art:'Folgesitzung', farbe:'oklch(72% .1 200)', status:'Stattgefunden',
+   terminStatus:'Bestätigt', abrechnung:'Offen', summe:'45,00 €', positionen:['1× Ergotherapie, Einzelbehandlung'], titel:''},
+  {wann:'31.07.2026, 15:00', wochentag:'Fr', zeit:'15:00–15:45', art:'Folgesitzung', farbe:'oklch(72% .1 200)', status:'Nicht erschienen',
+   terminStatus:'Kurzfristig abgesagt', abrechnung:'Offen', summe:'22,50 €',
+   positionen:['1× Ausfallhonorar'], titel:''},
+  {wann:'24.07.2026, 15:00', wochentag:'Fr', zeit:'15:00–16:00', art:'Erstgespräch', farbe:'oklch(75% .12 85)', status:'Stattgefunden',
+   terminStatus:'Bestätigt', abrechnung:'Abgerechnet', summe:'90,00 €',
+   positionen:['1× Erstgespräch mit Anamnese','1× Befundbericht (nicht abrechenbar)'], gesamt:'90,00 €', titel:'Anamnese und Zielklärung'},
+  {wann:'17.07.2026, 15:00', wochentag:'Fr', zeit:'15:00–15:45', art:'Folgesitzung', farbe:'oklch(72% .1 200)', status:'Stattgefunden',
+   terminStatus:'Bestätigt', abrechnung:'Abgerechnet', summe:'45,00 €', positionen:['1× Ergotherapie, Einzelbehandlung'], titel:''},
+  {wann:'10.07.2026', wochentag:'Fr', zeit:'', art:'Bericht', farbe:'oklch(70% .11 300)', status:'Stattgefunden',
+   abrechnung:'Offen', summe:'38,00 €', positionen:['1× Telefonat mit der Schule, 30 Minuten'], titel:'Telefonat mit der Schule'}
+];
+/** Sortierschlüssel eines Vorgangs aus seinem Termin. */
+const vgSchluessel = vg => Number(vg.wann.slice(0, 10).split('.').reverse().join(''));
+/** Ein Vorgang kann ohne Kalendertermin bestehen — Telefonate, Berichte. */
+const vgHatTermin = vg => !!vg.terminStatus;
+/** Notizen wie in `note-list.tsx`: Nachträge stehen unter der Notiz, die sie
+ *  korrigieren, und eine gesperrte Notiz kennt nur noch den Nachtrag. */
+/** Das Datumsfeld rechnet in ISO, die Notizen tragen deutsche Datumsangaben. */
+const zuIso = d => d.split('.').reverse().join('-');
+const BLOECKE = {
+  '07.08.2026': [
+    {typ:'absatz', text:'Feinmotorik am Stifthalter geübt. Til hält die Spannung inzwischen über etwa zehn Minuten, danach deutliche Ermüdung.'},
+    {typ:'ueberschrift', text:'Beobachtungen'},
+    {typ:'liste', punkte:['Stifthaltung im Dreipunktgriff, Daumen rutscht bei Ermüdung über den Zeigefinger.','Wechsel zwischen Schreiben und Ausschneiden hilft, die Aufmerksamkeit zu halten.','Bei Fehlversuchen kurze Frustration, löst sich ohne Unterstützung.']},
+    {typ:'ueberschrift', text:'Nächste Einheit'},
+    {typ:'absatz', text:'Kürzere Blöcke von je fünf Minuten mit Bewegungspause dazwischen. Griffverstärker in zwei Stärken mitbringen und vergleichen lassen.'}
+  ],
+  '24.07.2026': [
+    {typ:'absatz', text:'Erstgespräch mit der Mutter. Die Verordnung lag noch nicht vor, der Termin fand auf eigenen Wunsch der Familie statt.'},
+    {typ:'ueberschrift', text:'Ziele für das Quartal'},
+    {typ:'liste', punkte:['Stifthaltung stabilisieren','Ausdauer beim Schreiben auf 15 Minuten steigern','Umgang mit Frustration in Gruppensituationen']},
+    {typ:'absatz', text:'Die Mutter berichtet von Schwierigkeiten bei den Hausaufgaben, vor allem gegen Abend. Vereinbart: Übungen kurz halten und früher am Tag legen.'}
+  ],
+  '25.07.2026': [
+    {typ:'absatz', text:'Ergänzung zum Erstgespräch: Die Verordnung liegt seit heute vor, ausgestellt am 21.07.2026 von Dr. Reimers, zehn Einheiten Ergotherapie.'}
+  ],
+  '10.07.2026': [
+    {typ:'absatz', text:'Bericht an die behandelnde Praxis versendet. Enthalten sind der Befund aus der Eingangsdiagnostik und die vereinbarten Ziele.'},
+    {typ:'absatz', text:'Rückmeldung steht noch aus. Bei ausbleibender Antwort in zwei Wochen telefonisch nachfassen.'}
+  ]
+};
+const NOTIZEN = [
+  {datum:'07.08.2026', art:'Sitzung', gesperrt:false, herkunft:'Katrin Ahlers',
+   text:'Feinmotorik am Stifthalter geübt. Til hält die Spannung inzwischen über etwa zehn Minuten, danach deutliche Ermüdung. Nächste Einheit mit kürzeren Blöcken planen.', dateien:[]},
+  {datum:'24.07.2026', art:'Sitzung', gesperrt:true, herkunft:'Katrin Ahlers · Gesperrt am 25.07.2026, 08:12',
+   text:'Erstgespräch mit Mutter. Ziele für das Quartal abgestimmt: Stifthaltung, Ausdauer beim Schreiben, Umgang mit Frustration in Gruppensituationen.', dateien:['Anamnesebogen.pdf']},
+  {datum:'25.07.2026', art:'Nachtrag', gesperrt:true, nachtrag:true, herkunft:'Katrin Ahlers · Gesperrt am 25.07.2026, 09:40',
+   text:'Ergänzung zum Erstgespräch: Die Verordnung liegt seit heute vor, ausgestellt am 21.07.2026 von Dr. Reimers.', dateien:['Verordnung_2026-07-21.pdf']},
+  {datum:'10.07.2026', art:'Korrespondenz', gesperrt:true, herkunft:'Hendrik Beneke · Gesperrt am 10.07.2026, 17:05',
+   text:'Bericht an die behandelnde Praxis versendet. Rückmeldung steht noch aus.', dateien:['Bericht_Reimers.pdf']}
+];
+
+/** Kandidaten für die Kontaktsuche in der Beziehungszeile. */
+const KONTAKTE = [
+  {name:'Dohrmann, Kathrin', nr:'1034'},
+  {name:'Dohrmann, Sven', nr:'1035'},
+  {name:'Praxis Dr. Reimers', nr:'2008'},
+  {name:'Radiologie Am Wall', nr:'2011'},
+  {name:'AOK Bremen/Bremerhaven', nr:'3002'}
+];
+const ARTEN = ['Sorgeberechtigt','Mutter','Vater','Kind','Behandelnde Praxis','Rechnungsempfänger'];
+const BEZIEHUNGEN = [
+  {art:'Mutter',name:'Dohrmann, Kathrin'},
+  {art:'Behandelnde Praxis',name:'Praxis Dr. Reimers'}
+];
+
+class Component extends DCLogic {
+  state = {
+    a:{tab:null,editing:null,gebdat:'2014-09-19',geschlecht:'maennlich'},
+    b:{tab:null,editing:null,gebdat:'2014-09-19',geschlecht:'maennlich'}
+  };
+
+  patch(which, next){
+    this.setState(s => ({[which]: {...s[which], ...next}}));
+  }
+
+  /** Die gewählte Notiz für die Lesespalte, samt formatiertem Inhalt. */
+  /** Der Inhalt der Notiz als Auszeichnung für den Editor. */
+  editorHtml(index){
+    const n = NOTIZEN[index] ?? NOTIZEN[0];
+    return (BLOECKE[n.datum] ?? [{typ:'absatz', text:n.text}]).map(b => {
+      if (b.typ === 'ueberschrift') return '<p><strong>' + b.text + '</strong></p>';
+      if (b.typ === 'liste') return '<ul>' + b.punkte.map(p => '<li>' + p + '</li>').join('') + '</ul>';
+      return '<p>' + b.text + '</p>';
+    }).join('');
+  }
+
+  notiz(which, index, inline){
+    const n = NOTIZEN[index] ?? NOTIZEN[0];
+    return {
+      ...n,
+      offen: !n.gesperrt,
+      zeigeNachtrag: n.gesperrt && n.art !== 'Nachtrag',
+      hatDateien: n.dateien.length > 0,
+      bloecke: (BLOECKE[n.datum] ?? [{typ:'absatz', text:n.text}]).map(b => ({
+        ...b,
+        istUeberschrift: b.typ === 'ueberschrift',
+        istAbsatz: b.typ === 'absatz',
+        istListe: b.typ === 'liste'
+      })),
+      onEdit: () => {
+        this.editorEl = null;
+        if (inline) this.patch(which, {inline: true, inlineNeu: false, inlineDaten: {datum: zuIso(n.datum), art: n.art, vorgang: 'keiner'}});
+        else this.patch(which, {notiz: {modus:'edit', datum:zuIso(n.datum), art:n.art, vorgang:'keiner', text:n.text}});
+      },
+      onNachtrag: () => this.patch(which, {notiz: {modus:'nachtrag', datum:'2026-08-12', art:'Nachtrag', vorgang:'keiner', text:'', bezug:n.datum}})
+    };
+  }
+
+  /** Sprung aus Rechnung oder Termin in den zugehörigen Vorgang. */
+  zumVorgang(which, wann){
+    const vg = VORGANGSLISTE.find(x => x.wann === wann);
+    this.patch(which, {tab: 'vorgaenge', vgFilter: null, vgBearbeiten: false, vgWahl: wann,
+      vgDaten: {...VORGANGSDETAIL[wann], art: vg?.art, status: vg?.status}});
+  }
+
+  /** Eine bestehende Rechnung im Lese- und im Bearbeiten-Modus. */
+  rechnungDetail(which, st){
+    const basis = RECHNUNGEN.find(r => r.nr === st.rdWahl) ?? RECHNUNGEN[0];
+    const d = {...basis, ...(st.rdDaten ?? {})};
+    const setz = teil => this.patch(which, {rdDaten: {...(st.rdDaten ?? {}), ...teil}});
+    const pos = d.positionen ?? [];
+    const setzPositionen = neue => setz({positionen: neue});
+    const summe = pos.reduce((t, x) => t + cent(x.betrag) * (x.menge || 1), 0);
+    const faellig = faelligAm(d.iso ?? '2026-01-01', d.ziel);
+    return {
+      rdLesen: st.rdEdit !== true,
+      rdBearbeiten: st.rdEdit === true,
+      rdBearbeitenStart: () => this.patch(which, {rdEdit: true}),
+      rdAbbrechen: () => this.patch(which, {rdEdit: false, rdDaten: null}),
+      rdSchliessen: () => this.patch(which, {rdWahl: null, rdEdit: false}),
+      rdNr: d.nr,
+      rdDatum: d.datum,
+      rdEmpf: d.empf,
+      rdZiel: d.ziel,
+      rdFaellig: faellig,
+      rdStatus: d.status,
+      rdHinweis: rechnungHinweis(d),
+      rdDiagnose: d.diagnose ?? '—',
+      rdDiagnoseProps: {value: d.diagnose ?? '', onChange: e => setz({diagnose: e.target.value})},
+      rdZeitraum: d.zeitraum,
+      rdHatZeitraum: !!d.zeitraum && d.zeitraum !== '',
+      rdEinleitung: d.einleitung,
+      rdSchluss: d.schluss,
+      rdSumme: euro(summe),
+      rdPositionen: pos.map(x => ({
+        ...x,
+        hatVorgang: !!x.vorgang,
+        vorgangLabel: (x.vorgang ?? '').slice(0, 10),
+        onVorgang: () => this.zumVorgang(which, x.vorgang)
+      })),
+      rdEmpfProps: {value: d.empf, onValueChange: val => setz({empf: val})},
+      rdDatumProps: {value: d.iso, onChange: val => setz({iso: val})},
+      rdZielProps: {value: d.ziel, onChange: e => setz({ziel: e.target.value})},
+      rdZeitraumProps: {checked: !!d.von, onCheckedChange: an => setz(an === true ? {von: d.von || '2026-06-05', bis: d.bis || '2026-06-26'} : {von: '', bis: ''})},
+      rdZeitraumDeckkraft: d.von ? '1' : '.45',
+      rdVonProps: {value: d.von, disabled: !d.von, onChange: val => setz({von: val})},
+      rdBisProps: {value: d.bis, disabled: !d.von, onChange: val => setz({bis: val})},
+      rdEinleitungVorlageProps: {value: d.einleitungVorlage ?? '', onValueChange: val => setz({
+        einleitungVorlage: val, einleitung: RECHNUNGSTEXTE.einleitung.find(t => t.name === val)?.text ?? ''
+      })},
+      rdSchlussVorlageProps: {value: d.schlussVorlage ?? '', onValueChange: val => setz({
+        schlussVorlage: val, schluss: RECHNUNGSTEXTE.schluss.find(t => t.name === val)?.text ?? ''
+      })},
+      rdEinleitungProps: {value: d.einleitung, onChange: e => setz({einleitung: e.target.value})},
+      rdSchlussProps: {value: d.schluss, onChange: e => setz({schluss: e.target.value})},
+      rdZeilen: pos.map((x, i) => {
+        const aendern = teil => setzPositionen(pos.map((y, j) => j === i ? {...y, ...teil} : y));
+        return {
+          hatVorgang: !!x.vorgang,
+          vorgangLabel: (x.vorgang ?? '').slice(0, 10),
+          onVorgang: () => this.zumVorgang(which, x.vorgang),
+          mengeProps: {value: x.menge, onChange: e => aendern({menge: Math.max(1, parseInt(e.target.value, 10) || 1)})},
+          textProps: {value: x.text, onChange: e => aendern({text: e.target.value})},
+          zifferProps: {value: x.ziffer ?? '', onChange: e => aendern({ziffer: e.target.value})},
+          betragProps: {value: x.betrag, onChange: e => aendern({betrag: e.target.value})},
+          onEntfernen: () => setzPositionen(pos.filter((_, j) => j !== i))
+        };
+      }),
+      rdFreiePosition: () => setzPositionen([...pos, {menge:1, text:'Freie Position', ziffer:'', betrag:'0,00 €'}]),
+      rdKatalogProps: {value: '', onValueChange: wert => {
+        const kopie = t => { const l = LEISTUNGEN.find(x => x.text === t); return {menge:1, text:l.text, ziffer:l.ziffer, betrag:l.betrag}; };
+        if (wert.startsWith('l:')) return setzPositionen([...pos, kopie(wert.slice(2))]);
+        const g = GRUPPEN.find(x => x.name === wert.slice(2));
+        if (g) setzPositionen([...pos, ...g.teile.map(kopie)]);
+      }}
+    };
+  }
+
+  /** Der Entwurf einer neuen Rechnung: Empfänger, Kopfdaten, Auswahl der Vorgänge. */
+  rechnungNeu(which, st){
+    const d = st.reDaten ?? {};
+    const setz = teil => this.patch(which, {reDaten: {...st.reDaten, ...teil}});
+    const offene = VORGANGSLISTE.filter(vg => vg.abrechnung !== 'Abgerechnet');
+    const wahl = d.wahl ?? offene.map(vg => vg.wann);
+    const ausVorgaengen = auswahl => auswahl.flatMap(wann =>
+      (VORGANGSDETAIL[wann]?.positionen ?? []).map(pos => ({...pos, herkunft: 'Aus Vorgang ' + wann})));
+    const pos = d.positionen ?? ausVorgaengen(wahl);
+    const setzPositionen = neue => setz({positionen: neue});
+    const summe = pos.reduce((s, x) => s + cent(x.betrag) * (x.menge || 1), 0);
+    const ziel = d.ziel ?? '14 Tage';
+    const zeilen = pos.map((x, i) => {
+      const aendern = teil => setzPositionen(pos.map((y, j) => j === i ? {...y, ...teil} : y));
+      return {
+        herkunft: x.herkunft ?? 'Frei erfasst',
+        mengeProps: {value: x.menge, onChange: e => aendern({menge: Math.max(1, parseInt(e.target.value, 10) || 1)})},
+        textProps: {value: x.text, onChange: e => aendern({text: e.target.value})},
+        zifferProps: {value: x.ziffer ?? '', onChange: e => aendern({ziffer: e.target.value})},
+        betragProps: {value: x.betrag, onChange: e => aendern({betrag: e.target.value})},
+        onEntfernen: () => setzPositionen(pos.filter((_, j) => j !== i))
+      };
+    });
+    const iso = offene.filter(vg => wahl.includes(vg.wann))
+      .map(vg => vg.wann.slice(0, 10).split('.').reverse().join('-')).sort();
+    const spanne = [iso[0] ?? '', iso[iso.length - 1] ?? ''];
+    return {
+      reOffen: st.reNeu === true,
+      reZu: st.reNeu !== true,
+      reNeu: () => this.patch(which, {reNeu: true}),
+      reSchliessen: () => this.patch(which, {reNeu: false}),
+      reNummer: '2026-0043',
+      reEmpfaenger: [
+        {name:'Til Dohrmann', rolle:'Patient'},
+        {name:'Anke Dohrmann', rolle:'Mutter, sorgeberechtigt'},
+        {name:'Jens Dohrmann', rolle:'Vater'}
+      ],
+      reEmpfProps: {value: d.empf ?? 'Anke Dohrmann', onValueChange: val => setz({empf: val})},
+      reDatumProps: {value: d.datum ?? '2026-08-12', onChange: val => setz({datum: val})},
+      reVonProps: {value: d.von ?? spanne[0], disabled: d.zeitraum === false, onChange: val => setz({von: val})},
+      reBisProps: {value: d.bis ?? spanne[1], disabled: d.zeitraum === false, onChange: val => setz({bis: val})},
+      reZielProps: {value: ziel, onChange: e => setz({ziel: e.target.value})},
+      reFaellig: (() => {
+        const tage = parseInt(String(ziel).replace(/[^0-9]/g, ''), 10);
+        if (!tage) return 'sofort';
+        const basis = new Date(d.datum ?? '2026-08-12');
+        basis.setDate(basis.getDate() + tage);
+        return String(basis.getDate()).padStart(2,'0') + '.' + String(basis.getMonth()+1).padStart(2,'0') + '.' + basis.getFullYear();
+      })(),
+      reDiagnoseProps: {value: d.diagnose ?? 'F82.0', onChange: e => setz({diagnose: e.target.value})},
+      reZeitraum: d.zeitraum !== false,
+      reZeitraumDeckkraft: d.zeitraum === false ? '.45' : '1',
+      reZeitraumHinweis: d.zeitraum === false
+        ? 'Erscheint nicht auf der Rechnung.'
+        : 'Vorbelegt aus den gewählten Vorgängen.',
+      reZeitraumProps: {checked: d.zeitraum !== false, onCheckedChange: an => setz({zeitraum: an === true})},
+      reOhnePositionen: pos.length === 0,
+      reGruppen: offene.map(vg => ({
+        wann: vg.wann,
+        art: vg.art,
+        farbe: vg.farbe,
+        gewaehlt: wahl.includes(vg.wann),
+        summe: euro(pos.filter(x => x.herkunft === 'Aus Vorgang ' + vg.wann)
+          .reduce((t, x) => t + cent(x.betrag) * (x.menge || 1), 0)),
+        checkProps: {checked: wahl.includes(vg.wann), onCheckedChange: an => {
+          const neu = an === true ? [...wahl, vg.wann] : wahl.filter(w => w !== vg.wann);
+          setz({wahl: neu, positionen: [...ausVorgaengen(neu), ...pos.filter(x => x.herkunft === 'Frei erfasst')]});
+        }},
+        positionen: zeilen.filter(z => z.herkunft === 'Aus Vorgang ' + vg.wann)
+      })),
+      reFreie: zeilen.filter(z => z.herkunft === 'Frei erfasst'),
+      reHatFreie: zeilen.some(z => z.herkunft === 'Frei erfasst'),
+      reFreiePosition: () => setzPositionen([...pos, {menge:1, text:'Freie Position', ziffer:'', betrag:'0,00 €', herkunft:'Frei erfasst'}]),
+      reKatalogProps: {value: '', onValueChange: wert => {
+        const kopie = t => { const l = LEISTUNGEN.find(x => x.text === t); return {menge:1, text:l.text, ziffer:l.ziffer, betrag:l.betrag, herkunft:'Frei erfasst'}; };
+        if (wert.startsWith('l:')) return setzPositionen([...pos, kopie(wert.slice(2))]);
+        const g = GRUPPEN.find(x => x.name === wert.slice(2));
+        if (g) setzPositionen([...pos, ...g.teile.map(kopie)]);
+      }},
+      reEinleitungVorlagen: RECHNUNGSTEXTE.einleitung,
+      reSchlussVorlagen: RECHNUNGSTEXTE.schluss,
+      reEinleitungVorlageProps: {value: d.einleitungVorlage ?? 'Standard', onValueChange: val => setz({
+        einleitungVorlage: val, einleitung: RECHNUNGSTEXTE.einleitung.find(t => t.name === val)?.text ?? ''
+      })},
+      reSchlussVorlageProps: {value: d.schlussVorlage ?? 'Zahlungsziel', onValueChange: val => setz({
+        schlussVorlage: val, schluss: RECHNUNGSTEXTE.schluss.find(t => t.name === val)?.text ?? ''
+      })},
+      reEinleitungProps: {value: d.einleitung ?? RECHNUNGSTEXTE.einleitung[0].text, onChange: e => setz({einleitung: e.target.value})},
+      reSchlussProps: {value: d.schluss ?? RECHNUNGSTEXTE.schluss[0].text, onChange: e => setz({schluss: e.target.value})},
+      reSumme: euro(summe),
+      reAuswahlZeile: wahl.length + ' von ' + offene.length + ' abrechenbaren Vorgängen ausgewählt'
+    };
+  }
+
+  /** Alles, was der geöffnete Vorgang im Detail zeigt. */
+  vorgangDetail(which, st){
+    const d = st.vgDaten ?? {};
+    const setz = teil => this.patch(which, {vgDaten: {...st.vgDaten, ...teil}});
+    const dauer = parseInt(d.dauer ?? '0', 10) || 0;
+    const [h, m] = (d.zeit ?? '00:00').split(':').map(Number);
+    const ende = new Date(2000, 0, 1, h || 0, (m || 0) + dauer);
+    const endeText = String(ende.getHours()).padStart(2,'0') + ':' + String(ende.getMinutes()).padStart(2,'0');
+    // Ein Vorgang ohne Uhrzeit hat keinen Kalendertermin — Telefonate, Berichte.
+    const hatTermin = d.terminAnlegen !== false && !!d.zeit;
+    const pos = d.positionen ?? [];
+    const setzPositionen = neue => setz({
+      positionen: neue,
+      abrechenbar: euro(neue.filter(p => !p.nichtAbrechenbar).reduce((s, p) => s + cent(p.betrag) * (p.menge || 1), 0)),
+      gesamt: euro(neue.reduce((s, p) => s + cent(p.betrag) * (p.menge || 1), 0))
+    });
+    return {
+      vgTitel: st.vgBearbeiten ? 'Vorgang bearbeiten' : (d.titel || (d.art ?? 'Vorgang')),
+      vgLesen: !st.vgBearbeiten,
+      vgBearbeiten: st.vgBearbeiten === true,
+      vgArten: VORGANGSARTEN,
+      vgArtFarbe: (VORGANGSARTEN.find(a => a.name === (d.art ?? 'Folgesitzung')) ?? VORGANGSARTEN[1]).farbe,
+      vgArtProps: {value: d.art ?? 'Folgesitzung', onValueChange: val => {
+        const art = VORGANGSARTEN.find(a => a.name === val);
+        // Die Vorbelegung wird nur gezogen, solange nichts Eigenes überschrieben würde.
+        if (art && pos.length === 0) {
+          const neue = art.vorbelegung.map(t => { const l = LEISTUNGEN.find(x => x.text === t); return {menge:1, text:l.text, ziffer:l.ziffer, betrag:l.betrag}; });
+          setz({art: val, dauer: art.dauer, positionen: neue,
+                abrechenbar: euro(neue.reduce((s, p) => s + cent(p.betrag), 0))});
+        } else setz({art: val});
+      }},
+      vgStatusProps: {value: d.status ?? 'Geplant', onValueChange: val => setz({status: val})},
+      vgDatumProps: {value: d.datum ?? '', onChange: val => setz({datum: val})},
+      vgZeitProps: {value: d.zeit ?? '', onChange: e => setz({zeit: e.target.value})},
+      vgDauerProps: {value: d.dauer ?? '', onChange: e => setz({dauer: e.target.value})},
+      vgTitelProps: {value: d.titel ?? '', onChange: e => setz({titel: e.target.value})},
+      vgTerminStatusProps: {value: d.terminStatus ?? 'Geplant', onValueChange: val => setz({terminStatus: val})},
+      vgTerminAnlegen: hatTermin,
+      vgTerminZeile: !hatTermin
+        ? 'Der Vorgang bleibt nur in der Akte.'
+        : ((d.datum ?? '').includes('-') ? (d.datum ?? '').split('-').reverse().join('.') : (d.datum ?? ''))
+          + ' · ' + (d.zeit ?? '') + '–' + endeText,
+      vgTerminProps: {checked: hatTermin, onCheckedChange: val => setz(val === true
+        ? {terminAnlegen: true, zeit: d.zeit || '15:00', dauer: d.dauer || '45', terminStatus: d.terminStatus || 'Geplant'}
+        : {terminAnlegen: false})},
+      vgArtText: d.art ?? 'Folgesitzung',
+      vgStatusText: d.status ?? 'Geplant',
+      vgDatumText: (d.datum ?? '').includes('-') ? (d.datum ?? '').split('-').reverse().join('.') : (d.datum ?? ''),
+      vgZeitText: hatTermin ? (d.zeit ?? '') + '–' + endeText + ' · ' + (d.dauer ?? '') + ' Min.' : '',
+      vgTitelText: d.titel ?? '',
+      vgHatTitelText: !!d.titel,
+      vgTerminStatusText: hatTermin ? 'Termin ' + (d.terminStatus ?? 'Geplant').toLowerCase() : '',
+      vgTerminRail: d.terminStatus ?? 'Geplant',
+      vgOhneTermin: !hatTermin,
+      vgKannAbrechnen: (d.status ?? 'Geplant') === 'Stattgefunden' && !d.rechnung,
+      vgEnde: endeText,
+      vgZeitraum: (d.zeit ?? '') + '–' + endeText,
+      vgSlotHinweis: !hatTermin ? '' : (HAELT_SLOT.includes(d.terminStatus ?? 'Geplant')
+        ? 'Der Zeitraum bleibt belegt.' : 'Der Zeitraum wird dadurch wieder frei.'),
+      vgPositionen: pos.map((p, i) => {
+        const aendern = teil => setzPositionen(pos.map((x, j) => j === i ? {...x, ...teil} : x));
+        return {
+          ...p,
+          nichtAbrechenbar: p.nichtAbrechenbar === true,
+          mengeProps: {value: p.menge, onChange: e => aendern({menge: Math.max(1, parseInt(e.target.value, 10) || 1)})},
+          textProps: {value: p.text, onChange: e => aendern({text: e.target.value})},
+          zifferProps: {value: p.ziffer ?? '', onChange: e => aendern({ziffer: e.target.value})},
+          betragProps: {value: p.betrag, onChange: e => aendern({betrag: e.target.value})},
+          onEntfernen: () => setzPositionen(pos.filter((_, j) => j !== i))
+        };
+      }),
+      vgOhnePositionen: pos.length === 0,
+      leistungen: LEISTUNGEN.map(l => ({...l, wert: 'l:' + l.text})),
+      gruppen: GRUPPEN.map(g => ({...g, wert: 'g:' + g.name, umfang: g.teile.length + ' Positionen'})),
+      vgFreiePosition: () => setzPositionen([...pos, {menge:1, text: d.titel || 'Freie Position', ziffer:'', betrag:'0,00 €'}]),
+      vgKatalogProps: {value: '', onValueChange: wert => {
+        const kopie = t => { const l = LEISTUNGEN.find(x => x.text === t); return {menge:1, text:l.text, ziffer:l.ziffer, betrag:l.betrag}; };
+        if (wert.startsWith('l:')) return setzPositionen([...pos, kopie(wert.slice(2))]);
+        const g = GRUPPEN.find(x => x.name === wert.slice(2));
+        if (g) setzPositionen([...pos, ...g.teile.map(kopie)]);
+      }},
+      vgSummeAbrechenbar: d.abrechenbar ?? '0,00 €',
+      vgZeigeGesamt: !!d.gesamt && d.gesamt !== d.abrechenbar,
+      vgSummeGesamt: d.gesamt ?? '',
+      vgHatRechnung: !!d.rechnung,
+      vgRechnungNr: d.rechnung?.nr ?? '',
+      vgRechnungBetrag: d.rechnung?.betrag ?? '',
+      vgRechnungStatus: d.rechnung?.status ?? '',
+      vgHatNotiz: !!d.notiz,
+      vgOhneNotiz: !d.notiz && st.vgNotiz == null,
+      vgNotizDatum: d.notiz?.datum ?? '',
+      vgNotizArt: d.notiz?.art ?? '',
+      vgNotizGesperrt: d.notiz?.gesperrt === true,
+      vgNotizText: d.notiz?.text ?? '',
+      vgIstNeu: st.vgWahl === 'neu',
+      vgNeu: () => this.patch(which, {vgWahl: 'neu', vgBearbeiten: true, vgDaten: {
+        datum:'2026-08-12', zeit:'15:00', dauer:'50', titel:'', art:'Folgesitzung', status:'Geplant',
+        terminStatus:'Geplant', positionen:[], abrechenbar:'0,00 €'
+      }}),
+      vgNotizOffen: st.vgNotiz != null,
+      vgNotizLesen: !!d.notiz && (st.vgNotiz == null || st.vgNotiz.neu === true),
+      vgNotizZu: st.vgNotiz == null,
+      vgNotizNeu: () => { this.vgEditorEl = null; this.patch(which, {vgNotiz: {neu: true, datum: (d.datum ?? '2026-08-12'), art: 'Sitzung', text: ''}}); },
+      vgNotizBearbeiten: () => {
+        this.vgEditorEl = null;
+        const n = d.notiz ?? {};
+        this.patch(which, {vgNotiz: {datum: (n.datum ?? '').split('.').reverse().join('-'), art: n.art ?? 'Sitzung', text: n.text ?? '', nachtrag: n.gesperrt === true}});
+      },
+      vgNotizAbbrechen: () => { this.vgEditorEl = null; this.patch(which, {vgNotiz: null}); },
+      vgNotizSpeichern: () => { this.vgEditorEl = null; this.patch(which, {vgNotiz: null}); },
+      vgNotizDatumProps: {value: st.vgNotiz?.datum ?? '', onChange: val => this.patch(which, {vgNotiz: {...st.vgNotiz, datum: val}})},
+      vgNotizArtProps: {value: st.vgNotiz?.art ?? 'Sitzung', onValueChange: val => this.patch(which, {vgNotiz: {...st.vgNotiz, art: val}})},
+      vgNotizEditorRef: el => {
+        if (!el || this.vgEditorEl === el) return;
+        this.vgEditorEl = el;
+        el.innerHTML = st.vgNotiz?.text ? '<p>' + st.vgNotiz.text + '</p>' : '<p><br></p>';
+        el.focus();
+      },
+      vgBearbeitenStart: () => this.patch(which, {vgBearbeiten: true}),
+      vgSchliessen: () => this.patch(which, {vgWahl: null, vgBearbeiten: false})
+    };
+  }
+
+  patchNotiz(which, teil){
+    this.setState(s => ({[which]: {...s[which], notiz: {...s[which].notiz, ...teil}}}));
+  }
+
+  view(which){
+    const st = this.state[which];
+    const editing = st.editing ?? this.props.bearbeiten === true;
+    const tab = st.tab ?? (this.props.neuanlage || this.props.bearbeiten ? 'stammdaten' : 'uebersicht');
+    const rechnungenGefiltert = RECHNUNGEN.filter(r => !st.reFilter || r.status === st.reFilter);
+    const notizTrifft = n => {
+      const f = st.nzFilter;
+      if (!f) return true;
+      if (f === 'gesperrt') return n.gesperrt;
+      if (f === 'offen') return !n.gesperrt;
+      return n.art === f.slice(4);
+    };
+    const sichtbareNotizen = NOTIZEN.map((n, i) => ({...n, _i: i})).filter(notizTrifft);
+    const notizWahl = sichtbareNotizen.some(n => n._i === (st.notizWahl ?? 0))
+      ? (st.notizWahl ?? 0)
+      : (sichtbareNotizen[0]?._i ?? 0);
+
+    return {
+      tab, editing, readonly: !editing,
+      isUebersicht: tab === 'uebersicht',
+      isStammdaten: tab === 'stammdaten',
+      isNotizen: tab === 'notizen',
+      notizDialogProps: {open: st.notiz != null, onOpenChange: o => { if (!o) this.patch(which, {notiz: null}); }},
+      notizTitel: st.notiz?.modus === 'nachtrag' ? 'Nachtrag schreiben' : st.notiz?.modus === 'edit' ? 'Notiz bearbeiten' : 'Notiz anlegen',
+      notizIstNachtrag: st.notiz?.modus === 'nachtrag',
+      notizArtWaehlbar: st.notiz?.modus !== 'nachtrag',
+      notizBezug: st.notiz?.bezug ?? '',
+      notizAnhangHinweis: st.notiz?.modus === 'neu'
+        ? 'Dateien lassen sich anhängen, sobald die Notiz gespeichert ist.'
+        : 'Anhänge sind Teil der Notiz und werden beim Sperren mit festgeschrieben.',
+      notizUnfertig: !(st.notiz?.datum && (st.notiz?.text ?? '').trim()),
+      notizDatumProps: {value: st.notiz?.datum ?? '', onChange: val => this.patchNotiz(which, {datum: val})},
+      notizArtProps: {value: st.notiz?.art ?? 'Sitzung', onValueChange: val => this.patchNotiz(which, {art: val})},
+      notizVorgangProps: {value: st.notiz?.vorgang ?? 'keiner', onValueChange: val => this.patchNotiz(which, {vorgang: val})},
+      notizTextProps: {value: st.notiz?.text ?? '', onChange: e => this.patchNotiz(which, {text: e.target.value})},
+      notizNeu: () => {
+        this.editorEl = null;
+        this.patch(which, {inline: true, inlineNeu: true, inlineDaten: {datum:'2026-08-12', art:'Sitzung', vorgang:'keiner'}});
+      },
+      notizAbbrechen: () => this.patch(which, {notiz: null}),
+      notizSpeichern: () => this.patch(which, {notiz: null}),
+      notizenZahl: NOTIZEN.length + ' Notizen',
+      notizenFilter: (() => {
+        const aktiv = st.nzFilter ?? null;
+        const gruppen = [
+          {id:'gesperrt', label:'Gesperrt', treffer: n => n.gesperrt},
+          {id:'offen', label:'Offen', treffer: n => !n.gesperrt},
+          ...[...new Set(NOTIZEN.map(n => n.art))].map(a => ({id:'art:' + a, label:a, treffer: n => n.art === a}))
+        ];
+        return gruppen.map(g => ({
+          label: g.label,
+          anzahl: String(NOTIZEN.filter(g.treffer).length),
+          bg: aktiv === g.id ? 'var(--primary)' : 'transparent',
+          farbe: aktiv === g.id ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+          rahmen: aktiv === g.id ? 'var(--primary)' : 'var(--border)',
+          onClick: () => {
+            const neu = aktiv === g.id ? null : g.id;
+            const erste = NOTIZEN.findIndex(n => !neu || (neu === 'gesperrt' ? n.gesperrt : neu === 'offen' ? !n.gesperrt : n.art === neu.slice(4)));
+            this.patch(which, {nzFilter: neu, notizWahl: erste < 0 ? 0 : erste});
+          }
+        }));
+      })(),
+      aktuell: this.notiz(which, notizWahl, true),
+      inlineOffen: st.inline === true,
+      inlineNeu: st.inline === true && st.inlineNeu === true,
+      entwurfDatum: (st.inlineDaten?.datum ?? '').split('-').reverse().join('.'),
+      entwurfArt: st.inlineDaten?.art ?? 'Sitzung',
+      inlineZu: st.inline !== true,
+      notizArten: ['Allgemein','Sitzung','Dokument','Korrespondenz','Sonstiges'],
+      inlineDatumProps: {value: st.inlineDaten?.datum ?? '', onChange: val => this.patch(which, {inlineDaten: {...st.inlineDaten, datum: val}})},
+      inlineArtProps: {value: st.inlineDaten?.art ?? 'Sitzung', onValueChange: val => this.patch(which, {inlineDaten: {...st.inlineDaten, art: val}})},
+      inlineVorgangProps: {value: st.inlineDaten?.vorgang ?? 'keiner', onValueChange: val => this.patch(which, {inlineDaten: {...st.inlineDaten, vorgang: val}})},
+      inlineAbbrechen: () => { this.editorEl = null; this.patch(which, {inline: false, inlineNeu: false}); },
+      inlineSpeichern: () => { this.editorEl = null; this.patch(which, {inline: false, inlineNeu: false}); },
+      editorRef: el => {
+        if (!el || this.editorEl === el) return;
+        this.editorEl = el;
+        el.innerHTML = st.inlineNeu ? '<p><br></p>' : this.editorHtml(st.notizWahl ?? 0);
+        el.focus();
+      },
+      werkzeuge: [
+        {titel:'Fett', zeichen:'B', cmd:'bold', gewicht:'700', stil:'normal'},
+        {titel:'Kursiv', zeichen:'I', cmd:'italic', gewicht:'400', stil:'italic'},
+        {titel:'Zwischenüberschrift', zeichen:'H', cmd:'heading', gewicht:'700', stil:'normal'},
+        {titel:'Aufzählung', zeichen:'•—', cmd:'insertUnorderedList', gewicht:'400', stil:'normal'},
+        {titel:'Nummerierung', zeichen:'1.', cmd:'insertOrderedList', gewicht:'400', stil:'normal'},
+        {titel:'Formatierung entfernen', zeichen:'✕', cmd:'removeFormat', gewicht:'400', stil:'normal'}
+      ].map(w => ({
+        ...w,
+        onMouseDown: e => {
+          e.preventDefault();
+          if (w.cmd === 'heading') document.execCommand('bold');
+          else document.execCommand(w.cmd);
+        }
+      })),
+      notizen: sichtbareNotizen.map((n) => ({
+        ...n,
+        offen: !n.gesperrt,
+        nachtrag: n.nachtrag === true,
+        einzug: n.nachtrag ? '28px' : '0',
+        zeigeNachtrag: n.gesperrt && n.art !== 'Nachtrag',
+        onEdit: () => this.patch(which, {notiz: {modus:'edit', datum:zuIso(n.datum), art:n.art, vorgang:'keiner', text:n.text}}),
+        onNachtrag: () => this.patch(which, {notiz: {modus:'nachtrag', datum:'2026-08-12', art:'Nachtrag', vorgang:'keiner', text:'', bezug:n.datum}}),
+        hatDateien: n.dateien.length > 0,
+        dateienZahl: n.dateien.length,
+        auszug: n.text,
+        listenEinzug: n.nachtrag ? '26px' : '14px',
+        listenBg: notizWahl === n._i && !st.inlineNeu ? 'var(--card)' : 'transparent',
+        listenMarke: notizWahl === n._i && !st.inlineNeu ? 'var(--primary)' : 'transparent',
+        onWaehlen: () => { this.editorEl = null; this.patch(which, {notizWahl: n._i, inline: false, inlineNeu: false}); }
+      })),
+      isVorgaenge: tab === 'vorgaenge',
+      ...this.vorgangDetail(which, st),
+      vorgangZahl: VORGANGSLISTE.length + ' Vorgänge · '
+        + VORGANGSLISTE.filter(vg => vgSchluessel(vg) >= HEUTE_KEY).length + ' kommend',
+      vorgangFilter: (() => {
+        const aktiv = st.vgFilter ?? null;
+        const zaehlen = (feld, wert) => feld === 'termin'
+          ? VORGANGSLISTE.filter(vg => !vgHatTermin(vg)).length
+          : VORGANGSLISTE.filter(vg => (vg[feld] || 'Offen') === wert).length;
+        const status = [...new Set(VORGANGSLISTE.map(vg => vg.status))].map(s => ({feld:'status', wert:s}));
+        const abrechnung = [
+          {feld:'abrechnung', wert:'Abgerechnet'},
+          {feld:'abrechnung', wert:'Offen', label:'Nicht abgerechnet'}
+        ];
+        const termin = [{feld:'termin', wert:'ohne', label:'Ohne Termin'}];
+        return [...status, ...abrechnung, ...termin].map(f => {
+          const id = f.feld + ':' + f.wert;
+          return {
+            label: f.label ?? f.wert,
+            anzahl: String(zaehlen(f.feld, f.wert)),
+            bg: aktiv === id ? 'var(--primary)' : 'transparent',
+            farbe: aktiv === id ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+            rahmen: aktiv === id ? 'var(--primary)' : 'var(--border)',
+            onClick: () => this.patch(which, {vgFilter: aktiv === id ? null : id, vgWahl: null, vgBearbeiten: false})
+          };
+        });
+      })(),
+      vorgangsListe: (() => {
+        const gefiltert = VORGANGSLISTE.filter(vg => {
+          if (!st.vgFilter) return true;
+          const [feld, wert] = st.vgFilter.split(':');
+          if (feld === 'termin') return !vgHatTermin(vg);
+          return (vg[feld] || 'Offen') === wert;
+        });
+        const kommend = gefiltert.filter(vg => vgSchluessel(vg) >= HEUTE_KEY).sort((a, b) => vgSchluessel(a) - vgSchluessel(b));
+        const bisher = gefiltert.filter(vg => vgSchluessel(vg) < HEUTE_KEY).sort((a, b) => vgSchluessel(b) - vgSchluessel(a));
+        return kommend.concat(bisher).map((vg, i) => ({
+          ...vg,
+          abschnitt: i === 0 ? (kommend.length ? 'Kommende Termine' : 'Bisher') : (i === kommend.length ? 'Bisher' : ''),
+          abschnittAn: (i === 0 || i === kommend.length) ? 'block' : 'none',
+          abschnittRand: i === 0 ? '0' : '10px'
+        }));
+      })().map(vg => ({
+        ...vg,
+        offen: st.vgWahl === vg.wann,
+        rahmen: st.vgWahl === vg.wann ? 'var(--primary)' : 'var(--border)',
+        kopfBg: st.vgWahl === vg.wann ? 'color-mix(in oklab, var(--muted) 45%, var(--card))' : 'transparent',
+        onOeffnen: () => this.patch(which, st.vgWahl === vg.wann
+          ? {vgWahl: null, vgBearbeiten: false}
+          : {vgWahl: vg.wann, vgBearbeiten: false, vgDaten: {...VORGANGSDETAIL[vg.wann], art: vg.art, status: vg.status}}),
+        farbeText: 'oklch(25% .02 250)',
+        zeigeStatus: vg.status !== 'Geplant',
+        statusVariante: vg.status === 'Nicht erschienen' ? 'secondary' : 'outline',
+        zeigeTermin: !!vg.terminStatus,
+        ohneTermin: !vg.terminStatus,
+        terminVariante: (vg.terminStatus || '').includes('bgesagt') ? 'destructive'
+          : (vg.terminStatus === 'Bestätigt' ? 'secondary' : 'outline'),
+        wannLang: vg.wochentag ? vg.wochentag + ', ' + vg.wann : vg.wann,
+        zeigeAbrechnung: !!vg.abrechnung,
+        abrechnungVariante: vg.abrechnung === 'Abgerechnet' ? 'secondary' : 'outline',
+        hatTitel: !!vg.titel,
+        hatZeit: !!vg.zeit,
+        zeigeGesamt: !!vg.gesamt,
+        gesamt: vg.gesamt ?? ''
+      })),
+      isRechnungen: tab === 'rechnungen',
+      rechnungenZahl: RECHNUNGEN.length + ' Rechnungen',
+      rechnungenFilter: (() => {
+        const aktiv = st.reFilter ?? null;
+        const zaehler = new Map();
+        RECHNUNGEN.forEach(r => zaehler.set(r.status, (zaehler.get(r.status) ?? 0) + 1));
+        return [...zaehler].map(([s, n]) => ({
+          label: s,
+          anzahl: String(n),
+          bg: aktiv === s ? 'var(--primary)' : 'transparent',
+          farbe: aktiv === s ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+          rahmen: aktiv === s ? 'var(--primary)' : 'var(--border)',
+          onClick: () => this.patch(which, {reFilter: aktiv === s ? null : s})
+        }));
+      })(),
+      rechnungen: rechnungenGefiltert.map((r, i) => ({
+        ...r,
+        hinweis: rechnungHinweis(r),
+        linie: i === 0 ? 'transparent' : 'var(--border)',
+        offen: st.rdWahl === r.nr,
+        kopfBg: st.rdWahl === r.nr ? 'color-mix(in oklab, var(--muted) 45%, var(--card))' : 'transparent',
+        onOeffnen: () => this.patch(which, st.rdWahl === r.nr
+          ? {rdWahl: null, rdEdit: false}
+          : {rdWahl: r.nr, rdEdit: false, rdDaten: null}),
+        statusVariante: r.status === 'Bezahlt' ? 'secondary' : (r.status === 'Überfällig' ? 'destructive' : 'outline')
+      })),
+      ...this.rechnungDetail(which, st),
+      ohneRechnungen: rechnungenGefiltert.length === 0,
+      ...this.rechnungNeu(which, st),
+      abrechenbarSumme: '112,50 €',
+      abrechenbarZeile: '3 Vorgänge seit der letzten Rechnung',
+      isPlaceholder: !!PLACEHOLDER[tab],
+      tabLabel: PLACEHOLDER[tab] ?? '',
+      tabsProps: {value: tab, onValueChange: v => this.patch(which, {tab: v})},
+      tabs: TABS.map(t => ({
+        label: t.label,
+        onClick: () => this.patch(which, {tab: t.value}),
+        line: tab === t.value ? 'var(--primary)' : 'transparent',
+        fg: tab === t.value ? 'var(--foreground)' : 'var(--muted-foreground)',
+        fw: tab === t.value ? '600' : '400'
+      })),
+      gebdatProps: {value: st.gebdat, onChange: v => this.patch(which, {gebdat: v}), twoDigitYear: true},
+      geschlechtProps: {value: st.geschlecht, onValueChange: v => this.patch(which, {geschlecht: v})},
+      istOrg: (st.art ?? 'person') === 'org',
+      anredeProps: {value: st.anrede ?? 'Herr', onValueChange: v => this.patch(which, {anrede: v})},
+      landProps: {value: st.land ?? 'DE', onValueChange: v => this.patch(which, {land: v})},
+      rollenAktiv: ROLLEN.filter(r => (st.rollen ?? ['Patienten']).includes(r)).map(name => ({name})),
+      rollenAusText: (() => {
+        const aktiv = st.rollen ?? ['Patienten'];
+        const rest = ROLLEN.filter(r => !aktiv.includes(r));
+        if (!aktiv.length) return 'Keine Rolle zugeordnet.';
+        return rest.length ? 'Nicht zugeordnet: ' + rest.join(', ') : '';
+      })(),
+      rollenListe: ROLLEN.map(name => ({
+        name,
+        props: {
+          checked: (st.rollen ?? ['Patienten']).includes(name),
+          onCheckedChange: v => {
+            const aktiv = st.rollen ?? ['Patienten'];
+            this.patch(which, {rollen: v === true ? aktiv.concat(name) : aktiv.filter(r => r !== name)});
+          }
+        }
+      })),
+      startEdit: () => this.patch(which, {tab:'stammdaten', editing:true}),
+      cancelEdit: () => this.patch(which, {editing:false})
+    };
+  }
+
+  renderVals(){
+    return {
+      theme: this.props.theme ?? 'schiefer',
+      v: this.view('b'),
+      // Die Übersichtskarte zeigt die letzten stattgefundenen Vorgänge; dokumentiert ist,
+      // wozu eine Notiz existiert.
+      vorgaenge: VORGANGSLISTE
+        .filter(vg => vgSchluessel(vg) < HEUTE_KEY)
+        .sort((a, b) => vgSchluessel(b) - vgSchluessel(a))
+        .slice(0, 5)
+        .map((vg, i, alle) => {
+          const dokumentiert = !!VORGANGSDETAIL[vg.wann]?.notiz;
+          return {
+            datum: vg.wann.slice(0, 10),
+            bezeichnung: vg.titel || (vg.positionen[0] || '').replace(/^1× /, ''),
+            ok: dokumentiert,
+            offen: !dokumentiert,
+            radius: i === alle.length - 1 ? '0 0 6px 6px' : '0',
+            onOeffnen: () => this.zumVorgang('b', vg.wann)
+          };
+        }),
+      bezOffen: this.state.b.bezOffen === true,
+      bezZu: this.state.b.bezOffen !== true && this.state.b.bezZeile == null,
+      bezSuche: this.state.b.bezSuche ?? '',
+      bezHatText: (this.state.b.bezSuche ?? '').length > 0,
+      bezLeeren: () => this.patch('b', {bezSuche:'', bezGewaehlt:false}),
+      bezTreffer: (this.state.b.bezSuche ?? '').trim().length > 0 && this.state.b.bezGewaehlt !== true,
+      bezUnfertig: !(this.state.b.bezArt && this.state.b.bezGewaehlt),
+      bezVorschlaege: KONTAKTE
+        .filter(k => (k.name + ' ' + k.nr).toLowerCase().includes((this.state.b.bezSuche ?? '').trim().toLowerCase()))
+        .map(k => ({...k, onClick: () => this.patch('b', {bezSuche: k.name, bezGewaehlt: true})})),
+      bezArtProps: {value: this.state.b.bezArt ?? '', onValueChange: v => this.patch('b', {bezArt: v})},
+      bezSuchen: e => this.patch('b', {bezSuche: e.target.value, bezGewaehlt: false}),
+      bezOeffnen: () => this.patch('b', {bezOffen: true, bezZeile: null, bezArt: '', bezSuche: '', bezGewaehlt: false}),
+      bezSchliessen: () => this.patch('b', {bezOffen: false, bezZeile: null, bezArt: '', bezSuche: '', bezGewaehlt: false}),
+      zuRechnungen: e => { e.preventDefault(); this.patch('b', {tab:'rechnungen'}); },
+      bezArten: ARTEN,
+      beziehungen: BEZIEHUNGEN.map((rel, i) => ({
+        ...rel,
+        bearbeiten: this.state.b.bezZeile === i,
+        lesen: this.state.b.bezZeile !== i,
+        onEdit: () => this.patch('b', {bezZeile: i, bezOffen: false, bezArt: rel.art, bezSuche: rel.name, bezGewaehlt: true})
+      })),
+      neuanlage: this.props.neuanlage === true,
+      archiviert: this.props.archiviert === true,
+      warnung: this.props.warnung !== false,
+      archivLabel: this.props.archiviert === true ? 'Wiederherstellen' : 'Archivieren'
+    };
+  }
+}
+
+</script>
+</body>
+</html>

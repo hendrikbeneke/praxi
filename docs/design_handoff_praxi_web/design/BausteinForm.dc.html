@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;gap:16px;font-family:var(--font-sans);font-size:14px;color:var(--foreground)">
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px 18px">
+<div style="grid-column:span 5;display:flex;flex-direction:column;gap:5px;min-width:150px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bf-name" hint-size="50px,16px">Name</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="bf-name" dc-props="{{ form.nameProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="grid-column:span 4;display:flex;flex-direction:column;gap:5px;min-width:150px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bf-art" hint-size="50px,16px">Stelle auf der Rechnung</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ form.artProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="bf-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="120px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="280px,80px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Einleitung" hint-size="100%,32px">Einleitung — über den Positionen</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Schluss" hint-size="100%,32px">Schluss — unter der Summe</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="grid-column:span 3;display:flex;flex-direction:column;gap:5px;min-width:150px">
+<label style="display:flex;align-items:center;gap:9px;height:36px;margin-top:21px;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ form.standardProps }}" hint-size="16px,16px"></x-import>Standard
+</label>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Wird in neue Rechnungen vorbelegt.</p>
+</div>
+<div style="grid-column:span 12;display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bf-text" hint-size="40px,16px">Text</x-import>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="bf-text" rows="3" dc-props="{{ form.textProps }}" hint-size="100%,84px"></x-import>
+</div>
+</div>
+<div style="display:flex;justify-content:flex-end;gap:10px;padding-top:12px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ form.onAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ form.onSpeichern }}" hint-size="108px,36px">Speichern</x-import>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:300},&quot;form&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;titel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Neuer Baustein&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+/** Das Formular eines Textbausteins — beim Anlegen über der Liste und beim
+ *  Bearbeiten in der aufgeklappten Zeile. */
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

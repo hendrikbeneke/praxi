@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+</style>
+</helmet>
+<header style="display:flex;align-items:center;justify-content:space-between;gap:24px;height:56px;flex-shrink:0;padding:0 20px 0 24px;border-bottom:1px solid var(--border);background:var(--card);font-family:var(--font-sans);font-size:14px;line-height:1.5;color:var(--foreground)">
+<div style="display:flex;align-items:center;gap:8px;min-width:0">
+<a href="#" style="color:var(--muted-foreground);text-decoration:none;white-space:nowrap" style-hover="color:var(--foreground)">{{ bereich }}</a>
+<sc-if value="{{ hatSeite }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--border)">/</span>
+<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ seite }}</span>
+</sc-if>
+</div>
+<div style="display:flex;align-items:center;gap:14px">
+<button style="display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border:1px solid var(--input);border-radius:6px;color:var(--muted-foreground);font-size:13px;min-width:220px" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+<span style="flex:1;text-align:left">Alles durchsuchen</span>
+<span style="font-size:11.5px;letter-spacing:.02em;color:var(--muted-foreground)">⌘K</span>
+</button>
+<span style="width:1px;height:24px;background:var(--border)"></span>
+<x-import component-from-global-scope="PraxiWeb.Popover" dc-props="{{ menueProps }}" hint-size="180px,36px">
+<x-import component-from-global-scope="PraxiWeb.PopoverTrigger" className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 outline-none hover:bg-accent" aria-label="Benutzermenü" hint-size="180px,36px">
+<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:12px;font-weight:600">{{ initialen }}</span>
+<span style="font-size:13px">{{ benutzer }}</span>
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--muted-foreground)"><path d="m6 9 6 6 6-6"></path></svg>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.PopoverContent" align="end" className="w-56 p-2" hint-size="224px,160px">
+<div style="padding:6px 8px 10px;border-bottom:1px solid var(--border)">
+<p style="margin:0;font-weight:600">{{ benutzer }}</p>
+<p style="margin:1px 0 0;color:var(--muted-foreground);font-size:12.5px">{{ praxis }}</p>
+</div>
+<button onClick="{{ oeffnePrefs }}" style="display:flex;align-items:center;gap:10px;width:100%;margin-top:6px;padding:7px 8px;border-radius:6px;color:var(--foreground);font-size:13.5px" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 17h4M12 17h8"></path><circle cx="14" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg>Einstellungen
+</button>
+<button style="display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border-radius:6px;color:var(--foreground);font-size:13.5px" style-hover="background:var(--accent);color:var(--accent-foreground)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>Abmelden
+</button>
+</x-import>
+</x-import>
+</div>
+
+<x-import component-from-global-scope="PraxiWeb.AlertDialog" dc-props="{{ prefsProps }}" hint-size="0px,0px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogContent" className="sm:max-w-lg" hint-size="512px,420px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogHeader" hint-size="100%,72px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogTitle" hint-size="100%,24px">Einstellungen</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogDescription" hint-size="100%,40px">Gilt nur für dieses Konto, nicht für die ganze Praxis.</x-import>
+</x-import>
+<div style="display:flex;flex-direction:column;gap:18px;padding:4px 0 8px;font-family:var(--font-sans);font-size:14px;color:var(--foreground)">
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="pref-theme" hint-size="120px,16px">Farbschema</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ themeProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="pref-theme" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="100px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,180px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="schiefer" hint-size="100%,32px">Schiefer</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="blau" hint-size="100%,32px">Blau</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="salbei" hint-size="100%,32px">Salbei</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="rose" hint-size="100%,32px">Rosé</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="nacht" hint-size="100%,32px">Nacht</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="pref-start" hint-size="120px,16px">Startseite nach dem Anmelden</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ startProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="pref-start" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="100px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,160px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Übersicht" hint-size="100%,32px">Übersicht</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Kontakte" hint-size="100%,32px">Kontakte</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Termine" hint-size="100%,32px">Termine</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Vorgänge" hint-size="100%,32px">Vorgänge</x-import>
+</x-import>
+</x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:11px;padding-top:14px;border-top:1px solid var(--border)">
+<label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ navProps }}" hint-size="16px,16px"></x-import>Navigation eingeklappt starten
+</label>
+</div>
+</div>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogFooter" hint-size="100%,48px">
+<x-import component-from-global-scope="PraxiWeb.AlertDialogCancel" hint-size="108px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.AlertDialogAction" onClick="{{ speichern }}" hint-size="108px,36px">Speichern</x-import>
+</x-import>
+</x-import>
+</x-import>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:56},&quot;bereich&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Kontakte&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;seite&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;benutzer&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Hendrik Beneke&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;praxis&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Praxis Ostertor&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+/** Persönliche Einstellungen. Das Farbschema wirkt sofort: es hängt am
+ *  data-theme des Screens, und alle Bausteine lesen nur Tokens. */
+const KEY = 'praxi.prefs';
+
+class Component extends DCLogic {
+  state = {
+    menue: false,
+    prefsOffen: false,
+    theme: 'schiefer',
+    start: 'Kontakte',
+    navZu: false
+  };
+
+  componentDidMount(){
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(KEY) || 'null');
+      if (saved) {
+        this.setState(saved);
+        this.themeAnwenden(saved.theme);
+      }
+    } catch (e) {}
+  }
+
+  themeAnwenden(theme){
+    if (!theme) return;
+    document.querySelectorAll('[data-theme]').forEach(el => el.setAttribute('data-theme', theme));
+  }
+
+  speichern = () => {
+    const {theme, start, navZu, mail} = this.state;
+    this.themeAnwenden(theme);
+    try { window.localStorage.setItem(KEY, JSON.stringify({theme, start, navZu, mail})); } catch (e) {}
+    this.setState({prefsOffen: false});
+  };
+
+  renderVals(){
+    const benutzer = this.props.benutzer ?? 'Hendrik Beneke';
+    const seite = this.props.seite ?? '';
+    return {
+      bereich: this.props.bereich ?? 'Kontakte',
+      praxis: this.props.praxis ?? 'Praxis Ostertor',
+      seite,
+      hatSeite: seite.trim().length > 0,
+      benutzer,
+      initialen: benutzer.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join(''),
+      menueProps: {open: this.state.menue, onOpenChange: v => this.setState({menue: v})},
+      oeffnePrefs: () => this.setState({menue: false, prefsOffen: true}),
+      prefsProps: {open: this.state.prefsOffen, onOpenChange: v => this.setState({prefsOffen: v})},
+      themeProps: {value: this.state.theme, onValueChange: v => this.setState({theme: v})},
+      startProps: {value: this.state.start, onValueChange: v => this.setState({start: v})},
+      navProps: {checked: this.state.navZu, onCheckedChange: v => this.setState({navZu: v === true})},
+      speichern: this.speichern
+    };
+  }
+}
+
+</script>
+</body>
+</html>

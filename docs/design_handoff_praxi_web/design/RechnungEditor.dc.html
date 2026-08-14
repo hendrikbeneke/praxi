@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+</style>
+</helmet>
+<div style="border:1px solid var(--primary);border-radius:10px;background:var(--card)">
+<div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);border-radius:9px 9px 0 0;background:color-mix(in oklab, var(--muted) 45%, var(--card))">
+<span style="font-weight:600">Neue Rechnung</span>
+<span style="color:var(--muted-foreground);font-size:13px">Entwurf, noch nicht festgeschrieben</span>
+<span class="tabular-nums" style="margin-left:auto;color:var(--muted-foreground);font-size:13px">Nr. {{ re.nummer }} nach dem Festschreiben</span>
+</div>
+<div style="padding:18px 16px 16px;display:flex;flex-direction:column;gap:22px">
+
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px 18px">
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 6">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-empf" hint-size="150px,16px">Rechnungsempfänger</x-import>
+<sc-if value="{{ re.pickerAn }}" hint-placeholder-val="{{ false }}">
+<div style="position:relative">
+<x-import component-from-global-scope="PraxiWeb.Input" id="re-empf" className="w-full" placeholder="Name oder Kontaktnummer tippen" dc-props="{{ re.sucheProps }}" hint-size="100%,36px"></x-import>
+<sc-if value="{{ re.trefferAn }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:30;max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--popover);color:var(--popover-foreground);box-shadow:0 10px 28px oklch(25% .012 62 / .14)">
+<sc-for list="{{ re.treffer }}" as="t" hint-placeholder-count="4">
+<button onClick="{{ t.onWaehlen }}" style="display:flex;align-items:baseline;gap:10px;width:100%;padding:7px 11px;text-align:left;font-size:13.5px" style-hover="background:var(--accent)">{{ t.name }}<span class="tabular-nums" style="margin-left:auto;color:var(--muted-foreground);font-size:12.5px">Nr. {{ t.nr }}</span></button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ re.keinTreffer }}" hint-placeholder-val="{{ false }}">
+<p style="margin:5px 0 0;color:var(--muted-foreground);font-size:12px">Kein Kontakt gefunden. Archivierte Kontakte werden nicht vorgeschlagen.</p>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ re.gewaehltAn }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ re.empfProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="re-empf" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="180px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,140px">
+<sc-for list="{{ re.empfaenger }}" as="e" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ e.name }}" hint-size="100%,32px">{{ e.name }} <span style="color:var(--muted-foreground)">· {{ e.rolle }}</span></x-import>
+</sc-for>
+</x-import>
+</x-import>
+<sc-if value="{{ re.manuellAn }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ re.onAnderer }}" style="align-self:flex-start;color:var(--muted-foreground);font-size:12px;text-decoration:underline;text-underline-offset:3px" style-hover="color:var(--foreground)">Anderen Kontakt suchen</button>
+</sc-if>
+</sc-if>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:7/span 4">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-datum" hint-size="118px,16px">Rechnungsdatum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="re-datum" dc-props="{{ re.datumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:11/span 2">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-ziel" hint-size="90px,16px">Zahlungsziel</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="re-ziel" dc-props="{{ re.zielProps }}" hint-size="100%,36px"></x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Fällig {{ re.faellig }}</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:1/span 3">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="re-diagnose" hint-size="70px,16px">Diagnose</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="re-diagnose" dc-props="{{ re.diagnoseProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;grid-column:4/span 9">
+<label style="display:flex;align-items:center;gap:9px;height:16px;cursor:pointer;font-size:13.5px;line-height:16px">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ re.zeitraumProps }}" hint-size="16px,16px"></x-import>Leistungszeitraum ausweisen
+</label>
+<div style="display:flex;align-items:center;gap:10px;opacity:{{ re.zeitraumDeckkraft }}">
+<span style="flex:0 0 176px"><x-import component-from-global-scope="PraxiWeb.DateField" dc-props="{{ re.vonProps }}" hint-size="100%,36px"></x-import></span>
+<span style="color:var(--muted-foreground)">bis</span>
+<span style="flex:0 0 176px"><x-import component-from-global-scope="PraxiWeb.DateField" dc-props="{{ re.bisProps }}" hint-size="100%,36px"></x-import></span>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Vorbelegt aus den gewählten Vorgängen.</p>
+</div>
+</div>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<p style="margin:0;font-weight:600">Einleitungstext</p>
+<span style="width:260px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ re.einleitungVorlageProps }}" hint-size="100%,32px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" size="sm" className="w-full" hint-size="100%,32px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Vorlage wählen" hint-size="150px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,110px">
+<sc-for list="{{ re.einleitungVorlagen }}" as="t" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ t.name }}" hint-size="100%,32px">{{ t.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="re-einleitung" rows="2" className="mt-2" dc-props="{{ re.einleitungProps }}" placeholder="Steht über den Positionen." hint-size="100%,60px"></x-import>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<p style="margin:0;font-weight:600">Positionen</p>
+<p style="margin:3px 0 0;color:var(--muted-foreground);font-size:12.5px">Aus den abrechenbaren Vorgängen kopiert. Vorgang abwählen entfernt seine Positionen wieder.</p>
+<sc-if value="{{ re.ohneKontakt }}" hint-placeholder-val="{{ false }}">
+<p style="margin:10px 0 0;color:var(--muted-foreground);font-size:13.5px">Bitte zuerst einen Empfänger wählen.</p>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:14px;margin-top:12px">
+<sc-for list="{{ re.gruppen }}" as="g" hint-placeholder-count="2">
+<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<label style="display:flex;align-items:center;gap:12px;padding:9px 12px;background:color-mix(in oklab, var(--muted) 45%, var(--card));cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ g.checkProps }}" hint-size="16px,16px"></x-import>
+<span class="tabular-nums" style="font-weight:600">{{ g.wann }}</span>
+<span style="display:flex;align-items:center;gap:7px;color:var(--muted-foreground);font-size:13px"><span style="width:9px;height:9px;border-radius:999px;background:{{ g.farbe }}"></span>{{ g.art }}</span>
+<span class="tabular-nums" style="margin-left:auto;font-size:13.5px">{{ g.summe }}</span>
+</label>
+<sc-if value="{{ g.gewaehlt }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px">
+<sc-for list="{{ g.positionen }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{ re.hatFreie }}" hint-placeholder-val="{{ false }}">
+<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<p style="margin:0;padding:9px 12px;background:color-mix(in oklab, var(--muted) 45%, var(--card));font-weight:600">Frei erfasst</p>
+<div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px">
+<sc-for list="{{ re.freie }}" as="p" hint-placeholder-count="1">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+<span style="flex:1 1 260px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ re.katalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog hinzufügen" hint-size="190px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,220px">
+<sc-for list="{{ leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.text }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+<span style="color:var(--muted-foreground);font-size:13px">oder</span>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ re.onFreiePosition }}" hint-size="140px,36px">Freie Position</x-import>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:14px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Rechnungsbetrag</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ re.summe }}</span>
+</div>
+</section>
+
+<section style="border-top:1px solid var(--border);padding-top:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+<p style="margin:0;font-weight:600">Schlusstext</p>
+<span style="width:260px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ re.schlussVorlageProps }}" hint-size="100%,32px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" size="sm" className="w-full" hint-size="100%,32px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Vorlage wählen" hint-size="150px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="320px,110px">
+<sc-for list="{{ re.schlussVorlagen }}" as="t" hint-placeholder-count="2">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ t.name }}" hint-size="100%,32px">{{ t.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Textarea" id="re-schluss" rows="2" className="mt-2" dc-props="{{ re.schlussProps }}" placeholder="Steht unter den Positionen, z. B. Zahlungshinweis." hint-size="100%,60px"></x-import>
+</section>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--border)">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" className="text-muted-foreground" hint-size="132px,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path></svg>PDF-Vorschau</x-import>
+<span style="display:inline-flex;gap:8px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ re.onAbbrechen }}" hint-size="106px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" variant="outline" onClick="{{ re.onEntwurf }}" hint-size="150px,36px">Als Entwurf sichern</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ re.onFestschreiben }}" hint-size="180px,36px">Rechnung festschreiben</x-import>
+</span>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;re&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;leistungen&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;array&quot;}}">
+/** Der Rechnungseditor aus der Kontaktakte — hier als eigener Baustein,
+ *  weil ihn die Zahlungen-Seite an zwei Stellen zeigt: beim Anlegen aus
+ *  den offenen Vorgängen und inline in der Rechnungsliste. */
+class Component extends DCLogic {
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

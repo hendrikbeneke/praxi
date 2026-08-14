@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+[data-aktion=entfernen]:hover{color:var(--destructive)!important}
+@media (max-width:1040px){[style*="--zweispaltig"]{grid-template-columns:minmax(0,1fr)!important;gap:20px!important}
+[style*="--zweispaltig"]>div:last-child{padding-left:0!important;border-left:0!important;border-top:1px solid var(--border);padding-top:16px}}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5">
+<dc-import name="AppSidebar" active="Vorgänge" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Vorgänge" hint-size="100%,56px"></dc-import>
+<div style="flex:1;min-width:0;overflow:auto">
+<main style="display:flex;flex-direction:column">
+
+<div style="position:sticky;top:0;z-index:5;padding:22px 32px 14px;border-bottom:1px solid var(--border);background:var(--card)">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap">
+<div style="min-width:0">
+<h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.022em;line-height:1.1">Vorgänge</h1>
+<p style="margin:5px 0 0;color:var(--muted-foreground)">Was wann für wen erbracht wurde.</p>
+</div>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ neuerVorgang }}" hint-size="152px,36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Neuer Vorgang</x-import>
+</div>
+
+<div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-top:16px">
+<div style="display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="von" hint-size="30px,16px">Von</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="von" dc-props="{{ vonProps }}" hint-size="152px,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="bis" hint-size="26px,16px">Bis</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="bis" dc-props="{{ bisProps }}" hint-size="152px,36px"></x-import>
+</div>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:7px">
+<sc-for list="{{ statusFilter }}" as="f" hint-placeholder-count="4">
+<button onClick="{{ f.onClick }}" style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border:1px solid {{ f.rahmen }};border-radius:999px;background:{{ f.bg }};color:{{ f.farbe }};font-size:12.5px" style-hover="border-color:var(--primary)"><span class="tabular-nums" style="font-weight:600">{{ f.anzahl }}</span>{{ f.label }}</button>
+</sc-for>
+</div>
+<p style="margin:0 0 9px;color:var(--muted-foreground);font-size:13px">{{ zusammenfassung }}</p>
+</div>
+</div>
+
+<div style="padding:18px 32px 48px;display:flex;flex-direction:column;gap:2px;max-width:1180px">
+
+<sc-if value="{{ leer }}" hint-placeholder-val="{{ false }}">
+<p style="margin:8px 0 0;color:var(--muted-foreground)">Kein Vorgang in diesem Zeitraum.</p>
+</sc-if>
+
+<sc-for list="{{ liste }}" as="vg" hint-placeholder-count="6">
+<div>
+<p style="display:{{ vg.abschnittAn }};margin:{{ vg.abschnittRand }} 0 8px;font-weight:600">{{ vg.abschnitt }}</p>
+<div style="border:1px solid {{ vg.rahmen }};border-radius:10px;background:var(--card);overflow:hidden;margin-bottom:8px">
+
+<button onClick="{{ vg.onOeffnen }}" style="display:block;width:100%;text-align:left;padding:13px 16px;background:{{ vg.kopfBg }}" style-hover="background:var(--accent)">
+<span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+<span class="tabular-nums" style="width:150px;flex-shrink:0;color:var(--muted-foreground)">{{ vg.datumText }}</span>
+<span style="font-weight:600">{{ vg.kontakt }}</span>
+<span style="padding:2px 7px;border-radius:5px;font-size:11.5px;background:{{ vg.farbe }};color:#241f18">{{ vg.art }}</span>
+<sc-if value="{{ vg.zeigeTermin }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.terminVariante }}" hint-size="128px,20px">Termin {{ vg.terminStatus }}</x-import>
+</sc-if>
+<sc-if value="{{ vg.ohneTermin }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:12.5px">ohne Termin</span>
+</sc-if>
+<sc-if value="{{ vg.zeigeStatus }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.statusVariante }}" hint-size="112px,20px">{{ vg.status }}</x-import>
+</sc-if>
+<sc-if value="{{ vg.zeigeAbrechnung }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="{{ vg.abrechnungVariante }}" hint-size="94px,20px">{{ vg.abrechnung }}</x-import>
+</sc-if>
+<sc-if value="{{ vg.hatTitel }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground);font-size:13.5px">{{ vg.titel }}</span>
+</sc-if>
+<span style="margin-left:auto;font-weight:600" class="tabular-nums">{{ vg.summe }}</span>
+</span>
+<span style="display:flex;gap:12px;margin-top:4px;color:var(--muted-foreground);font-size:12.5px">
+<span class="tabular-nums" style="width:150px;flex-shrink:0">{{ vg.zeitText }}</span>
+<span style="min-width:0">{{ vg.positionenText }}</span>
+</span>
+</button>
+
+<sc-if value="{{ vg.offen }}" hint-placeholder-val="{{ false }}">
+<div style="border-top:1px solid var(--border);padding:18px 16px 16px">
+
+<sc-if value="{{ d.lesen }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:34px;align-items:start;--zweispaltig:1">
+<div>
+<sc-if value="{{ d.hatTitel }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0 0 14px;font-size:17px;font-weight:600">{{ d.titel }}</p>
+</sc-if>
+<sc-for list="{{ d.positionen }}" as="p" hint-placeholder-count="2">
+<div style="display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:14px;align-items:baseline;padding:9px 0;border-top:1px solid var(--border)">
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ p.menge }}×</span>
+<span style="min-width:0">{{ p.text }}<span style="margin-left:8px;color:var(--muted-foreground);font-size:12.5px">{{ p.ziffer }}</span>
+<sc-if value="{{ p.nichtAbrechenbar }}" hint-placeholder-val="{{ false }}">
+<span style="margin-left:8px;color:var(--muted-foreground);font-size:12.5px">nicht abrechenbar</span>
+</sc-if>
+</span>
+<span class="tabular-nums" style="text-align:right">{{ p.betrag }}</span>
+</div>
+</sc-for>
+<sc-if value="{{ d.ohnePositionen }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Noch keine Position erfasst.</p>
+</sc-if>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:2px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Abrechenbar</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ d.summeAbrechenbar }}</span>
+</div>
+<sc-if value="{{ d.zeigeGesamt }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:5px;color:var(--muted-foreground);font-size:12.5px">
+<span>Gesamt inkl. nicht abrechenbarer Positionen</span>
+<span class="tabular-nums">{{ d.summeGesamt }}</span>
+</div>
+</sc-if>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ d.onBearbeiten }}" hint-size="112px,32px">Bearbeiten</x-import>
+<sc-if value="{{ d.kannAbrechnen }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" onClick="{{ d.onAbrechnen }}" hint-size="112px,32px">Abrechnen</x-import>
+</sc-if>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:16px;padding-left:26px;border-left:1px solid var(--border)">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Kontakt</span>
+<a href="Kontaktdetail.dc.html" style="text-decoration:underline;text-underline-offset:3px">{{ d.kontakt }}</a>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">Nr. {{ d.kontaktNr }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Termin</span>
+<sc-if value="{{ d.hatTermin }}" hint-placeholder-val="{{ true }}">
+<span class="tabular-nums">{{ d.datumText }}</span>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ d.zeitText }}</span>
+<a href="Terminkalender.dc.html" style="margin-top:3px;text-decoration:underline;text-underline-offset:3px;font-size:13px">Im Kalender öffnen</a>
+</sc-if>
+<sc-if value="{{ d.ohneTermin }}" hint-placeholder-val="{{ false }}">
+<span style="color:var(--muted-foreground)">Kein Kalendertermin</span>
+</sc-if>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Vorgang</span>
+<span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:999px;background:{{ d.farbe }}"></span>{{ d.art }}</span>
+<span>{{ d.status }}</span>
+</div>
+<sc-if value="{{ d.hatRechnung }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="color:var(--muted-foreground);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase">Rechnung</span>
+<a href="Kontaktdetail.dc.html" style="text-decoration:underline;text-underline-offset:3px">{{ d.rechnungNr }}</a>
+<span class="tabular-nums" style="color:var(--muted-foreground);font-size:13px">{{ d.rechnungBetrag }} · {{ d.rechnungStatus }}</span>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ d.bearbeiten }}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="PraxiWeb.ReadModeFieldset" hint-size="100%,540px">
+<div style="display:flex;flex-direction:column;gap:22px">
+
+<div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px 18px">
+<sc-if value="{{ d.kontaktWaehlbar }}" hint-placeholder-val="{{ false }}">
+<div style="grid-column:1/span 12;display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-kontakt" hint-size="56px,16px">Kontakt</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ d.kontaktProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vg-kontakt" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Name oder Kontaktnummer" hint-size="200px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,260px">
+<sc-for list="{{ kontakte }}" as="k" hint-placeholder-count="6">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ k.name }}" hint-size="100%,32px">{{ k.name }} · Nr. {{ k.nr }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+</sc-if>
+<div style="grid-column:1/span 6;display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-art" hint-size="30px,16px">Art</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ d.artProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vg-art" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,140px">
+<sc-for list="{{ arten }}" as="a" hint-placeholder-count="3">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ a.name }}" hint-size="100%,32px"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:8px;background:{{ a.farbe }}"></span>{{ a.name }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</div>
+<div style="grid-column:7/span 6;display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-status" hint-size="44px,16px">Status</x-import>
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ d.statusProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" id="vg-status" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" hint-size="110px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="240px,110px">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Geplant" hint-size="100%,32px">Geplant</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Stattgefunden" hint-size="100%,32px">Stattgefunden</x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="Nicht erschienen" hint-size="100%,32px">Nicht erschienen</x-import>
+</x-import>
+</x-import>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">Der Status ist nur Dokumentation und steuert die Abrechnung nicht.</p>
+</div>
+<div style="grid-column:1/span 6;display:flex;flex-direction:column;gap:5px;min-width:0">
+<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;min-width:0">
+<div style="display:flex;flex-direction:column;gap:5px;flex:1 1 130px;min-width:126px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-datum" hint-size="52px,16px">Datum</x-import>
+<x-import component-from-global-scope="PraxiWeb.DateField" id="vg-datum" dc-props="{{ d.datumProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;width:74px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-zeit" hint-size="56px,16px">Uhrzeit</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-zeit" placeholder="15:00" dc-props="{{ d.zeitProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;width:80px;flex:0 0 auto">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-dauer" hint-size="80px,16px">Dauer (Min.)</x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-dauer" type="number" dc-props="{{ d.dauerProps }}" hint-size="100%,36px"></x-import>
+</div>
+</div>
+<p style="margin:0;color:var(--muted-foreground);font-size:12px">{{ d.endeHinweis }}</p>
+</div>
+<div style="grid-column:7/span 6;display:flex;flex-direction:column;gap:5px">
+<x-import component-from-global-scope="PraxiWeb.Label" htmlFor="vg-titel" hint-size="86px,16px">Bezeichnung <span style="color:var(--muted-foreground);font-weight:400">(optional)</span></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" id="vg-titel" dc-props="{{ d.titelProps }}" hint-size="100%,36px"></x-import>
+</div>
+<div style="grid-column:1/span 12;display:flex;flex-direction:column;gap:4px">
+<label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ d.terminProps }}" hint-size="16px,16px"></x-import>Termin im Kalender anlegen
+</label>
+<p style="margin:0 0 0 26px;color:var(--muted-foreground);font-size:12px">Ohne Termin wird der Vorgang nur dokumentiert und erscheint nicht im Kalender.</p>
+</div>
+</div>
+
+<section>
+<p style="margin:0;font-weight:600">Positionen</p>
+<p style="margin:3px 0 0;color:var(--muted-foreground);font-size:12.5px">Beim Hinzufügen werden Bezeichnung, Ziffer und Preis aus dem Katalog kopiert. Ab dann gehören sie zu diesem Vorgang.</p>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+<sc-if value="{{ d.ohnePositionen }}" hint-placeholder-val="{{ false }}">
+<p style="margin:0;color:var(--muted-foreground);font-size:13.5px">Noch keine Position.</p>
+</sc-if>
+<sc-for list="{{ d.positionen }}" as="p" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.mengeProps }}" type="number" className="w-16" hint-size="64px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.textProps }}" className="flex-1 min-w-40" hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.zifferProps }}" placeholder="Ziffer" className="w-20" hint-size="80px,32px"></x-import>
+<x-import component-from-global-scope="PraxiWeb.Input" dc-props="{{ p.betragProps }}" className="w-24 text-right tabular-nums" hint-size="96px,32px"></x-import>
+<button onClick="{{ p.onEntfernen }}" aria-label="Position entfernen" title="Position entfernen" data-aktion="entfernen" style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:var(--muted-foreground)" style-hover="background:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+<span style="flex:1 1 280px;min-width:220px">
+<x-import component-from-global-scope="PraxiWeb.Select" dc-props="{{ d.katalogProps }}" hint-size="100%,36px">
+<x-import component-from-global-scope="PraxiWeb.SelectTrigger" className="w-full" hint-size="100%,36px"><x-import component-from-global-scope="PraxiWeb.SelectValue" placeholder="Aus dem Katalog hinzufügen" hint-size="200px,20px"></x-import></x-import>
+<x-import component-from-global-scope="PraxiWeb.SelectContent" hint-size="380px,220px">
+<sc-for list="{{ leistungen }}" as="l" hint-placeholder-count="4">
+<x-import component-from-global-scope="PraxiWeb.SelectItem" value="{{ l.text }}" hint-size="100%,32px">{{ l.text }} — {{ l.betrag }}</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</span>
+<x-import component-from-global-scope="PraxiWeb.Button" size="sm" variant="outline" onClick="{{ d.onFreiePosition }}" hint-size="132px,32px">Freie Position</x-import>
+</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:16px;padding-top:11px;border-top:1px solid var(--border)">
+<span style="font-weight:600">Abrechenbar</span>
+<span class="tabular-nums" style="font-weight:600;font-size:17px">{{ d.entwurfSumme }}</span>
+</div>
+</section>
+
+<div style="display:flex;justify-content:flex-end;gap:10px;padding-top:4px">
+<x-import component-from-global-scope="PraxiWeb.Button" variant="ghost" onClick="{{ d.onAbbrechen }}" hint-size="108px,36px">Abbrechen</x-import>
+<x-import component-from-global-scope="PraxiWeb.Button" onClick="{{ d.onSpeichern }}" hint-size="108px,36px">Speichern</x-import>
+</div>
+
+</div>
+</x-import>
+</sc-if>
+
+</div>
+</sc-if>
+
+</div>
+</div>
+</sc-for>
+
+</div>
+</main>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;schiefer&quot;,&quot;blau&quot;,&quot;salbei&quot;,&quot;rose&quot;,&quot;nacht&quot;],&quot;default&quot;:&quot;schiefer&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+/** Die praxisweite Vorgangsliste nach `routes/_app/activities.tsx`: Zeitraum,
+ *  Statusfilter, darunter dieselbe Zeile wie im Kontakt — nur mit dem Namen
+ *  davor, weil hier alle Kontakte nebeneinanderstehen. */
+const HEUTE = '2026-08-12';
+
+const ARTEN = [
+  {name:'Erstgespräch', farbe:'oklch(75% .12 85)', dauer:60, vorbelegung:['Erstgespräch mit Anamnese']},
+  {name:'Folgesitzung', farbe:'oklch(72% .1 200)', dauer:45, vorbelegung:['Ergotherapie, Einzelbehandlung']},
+  {name:'Bericht', farbe:'oklch(70% .11 300)', dauer:30, vorbelegung:['Befundbericht']}
+];
+const LEISTUNGEN = [
+  {text:'Ergotherapie, Einzelbehandlung', ziffer:'A1', cent:4500},
+  {text:'Erstgespräch mit Anamnese', ziffer:'A2', cent:9000},
+  {text:'Befundbericht', ziffer:'B1', cent:3500},
+  {text:'Telefonat mit der Schule, 30 Minuten', ziffer:'', cent:3800},
+  {text:'Ausfallhonorar', ziffer:'', cent:2250}
+];
+const KONTAKTE = [
+  {name:'Achterberg, Miriam', nr:1004}, {name:'Balzer, Kim', nr:1006},
+  {name:'Bergmann, Anke', nr:1008}, {name:'Bruns, Levke', nr:1014},
+  {name:'Claussen, Ole', nr:1019}, {name:'Cordes, Annelie', nr:1029},
+  {name:'Dohrmann, Til', nr:1033}, {name:'Eggers, Sonja', nr:1041},
+  {name:'Feldmann, Ruth', nr:1027}, {name:'Gerdes, Nele', nr:1052},
+  {name:'Hinrichs, Milan', nr:1063}
+];
+const pos = (menge, text, cent, ziffer, abrechenbar) =>
+  ({menge, text, cent, ziffer: ziffer || '', abrechenbar: abrechenbar !== false});
+
+const VORGAENGE = [
+  {id:'v1', kontakt:'Dohrmann, Til', nr:1033, iso:'2026-08-28', zeit:'15:00', dauer:45, art:'Folgesitzung',
+   status:'Geplant', terminStatus:'Geplant', abrechnung:'', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')]},
+  {id:'v2', kontakt:'Bergmann, Anke', nr:1008, iso:'2026-08-21', zeit:'09:00', dauer:45, art:'Folgesitzung',
+   status:'Geplant', terminStatus:'Angefragt', abrechnung:'', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')]},
+  {id:'v3', kontakt:'Bruns, Levke', nr:1014, iso:'2026-08-14', zeit:'15:00', dauer:45, art:'Folgesitzung',
+   status:'Geplant', terminStatus:'Bestätigt', abrechnung:'', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')]},
+  {id:'v4', kontakt:'Gerdes, Nele', nr:1052, iso:'2026-08-13', zeit:'10:30', dauer:60, art:'Erstgespräch',
+   status:'Geplant', terminStatus:'Bestätigt', abrechnung:'', titel:'Erstgespräch',
+   positionen:[pos(1,'Erstgespräch mit Anamnese',9000,'A2')]},
+  {id:'v5', kontakt:'Claussen, Ole', nr:1019, iso:'2026-08-12', zeit:'08:15', dauer:45, art:'Folgesitzung',
+   status:'Geplant', terminStatus:'Bestätigt', abrechnung:'', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')]},
+  {id:'v6', kontakt:'Dohrmann, Til', nr:1033, iso:'2026-08-07', zeit:'15:00', dauer:45, art:'Folgesitzung',
+   status:'Stattgefunden', terminStatus:'Bestätigt', abrechnung:'Offen', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')]},
+  {id:'v7', kontakt:'Cordes, Annelie', nr:1029, iso:'2026-08-06', zeit:'11:15', dauer:45, art:'Folgesitzung',
+   status:'Stattgefunden', terminStatus:'Bestätigt', abrechnung:'Offen', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')]},
+  {id:'v8', kontakt:'Achterberg, Miriam', nr:1004, iso:'2026-08-04', zeit:'09:30', dauer:45, art:'Folgesitzung',
+   status:'Nicht erschienen', terminStatus:'Kurzfristig abgesagt', abrechnung:'Offen', titel:'',
+   positionen:[pos(1,'Ausfallhonorar',2250)]},
+  {id:'v9', kontakt:'Hinrichs, Milan', nr:1063, iso:'2026-07-31', zeit:'15:30', dauer:45, art:'Folgesitzung',
+   status:'Stattgefunden', terminStatus:'Bestätigt', abrechnung:'Abgerechnet', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')],
+   rechnung:{nr:'2026-0044', betrag:'45,00 €', status:'Bezahlt'}},
+  {id:'v10', kontakt:'Dohrmann, Til', nr:1033, iso:'2026-07-24', zeit:'15:00', dauer:60, art:'Erstgespräch',
+   status:'Stattgefunden', terminStatus:'Bestätigt', abrechnung:'Abgerechnet', titel:'Anamnese und Zielklärung',
+   positionen:[pos(1,'Erstgespräch mit Anamnese',9000,'A2'), pos(1,'Befundbericht',3500,'B1',false)],
+   rechnung:{nr:'2026-0041', betrag:'90,00 €', status:'Bezahlt'}},
+  {id:'v11', kontakt:'Eggers, Sonja', nr:1041, iso:'2026-07-20', zeit:'', dauer:0, art:'Bericht',
+   status:'Stattgefunden', terminStatus:'', abrechnung:'Offen', titel:'Bericht an die Krankenkasse',
+   positionen:[pos(1,'Befundbericht',3500,'B1')]},
+  {id:'v12', kontakt:'Dohrmann, Til', nr:1033, iso:'2026-07-10', zeit:'', dauer:0, art:'Bericht',
+   status:'Stattgefunden', terminStatus:'', abrechnung:'Offen', titel:'Telefonat mit der Schule',
+   positionen:[pos(1,'Telefonat mit der Schule, 30 Minuten',3800)]},
+  {id:'v13', kontakt:'Balzer, Kim', nr:1006, iso:'2026-06-26', zeit:'09:00', dauer:45, art:'Folgesitzung',
+   status:'Stattgefunden', terminStatus:'Bestätigt', abrechnung:'Abgerechnet', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')],
+   rechnung:{nr:'2026-0031', betrag:'45,00 €', status:'Überfällig'}},
+  {id:'v14', kontakt:'Feldmann, Ruth', nr:1027, iso:'2026-05-29', zeit:'09:15', dauer:45, art:'Folgesitzung',
+   status:'Stattgefunden', terminStatus:'Bestätigt', abrechnung:'Abgerechnet', titel:'',
+   positionen:[pos(1,'Ergotherapie, Einzelbehandlung',4500,'A1')],
+   rechnung:{nr:'2026-0022', betrag:'45,00 €', status:'Bezahlt'}}
+];
+
+const TAGE = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+const euro = c => (c / 100).toFixed(2).replace('.', ',') + ' €';
+const centAus = text => Math.round(parseFloat(String(text || '0').replace(/[^0-9,.-]/g,'').replace(',', '.')) * 100) || 0;
+const datumLang = iso => {
+  const d = new Date(iso + 'T12:00:00');
+  return TAGE[d.getDay()] + ', ' + iso.slice(8,10) + '.' + iso.slice(5,7) + '.' + iso.slice(0,4);
+};
+const ende = (zeit, dauer) => {
+  if (!zeit || !dauer) return '';
+  const [h, m] = zeit.split(':').map(Number);
+  const gesamt = h * 60 + m + Number(dauer);
+  return String(Math.floor(gesamt / 60) % 24).padStart(2,'0') + ':' + String(gesamt % 60).padStart(2,'0');
+};
+const summe = (positionen, nurAbrechenbar) => positionen
+  .filter(p => !nurAbrechenbar || p.abrechenbar)
+  .reduce((s, p) => s + p.menge * p.cent, 0);
+const artFarbe = name => (ARTEN.find(a => a.name === name) || ARTEN[1]).farbe;
+/** Ein Termin hält den Zeitraum belegt, solange er nicht abgesagt ist. */
+const HAELT_SLOT = ['Angefragt','Geplant','Bestätigt'];
+
+class Component extends DCLogic {
+  state = {
+    daten: VORGAENGE,
+    von: '2026-05-14',
+    bis: '2026-09-11',
+    status: null,
+    offen: null,
+    bearbeiten: false,
+    entwurf: null
+  };
+
+  imZeitraum(vg){
+    return vg.iso >= this.state.von && vg.iso <= this.state.bis;
+  }
+
+  entwurfAus(vg){
+    return {
+      id: vg.id, kontakt: vg.kontakt, nr: vg.nr, iso: vg.iso, zeit: vg.zeit,
+      dauer: String(vg.dauer || ''), art: vg.art, status: vg.status, titel: vg.titel,
+      mitTermin: !!vg.terminStatus, terminStatus: vg.terminStatus || 'Geplant',
+      abrechnung: vg.abrechnung, rechnung: vg.rechnung,
+      positionen: vg.positionen.map(p => ({...p, betragText: euro(p.cent)}))
+    };
+  }
+
+  neuerVorgang = () => {
+    const art = ARTEN[1];
+    this.setState({
+      offen: 'neu', bearbeiten: true,
+      entwurf: {
+        id: 'neu', kontakt: '', nr: '', iso: HEUTE, zeit: '15:00', dauer: String(art.dauer),
+        art: art.name, status: 'Geplant', titel: '', mitTermin: true, terminStatus: 'Geplant',
+        abrechnung: '', rechnung: null,
+        positionen: art.vorbelegung.map(text => {
+          const l = LEISTUNGEN.find(x => x.text === text);
+          return {menge:1, text: l.text, ziffer: l.ziffer, cent: l.cent, abrechenbar:true, betragText: euro(l.cent)};
+        })
+      }
+    });
+  };
+
+  patchEntwurf(patch){
+    this.setState(s => ({entwurf: {...s.entwurf, ...patch}}));
+  }
+
+  patchPosition(index, patch){
+    this.setState(s => ({entwurf: {...s.entwurf,
+      positionen: s.entwurf.positionen.map((p, i) => i === index ? {...p, ...patch} : p)}}));
+  }
+
+  speichern = () => {
+    const e = this.state.entwurf;
+    const positionen = e.positionen.map(p => ({
+      menge: Number(p.menge) || 1, text: p.text, ziffer: p.ziffer,
+      cent: centAus(p.betragText), abrechenbar: p.abrechenbar !== false
+    }));
+    const zeile = {
+      id: e.id === 'neu' ? 'v' + (this.state.daten.length + 1) : e.id,
+      kontakt: e.kontakt || 'Ohne Kontakt', nr: e.nr || '',
+      iso: e.iso, zeit: e.mitTermin ? e.zeit : '', dauer: e.mitTermin ? Number(e.dauer) || 0 : 0,
+      art: e.art, status: e.status, terminStatus: e.mitTermin ? e.terminStatus : '',
+      abrechnung: e.abrechnung, titel: e.titel, positionen, rechnung: e.rechnung
+    };
+    this.setState(s => ({
+      daten: e.id === 'neu' ? [zeile].concat(s.daten) : s.daten.map(vg => vg.id === e.id ? zeile : vg),
+      offen: zeile.id, bearbeiten: false, entwurf: null
+    }));
+  };
+
+  abbrechen = () => this.setState(s => ({
+    bearbeiten: false, entwurf: null, offen: s.entwurf && s.entwurf.id === 'neu' ? null : s.offen
+  }));
+
+  katalogHinzu(wert){
+    const l = LEISTUNGEN.find(x => x.text === wert);
+    if (!l) return;
+    this.setState(s => ({entwurf: {...s.entwurf, positionen: s.entwurf.positionen.concat(
+      [{menge:1, text:l.text, ziffer:l.ziffer, cent:l.cent, abrechenbar:true, betragText: euro(l.cent)}])}}));
+  }
+
+  /** Der offene Vorgang: gelesen oder als Entwurf bearbeitet. */
+  detail(){
+    const st = this.state;
+    const bearbeiten = st.bearbeiten && !!st.entwurf;
+    if (bearbeiten) {
+      const e = st.entwurf;
+      return {
+        lesen: false, bearbeiten: true, kontaktWaehlbar: e.id === 'neu',
+        endeHinweis: e.mitTermin && ende(e.zeit, e.dauer) ? 'Ende ' + ende(e.zeit, e.dauer) : 'Ohne Termin wird keine Zeit belegt.',
+        ohnePositionen: e.positionen.length === 0,
+        entwurfSumme: euro(e.positionen.reduce((s, p) => s + (Number(p.menge)||1) * centAus(p.betragText), 0)),
+        kontaktProps: {value: e.kontakt || undefined, onValueChange: v => {
+          const k = KONTAKTE.find(x => x.name === v);
+          this.patchEntwurf({kontakt: v, nr: k ? k.nr : ''});
+        }},
+        artProps: {value: e.art, onValueChange: v => {
+          const art = ARTEN.find(a => a.name === v);
+          this.patchEntwurf({art: v, dauer: art && !e.dauer ? String(art.dauer) : e.dauer});
+        }},
+        statusProps: {value: e.status, onValueChange: v => this.patchEntwurf({status: v})},
+        datumProps: {value: e.iso, onChange: v => this.patchEntwurf({iso: v})},
+        zeitProps: {value: e.zeit, onChange: ev => this.patchEntwurf({zeit: ev.target.value})},
+        dauerProps: {value: e.dauer, onChange: ev => this.patchEntwurf({dauer: ev.target.value})},
+        titelProps: {value: e.titel, onChange: ev => this.patchEntwurf({titel: ev.target.value})},
+        terminProps: {checked: e.mitTermin, onCheckedChange: v => this.patchEntwurf({mitTermin: v === true})},
+        katalogProps: {value: undefined, onValueChange: v => this.katalogHinzu(v)},
+        onFreiePosition: () => this.setState(s => ({entwurf: {...s.entwurf, positionen: s.entwurf.positionen.concat(
+          [{menge:1, text:'Freie Position', ziffer:'', cent:0, abrechenbar:true, betragText:'0,00 €'}])}})),
+        positionen: e.positionen.map((p, i) => ({
+          mengeProps: {value: p.menge, onChange: ev => this.patchPosition(i, {menge: ev.target.value})},
+          textProps: {value: p.text, onChange: ev => this.patchPosition(i, {text: ev.target.value})},
+          zifferProps: {value: p.ziffer, onChange: ev => this.patchPosition(i, {ziffer: ev.target.value})},
+          betragProps: {value: p.betragText, onChange: ev => this.patchPosition(i, {betragText: ev.target.value})},
+          onEntfernen: () => this.setState(s => ({entwurf: {...s.entwurf,
+            positionen: s.entwurf.positionen.filter((x, j) => j !== i)}}))
+        })),
+        onAbbrechen: this.abbrechen,
+        onSpeichern: this.speichern
+      };
+    }
+    const vg = st.daten.find(x => x.id === st.offen);
+    if (!vg) return {lesen: false, bearbeiten: false, positionen: []};
+    const abrechenbar = summe(vg.positionen, true);
+    const gesamt = summe(vg.positionen, false);
+    return {
+      lesen: true, bearbeiten: false,
+      kontakt: vg.kontakt, kontaktNr: vg.nr,
+      titel: vg.titel, hatTitel: !!vg.titel,
+      art: vg.art, farbe: artFarbe(vg.art), status: vg.status,
+      hatTermin: !!vg.terminStatus, ohneTermin: !vg.terminStatus,
+      datumText: datumLang(vg.iso),
+      zeitText: vg.zeit ? vg.zeit + '–' + ende(vg.zeit, vg.dauer) + ' · Termin ' + vg.terminStatus : '',
+      positionen: vg.positionen.map(p => ({
+        menge: p.menge, text: p.text, ziffer: p.ziffer, betrag: euro(p.menge * p.cent),
+        nichtAbrechenbar: !p.abrechenbar
+      })),
+      ohnePositionen: vg.positionen.length === 0,
+      summeAbrechenbar: euro(abrechenbar),
+      zeigeGesamt: gesamt !== abrechenbar,
+      summeGesamt: euro(gesamt),
+      kannAbrechnen: vg.abrechnung === 'Offen',
+      hatRechnung: !!vg.rechnung,
+      rechnungNr: vg.rechnung ? vg.rechnung.nr : '',
+      rechnungBetrag: vg.rechnung ? vg.rechnung.betrag : '',
+      rechnungStatus: vg.rechnung ? vg.rechnung.status : '',
+      onBearbeiten: () => this.setState({bearbeiten: true, entwurf: this.entwurfAus(vg)}),
+      onAbrechnen: () => { window.location.href = 'Kontaktdetail.dc.html'; }
+    };
+  }
+
+  renderVals(){
+    const st = this.state;
+    const imZeitraum = st.daten.filter(vg => this.imZeitraum(vg));
+    const gefiltert = imZeitraum.filter(vg => !st.status || vg.status === st.status);
+    const kommend = gefiltert.filter(vg => vg.iso >= HEUTE).sort((a, b) => a.iso < b.iso ? -1 : 1);
+    const bisher = gefiltert.filter(vg => vg.iso < HEUTE).sort((a, b) => a.iso > b.iso ? -1 : 1);
+    const sortiert = kommend.concat(bisher);
+    const entwurfOffen = st.bearbeiten && st.entwurf && st.entwurf.id === 'neu';
+
+    const zeile = (vg, abschnitt) => ({
+      id: vg.id,
+      abschnitt,
+      abschnittAn: abschnitt ? 'block' : 'none',
+      abschnittRand: abschnitt === 'Neu' ? '0' : '12px',
+      kontakt: vg.kontakt,
+      datumText: datumLang(vg.iso),
+      zeitText: vg.zeit ? vg.zeit + '–' + ende(vg.zeit, vg.dauer) : 'ohne Uhrzeit',
+      art: vg.art,
+      farbe: artFarbe(vg.art),
+      titel: vg.titel, hatTitel: !!vg.titel,
+      status: vg.status,
+      zeigeStatus: vg.status !== 'Geplant',
+      statusVariante: vg.status === 'Nicht erschienen' ? 'secondary' : 'outline',
+      terminStatus: vg.terminStatus,
+      zeigeTermin: !!vg.terminStatus && HAELT_SLOT.indexOf(vg.terminStatus) === -1,
+      terminVariante: 'secondary',
+      ohneTermin: !vg.terminStatus,
+      abrechnung: vg.abrechnung,
+      zeigeAbrechnung: !!vg.abrechnung,
+      abrechnungVariante: vg.abrechnung === 'Abgerechnet' ? 'secondary' : 'outline',
+      summe: euro(summe(vg.positionen, true)),
+      positionenText: vg.positionen.map(p => p.menge + '× ' + p.text).join(' · '),
+      offen: st.offen === vg.id,
+      rahmen: st.offen === vg.id ? 'var(--primary)' : 'var(--border)',
+      kopfBg: st.offen === vg.id ? 'color-mix(in oklab, var(--muted) 45%, var(--card))' : 'var(--card)',
+      onOeffnen: () => this.setState(s => s.offen === vg.id && !s.bearbeiten
+        ? {offen: null, entwurf: null}
+        : {offen: vg.id, bearbeiten: false, entwurf: null})
+    });
+
+    const liste = sortiert.map((vg, i) => zeile(vg,
+      i === 0 ? (kommend.length ? 'Kommend' : 'Bisher') : (i === kommend.length ? 'Bisher' : '')));
+    if (entwurfOffen) {
+      const e = st.entwurf;
+      liste.unshift({...zeile({...e, dauer: Number(e.dauer) || 0, positionen: e.positionen.map(p => ({...p, menge: Number(p.menge) || 1, cent: centAus(p.betragText)})), terminStatus: e.mitTermin ? e.terminStatus : '', rechnung: null}, 'Neu'),
+        kontakt: e.kontakt || 'Kontakt wählen', offen: true, rahmen: 'var(--primary)',
+        kopfBg: 'color-mix(in oklab, var(--muted) 45%, var(--card))', onOeffnen: () => {}});
+      if (liste[1]) liste[1] = {...liste[1], abschnitt: kommend.length ? 'Kommend' : 'Bisher', abschnittAn: 'block', abschnittRand: '12px'};
+    }
+
+    const zaehle = wert => imZeitraum.filter(vg => vg.status === wert).length;
+    const filterKnopf = (label, wert, anzahl) => ({
+      label, anzahl,
+      onClick: () => this.setState(s => ({status: s.status === wert ? null : wert, offen: null, bearbeiten: false, entwurf: null})),
+      rahmen: st.status === wert ? 'var(--primary)' : 'var(--border)',
+      bg: st.status === wert ? 'color-mix(in oklab, var(--primary) 12%, var(--card))' : 'var(--card)',
+      farbe: st.status === wert ? 'var(--foreground)' : 'var(--muted-foreground)'
+    });
+
+    const offeneSumme = imZeitraum.filter(vg => vg.abrechnung === 'Offen')
+      .reduce((s, vg) => s + summe(vg.positionen, true), 0);
+
+    return {
+      theme: this.props.theme ?? 'schiefer',
+      liste,
+      leer: liste.length === 0,
+      d: this.detail(),
+      arten: ARTEN,
+      kontakte: KONTAKTE,
+      leistungen: LEISTUNGEN.map(l => ({text: l.text, betrag: euro(l.cent)})),
+      neuerVorgang: this.neuerVorgang,
+      vonProps: {value: st.von, onChange: v => this.setState({von: v, offen: null})},
+      bisProps: {value: st.bis, onChange: v => this.setState({bis: v, offen: null})},
+      statusFilter: [
+        {...filterKnopf('Alle', null, imZeitraum.length), rahmen: st.status === null ? 'var(--primary)' : 'var(--border)',
+         bg: st.status === null ? 'color-mix(in oklab, var(--primary) 12%, var(--card))' : 'var(--card)',
+         farbe: st.status === null ? 'var(--foreground)' : 'var(--muted-foreground)',
+         onClick: () => this.setState({status: null, offen: null, bearbeiten: false, entwurf: null})},
+        filterKnopf('Geplant', 'Geplant', zaehle('Geplant')),
+        filterKnopf('Stattgefunden', 'Stattgefunden', zaehle('Stattgefunden')),
+        filterKnopf('Nicht erschienen', 'Nicht erschienen', zaehle('Nicht erschienen'))
+      ],
+      zusammenfassung: gefiltert.length + ' Vorgänge · ' + kommend.length + ' kommend · '
+        + euro(offeneSumme) + ' noch nicht abgerechnet'
+    };
+  }
+}
+</script>
+</body>
+</html>

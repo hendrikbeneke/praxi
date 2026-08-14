@@ -1,0 +1,142 @@
+/* ==========================================================================
+   Praxi — Theme-Layer
+   --------------------------------------------------------------------------
+   Wird NACH _ds_bundle.css geladen und definiert die semantischen Tokens,
+   die der kompilierte Tailwind-Build referenziert (bg-background, bg-primary,
+   rounded-md ...), aber selbst nirgends setzt. Ohne diese Datei rendert das
+   System ungestylt: alle var(--background) & Co. laufen ins Leere.
+
+   Richtung: gebrochenes Weiß, warme Grautöne, Schiefer als einziger Akzent.
+   Alle Farben in oklch, gleiche Chroma-Familie (C 0.004–0.014) für die
+   Neutralen (Hue ~62–85 = warm), Primär/Fokus kühl (Hue 253).
+
+   Übernahme ins Repo: Inhalt als tokens.css unter :root ablegen und vor
+   den Tailwind-Import stellen. Nichts anderes muss angefasst werden.
+   ========================================================================== */
+:root{
+  color-scheme:light;
+
+  /* --- Flächen ------------------------------------------------------------ */
+  --background:oklch(98.2% .005 85);        /* Seite: warmes Papierweiß */
+  --foreground:oklch(25% .012 62);          /* Text: warmes Fast-Schwarz */
+  --card:oklch(99.6% .003 85);              /* Karten liegen heller auf der Seite */
+  --card-foreground:oklch(25% .012 62);
+  --popover:oklch(99.6% .003 85);
+  --popover-foreground:oklch(25% .012 62);
+
+  /* --- Primär / Sekundär ------------------------------------------------- */
+  --primary:oklch(37% .028 253);            /* Schiefer, aus #3f4a5a */
+  --primary-foreground:oklch(98.6% .004 85);
+  --secondary:oklch(95.2% .008 82);
+  --secondary-foreground:oklch(31% .014 62);
+
+  /* --- Ruhige Ebenen ------------------------------------------------------ */
+  --muted:oklch(96.4% .006 82);             /* Tabellenkopf, Platzhalterflächen */
+  --muted-foreground:oklch(52% .014 66);    /* Hinweiszeilen, Labels */
+  --accent:oklch(94.4% .009 80);            /* nur Hover */
+  --accent-foreground:oklch(27% .013 62);
+
+  /* --- Navigation -------------------------------------------------------- */
+  --sidebar:oklch(97% .006 85);             /* Seitenleiste: eine Stufe unter der Seite */
+  --sidebar-foreground:oklch(25% .012 62);
+
+  /* --- Signal ------------------------------------------------------------- */
+  --destructive:oklch(51% .15 27);          /* Löschen, Fehler, „nicht dokumentiert“ */
+
+  /* --- Linien und Fokus --------------------------------------------------- */
+  --border:oklch(90.2% .008 80);            /* Trennlinien: sichtbar, nie hart */
+  --input:oklch(87.5% .009 80);             /* Feldrahmen einen Schritt kräftiger */
+  --ring:oklch(58% .03 253);
+
+  /* --- Form --------------------------------------------------------------- */
+  --radius:.5rem;                           /* rounded-md 6px, -lg 8px, -xl 12px */
+
+  /* --- Schrift ------------------------------------------------------------
+     Source Sans 3: ruhige humanistische Grotesk, gute Ziffern, deckt
+     Deutsch vollständig ab. Im Repo selbst hosten (kein CDN) — hier per
+     Google-Fonts-Link nur für die Vorschau. Fällt sonst auf System zurück. */
+  --font-sans:"Source Sans 3","Source Sans Pro",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+/* Optional, aber empfohlen: Ziffern in Tabellen und Formularen laufen
+   gleich breit, Text bricht freundlicher. Kein Token, deshalb getrennt. */
+body{background:var(--background);color:var(--foreground);-webkit-font-smoothing:antialiased;text-wrap:pretty}
+table,input,[data-slot=badge]{font-variant-numeric:tabular-nums}
+
+/* ==========================================================================
+   Varianten. Der Theme-Layer ist nur eine Wertetabelle — ein Satz anderer
+   Werte auf einem Vorfahren reicht, alles darunter zieht mit. Angewendet
+   über data-theme am Wurzelelement des Screens.
+   ========================================================================== */
+[data-theme=blau]{
+  --primary:oklch(48% .11 252);
+  --ring:oklch(60% .11 252);
+  --secondary:oklch(94.6% .018 250);
+  --secondary-foreground:oklch(34% .06 252);
+  --accent:oklch(93.6% .022 250);
+  --accent-foreground:oklch(30% .06 252);
+  --muted:oklch(96.2% .012 250);
+  --sidebar:oklch(96.8% .012 250);
+  --border:oklch(89.8% .014 250);
+  --input:oklch(87% .016 250);
+}
+
+[data-theme=salbei]{
+  --primary:oklch(44% .06 165);
+  --ring:oklch(58% .07 165);
+  --secondary:oklch(94.8% .014 160);
+  --secondary-foreground:oklch(33% .04 165);
+  --accent:oklch(93.8% .018 160);
+  --accent-foreground:oklch(29% .04 165);
+  --muted:oklch(96.4% .01 160);
+  --sidebar:oklch(96.8% .012 160);
+  --border:oklch(90% .012 160);
+  --input:oklch(87.4% .014 160);
+}
+
+[data-theme=nacht]{
+  color-scheme:dark;
+  --background:oklch(22% .008 62);
+  --foreground:oklch(95% .004 85);
+  --card:oklch(25.5% .009 62);
+  --card-foreground:oklch(95% .004 85);
+  --popover:oklch(26.5% .009 62);
+  --popover-foreground:oklch(95% .004 85);
+  --primary:oklch(72% .09 252);
+  --primary-foreground:oklch(22% .02 252);
+  --secondary:oklch(31% .01 62);
+  --secondary-foreground:oklch(93% .005 85);
+  --muted:oklch(29% .009 62);
+  --muted-foreground:oklch(72% .012 70);
+  --accent:oklch(33% .011 62);
+  --accent-foreground:oklch(96% .004 85);
+  --destructive:oklch(62% .16 27);
+  --border:oklch(35% .01 62);
+  --input:oklch(40% .012 62);
+  --ring:oklch(60% .07 252);
+  --sidebar:oklch(24% .009 62);
+}
+
+/* Gedecktes Rosé: die Neutralen bekommen einen Hauch Magenta-Hue, die
+   Primärfläche bleibt dunkel und niedrig gesättigt — Farbe als Temperatur,
+   nicht als Dekor. */
+[data-theme=rose]{
+  --background:oklch(98.4% .006 15);
+  --foreground:oklch(26% .022 15);
+  --card:oklch(99.4% .004 15);
+  --card-foreground:oklch(26% .022 15);
+  --popover:oklch(99.4% .004 15);
+  --popover-foreground:oklch(26% .022 15);
+  --primary:oklch(42% .07 12);
+  --primary-foreground:oklch(98.6% .006 15);
+  --secondary:oklch(95% .016 12);
+  --secondary-foreground:oklch(33% .05 12);
+  --muted:oklch(96.4% .012 12);
+  --muted-foreground:oklch(52% .026 12);
+  --accent:oklch(94% .022 12);
+  --accent-foreground:oklch(29% .05 12);
+  --border:oklch(90.4% .016 12);
+  --input:oklch(87.6% .02 12);
+  --ring:oklch(60% .08 12);
+  --sidebar:oklch(97% .012 12);
+}

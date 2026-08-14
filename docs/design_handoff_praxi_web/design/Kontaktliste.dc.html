@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.css">
+<link rel="stylesheet" href="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/styles.css">
+<link rel="stylesheet" href="theme.css">
+<script src="_ds/praxi-app-design-system-421ea7b6-3fda-414b-a9bd-88972c75107c/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;height:100%}
+[data-filter]:hover{background:var(--accent)!important;color:var(--accent-foreground)!important}
+[data-filter=aktiv]:hover{background:color-mix(in oklab,var(--primary) 88%,white)!important;color:var(--primary-foreground)!important}
+#kl-tabelle{display:flex;flex-direction:column}
+#kl-tabelle [data-slot=table-container]{flex:1;min-height:0;overflow:auto}
+#kl-tabelle thead th{position:sticky;top:0;z-index:2;background:var(--card);box-shadow:inset 0 -1px 0 var(--border)}
+body{background:var(--background)}
+button{cursor:pointer}
+button:not([data-slot]){font:inherit;color:inherit;background:none;border:0;padding:0;text-align:inherit}
+a{color:var(--primary)}
+a:hover{color:var(--foreground)}
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5">
+<dc-import name="AppSidebar" active="Kontakte" hint-size="236px,100%"></dc-import>
+<div style="display:flex;flex-direction:column;flex:1;min-width:0">
+<dc-import name="AppTopbar" bereich="Kontakte" seite="" hint-size="100%,56px"></dc-import>
+<div style="flex:1;min-width:0;display:flex;overflow:hidden">
+<main style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;padding:26px 32px 24px">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:20px">
+<div><h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em">Kontakte</h1><p style="margin:5px 0 0;color:var(--muted-foreground)">Personen und Organisationen der Praxis.</p></div>
+<x-import component-from-global-scope="PraxiWeb.Button" hint-size="150px,36px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"></path></svg>Neuer Kontakt</x-import>
+</div>
+
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card)">
+<div style="position:relative;flex:1 1 300px;min-width:250px;max-width:380px">
+<span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted-foreground);display:flex;pointer-events:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
+<x-import component-from-global-scope="PraxiWeb.Input" id="q-a" className="pl-9" aria-label="Suchen" placeholder="Name, Firma oder Kontaktnummer" value="{{ v.q }}" onChange="{{ v.onSearch }}" hint-size="100%,36px"></x-import>
+</div>
+<span style="width:1px;height:26px;background:var(--border)"></span>
+<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+<button onClick="{{ v.tabPat }}" style="padding:6px 11px;border-radius:6px;font-size:13.5px;background:{{ v.bgPat }};color:{{ v.fgPat }};font-weight:{{ v.fwPat }}" data-filter="{{ v.stPat }}">Patienten</button>
+<button onClick="{{ v.tabAlle }}" style="padding:6px 11px;border-radius:6px;font-size:13.5px;background:{{ v.bgAlle }};color:{{ v.fgAlle }};font-weight:{{ v.fwAlle }}" data-filter="{{ v.stAlle }}">Alle</button>
+<button onClick="{{ v.tabInt }}" style="padding:6px 11px;border-radius:6px;font-size:13.5px;background:{{ v.bgInt }};color:{{ v.fgInt }};font-weight:{{ v.fwInt }}" data-filter="{{ v.stInt }}">Interessent</button>
+<sc-if value="{{ v.roleFilter }}" hint-placeholder-val="{{ true }}">
+<div style="position:relative">
+<button onClick="{{ v.toggleWeitere }}" aria-haspopup="menu" style="display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:6px;font-size:13.5px;background:{{ v.bgWeitere }};color:{{ v.fgWeitere }};font-weight:{{ v.fwWeitere }}" data-filter="{{ v.stWeitere }}">{{ v.weitereLabel }}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<sc-if value="{{ v.weitereOffen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ v.closeWeitere }}" style="position:fixed;inset:0;z-index:20"></div>
+<div style="position:absolute;top:calc(100% + 6px);left:0;z-index:21;width:246px;display:flex;flex-direction:column;gap:1px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--popover);color:var(--popover-foreground);box-shadow:0 10px 28px oklch(25% .012 62 / .14)">
+<sc-for list="{{ v.weitereRollen }}" as="rolle" hint-placeholder-count="5">
+<button onClick="{{ rolle.onClick }}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:7px 9px;border-radius:6px;font-size:13.5px;background:{{ rolle.bg }};color:{{ rolle.fg }};font-weight:{{ rolle.fw }}" data-filter="{{ rolle.st }}"><span>{{ rolle.label }}</span></button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-left:auto">
+<label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--muted-foreground);font-size:13.5px;white-space:nowrap">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" id="arch-a" dc-props="{{ v.archivedProps }}" hint-size="16px,16px"></x-import>Archivierte anzeigen
+</label>
+<span style="width:1px;height:26px;background:var(--border)"></span>
+<div style="position:relative">
+<button onClick="{{ v.toggleSpalten }}" aria-haspopup="menu" style="display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:6px;font-size:13.5px;color:var(--muted-foreground);white-space:nowrap" data-filter="ruhig"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>Spalten</button>
+<sc-if value="{{ v.spaltenOffen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ v.closeSpalten }}" style="position:fixed;inset:0;z-index:20"></div>
+<div style="position:absolute;top:calc(100% + 6px);right:0;z-index:21;width:230px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--popover);color:var(--popover-foreground);box-shadow:0 10px 28px oklch(25% .012 62 / .14)">
+<p style="margin:0 0 4px;color:var(--muted-foreground);font-size:12.5px">Sichtbare Spalten</p>
+<p style="margin:0 0 10px;color:var(--muted-foreground);font-size:12px">Zum Sortieren ziehen.</p>
+<div style="display:flex;flex-direction:column;gap:2px">
+<sc-for list="{{ v.spalten }}" as="spalte" hint-placeholder-count="6">
+<div draggable="{{ true }}" onDragStart="{{ spalte.onDragStart }}" onDragOver="{{ spalte.onDragOver }}" onDrop="{{ spalte.onDrop }}" onDragEnd="{{ spalte.onDragEnd }}" style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:grab;background:{{ spalte.bg }};opacity:{{ spalte.opacity }}" style-hover="background:var(--accent)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="color:var(--muted-foreground);flex-shrink:0"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+<label style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer">
+<x-import component-from-global-scope="PraxiWeb.Checkbox" dc-props="{{ spalte.props }}" hint-size="16px,16px"></x-import>{{ spalte.label }}
+</label>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ v.searching }}" hint-placeholder-val="{{ false }}">
+<p style="margin:12px 2px 0;color:var(--muted-foreground);font-size:13px">Die Suche geht über alle Kontakte — unabhängig von der Rolle.</p>
+</sc-if>
+
+<div id="kl-tabelle" style="flex:1;min-height:0;margin-top:18px;border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden">
+<sc-if value="{{ v.showTable }}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="PraxiWeb.Table" hint-size="100%,520px">
+<x-import component-from-global-scope="PraxiWeb.TableHeader" hint-size="100%,40px">
+<x-import component-from-global-scope="PraxiWeb.TableRow" hint-size="100%,40px">
+<sc-for list="{{ v.heads }}" as="head" hint-placeholder-count="6">
+<x-import component-from-global-scope="PraxiWeb.TableHead" className="{{ head.cls }}" hint-size="160px,40px"><button onClick="{{ head.onSort }}" style="display:flex;width:100%;align-items:center;gap:5px;justify-content:{{ head.justify }}">{{ head.label }}<span style="color:var(--muted-foreground);font-size:11px">{{ head.arrow }}</span></button></x-import>
+</sc-for>
+</x-import>
+</x-import>
+<x-import component-from-global-scope="PraxiWeb.TableBody" hint-size="100%,480px">
+<sc-for list="{{ v.rows }}" as="row" hint-placeholder-count="9">
+<x-import component-from-global-scope="PraxiWeb.TableRow" className="cursor-pointer" onClick="{{ row.onOeffnen }}" hint-size="100%,46px">
+<sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6">
+<x-import component-from-global-scope="PraxiWeb.TableCell" className="{{ cell.cls }}" hint-size="160px,46px">
+<sc-if value="{{ cell.istName }}" hint-placeholder-val="{{ false }}">
+<span style="display:inline-flex;align-items:center;gap:8px"><span style="font-weight:600">{{ cell.text }}</span><sc-if value="{{ cell.archiviert }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="PraxiWeb.Badge" variant="secondary" hint-size="74px,20px">Archiviert</x-import></sc-if></span>
+</sc-if>
+<sc-if value="{{ cell.istRollen }}" hint-placeholder-val="{{ false }}">
+<span style="display:inline-flex;flex-wrap:wrap;gap:5px">
+<sc-for list="{{ cell.rollen }}" as="rolle" hint-placeholder-count="1">
+<x-import component-from-global-scope="PraxiWeb.Badge" variant="outline" hint-size="76px,20px">{{ rolle }}</x-import>
+</sc-for>
+</span>
+</sc-if>
+<sc-if value="{{ cell.istTermin }}" hint-placeholder-val="{{ false }}">
+<span style="display:inline-flex;align-items:baseline;gap:8px"><span class="tabular-nums">{{ cell.text }}</span><span style="color:var(--muted-foreground);font-size:12.5px">{{ cell.zusatz }}</span></span>
+</sc-if>
+<sc-if value="{{ cell.istText }}" hint-placeholder-val="{{ true }}">{{ cell.text }}</sc-if>
+</x-import>
+</sc-for>
+</x-import>
+</sc-for>
+</x-import>
+</x-import>
+</sc-if>
+<sc-if value="{{ v.loading }}" hint-placeholder-val="{{ false }}"><div style="padding:70px 24px;text-align:center;color:var(--muted-foreground)">Wird geladen …</div></sc-if>
+<sc-if value="{{ v.emptySearch }}" hint-placeholder-val="{{ false }}">
+<div style="padding:62px 24px;text-align:center"><p style="margin:0;font-weight:600">Keine Treffer für diese Suche.</p><p style="margin:6px 0 0;color:var(--muted-foreground)">Prüfe die Schreibweise oder suche nach der Kontaktnummer.</p></div>
+</sc-if>
+<sc-if value="{{ v.emptyFilter }}" hint-placeholder-val="{{ false }}">
+<div style="padding:62px 24px;text-align:center"><p style="margin:0;font-weight:600">Keine Kontakte in diesem Filter.</p><p style="margin:6px 0 0;color:var(--muted-foreground)">Wechsle die Rolle oder zeige archivierte Kontakte mit an.</p></div>
+</sc-if>
+</div>
+<sc-if value="{{ v.showFooter }}" hint-placeholder-val="{{ true }}">
+<p style="margin:12px 2px 0;color:var(--muted-foreground);font-size:13px" class="tabular-nums">{{ v.footer }}</p>
+</sc-if>
+</main>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;schiefer&quot;,&quot;blau&quot;,&quot;salbei&quot;,&quot;rose&quot;,&quot;nacht&quot;],&quot;default&quot;:&quot;schiefer&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;zustand&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Liste&quot;,&quot;Lädt&quot;,&quot;Leer&quot;],&quot;default&quot;:&quot;Liste&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Zustand&quot;},&quot;weitereRollen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Filter&quot;}}">
+const ROWS = [
+  {nr:1017,name:'Baumgart, Jonas',roles:['Patienten','Angehörige'],city:'Delmenhorst',dob:'02.11.1991',dobIso:'1991-11-02',terminWann:'Di, 11.08. · 14:00',terminRel:'heute',terminIso:'2026-08-11T14:00',bucket:'Heute',archived:false},
+  {nr:2011,name:'Radiologie Am Wall',roles:['Zuweiser','Ärztliche Zuweisung'],city:'Bremen',dob:'—',dobIso:'',terminWann:'Mi, 12.08. · 16:00',terminRel:'morgen',terminIso:'2026-08-12T16:00',bucket:'Diese Woche',archived:false},
+  {nr:1052,name:'Gerdes, Nele',roles:['Interessent'],city:'Bremen',dob:'23.02.2001',dobIso:'2001-02-23',terminWann:'Do, 13.08. · 10:30',terminRel:'in 2 Tagen',terminIso:'2026-08-13T10:30',bucket:'Diese Woche',archived:false},
+  {nr:1004,name:'Achterberg, Miriam',roles:['Patienten'],city:'Bremen',dob:'14.03.1978',dobIso:'1978-03-14',terminWann:'Mo, 17.08. · 09:30',terminRel:'in 6 Tagen',terminIso:'2026-08-17T09:30',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1033,name:'Dohrmann, Til',roles:['Patienten'],city:'Oldenburg',dob:'19.09.2014',dobIso:'2014-09-19',terminWann:'Fr, 21.08. · 08:45',terminRel:'in 10 Tagen',terminIso:'2026-08-21T08:45',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1041,name:'Eggers, Sonja',roles:['Patienten'],city:'Verden',dob:'08.01.1985',dobIso:'1985-01-08',terminWann:'Mo, 24.08. · 10:00',terminRel:'in 13 Tagen',terminIso:'2026-08-24T10:00',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1029,name:'Cordes, Annelie',roles:['Patienten'],city:'Bremen',dob:'27.06.1949',dobIso:'1949-06-27',terminWann:'Do, 06.08. · 11:15',terminRel:'vor 5 Tagen',terminIso:'2026-08-06T11:15',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1063,name:'Hinrichs, Milan',roles:['Patienten'],city:'Bremen',dob:'11.12.1996',dobIso:'1996-12-11',terminWann:'Fr, 31.07. · 15:30',terminRel:'vor 11 Tagen',terminIso:'2026-07-31T15:30',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:2008,name:'Praxis Dr. Reimers',roles:['Zuweiser'],city:'Bremen',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:3002,name:'AOK Bremen/Bremerhaven',roles:['Krankenkassen'],city:'Bremen',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:3006,name:'Techniker Krankenkasse',roles:['Krankenkassen'],city:'Hamburg',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:1012,name:'Freese, Hartmut',roles:['Patienten'],city:'Bremen',dob:'30.05.1962',dobIso:'1962-05-30',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:true},
+  {nr:1002,name:'Ahlers, Bettina',roles:['Patienten'],city:'Bremen',dob:'05.04.1966',dobIso:'1966-04-05',terminWann:'Mo, 17.08. · 11:00',terminRel:'in 6 Tagen',terminIso:'2026-08-17T11:00',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1006,name:'Balzer, Kim',roles:['Patienten'],city:'Bremen',dob:'17.07.1993',dobIso:'1993-07-17',terminWann:'Di, 18.08. · 09:00',terminRel:'in 7 Tagen',terminIso:'2026-08-18T09:00',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1008,name:'Bergmann, Anke',roles:['Patienten','Angehörige'],city:'Achim',dob:'29.10.1974',dobIso:'1974-10-29',terminWann:'Do, 13.08. · 08:00',terminRel:'in 2 Tagen',terminIso:'2026-08-13T08:00',bucket:'Diese Woche',archived:false},
+  {nr:1014,name:'Bruns, Levke',roles:['Patienten'],city:'Bremen',dob:'03.03.2011',dobIso:'2011-03-03',terminWann:'Fr, 14.08. · 15:00',terminRel:'in 3 Tagen',terminIso:'2026-08-14T15:00',bucket:'Diese Woche',archived:false},
+  {nr:1019,name:'Claussen, Ole',roles:['Patienten'],city:'Delmenhorst',dob:'21.05.1988',dobIso:'1988-05-21',terminWann:'Mi, 12.08. · 08:15',terminRel:'morgen',terminIso:'2026-08-12T08:15',bucket:'Diese Woche',archived:false},
+  {nr:1021,name:'Dettmer, Frauke',roles:['Patienten'],city:'Verden',dob:'12.09.1957',dobIso:'1957-09-12',terminWann:'Di, 11.08. · 16:30',terminRel:'heute',terminIso:'2026-08-11T16:30',bucket:'Heute',archived:false},
+  {nr:1024,name:'Ehlers, Marit',roles:['Patienten'],city:'Bremen',dob:'08.08.1999',dobIso:'1999-08-08',terminWann:'Di, 11.08. · 17:15',terminRel:'heute',terminIso:'2026-08-11T17:15',bucket:'Heute',archived:false},
+  {nr:1027,name:'Feldmann, Ruth',roles:['Patienten'],city:'Oldenburg',dob:'30.11.1943',dobIso:'1943-11-30',terminWann:'Mo, 24.08. · 09:15',terminRel:'in 13 Tagen',terminIso:'2026-08-24T09:15',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1031,name:'Garbe, Jost',roles:['Patienten'],city:'Bremen',dob:'02.02.1981',dobIso:'1981-02-02',terminWann:'Do, 20.08. · 12:00',terminRel:'in 9 Tagen',terminIso:'2026-08-20T12:00',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1036,name:'Grote, Ida',roles:['Patienten'],city:'Bremen',dob:'25.06.2017',dobIso:'2017-06-25',terminWann:'Fr, 21.08. · 09:30',terminRel:'in 10 Tagen',terminIso:'2026-08-21T09:30',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1038,name:'Hagedorn, Peer',roles:['Patienten'],city:'Syke',dob:'14.12.1970',dobIso:'1970-12-14',terminWann:'Mo, 10.08. · 10:45',terminRel:'vor 1 Tag',terminIso:'2026-08-10T10:45',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1044,name:'Hellmann, Sven',roles:['Patienten'],city:'Bremen',dob:'19.01.1990',dobIso:'1990-01-19',terminWann:'Fr, 07.08. · 13:00',terminRel:'vor 4 Tagen',terminIso:'2026-08-07T13:00',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1047,name:'Jansen, Tomke',roles:['Patienten'],city:'Bremen',dob:'07.05.2008',dobIso:'2008-05-07',terminWann:'Do, 06.08. · 14:45',terminRel:'vor 5 Tagen',terminIso:'2026-08-06T14:45',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1049,name:'Kastens, Birte',roles:['Patienten','Angehörige'],city:'Delmenhorst',dob:'23.03.1979',dobIso:'1979-03-23',terminWann:'Mi, 05.08. · 09:00',terminRel:'vor 6 Tagen',terminIso:'2026-08-05T09:00',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1055,name:'Kruse, Malte',roles:['Patienten'],city:'Bremen',dob:'11.11.1962',dobIso:'1962-11-11',terminWann:'Di, 04.08. · 11:30',terminRel:'vor 7 Tagen',terminIso:'2026-08-04T11:30',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1058,name:'Lammers, Greta',roles:['Patienten'],city:'Oldenburg',dob:'28.04.2013',dobIso:'2013-04-28',terminWann:'Mo, 03.08. · 08:30',terminRel:'vor 8 Tagen',terminIso:'2026-08-03T08:30',bucket:'Vergangene zwei Wochen',archived:false},
+  {nr:1061,name:'Meinken, Doris',roles:['Patienten'],city:'Bremen',dob:'16.02.1951',dobIso:'1951-02-16',terminWann:'Fr, 21.08. · 11:15',terminRel:'in 10 Tagen',terminIso:'2026-08-21T11:15',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1066,name:'Nienaber, Lars',roles:['Interessent','Angehörige'],city:'Bremen',dob:'09.09.1985',dobIso:'1985-09-09',terminWann:'Mi, 19.08. · 16:00',terminRel:'in 8 Tagen',terminIso:'2026-08-19T16:00',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1069,name:'Oltmanns, Wiebke',roles:['Patienten'],city:'Verden',dob:'04.07.1968',dobIso:'1968-07-04',terminWann:'Di, 18.08. · 14:30',terminRel:'in 7 Tagen',terminIso:'2026-08-18T14:30',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1072,name:'Peters, Enno',roles:['Patienten'],city:'Bremen',dob:'22.10.2004',dobIso:'2004-10-22',terminWann:'Mo, 17.08. · 15:45',terminRel:'in 6 Tagen',terminIso:'2026-08-17T15:45',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1075,name:'Renken, Silke',roles:['Patienten'],city:'Achim',dob:'13.06.1972',dobIso:'1972-06-13',terminWann:'Do, 13.08. · 13:15',terminRel:'in 2 Tagen',terminIso:'2026-08-13T13:15',bucket:'Diese Woche',archived:false},
+  {nr:1078,name:'Rohde, Bennet',roles:['Patienten'],city:'Bremen',dob:'31.01.1997',dobIso:'1997-01-31',terminWann:'Mi, 12.08. · 12:00',terminRel:'morgen',terminIso:'2026-08-12T12:00',bucket:'Diese Woche',archived:false},
+  {nr:1081,name:'Schierloh, Anja',roles:['Patienten','Angehörige'],city:'Bremen',dob:'26.08.1983',dobIso:'1983-08-26',terminWann:'Di, 11.08. · 08:45',terminRel:'heute',terminIso:'2026-08-11T08:45',bucket:'Heute',archived:false},
+  {nr:1084,name:'Siemers, Frida',roles:['Patienten'],city:'Oldenburg',dob:'18.03.2015',dobIso:'2015-03-18',terminWann:'Di, 11.08. · 10:00',terminRel:'heute',terminIso:'2026-08-11T10:00',bucket:'Heute',archived:false},
+  {nr:1087,name:'Tietjen, Holger',roles:['Patienten'],city:'Syke',dob:'06.12.1959',dobIso:'1959-12-06',terminWann:'Fr, 14.08. · 10:30',terminRel:'in 3 Tagen',terminIso:'2026-08-14T10:30',bucket:'Diese Woche',archived:false},
+  {nr:1090,name:'Ulrich, Nadine',roles:['Interessent'],city:'Bremen',dob:'24.05.1994',dobIso:'1994-05-24',terminWann:'Do, 20.08. · 08:00',terminRel:'in 9 Tagen',terminIso:'2026-08-20T08:00',bucket:'Nächste zwei Wochen',archived:false},
+  {nr:1093,name:'Voß, Karsten',roles:['Interessent'],city:'Bremen',dob:'02.09.1976',dobIso:'1976-09-02',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:1096,name:'Wilkens, Merle',roles:['Patienten'],city:'Delmenhorst',dob:'15.04.2006',dobIso:'2006-04-15',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:1099,name:'Zimmermann, Rolf',roles:['Patienten'],city:'Bremen',dob:'10.10.1948',dobIso:'1948-10-10',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:true},
+  {nr:2014,name:'Kinderarztpraxis Neustadt',roles:['Zuweiser'],city:'Bremen',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:2017,name:'Orthopädie Schwachhausen',roles:['Zuweiser','Ärztliche Zuweisung'],city:'Bremen',dob:'—',dobIso:'',terminWann:'Do, 13.08. · 17:00',terminRel:'in 2 Tagen',terminIso:'2026-08-13T17:00',bucket:'Diese Woche',archived:false},
+  {nr:2021,name:'Klinikum Links der Weser',roles:['Zuweiser'],city:'Bremen',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:3011,name:'Barmer',roles:['Krankenkassen'],city:'Wuppertal',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:3015,name:'DAK-Gesundheit',roles:['Krankenkassen'],city:'Hamburg',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false},
+  {nr:4003,name:'Sanitätshaus Weser',roles:['Lieferanten'],city:'Bremen',dob:'—',dobIso:'',terminWann:'—',terminRel:'',terminIso:'',bucket:'Ohne Termin',archived:false}
+];
+const TAB_ROLE = {'Patienten':'Patienten','Interessent':'Interessent'};
+const TABS = ['Patienten','Alle','Interessent'];
+/** Rollen ohne eigenen Tab — sie liegen hinter „Weitere“. */
+const WEITERE = ['Zuweiser','Krankenkassen','Angehörige','Lieferanten','Ärztliche Zuweisung'];
+
+/** Spalten der Tabelle. Reihenfolge und Sichtbarkeit gehören der Anwenderin;
+ *  Name bleibt immer sichtbar, weil ohne ihn keine Zeile lesbar ist. */
+const SPALTEN = {
+  nr:     {label:'Nr.', cls:'w-20 text-right tabular-nums text-muted-foreground', justify:'flex-end', kopfCls:'w-20 text-right'},
+  name:   {label:'Name', cls:'', justify:'flex-start', kopfCls:'', fest:true},
+  rollen: {label:'Rollen', cls:'', justify:'flex-start', kopfCls:''},
+  ort:    {label:'Ort', cls:'', justify:'flex-start', kopfCls:''},
+  geb:    {label:'Geburtsdatum', cls:'tabular-nums whitespace-nowrap', justify:'flex-start', kopfCls:'whitespace-nowrap'},
+  termin: {label:'Termin', cls:'whitespace-nowrap', justify:'flex-start', kopfCls:'whitespace-nowrap'}
+};
+
+class Component extends DCLogic {
+  state = {
+    a:{q:'',tab:'Alle',role:'Alle',sortKey:null,sortDir:'asc',archived:false,spaltenOffen:false,
+       cols:[{key:'nr',an:true},{key:'name',an:true},{key:'rollen',an:true},{key:'ort',an:true},{key:'geb',an:true},{key:'termin',an:true}],
+       zieht:null}
+  };
+
+  patch(which, next){
+    this.setState(s => ({[which]: {...s[which], ...next}}));
+  }
+
+  /** Zieht die gepackte Spalte an die Stelle der überfahrenen. */
+  verschieben(which, ueberKey){
+    this.setState(s => {
+      const cur = s[which];
+      const von = cur.zieht;
+      if (!von || von === ueberKey) return null;
+      const cols = [...cur.cols];
+      const a = cols.findIndex(c => c.key === von);
+      const b = cols.findIndex(c => c.key === ueberKey);
+      if (a < 0 || b < 0) return null;
+      cols.splice(b, 0, cols.splice(a, 1)[0]);
+      return {[which]: {...cur, cols}};
+    });
+  }
+
+  sort(which, key){
+    this.setState(s => {
+      const cur = s[which];
+      return {[which]: {...cur, sortKey:key, sortDir: cur.sortKey === key && cur.sortDir === 'asc' ? 'desc' : 'asc'}};
+    });
+  }
+
+  /** Filter und Sortierung. Die Suche sticht die Rollenfilter. */
+  view(which){
+    const st = this.state[which];
+    const searching = st.q.trim().length > 0;
+    const needle = st.q.trim().toLowerCase();
+    const zustand = this.props.zustand ?? 'Liste';
+    const sortKey = st.sortKey ?? 'name';
+    const cols = st.cols;
+    const sichtbar = cols.filter(c => c.an);
+
+    const base = ROWS.filter(r => st.archived || !r.archived);
+    let rows = base;
+    if (searching) {
+      rows = base.filter(r => r.name.toLowerCase().includes(needle) || String(r.nr).includes(needle) || r.city.toLowerCase().includes(needle));
+    } else {
+      if (TAB_ROLE[st.tab]) rows = rows.filter(r => r.roles.includes(TAB_ROLE[st.tab]));
+      if (st.role !== 'Alle') rows = rows.filter(r => r.roles.includes(st.role));
+    }
+
+    const val = r => ({nr:r.nr,name:r.name,rollen:r.roles[0] ?? '',ort:r.city,geb:r.dobIso,termin:r.terminIso})[sortKey];
+    rows = [...rows].sort((x,y) => {
+      const vx = val(x), vy = val(y), dir = st.sortDir === 'asc' ? 1 : -1;
+      if (typeof vx === 'number' && typeof vy === 'number') return (vx - vy) * dir;
+      return String(vx).localeCompare(String(vy),'de') * dir;
+    });
+
+    const arrows = {nr:'',name:'',rollen:'',ort:'',geb:'',termin:''};
+    arrows[sortKey] = st.sortDir === 'asc' ? '↑' : '↓';
+
+
+    const loading = zustand === 'Lädt';
+    const visible = loading || zustand === 'Leer' ? [] : rows;
+    const noRows = !loading && visible.length === 0;
+
+    /** Hover wie im Theme vorgesehen: ruhige Flächen auf --accent,
+     *  die aktive (primäre) Fläche auf --primary/90. */
+    const on = active => ({
+      bg: active ? 'var(--primary)' : 'transparent',
+      fg: active ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+      fw: active ? '600' : '400',
+      st: active ? 'aktiv' : 'ruhig',
+      hbg: active ? 'color-mix(in oklab, var(--primary) 88%, white)' : 'var(--accent)',
+      hfg: active ? 'var(--primary-foreground)' : 'var(--accent-foreground)'
+    });
+    const tabState = t => on(!searching && st.role === 'Alle' && st.tab === t);
+    const pat = tabState('Patienten'), int = tabState('Interessent'), alle = tabState('Alle');
+    const weitereAktiv = !searching && st.role !== 'Alle';
+    const weitere = on(weitereAktiv);
+
+    return {
+      q: st.q, arrows, searching, loading,
+      heads: sichtbar.map(c => ({
+        label: SPALTEN[c.key].label,
+        cls: SPALTEN[c.key].kopfCls,
+        justify: SPALTEN[c.key].justify,
+        arrow: arrows[c.key] ?? '',
+        onSort: () => this.sort(which, c.key)
+      })),
+      rows: visible.map(r => ({
+        ...r,
+        onOeffnen: () => { window.location.href = 'Kontaktdetail.dc.html'; },
+        cells: sichtbar.map(c => ({
+          cls: SPALTEN[c.key].cls,
+          istName: c.key === 'name',
+          istRollen: c.key === 'rollen',
+          istTermin: c.key === 'termin',
+          istText: c.key === 'nr' || c.key === 'ort' || c.key === 'geb',
+          archiviert: r.archived,
+          rollen: r.roles,
+          zusatz: c.key === 'termin' ? r.terminRel : '',
+          text: {nr:r.nr, name:r.name, ort:r.city, geb:r.dob, termin:r.terminWann, rollen:''}[c.key]
+        }))
+      })),
+      spaltenOffen: st.spaltenOffen === true,
+      toggleSpalten: () => this.patch(which, {spaltenOffen: !this.state[which].spaltenOffen}),
+      closeSpalten: () => this.patch(which, {spaltenOffen: false}),
+      spalten: cols.map(c => ({
+        label: SPALTEN[c.key].label,
+        bg: st.zieht === c.key ? 'var(--accent)' : 'transparent',
+        opacity: st.zieht === c.key ? '.6' : '1',
+        props: {
+          checked: c.an,
+          disabled: SPALTEN[c.key].fest === true,
+          onCheckedChange: value => this.patch(which, {
+            cols: this.state[which].cols.map(x => x.key === c.key ? {...x, an: value === true} : x)
+          })
+        },
+        onDragStart: e => { e.dataTransfer.effectAllowed = 'move'; this.patch(which, {zieht: c.key}); },
+        onDragOver: e => { e.preventDefault(); this.verschieben(which, c.key); },
+        onDrop: e => { e.preventDefault(); this.patch(which, {zieht: null}); },
+        onDragEnd: () => this.patch(which, {zieht: null})
+      })),
+      showTable: !loading && visible.length > 0,
+      emptySearch: noRows && searching,
+      emptyFilter: noRows && !searching,
+      showFooter: !loading && visible.length > 0,
+      footer: visible.length + ' von 214 angezeigt · Seitengröße 50',
+      roleFilter: this.props.weitereRollen !== false,
+      weitereLabel: weitereAktiv ? st.role : 'Weitere',
+      bgWeitere: weitere.bg, fgWeitere: weitere.fg, fwWeitere: weitere.fw,
+      stWeitere: weitere.st,
+      weitereOffen: st.weitereOffen === true,
+      toggleWeitere: () => this.patch(which, {weitereOffen: !this.state[which].weitereOffen}),
+      closeWeitere: () => this.patch(which, {weitereOffen: false}),
+      weitereRollen: WEITERE.map(label => ({
+        label,
+        count: base.filter(r => r.roles.includes(label)).length,
+        onClick: () => this.patch(which, {tab:'Alle', role: label, weitereOffen:false}),
+        ...on(st.role === label)
+      })),
+      archivedProps: {checked: st.archived, onCheckedChange: v => this.patch(which, {archived: v === true})},
+      roleTabs: TABS.map(label => ({
+        label,
+        count: label === 'Alle' ? base.length : base.filter(r => r.roles.includes(label)).length,
+        onClick: () => this.patch(which, {tab: label}),
+        ...tabState(label)
+      })),
+      bgPat: pat.bg, fgPat: pat.fg, fwPat: pat.fw, stPat: pat.st,
+      bgInt: int.bg, fgInt: int.fg, fwInt: int.fw, stInt: int.st,
+      bgAlle: alle.bg, fgAlle: alle.fg, fwAlle: alle.fw, stAlle: alle.st,
+      onSearch: e => this.patch(which, {q: e.target.value}),
+      tabPat: () => this.patch(which, {tab:'Patienten', role:'Alle'}),
+      tabInt: () => this.patch(which, {tab:'Interessent', role:'Alle'}),
+      tabAlle: () => this.patch(which, {tab:'Alle', role:'Alle'}),
+      sortNr: () => this.sort(which,'nr'),
+      sortName: () => this.sort(which,'name'),
+      sortRollen: () => this.sort(which,'rollen'),
+      sortOrt: () => this.sort(which,'ort'),
+      sortGeb: () => this.sort(which,'geb'),
+      sortTermin: () => this.sort(which,'termin')
+    };
+  }
+
+  renderVals(){
+    return {
+      theme: this.props.theme ?? 'schiefer',v: this.view('a')};
+  }
+}
+
+</script>
+</body>
+</html>
