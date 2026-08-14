@@ -24,9 +24,23 @@ import type { Database, DbReader, Transaction } from '../db/client.js'
  * whatever a manual `UPDATE` once left behind. Renumbering on every move
  * means `sort_order` is always exactly the display position, an invariant
  * simple enough to trust when inspecting the table by hand.
+ *
+ * An id this tenant does not have and a boundary already at the end of the
+ * list are not the same outcome, even though a disabled arrow button means
+ * neither should normally happen: an unknown id is a genuine error — a typo
+ * in the id would otherwise pass silently — and throws `MoveTargetNotFoundError`
+ * so the route can answer 404. A boundary is not an error at all, the row
+ * exists and the move is legitimately a no-op, so it returns `false` and the
+ * route answers 204 either way (see the callers in `routes/`).
  */
 
 export type SortableRow = { id: string; sortOrder: number }
+
+export class MoveTargetNotFoundError extends Error {
+  constructor(id: string) {
+    super(`move target not found: ${id}`)
+  }
+}
 
 export async function moveInList(
   database: Database,
@@ -41,7 +55,7 @@ export async function moveInList(
   return database.transaction(async (tx) => {
     const rows = await ops.list(tx, tenantId)
     const index = rows.findIndex((row) => row.id === id)
-    if (index < 0) return false
+    if (index < 0) throw new MoveTargetNotFoundError(id)
 
     const target = index + delta
     if (target < 0 || target >= rows.length) return false

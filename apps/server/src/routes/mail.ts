@@ -13,6 +13,7 @@ import {
   updateEmailTemplate,
 } from '../domain/email-template.js'
 import { sendTestMail } from '../domain/invoice-send.js'
+import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
   deleteSmtpSettings,
   getSmtpSettings,
@@ -38,6 +39,9 @@ function translate(error: unknown): never {
   }
   if (uniqueViolationConstraint(error) === 'email_template_tenant_name_key') {
     throw new HTTPException(409, { message: messages.emailTemplate.nameTaken })
+  }
+  if (error instanceof MoveTargetNotFoundError) {
+    throw new HTTPException(404, { message: messages.emailTemplate.notFound })
   }
   throw error
 }
@@ -114,8 +118,9 @@ export const emailTemplatesRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
-  /** `false` covers an unknown id and a boundary the button should already
-   *  have disabled alike — 204 either way, see `contact-types.ts`. */
+  /** A boundary — the button should already have disabled it — is a no-op
+   *  and answers 204; an unknown id is a real error and answers 404, see
+   *  `domain/reorder.ts`. */
   .post(
     '/:templateId/move',
     validate('param', templateParam),
@@ -126,7 +131,7 @@ export const emailTemplatesRoute = new Hono<AppEnv>()
         tenantId(c),
         c.req.valid('param').templateId,
         c.req.valid('json').delta,
-      )
+      ).catch(translate)
       return c.body(null, 204)
     },
   )

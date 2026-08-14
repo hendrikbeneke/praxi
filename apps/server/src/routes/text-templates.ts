@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
+import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
   createTextTemplate,
   deleteTextTemplate,
@@ -35,6 +36,9 @@ function translate(error: unknown): never {
   }
   if (constraint === 'text_template_paid_key') {
     throw new HTTPException(409, { message: messages.textTemplate.paidVariantTaken })
+  }
+  if (error instanceof MoveTargetNotFoundError) {
+    throw new HTTPException(404, { message: messages.textTemplate.notFound })
   }
   throw error
 }
@@ -76,8 +80,9 @@ export const textTemplatesRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
-  /** `false` covers an unknown id and a boundary the button should already
-   *  have disabled alike — 204 either way, see `contact-types.ts`. */
+  /** A boundary — the button should already have disabled it — is a no-op
+   *  and answers 204; an unknown id is a real error and answers 404, see
+   *  `domain/reorder.ts`. */
   .post(
     '/:templateId/move',
     validate('param', templateParam),
@@ -88,7 +93,7 @@ export const textTemplatesRoute = new Hono<AppEnv>()
         tenantId(c),
         c.req.valid('param').templateId,
         c.req.valid('json').delta,
-      )
+      ).catch(translate)
       return c.body(null, 204)
     },
   )

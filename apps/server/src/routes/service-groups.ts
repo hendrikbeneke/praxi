@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
+import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
   createServiceGroup,
   deleteServiceGroup,
@@ -36,6 +37,7 @@ function translate(error: unknown): never {
   if (uniqueViolationConstraint(error) === 'service_group_tenant_name_key') {
     throw new HTTPException(409, { message: messages.service.groupNameTaken })
   }
+  if (error instanceof MoveTargetNotFoundError) notFound()
   throw error
 }
 
@@ -82,8 +84,9 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
-  /** `false` covers an unknown id and a boundary the button should already
-   *  have disabled alike — 204 either way, see `contact-types.ts`. */
+  /** A boundary — the button should already have disabled it — is a no-op
+   *  and answers 204; an unknown id is a real error and answers 404, see
+   *  `domain/reorder.ts`. */
   .post(
     '/:groupId/move',
     validate('param', groupParam),
@@ -94,7 +97,7 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
         tenantId(c),
         c.req.valid('param').groupId,
         c.req.valid('json').delta,
-      )
+      ).catch(translate)
       return c.body(null, 204)
     },
   )

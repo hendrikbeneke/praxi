@@ -5,7 +5,7 @@ import { db } from '../db/client.js'
 import { service } from '../db/schema.js'
 import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
-import { moveInList } from './reorder.js'
+import { MoveTargetNotFoundError, moveInList } from './reorder.js'
 
 let tenantId: string
 
@@ -98,16 +98,18 @@ describe('moveInList', () => {
     expect(after.get(c)).toBe(2)
   })
 
-  it('reports false for an id that does not exist in this tenant', async () => {
+  it('throws for an id that does not exist in this tenant', async () => {
     await seed({ a: 0 })
-    expect(await moveInList(db(), tenantId, newId(), 1, ops)).toBe(false)
+    await expect(moveInList(db(), tenantId, newId(), 1, ops)).rejects.toThrow(
+      MoveTargetNotFoundError,
+    )
   })
 
-  it('does not reach into another tenant', async () => {
+  it('does not reach into another tenant, and throws the same as an unknown id', async () => {
     const { a } = await seed({ a: 0, b: 1 })
     const otherTenant = await createTenant(db(), 'Mandant B')
 
-    expect(await moveInList(db(), otherTenant, a, 1, ops)).toBe(false)
+    await expect(moveInList(db(), otherTenant, a, 1, ops)).rejects.toThrow(MoveTargetNotFoundError)
   })
 
   /** Whatever a manual edit once left behind — gaps, an out-of-order value —

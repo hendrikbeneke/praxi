@@ -24,6 +24,7 @@ import {
   updateRelationType,
   updateRoleType,
 } from '../domain/contact-type.js'
+import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
@@ -61,6 +62,9 @@ function translate(error: unknown): never {
    */
   if (uniqueViolationConstraint(error) === 'contact_relation_exclusive_key') {
     throw new HTTPException(409, { message: messages.contactType.exclusiveConflict })
+  }
+  if (error instanceof MoveTargetNotFoundError) {
+    throw new HTTPException(404, { message: messages.contactType.notFound })
   }
   throw error
 }
@@ -102,18 +106,20 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
-  /**
-   * `false` from `moveRoleType` covers two harmless cases alike — an id that
-   * no longer exists, and a boundary the button should already have
-   * disabled — and 204 either way rather than picking one to call a 404: a
-   * move is not a lookup, and "nothing happened" is never wrong here.
-   */
+  /** A boundary — the button should already have disabled it — is a no-op
+   *  and answers 204; an unknown id is a real error and answers 404, see
+   *  `domain/reorder.ts`. */
   .post(
     '/:typeId/move',
     validate('param', typeParam),
     validate('json', moveInputSchema),
     async (c) => {
-      await moveRoleType(db(), tenantId(c), c.req.valid('param').typeId, c.req.valid('json').delta)
+      await moveRoleType(
+        db(),
+        tenantId(c),
+        c.req.valid('param').typeId,
+        c.req.valid('json').delta,
+      ).catch(translate)
       return c.body(null, 204)
     },
   )
@@ -157,6 +163,9 @@ export const contactRelationTypesRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
+  /** A boundary — the button should already have disabled it — is a no-op
+   *  and answers 204; an unknown id is a real error and answers 404, see
+   *  `domain/reorder.ts`. */
   .post(
     '/:typeId/move',
     validate('param', typeParam),
@@ -167,7 +176,7 @@ export const contactRelationTypesRoute = new Hono<AppEnv>()
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json').delta,
-      )
+      ).catch(translate)
       return c.body(null, 204)
     },
   )
