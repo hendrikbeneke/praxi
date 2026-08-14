@@ -124,7 +124,7 @@ praxi/
 ├─ packages/shared/        Zod schemas + derived types
 ├─ docker-compose.yml      Postgres 17 only, host port 55432
 ├─ tsconfig.base.json
-├─ biome.json
+├─ biome.jsonc
 ├─ pnpm-workspace.yaml
 ├─ .env.example
 ├─ README.md               setup steps

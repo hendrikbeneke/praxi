@@ -6,7 +6,18 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/dist", "!**/public", "!.docker-data", "!**/routeTree.gen.ts"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/public",
+      "!.docker-data",
+      "!**/routeTree.gen.ts",
+      // Reference material from the design tool, not project code — it will
+      // never pass this linter (inline handlers, no button type, etc.), and
+      // including it drowned out real findings under hundreds of
+      // pre-existing errors.
+      "!docs/design_handoff_praxi_web"
+    ]
   },
   "formatter": {
     "enabled": true,
