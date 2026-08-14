@@ -60,9 +60,20 @@ export const strings = {
     submitting: 'Anmeldung läuft …',
     failed: 'E-Mail-Adresse oder Passwort ist falsch.',
   },
+  /** The left-hand section list of `/settings` (D4) — one hint per entry,
+   *  reused as both the nav's secondary line and the panel's own title-bar
+   *  hint where that panel has one. Rollen, Beziehungen and Vorgangsarten
+   *  reuse `contactType`/`activityType`'s own hint instead of repeating it
+   *  here; Textbausteine reuses `invoice.templatesHint`. */
+  settingsNav: {
+    practiceHint: 'Stammdaten, Anschrift, Bank',
+    invoicingHint: 'Nummernkreis, Vorlage, Zahlungsziel',
+    mailHint: 'Konto und Vorlagen',
+    googleHint: 'Projektion der Termine',
+  },
   settings: {
-    title: 'Praxisstammdaten',
-    description: 'Diese Angaben gelten für die gesamte Praxis.',
+    pageTitle: 'Einstellungen',
+    pageDescription: 'Was für die ganze Praxis gilt.',
     sectionPractice: 'Praxis',
     sectionAddress: 'Anschrift',
     sectionContact: 'Kontakt',
@@ -88,14 +99,10 @@ export const strings = {
     loadFailed: 'Die Praxisstammdaten konnten nicht geladen werden.',
   },
   contactType: {
-    title: 'Rollen und Beziehungen',
-    description:
-      'Welche Rollen ein Kontakt haben kann und welche Beziehungen zwischen zwei Kontakten ' +
-      'möglich sind.',
-
     tabRoles: 'Rollen',
     tabRelations: 'Beziehungen',
-    showInactive: 'Inaktive anzeigen',
+    rolesHint: 'bestimmen, in welchen Listen ein Kontakt auftaucht',
+    relationsHint: 'verbinden zwei Kontakte und erscheinen in beiden Akten',
 
     code: 'Kürzel',
     codeHint:
@@ -109,33 +116,28 @@ export const strings = {
       'Der erste Kontakt ist der, in dessen Akte der Sachverhalt eine Eigenschaft dieses ' +
       'Kontakts ist — das Kind hat einen Sorgeberechtigten, der Patient hat einen ' +
       'Rechnungsempfänger. Der zweite Kontakt ist das Gegenüber.',
-    symmetric: 'Gilt in beide Richtungen gleich',
-    symmetricHint:
-      'Zum Beispiel „Ehepartner von“. Dann entfällt die zweite Bezeichnung, und beide Akten ' +
-      'zeigen dieselbe.',
+    /** The radio pair replacing a single "einseitig" checkbox — nothing here
+     *  is inverted relative to `isSymmetric`, and nothing has to be
+     *  remembered (D4, correcting the prototype's own inverted checkbox). */
+    directionMutualLabel: 'Gegenseitig — beide Seiten heißen gleich',
+    directionMutualExample: 'Beispiel: Ehepartner von / Ehepartner von',
+    directionDirectedLabel: 'Gerichtet — jede Seite hat eine eigene Bezeichnung',
+    directionDirectedExample: 'Beispiel: Elternteil von / Kind von',
     exclusive: 'Höchstens einmal pro Kontakt',
     exclusiveHint:
       'Zum Beispiel der Rechnungsempfänger: ein Kontakt hat höchstens einen — umgekehrt darf ' +
       'ein Rechnungsempfänger für mehrere Kontakte zuständig sein.',
     showAsTab: 'Als Reiter in der Kontaktliste',
-    sortOrder: 'Reihenfolge',
     active: 'Aktiv',
     systemBadge: 'System',
-    inactive: 'Inaktiv',
     exclusiveBadge: 'Nur einmal',
     symmetricBadge: 'Beidseitig',
     systemHint:
       'Auf diesem Eintrag baut die Software auf. Er lässt sich umbenennen, aber nicht löschen, ' +
       'und sein Kürzel bleibt, wie es ist.',
-    moveUp: 'Nach oben',
-    moveDown: 'Nach unten',
 
     createRole: 'Neue Rolle',
-    createRoleTitle: 'Rolle anlegen',
-    editRoleTitle: 'Rolle bearbeiten',
     createRelation: 'Neue Beziehungsart',
-    createRelationTitle: 'Beziehungsart anlegen',
-    editRelationTitle: 'Beziehungsart bearbeiten',
 
     emptyRoles: 'Keine Rollen vorhanden.',
     emptyRelations: 'Keine Beziehungsarten vorhanden.',
@@ -151,13 +153,9 @@ export const strings = {
   },
   activityType: {
     title: 'Vorgangsarten',
-    description:
-      'Welche Arten von Vorgängen es gibt, in welcher Farbe sie im Kalender erscheinen und ' +
-      'was beim Anlegen vorbelegt wird.',
+    hint: 'Farbe im Kalender und Vorbelegung beim Anlegen',
 
     create: 'Neue Vorgangsart',
-    createTitle: 'Vorgangsart anlegen',
-    editTitle: 'Vorgangsart bearbeiten',
     empty: 'Noch keine Vorgangsarten.',
 
     code: 'Kürzel',
@@ -169,23 +167,22 @@ export const strings = {
     colorHint: 'Damit wird der Termin im Kalender hinterlegt.',
     defaultDuration: 'Dauer in Minuten',
     defaultDurationHint: 'Leer lassen, wenn es keine übliche Dauer gibt.',
-    preset: 'Vorbelegte Leistung',
-    presetHint:
+    preset: 'Leistungen',
+    presetHint: 'werden beim Anlegen eines Vorgangs kopiert',
+    presetLongHint:
       'Wird beim Anlegen eines Vorgangs als Position eingesetzt. Eine Gruppe wird dabei sofort ' +
-      'in einzelne Positionen aufgelöst. Spätere Änderungen hier wirken sich auf nichts ' +
-      'Bestehendes aus.',
-    presetNone: 'Keine',
+      'in einzelne Positionen aufgelöst und erscheint selbst nie in dieser Liste. Spätere ' +
+      'Änderungen hier wirken sich auf nichts Bestehendes aus.',
+    presetEmpty: 'Keine Leistung vorbelegt.',
+    presetAdd: 'Leistung hinzufügen',
     presetService: 'Leistung',
     presetGroup: 'Leistungsgruppe',
-    presetMultiple: (count: number) => `${count} Leistungen ausgewählt`,
+    presetQuantity: 'Menge',
     isDefault: 'Standard für neue Vorgänge',
     isDefaultHint: 'Genau eine Art kann das sein. Die bisherige verliert die Markierung.',
     defaultBadge: 'Standard',
     active: 'Aktiv',
-    inactive: 'Inaktiv',
     activeHint: 'Inaktive Arten erscheinen in keiner Auswahlliste, bleiben aber an Vorgängen.',
-    moveUp: 'Nach oben',
-    moveDown: 'Nach unten',
 
     saved: 'Vorgangsart gespeichert.',
     deleted: 'Vorgangsart gelöscht.',
@@ -551,6 +548,7 @@ export const strings = {
   },
   mail: {
     title: 'Mailversand',
+    accountTitle: 'Mailkonto',
     description:
       'Über dieses Konto werden Rechnungen versendet. Das Passwort wird verschlüsselt ' +
       'gespeichert und niemals zurückgegeben.',
@@ -564,8 +562,9 @@ export const strings = {
     },
     username: 'Benutzername',
     password: 'Passwort',
-    passwordSet: 'Ein Passwort ist hinterlegt.',
-    passwordKeepHint: 'Leer lassen, um das gespeicherte Passwort zu behalten.',
+    /** The field's placeholder once a password is stored — read mode shows
+     *  dots instead, this is what the empty, editable field says. */
+    passwordPlaceholder: 'unverändert lassen',
     passwordClear: 'Passwort entfernen',
     fromAddress: 'Absenderadresse',
     fromName: 'Absendername',
@@ -595,9 +594,21 @@ export const strings = {
     templateEmpty: 'Noch keine Mailvorlagen.',
     templateSaved: 'Vorlage gespeichert.',
     templateRemoved: 'Vorlage gelöscht.',
-    placeholderHint:
-      'Verwendbare Platzhalter: {{number}} Rechnungsnummer, {{date}} Rechnungsdatum, ' +
-      '{{total}} Gesamtbetrag, {{name}} Empfängername.',
+    templateRemoveTitle: 'Vorlage löschen?',
+    templateRemoveBody: 'Die Mailvorlage wird endgültig gelöscht.',
+    /** Betreff and Text share this closed set — never the number-range
+     *  prefix placeholders (YYYY/MM/Q), a different list for a different
+     *  field (README's own warning, D4). */
+    placeholderPrompt: 'Im Betreff und im Text lassen sich Platzhalter verwenden.',
+    viewPlaceholders: 'Platzhalter ansehen',
+    placeholderDialogTitle: 'Platzhalter',
+    placeholderDialogDescription: 'Werden beim Versand durch die Werte der Rechnung ersetzt.',
+    placeholderList: [
+      { token: '{{number}}', meaning: 'Rechnungsnummer' },
+      { token: '{{date}}', meaning: 'Rechnungsdatum' },
+      { token: '{{total}}', meaning: 'Gesamtbetrag' },
+      { token: '{{name}}', meaning: 'Empfängername' },
+    ],
 
     send: 'Per Mail senden',
     /** Why the recipient field opened empty. Shown only while it still is —
@@ -897,7 +908,9 @@ export const strings = {
     cancelledBy: 'Storniert durch',
     cancels: 'Storno zu',
 
-    settingsTitle: 'Rechnungsstellung',
+    paymentTermTitle: 'Zahlungsziel',
+    paymentTermSaved: 'Zahlungsziel gespeichert.',
+    paymentTermSaveFailed: 'Das Zahlungsziel konnte nicht gespeichert werden.',
     numberRanges: 'Nummernkreise',
     numberRangeHint:
       'Die Rechnungsnummer wird beim Festschreiben vergeben und danach nie wieder geändert. ' +
@@ -923,6 +936,7 @@ export const strings = {
       'Rechnung festschreiben.',
 
     templates: 'Textbausteine',
+    templatesHint: 'Einleitung und Schluss für neue Rechnungen',
     templateKind: 'Art',
     templateKinds: { intro: 'Einleitung', outro: 'Schluss' },
     templateName: 'Name',
@@ -936,6 +950,8 @@ export const strings = {
     templateNew: 'Neuer Baustein',
     templateSaved: 'Baustein gespeichert.',
     templateRemoved: 'Baustein gelöscht.',
+    templateRemoveTitle: 'Baustein löschen?',
+    templateRemoveBody: 'Der Textbaustein wird endgültig gelöscht.',
     templateEmpty: 'Noch keine Textbausteine.',
 
     letterhead: 'Rechnungsvorlage',

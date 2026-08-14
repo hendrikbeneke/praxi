@@ -5,10 +5,11 @@ import { optionalText, requiredText } from './field.js'
  * The SMTP account invoices are sent from (CLAUDE.md rule 14, slice 10).
  *
  * Its own entity rather than columns on `practice_settings`, and the reason is
- * structural rather than tidiness: `updatePracticeSettings` writes the whole
- * form object. A password living there would travel to the client and back on
- * every save of the master data. Kept apart, "the settings response carries no
- * secret" is a property of the shape instead of something to remember.
+ * structural rather than tidiness: `GET /api/settings` always answers with the
+ * whole row. A password living there would travel to the client on every load
+ * of the master data, patch semantics on the write side notwithstanding. Kept
+ * apart, "the settings response carries no secret" is a property of the shape
+ * instead of something to remember.
  */
 
 /**

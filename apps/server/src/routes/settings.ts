@@ -1,4 +1,4 @@
-import { practiceSettingsInputSchema } from '@praxi/shared'
+import { practiceSettingsPatchSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from '../context.js'
@@ -28,7 +28,12 @@ export const settingsRoute = new Hono<AppEnv>()
     return c.json(settings)
   })
 
-  .put('/', validate('json', practiceSettingsInputSchema), async (c) => {
+  /**
+   * A patch, not a replace: each of D4's settings panels sends only the
+   * fields it renders, so two panels saving in either order can never
+   * clobber each other's column (see `updatePracticeSettings`).
+   */
+  .patch('/', validate('json', practiceSettingsPatchSchema), async (c) => {
     const settings = await updatePracticeSettings(db(), tenantId(c), c.req.valid('json'))
     if (!settings) throw new HTTPException(404, { message: messages.settings.missing })
 

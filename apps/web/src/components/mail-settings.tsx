@@ -6,14 +6,36 @@ import {
   smtpSecurities,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { Mail, Pencil, Plus } from 'lucide-react'
+import { Fragment, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import {
+  ActiveStatus,
+  CheckboxField,
+  DeleteButton,
+  DetailField,
+  OrderButtons,
+} from '@/components/catalogue-controls'
+import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
+import {
+  ListCard,
+  ListCardHeaderCell,
+  ListCardHeaderRow,
+  ListCardTitleBar,
+} from '@/components/list-card'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -23,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ApiError } from '@/lib/api'
 import {
@@ -30,6 +53,7 @@ import {
   deleteEmailTemplate,
   deleteSmtpSettings,
   emailTemplateListQueryOptions,
+  moveEmailTemplate,
   saveSmtpSettings,
   sendTestMail,
   smtpSettingsQueryOptions,
@@ -148,7 +172,7 @@ function SmtpAccount() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{strings.mail.title}</CardTitle>
+        <CardTitle>{strings.mail.accountTitle}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <p className="text-muted-foreground text-sm">{strings.mail.description}</p>
@@ -222,12 +246,13 @@ function SmtpAccount() {
               type="password"
               className="mt-2"
               autoComplete="new-password"
-              value={form.password}
+              placeholder={stored?.passwordSet ? strings.mail.passwordPlaceholder : undefined}
+              // Read mode shows dots for a stored password rather than an
+              // empty field — the API never returns the password itself, so
+              // this is the only place that fact becomes visible.
+              value={!editing && stored?.passwordSet ? '••••••••••' : form.password}
               onChange={(event) => setForm((f) => ({ ...f, password: event.target.value }))}
             />
-            <p className="mt-1 text-muted-foreground text-xs">
-              {stored?.passwordSet ? strings.mail.passwordSet : ''} {strings.mail.passwordKeepHint}
-            </p>
             {stored?.passwordSet && editing && (
               <Button
                 type="button"
@@ -327,222 +352,313 @@ const EMPTY_TEMPLATE: EmailTemplateInput = {
   subject: '',
   body: '',
   isDefault: false,
-  sortOrder: 0,
+  sortOrder: 100,
   active: true,
 }
 
+/**
+ * Inline detail instead of the form that used to sit appended below the
+ * list, and `/move` (D2) instead of no reordering at all. The placeholder
+ * dialog is this list's own — `strings.mail.placeholderList` is a fixed,
+ * different set from the number-range prefix placeholders in
+ * "Rechnungsstellung" (YYYY/MM/Q), and the two must never be shown together
+ * or share a name (the README's own warning, D4).
+ */
 function EmailTemplates() {
   const queryClient = useQueryClient()
   const templates = useQuery(emailTemplateListQueryOptions)
-  const [editing, setEditing] = useState<EmailTemplate | 'new' | null>(null)
+  const detail = useInlineDetail()
+  const [creating, setCreating] = useState(false)
+  const [placeholdersOpen, setPlaceholdersOpen] = useState(false)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['email-templates'] })
+
+  const save = useMutation({
+    mutationFn: (input: { id?: string; values: EmailTemplateInput }) =>
+      input.id ? updateEmailTemplate(input.id, input.values) : createEmailTemplate(input.values),
+    onSuccess: async () => {
+      await invalidate()
+      detail.close()
+      setCreating(false)
+      toast.success(strings.mail.templateSaved)
+    },
+    onError: (error) => toast.error(message(error)),
+  })
 
   const remove = useMutation({
     mutationFn: (templateId: string) => deleteEmailTemplate(templateId),
     onSuccess: async () => {
       await invalidate()
+      detail.close()
       toast.success(strings.mail.templateRemoved)
     },
+    onError: (error) => toast.error(message(error)),
+  })
+
+  const move = useMutation({
+    mutationFn: (input: { id: string; delta: 1 | -1 }) => moveEmailTemplate(input.id, input.delta),
+    onSuccess: invalidate,
     onError: (error) => toast.error(message(error)),
   })
 
   const rows = templates.data ?? []
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{strings.mail.templates}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-muted-foreground text-sm">{strings.mail.templatesHint}</p>
-
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{strings.mail.templateEmpty}</p>
-        ) : (
-          <ul className="space-y-2">
-            {rows.map((template) => (
-              <li key={template.id} className="rounded-md border px-4 py-3">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <button
-                    type="button"
-                    className="font-medium underline underline-offset-2"
-                    onClick={() => setEditing(template)}
-                  >
-                    {template.name}
-                  </button>
-                  {template.isDefault && (
-                    <Badge variant="secondary">{strings.mail.templateDefault}</Badge>
-                  )}
-                  {!template.active && (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      {strings.activityType.inactive}
-                    </Badge>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-auto"
-                    aria-label={strings.actions.delete}
-                    onClick={() => remove.mutate(template.id)}
-                  >
-                    <Trash2 className="size-4" aria-hidden />
-                  </Button>
-                </div>
-                <p className="mt-1 text-muted-foreground text-sm">{template.subject}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {editing === null ? (
-          <Button variant="outline" size="sm" onClick={() => setEditing('new')}>
+    <ListCard>
+      <ListCardTitleBar
+        title={strings.mail.templates}
+        hint={strings.mail.templatesHint}
+        action={
+          <Button
+            size="sm"
+            onClick={() => {
+              detail.close()
+              setCreating((current) => !current)
+            }}
+          >
             <Plus className="size-4" aria-hidden />
             {strings.mail.templateNew}
           </Button>
-        ) : (
+        }
+      />
+
+      {creating && (
+        <div className="border-b bg-muted/20 p-4">
           <EmailTemplateForm
-            template={editing === 'new' ? null : editing}
-            onDone={async () => {
-              await invalidate()
-              setEditing(null)
-            }}
-            onCancel={() => setEditing(null)}
+            pending={save.isPending}
+            onCancel={() => setCreating(false)}
+            onSubmit={(values) => save.mutate({ values })}
+            onOpenPlaceholders={() => setPlaceholdersOpen(true)}
           />
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <p className="p-4 text-muted-foreground text-sm">
+          {templates.isPending ? strings.status.loading : strings.mail.templateEmpty}
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <ListCardHeaderRow>
+              <ListCardHeaderCell>{strings.mail.templateName}</ListCardHeaderCell>
+              <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
+              <ListCardHeaderCell className="w-[72px]" />
+            </ListCardHeaderRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((template, index) => (
+              <Fragment key={template.id}>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setCreating(false)
+                    detail.toggle(template.id)
+                  }}
+                >
+                  <TableCell>
+                    <span className="font-medium">{template.name}</span>
+                    {template.isDefault && (
+                      <Badge variant="secondary" className="ml-2">
+                        {strings.mail.templateDefault}
+                      </Badge>
+                    )}
+                    <span className="ml-2 truncate text-muted-foreground text-xs">
+                      {template.subject}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <ActiveStatus active={template.active} />
+                  </TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    <OrderButtons
+                      index={index}
+                      count={rows.length}
+                      pending={move.isPending}
+                      onMove={(i, delta) => {
+                        const row = rows[i]
+                        if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+
+                {detail.isOpen(template.id) && (
+                  <InlineDetailRow colSpan={3}>
+                    {detail.editing ? (
+                      <EmailTemplateForm
+                        template={template}
+                        pending={save.isPending}
+                        onCancel={detail.stopEditing}
+                        onSubmit={(values) => save.mutate({ id: template.id, values })}
+                        onOpenPlaceholders={() => setPlaceholdersOpen(true)}
+                      />
+                    ) : (
+                      <div className="space-y-4">
+                        <dl className="flex flex-wrap gap-8">
+                          <DetailField
+                            label={strings.mail.templateSubject}
+                            value={template.subject}
+                          />
+                        </dl>
+                        <p className="max-w-prose whitespace-pre-wrap text-sm">{template.body}</p>
+                        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+                          <Button size="sm" variant="outline" onClick={detail.startEditing}>
+                            {strings.actions.edit}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={detail.close}>
+                            {strings.actions.close}
+                          </Button>
+                          <DeleteButton
+                            disabled={false}
+                            onConfirm={() => remove.mutate(template.id)}
+                            title={strings.mail.templateRemoveTitle}
+                            body={strings.mail.templateRemoveBody}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </InlineDetailRow>
+                )}
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <AlertDialog open={placeholdersOpen} onOpenChange={setPlaceholdersOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{strings.mail.placeholderDialogTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {strings.mail.placeholderDialogDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <dl className="divide-y">
+            {strings.mail.placeholderList.map((placeholder) => (
+              <div
+                key={placeholder.token}
+                className="grid grid-cols-[auto_1fr] items-baseline gap-4 py-2"
+              >
+                <dt className="font-mono text-xs tabular-nums">{placeholder.token}</dt>
+                <dd className="text-muted-foreground text-sm">{placeholder.meaning}</dd>
+              </div>
+            ))}
+          </dl>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setPlaceholdersOpen(false)}>
+              {strings.actions.close}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </ListCard>
   )
+}
+
+function toValues(template: EmailTemplate): EmailTemplateInput {
+  return {
+    name: template.name,
+    subject: template.subject,
+    body: template.body,
+    isDefault: template.isDefault,
+    sortOrder: template.sortOrder,
+    active: template.active,
+  }
 }
 
 function EmailTemplateForm({
   template,
-  onDone,
+  pending,
   onCancel,
+  onSubmit,
+  onOpenPlaceholders,
 }: {
-  template: EmailTemplate | null
-  onDone: () => void
+  template?: EmailTemplate
+  pending: boolean
   onCancel: () => void
+  onSubmit: (values: EmailTemplateInput) => void
+  onOpenPlaceholders: () => void
 }) {
-  const formId = useId()
   const [input, setInput] = useState<EmailTemplateInput>(
-    template
-      ? {
-          name: template.name,
-          subject: template.subject,
-          body: template.body,
-          isDefault: template.isDefault,
-          sortOrder: template.sortOrder,
-          active: template.active,
-        }
-      : EMPTY_TEMPLATE,
+    template ? toValues(template) : EMPTY_TEMPLATE,
   )
-  const [editing, setEditing] = useState(template === null)
-
-  const save = useMutation({
-    mutationFn: () =>
-      template ? updateEmailTemplate(template.id, input) : createEmailTemplate(input),
-    onSuccess: () => {
-      toast.success(strings.mail.templateSaved)
-      onDone()
-    },
-    onError: (error) => toast.error(message(error)),
-  })
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
-      <ReadModeFieldset disabled={!editing} className="space-y-4">
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
         <div>
-          <Label htmlFor={`${formId}-name`}>{strings.mail.templateName}</Label>
+          <Label htmlFor="email-template-subject">{strings.mail.templateSubject}</Label>
           <Input
-            id={`${formId}-name`}
-            className="mt-2"
-            value={input.name}
-            onChange={(event) => setInput((current) => ({ ...current, name: event.target.value }))}
-          />
-        </div>
-        <div>
-          <Label htmlFor={`${formId}-subject`}>{strings.mail.templateSubject}</Label>
-          <Input
-            id={`${formId}-subject`}
+            id="email-template-subject"
             className="mt-2"
             value={input.subject}
-            onChange={(event) =>
-              setInput((current) => ({ ...current, subject: event.target.value }))
-            }
+            onChange={(event) => setInput({ ...input, subject: event.target.value })}
           />
         </div>
         <div>
-          <Label htmlFor={`${formId}-body`}>{strings.mail.templateBody}</Label>
-          <Textarea
-            id={`${formId}-body`}
-            rows={6}
+          <Label htmlFor="email-template-name">{strings.mail.templateName}</Label>
+          <Input
+            id="email-template-name"
             className="mt-2"
-            value={input.body}
-            onChange={(event) => setInput((current) => ({ ...current, body: event.target.value }))}
+            value={input.name}
+            onChange={(event) => setInput({ ...input, name: event.target.value })}
           />
         </div>
+      </div>
 
-        <p className="text-muted-foreground text-xs">{strings.mail.placeholderHint}</p>
+      <div>
+        <Label htmlFor="email-template-body">{strings.mail.templateBody}</Label>
+        <Textarea
+          id="email-template-body"
+          rows={6}
+          className="mt-2"
+          value={input.body}
+          onChange={(event) => setInput({ ...input, body: event.target.value })}
+        />
+        <p className="mt-2 flex flex-wrap items-baseline gap-2 text-muted-foreground text-xs">
+          {strings.mail.placeholderPrompt}
+          <button
+            type="button"
+            className="text-foreground underline underline-offset-2"
+            onClick={onOpenPlaceholders}
+          >
+            {strings.mail.viewPlaceholders}
+          </button>
+        </p>
+      </div>
 
-        <div className="flex flex-wrap gap-6">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${formId}-default`}
-              checked={input.isDefault}
-              onCheckedChange={(checked) =>
-                setInput((current) => ({ ...current, isDefault: checked === true }))
-              }
-            />
-            <Label htmlFor={`${formId}-default`} className="font-normal">
-              {strings.mail.templateDefault}
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${formId}-active`}
-              checked={input.active}
-              onCheckedChange={(checked) =>
-                setInput((current) => ({ ...current, active: checked === true }))
-              }
-            />
-            <Label htmlFor={`${formId}-active`} className="font-normal">
-              {strings.mail.templateActive}
-            </Label>
-          </div>
-        </div>
-      </ReadModeFieldset>
+      <div className="flex flex-wrap gap-6">
+        <CheckboxField
+          id="email-template-default"
+          label={strings.mail.templateDefault}
+          checked={input.isDefault}
+          onChange={(checked) => setInput({ ...input, isDefault: checked })}
+        />
+        <CheckboxField
+          id="email-template-active"
+          label={strings.mail.templateActive}
+          checked={input.active}
+          onChange={(checked) => setInput({ ...input, active: checked })}
+        />
+      </div>
 
-      <div className="flex gap-2">
-        {editing ? (
-          <>
-            <Button
-              size="sm"
-              onClick={() => save.mutate()}
-              disabled={
-                save.isPending ||
-                input.name.trim() === '' ||
-                input.subject.trim() === '' ||
-                input.body.trim() === ''
-              }
-            >
-              {save.isPending ? strings.settings.saving : strings.settings.save}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onCancel}>
-              {strings.actions.cancel}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-              <Pencil className="size-4" aria-hidden />
-              {strings.actions.edit}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onCancel}>
-              {strings.actions.close}
-            </Button>
-          </>
-        )}
+      <div className="flex justify-end gap-2 border-t pt-4">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          {strings.actions.cancel}
+        </Button>
+        <Button
+          type="button"
+          disabled={
+            pending ||
+            input.name.trim() === '' ||
+            input.subject.trim() === '' ||
+            input.body.trim() === ''
+          }
+          onClick={() => onSubmit(input)}
+        >
+          {strings.actions.save}
+        </Button>
       </div>
     </div>
   )

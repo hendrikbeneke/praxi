@@ -133,6 +133,19 @@ export function DeleteButton({
   )
 }
 
+/**
+ * A read-only label/value pair, the shape every inline detail (D2/D4) shows
+ * its fields in — uppercase tracked label above, value below.
+ */
+export function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-28 flex-col gap-1">
+      <span className="text-muted-foreground text-[11.5px] uppercase tracking-wide">{label}</span>
+      <span className="text-sm">{value}</span>
+    </div>
+  )
+}
+
 export function CheckboxField({
   id,
   label,

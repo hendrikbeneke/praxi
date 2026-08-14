@@ -48,7 +48,7 @@ export function ListCardHeaderCell({
   children,
   className,
 }: {
-  children: React.ReactNode
+  children?: React.ReactNode
   className?: string
 }) {
   return (
@@ -62,3 +62,29 @@ export function ListCardHeaderCell({
  *  reading "there is a value but it did not load" must never happen by
  *  accident (design handoff, "Durchgehende Muster" 3). */
 export const DASH = '—'
+
+/**
+ * The title bar above a `ListCard`'s table — title, an optional one-line
+ * hint, and a right-aligned action (usually "Neuer …"). Reused across every
+ * settings catalogue (D4: Rollen, Beziehungen, Vorgangsarten, Textbausteine,
+ * Mailvorlagen) rather than five copies of the same flex row; not the same
+ * thing as `ListCardHeaderRow`, which is the table's own column-label row
+ * underneath this.
+ */
+export function ListCardTitleBar({
+  title,
+  hint,
+  action,
+}: {
+  title: string
+  hint?: string
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-3 border-b bg-muted/40 px-4 py-3">
+      <span className="font-semibold">{title}</span>
+      {hint && <span className="text-muted-foreground text-sm">{hint}</span>}
+      {action && <span className="ml-auto">{action}</span>}
+    </div>
+  )
+}

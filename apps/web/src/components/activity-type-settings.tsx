@@ -4,25 +4,30 @@ import {
   DEFAULT_COLOR,
   formatEuro,
   readableTextOn,
+  type Service,
   type ServiceGroup,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
+import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
-import { CheckboxField, DeleteButton, OrderButtons } from '@/components/catalogue-controls'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
-import { ReadModeFooter } from '@/components/read-mode-footer'
+import {
+  ActiveStatus,
+  CheckboxField,
+  DeleteButton,
+  DetailField,
+  OrderButtons,
+} from '@/components/catalogue-controls'
+import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
+import {
+  DASH,
+  ListCard,
+  ListCardHeaderCell,
+  ListCardHeaderRow,
+  ListCardTitleBar,
+} from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -32,10 +37,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
 import {
   activityTypeListQueryOptions,
   createActivityType,
   deleteActivityType,
+  moveActivityType,
   updateActivityType,
 } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
@@ -43,27 +50,23 @@ import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/ser
 import { strings } from '@/lib/strings'
 
 /**
- * The catalogue of activity types (CLAUDE.md rule 6), maintained here.
- *
- * Same shape as the two catalogues in `contact-type-settings.tsx`, minus the
- * system entries — nothing in the software depends on a particular activity
- * type existing. What cannot be deleted is a type that is in use, and the
- * server says so.
- *
- * The preset is a list of service references (`presetItems`), but this dialog
- * still offers a single-select over services *and* groups, prefixed by their
- * kind, exactly as before D1 — picking a group here resolves it into its
- * members immediately and writes the whole list in one step. The full "add,
- * reorder, remove multiple" editor from the design handoff is D4's job; this
- * is the smallest change that keeps the screen working against the new shape.
- * With more than one item already on a type, the picker shows a count instead
- * of a single choice, and picking a new option replaces the whole list.
+ * The catalogue of activity types (CLAUDE.md rule 6), one settings section
+ * (D4: "Vorgangsarten"). Inline detail instead of a dialog, `/move` instead
+ * of two `PUT`s, and — new in D4 — a real editor for the preset: add a
+ * service or a group (resolved into its members immediately, rule 5),
+ * reorder and remove, each with its own quantity. The dialog version only
+ * offered a single service or group because the preset became a list in D1
+ * and the surface to edit it properly was D4's job from the start.
  */
 export function ActivityTypeSettings() {
   const queryClient = useQueryClient()
   const types = useQuery(activityTypeListQueryOptions(true))
-  const [editing, setEditing] = useState<ActivityType | 'new' | null>(null)
+  const services = useQuery(serviceListQueryOptions(false))
+  const groups = useQuery(serviceGroupListQueryOptions(false))
+  const detail = useInlineDetail()
+  const [creating, setCreating] = useState(false)
 
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['activity-types'] })
   const onError = (error: unknown) =>
     toast.error(error instanceof ApiError ? error.message : strings.activityType.saveFailed)
 
@@ -73,8 +76,9 @@ export function ActivityTypeSettings() {
         ? updateActivityType(input.id, input.values)
         : createActivityType(input.values).then(() => undefined),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['activity-types'] })
-      setEditing(null)
+      await invalidate()
+      detail.close()
+      setCreating(false)
       toast.success(strings.activityType.saved)
     },
     onError,
@@ -83,101 +87,139 @@ export function ActivityTypeSettings() {
   const remove = useMutation({
     mutationFn: (id: string) => deleteActivityType(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['activity-types'] })
+      await invalidate()
+      detail.close()
       toast.success(strings.activityType.deleted)
     },
     onError,
   })
 
+  const move = useMutation({
+    mutationFn: (input: { id: string; delta: 1 | -1 }) => moveActivityType(input.id, input.delta),
+    onSuccess: invalidate,
+    onError,
+  })
+
   const rows = types.data ?? []
-
-  const move = (index: number, delta: number) => {
-    const current = rows[index]
-    const neighbour = rows[index + delta]
-    if (!current || !neighbour) return
-
-    save.mutate({
-      id: current.id,
-      values: { ...toValues(current), sortOrder: neighbour.sortOrder },
-    })
-    save.mutate({
-      id: neighbour.id,
-      values: { ...toValues(neighbour), sortOrder: current.sortOrder },
-    })
-  }
+  const serviceRows = services.data ?? []
+  const groupRows = groups.data ?? []
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setEditing('new')}>
-          <Plus className="size-4" aria-hidden />
-          {strings.activityType.create}
-        </Button>
-      </div>
+    <ListCard>
+      <ListCardTitleBar
+        title={strings.activityType.title}
+        hint={strings.activityType.hint}
+        action={
+          <Button
+            size="sm"
+            onClick={() => {
+              detail.close()
+              setCreating((current) => !current)
+            }}
+          >
+            <Plus className="size-4" aria-hidden />
+            {strings.activityType.create}
+          </Button>
+        }
+      />
+
+      {creating && (
+        <div className="border-b bg-muted/20 p-4">
+          <ActivityTypeForm
+            services={serviceRows}
+            groups={groupRows}
+            pending={save.isPending}
+            onCancel={() => setCreating(false)}
+            onSubmit={(values) => save.mutate({ values })}
+          />
+        </div>
+      )}
 
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="p-4 text-muted-foreground text-sm">
           {types.isPending ? strings.status.loading : strings.activityType.empty}
         </p>
       ) : (
-        <ul className="divide-y rounded-md border">
-          {rows.map((type, index) => (
-            <li key={type.id} className="flex items-center gap-3 px-4 py-3">
-              <ColorSwatch color={type.color} label={type.label} />
+        <Table>
+          <TableHeader>
+            <ListCardHeaderRow>
+              <ListCardHeaderCell />
+              <ListCardHeaderCell>{strings.activityType.label}</ListCardHeaderCell>
+              <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
+              <ListCardHeaderCell className="w-[72px]" />
+            </ListCardHeaderRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((type, index) => (
+              <Fragment key={type.id}>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setCreating(false)
+                    detail.toggle(type.id)
+                  }}
+                >
+                  <TableCell>
+                    <ColorSwatch color={type.color} label={type.label} />
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">{type.label}</span>
+                    <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
+                    {type.defaultDurationMin !== null && (
+                      <span className="ml-2 text-muted-foreground text-xs tabular-nums">
+                        {type.defaultDurationMin} {strings.service.durationMinutes}
+                      </span>
+                    )}
+                    {type.isDefault && (
+                      <Badge variant="outline" className="ml-2">
+                        {strings.activityType.defaultBadge}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <ActiveStatus active={type.active} />
+                  </TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    <OrderButtons
+                      index={index}
+                      count={rows.length}
+                      pending={move.isPending}
+                      onMove={(i, delta) => {
+                        const row = rows[i]
+                        if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
 
-              <span className="flex-1">
-                <span className="font-medium">{type.label}</span>
-                <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
-              </span>
-
-              {type.defaultDurationMin !== null && (
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {type.defaultDurationMin} {strings.service.durationMinutes}
-                </span>
-              )}
-              {type.isDefault && (
-                <Badge variant="outline">{strings.activityType.defaultBadge}</Badge>
-              )}
-              {!type.active && <Badge variant="secondary">{strings.activityType.inactive}</Badge>}
-
-              <OrderButtons
-                index={index}
-                count={rows.length}
-                pending={save.isPending}
-                onMove={move}
-              />
-
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={strings.activityType.editTitle}
-                onClick={() => setEditing(type)}
-              >
-                <Pencil className="size-4" aria-hidden />
-              </Button>
-
-              <DeleteButton
-                disabled={false}
-                onConfirm={() => remove.mutate(type.id)}
-                title={strings.activityType.deleteTitle}
-                body={strings.activityType.deleteBody}
-              />
-            </li>
-          ))}
-        </ul>
+                {detail.isOpen(type.id) && (
+                  <InlineDetailRow colSpan={4}>
+                    {detail.editing ? (
+                      <ActivityTypeForm
+                        type={type}
+                        services={serviceRows}
+                        groups={groupRows}
+                        pending={save.isPending}
+                        onCancel={detail.stopEditing}
+                        onSubmit={(values) => save.mutate({ id: type.id, values })}
+                      />
+                    ) : (
+                      <ActivityTypeDetail
+                        type={type}
+                        services={serviceRows}
+                        onEdit={detail.startEditing}
+                        onClose={detail.close}
+                        onDelete={() => remove.mutate(type.id)}
+                      />
+                    )}
+                  </InlineDetailRow>
+                )}
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
       )}
-
-      {editing !== null && (
-        <ActivityTypeDialog
-          type={editing === 'new' ? undefined : editing}
-          pending={save.isPending}
-          onClose={() => setEditing(null)}
-          onSubmit={(values) =>
-            save.mutate(editing === 'new' ? { values } : { id: editing.id, values })
-          }
-        />
-      )}
-    </div>
+    </ListCard>
   )
 }
 
@@ -191,6 +233,81 @@ export function ColorSwatch({ color, label }: { color: string; label: string }) 
     >
       {label.slice(0, 3)}
     </span>
+  )
+}
+
+function ActivityTypeDetail({
+  type,
+  services,
+  onEdit,
+  onClose,
+  onDelete,
+}: {
+  type: ActivityType
+  services: readonly Service[]
+  onEdit: () => void
+  onClose: () => void
+  onDelete: () => void
+}) {
+  const byId = new Map(services.map((service) => [service.id, service]))
+
+  return (
+    <div className="space-y-4">
+      <dl className="flex flex-wrap gap-8">
+        <DetailField label={strings.activityType.code} value={type.code} />
+        <DetailField
+          label={strings.activityType.defaultDuration}
+          value={
+            type.defaultDurationMin !== null
+              ? `${type.defaultDurationMin} ${strings.service.durationMinutes}`
+              : DASH
+          }
+        />
+        <DetailField
+          label={strings.activityType.isDefault}
+          value={type.isDefault ? strings.activityType.defaultBadge : DASH}
+        />
+      </dl>
+
+      <div>
+        <span className="text-muted-foreground text-[11.5px] uppercase tracking-wide">
+          {strings.activityType.preset}
+        </span>
+        {type.presetItems.length === 0 ? (
+          <p className="mt-1 text-sm">{strings.activityType.presetEmpty}</p>
+        ) : (
+          <ol className="mt-1 space-y-1">
+            {type.presetItems.map((item, index) => {
+              const service = byId.get(item.serviceId)
+              return (
+                <li key={item.serviceId} className="flex items-baseline gap-2 text-sm">
+                  <span className="text-muted-foreground text-xs tabular-nums">{index + 1}.</span>
+                  <span>{service ? service.description : item.serviceId}</span>
+                  {item.quantity > 1 && (
+                    <span className="text-muted-foreground text-xs">× {item.quantity}</span>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          {strings.actions.edit}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          {strings.actions.close}
+        </Button>
+        <DeleteButton
+          disabled={false}
+          onConfirm={onDelete}
+          title={strings.activityType.deleteTitle}
+          body={strings.activityType.deleteBody}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -210,59 +327,21 @@ function toValues(type: ActivityType): ActivityTypeCreate {
   }
 }
 
-const NO_PRESET = 'none'
-/** More than one item is not representable as a single choice; the picker
- *  shows a count for it instead (see the note on `ActivityTypeSettings`). */
-const MULTIPLE_PRESET = 'multiple'
-
-const presetValue = (values: ActivityTypeCreate): string => {
-  if (values.presetItems.length === 0) return NO_PRESET
-  if (values.presetItems.length === 1) return `service:${values.presetItems[0]?.serviceId}`
-  return MULTIPLE_PRESET
-}
-
-/** Picking a service sets a single-item list; picking a group resolves it
- *  into its members right here, at selection time, so no row ever holds a
- *  group id (CLAUDE.md rule 5) — the same resolution the activity dialog does
- *  when a type's preset is applied to a new activity. */
-function withPreset(
-  values: ActivityTypeCreate,
-  selected: string,
-  groups: readonly ServiceGroup[],
-): ActivityTypeCreate {
-  if (selected === NO_PRESET) return { ...values, presetItems: [] }
-
-  const [kind, id] = selected.split(':')
-  if (kind === 'service' && id) {
-    return { ...values, presetItems: [{ serviceId: id, quantity: 1 }] }
-  }
-  if (kind === 'group' && id) {
-    const group = groups.find((candidate) => candidate.id === id)
-    return {
-      ...values,
-      presetItems: (group?.items ?? []).map((item) => ({
-        serviceId: item.serviceId,
-        quantity: item.quantity,
-      })),
-    }
-  }
-  return values
-}
-
-function ActivityTypeDialog({
+function ActivityTypeForm({
   type,
+  services,
+  groups,
   pending,
-  onClose,
+  onCancel,
   onSubmit,
 }: {
   type?: ActivityType
+  services: readonly Service[]
+  groups: readonly ServiceGroup[]
   pending: boolean
-  onClose: () => void
+  onCancel: () => void
   onSubmit: (values: ActivityTypeCreate) => void
 }) {
-  const services = useQuery(serviceListQueryOptions(false))
-  const groups = useQuery(serviceGroupListQueryOptions(false))
-
   const [values, setValues] = useState<ActivityTypeCreate>(
     type
       ? toValues(type)
@@ -277,151 +356,233 @@ function ActivityTypeDialog({
           active: true,
         },
   )
-  /** A new entry has nothing to read; an existing one opens in read mode
-   *  (CLAUDE.md, read mode first). */
-  const [editing, setEditing] = useState(type === undefined)
 
   const durationText = values.defaultDurationMin === null ? '' : String(values.defaultDurationMin)
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {type ? strings.activityType.editTitle : strings.activityType.createTitle}
-          </DialogTitle>
-          <DialogDescription>{strings.activityType.presetHint}</DialogDescription>
-        </DialogHeader>
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="activity-type-code">{strings.activityType.code}</Label>
+          <Input
+            id="activity-type-code"
+            className="mt-2"
+            // The handle `activity.type` points at: fixed once it exists.
+            disabled={type !== undefined}
+            value={values.code}
+            onChange={(event) => setValues({ ...values, code: event.target.value })}
+          />
+          {type === undefined && (
+            <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.codeHint}</p>
+          )}
+        </div>
 
-        <ReadModeFieldset disabled={!editing} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="activity-type-code">{strings.activityType.code}</Label>
-              <Input
-                id="activity-type-code"
-                className="mt-2"
-                // The handle `activity.type` points at: fixed once it exists.
-                disabled={type !== undefined}
-                value={values.code}
-                onChange={(event) => setValues({ ...values, code: event.target.value })}
-              />
-            </div>
+        <div>
+          <Label htmlFor="activity-type-label">{strings.activityType.label}</Label>
+          <Input
+            id="activity-type-label"
+            className="mt-2"
+            value={values.label}
+            onChange={(event) => setValues({ ...values, label: event.target.value })}
+          />
+        </div>
+      </div>
 
-            <div>
-              <Label htmlFor="activity-type-label">{strings.activityType.label}</Label>
-              <Input
-                id="activity-type-label"
-                className="mt-2"
-                value={values.label}
-                onChange={(event) => setValues({ ...values, label: event.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="activity-type-color">{strings.activityType.color}</Label>
-            <div className="mt-2 flex items-center gap-3">
-              <Input
-                id="activity-type-color"
-                type="color"
-                className="h-9 w-16 p-1"
-                value={values.color}
-                onChange={(event) => setValues({ ...values, color: event.target.value })}
-              />
-              <ColorSwatch
-                color={values.color}
-                label={values.label || strings.activityType.label}
-              />
-            </div>
-            <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.colorHint}</p>
-          </div>
-
-          <div>
-            <Label htmlFor="activity-type-duration">{strings.activityType.defaultDuration}</Label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="activity-type-color">{strings.activityType.color}</Label>
+          <div className="mt-2 flex items-center gap-3">
             <Input
-              id="activity-type-duration"
-              type="number"
-              min={1}
-              className="mt-2 max-w-40"
-              value={durationText}
-              onChange={(event) => {
-                const parsed = Number.parseInt(event.target.value, 10)
-                setValues({
-                  ...values,
-                  defaultDurationMin: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
-                })
-              }}
+              id="activity-type-color"
+              type="color"
+              className="h-9 w-16 p-1"
+              value={values.color}
+              onChange={(event) => setValues({ ...values, color: event.target.value })}
             />
-            <p className="mt-1 text-muted-foreground text-xs">
-              {strings.activityType.defaultDurationHint}
-            </p>
+            <ColorSwatch color={values.color} label={values.label || strings.activityType.label} />
           </div>
+          <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.colorHint}</p>
+        </div>
 
-          <div>
-            <Label htmlFor="activity-type-preset">{strings.activityType.preset}</Label>
-            <Select
-              value={presetValue(values)}
-              onValueChange={(selected) =>
-                setValues(withPreset(values, selected, groups.data ?? []))
-              }
-            >
-              <SelectTrigger id="activity-type-preset" className="mt-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_PRESET}>{strings.activityType.presetNone}</SelectItem>
-                {values.presetItems.length > 1 && (
-                  <SelectItem value={MULTIPLE_PRESET}>
-                    {strings.activityType.presetMultiple(values.presetItems.length)}
-                  </SelectItem>
-                )}
-                {(services.data ?? []).map((service) => (
-                  <SelectItem key={service.id} value={`service:${service.id}`}>
-                    {strings.activityType.presetService}: {service.description} —{' '}
-                    {formatEuro(service.defaultPriceCents)}
-                  </SelectItem>
-                ))}
-                {(groups.data ?? []).map((group) => (
-                  <SelectItem key={group.id} value={`group:${group.id}`}>
-                    {strings.activityType.presetGroup}: {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <CheckboxField
-            id="activity-type-default"
-            label={strings.activityType.isDefault}
-            hint={strings.activityType.isDefaultHint}
-            checked={values.isDefault}
-            onChange={(checked) => setValues({ ...values, isDefault: checked })}
+        <div>
+          <Label htmlFor="activity-type-duration">{strings.activityType.defaultDuration}</Label>
+          <Input
+            id="activity-type-duration"
+            type="number"
+            min={1}
+            className="mt-2 max-w-40"
+            value={durationText}
+            onChange={(event) => {
+              const parsed = Number.parseInt(event.target.value, 10)
+              setValues({
+                ...values,
+                defaultDurationMin: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+              })
+            }}
           />
-          <CheckboxField
-            id="activity-type-active"
-            label={strings.activityType.active}
-            hint={strings.activityType.activeHint}
-            checked={values.active}
-            onChange={(checked) => setValues({ ...values, active: checked })}
-          />
-        </ReadModeFieldset>
+          <p className="mt-1 text-muted-foreground text-xs">
+            {strings.activityType.defaultDurationHint}
+          </p>
+        </div>
+      </div>
 
-        {editing ? (
-          <DialogFooter>
-            <Button variant="ghost" onClick={onClose}>
-              {strings.actions.cancel}
-            </Button>
-            <Button
-              disabled={pending || values.code.trim() === '' || values.label.trim() === ''}
-              onClick={() => onSubmit(values)}
-            >
-              {strings.actions.save}
-            </Button>
-          </DialogFooter>
-        ) : (
-          <ReadModeFooter onClose={onClose} onEdit={() => setEditing(true)} />
-        )}
-      </DialogContent>
-    </Dialog>
+      <PresetItemsEditor
+        items={values.presetItems}
+        onChange={(presetItems) => setValues({ ...values, presetItems })}
+        services={services}
+        groups={groups}
+      />
+
+      <div className="flex flex-wrap gap-6">
+        <CheckboxField
+          id="activity-type-default"
+          label={strings.activityType.isDefault}
+          hint={strings.activityType.isDefaultHint}
+          checked={values.isDefault}
+          onChange={(checked) => setValues({ ...values, isDefault: checked })}
+        />
+        <CheckboxField
+          id="activity-type-active"
+          label={strings.activityType.active}
+          hint={strings.activityType.activeHint}
+          checked={values.active}
+          onChange={(checked) => setValues({ ...values, active: checked })}
+        />
+      </div>
+
+      <div className="flex justify-end gap-2 border-t pt-4">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          {strings.actions.cancel}
+        </Button>
+        <Button
+          type="button"
+          disabled={pending || values.code.trim() === '' || values.label.trim() === ''}
+          onClick={() => onSubmit(values)}
+        >
+          {strings.actions.save}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+type PresetItem = ActivityTypeCreate['presetItems'][number]
+
+/**
+ * Add, reorder, remove — the editor the dialog version deferred to D4. A
+ * service already on the list cannot be added a second time (the unique
+ * constraint on `activity_type_preset_item` would refuse it anyway); picking
+ * a group adds whichever of its members are not already present and never
+ * itself appears in the list (rule 5). Reordering here only touches this
+ * component's local array — `position` is rewritten from it on save, same as
+ * `service_group_item`.
+ */
+function PresetItemsEditor({
+  items,
+  onChange,
+  services,
+  groups,
+}: {
+  items: PresetItem[]
+  onChange: (items: PresetItem[]) => void
+  services: readonly Service[]
+  groups: readonly ServiceGroup[]
+}) {
+  const chosenIds = new Set(items.map((item) => item.serviceId))
+  const availableServices = services.filter((service) => !chosenIds.has(service.id))
+  const byId = new Map(services.map((service) => [service.id, service]))
+
+  const move = (index: number, delta: number) => {
+    const target = index + delta
+    if (target < 0 || target >= items.length) return
+    const next = [...items]
+    const [row] = next.splice(index, 1)
+    if (!row) return
+    next.splice(target, 0, row)
+    onChange(next)
+  }
+
+  return (
+    <div>
+      <Label>{strings.activityType.preset}</Label>
+      <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.presetLongHint}</p>
+
+      {items.length === 0 ? (
+        <p className="mt-2 text-muted-foreground text-sm">{strings.activityType.presetEmpty}</p>
+      ) : (
+        <ul className="mt-2 divide-y rounded-md border">
+          {items.map((item, index) => {
+            const service = byId.get(item.serviceId)
+            return (
+              <li key={item.serviceId} className="flex items-center gap-3 px-3 py-2">
+                <span className="flex-1 text-sm">
+                  {service ? service.description : item.serviceId}
+                  {service && (
+                    <span className="ml-2 text-muted-foreground text-xs">
+                      {formatEuro(service.defaultPriceCents)}
+                    </span>
+                  )}
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  className="w-20"
+                  aria-label={strings.activityType.presetQuantity}
+                  value={item.quantity}
+                  onChange={(event) => {
+                    const parsed = Number.parseInt(event.target.value, 10)
+                    const quantity = Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+                    onChange(items.map((row, i) => (i === index ? { ...row, quantity } : row)))
+                  }}
+                />
+                <OrderButtons index={index} count={items.length} pending={false} onMove={move} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={strings.actions.delete}
+                  onClick={() => onChange(items.filter((_, i) => i !== index))}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <Select
+        value=""
+        onValueChange={(selected) => {
+          if (selected.startsWith('service:')) {
+            onChange([...items, { serviceId: selected.slice('service:'.length), quantity: 1 }])
+            return
+          }
+          const group = groups.find((candidate) => `group:${candidate.id}` === selected)
+          if (!group) return
+          const additions = group.items
+            .filter((groupItem) => !chosenIds.has(groupItem.serviceId))
+            .map((groupItem) => ({ serviceId: groupItem.serviceId, quantity: 1 }))
+          onChange([...items, ...additions])
+        }}
+      >
+        <SelectTrigger className="mt-3 w-full sm:max-w-sm">
+          <SelectValue placeholder={strings.activityType.presetAdd} />
+        </SelectTrigger>
+        <SelectContent>
+          {availableServices.map((service) => (
+            <SelectItem key={service.id} value={`service:${service.id}`}>
+              {strings.activityType.presetService}: {service.description} —{' '}
+              {formatEuro(service.defaultPriceCents)}
+            </SelectItem>
+          ))}
+          {groups.map((group) => (
+            <SelectItem key={group.id} value={`group:${group.id}`}>
+              {strings.activityType.presetGroup}: {group.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }

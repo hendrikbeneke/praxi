@@ -32,7 +32,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D1 | Modelländerungen | **done** |
 | D2 | Querschnittsbausteine | **done** |
 | D3 | Navigation | **done** |
-| D4 | Einstellungen | todo |
+| D4 | Einstellungen | **done** |
 | D5 | Leistungen | todo |
 | D6 | Kontaktbereich | todo |
 | D7 | Zahlungen | todo |
@@ -179,6 +179,63 @@ Präferenzen und eine Konsolidierung in der Navigation.
   `invoices.index.tsx` und `receivables.tsx` verlieren nur ihren Navigationseintrag und
   bleiben sonst unverändert liegen — siehe die Notiz unter D7 oben für die Begründung und
   wann sie gelöscht werden.
+
+## D4 — Einstellungen
+
+Der größte Listenbereich, und der erste Screen, der die D2-Bausteine tatsächlich verdrahtet.
+`routes/_app/settings.tsx` ist jetzt eine Hülle: Bereichsspalte links (`section` als
+URL-Suchparameter, Default `practice` — wichtig für den Rücksprung nach der
+Google-Anmeldung), rechts eine von acht Karten.
+
+- **Die Race Condition beim Aufteilen von `practice_settings` in zwei Formulare.** "Praxis"
+  und "Rechnungsstellung" (dahin zieht das Zahlungsziel um) sind jetzt unabhängig
+  bearbeitbare Formulare auf derselben Zeile. Ein `PUT` mit dem ganzen Objekt hätte das eine
+  Formular die Änderungen des anderen überschreiben lassen, sobald beide offen sind und
+  nacheinander gespeichert wird. Die Route ist jetzt `PATCH /api/settings`, und jedes
+  Formular schickt nur die Felder, die es selbst zeigt. Eine `.partial()`-Variante des
+  bestehenden Schemas hätte das NICHT gelöst — Zod wendet ein Feld-`.default()` unabhängig
+  von `.optional()` an, sobald der Schlüssel fehlt, also hätte ein Patch mit nur dem
+  Zahlungsziel `country` und alle anderen Defaults still zurückgesetzt. `field.ts` bekam
+  dafür `optionalTextPatch()` (dieselbe Transformation ohne `.default(null)`),
+  `practice-settings.ts` ein eigenes `practiceSettingsPatchSchema`, `updatePracticeSettings`
+  einen dokumentierten Vertrag ("nur die gesendeten Spalten"), und drei neue Tests — je einer
+  in `packages/shared` (Schema-Ebene) und in `apps/server` (Domänen-Ebene) — die genau diesen
+  Fall zusichern.
+- **Rollen, Beziehungen, Vorgangsarten, Textbausteine, Mailvorlagen:** Dialog raus, Inline-Detail
+  rein (`InlineDetailRow`/`useInlineDetail`), die Zwei-`PUT`-Reihenfolge raus, `/move` (D2)
+  rein — auch bei Textbausteinen und Mailvorlagen, die der Prototyp ohne Pfeile zeigt: eine
+  Liste ohne Pfeile wäre die einzige Ausnahme gewesen. Jede Statusanzeige ist nachträglich auf
+  `ActiveStatus` (Punkt statt Badge) umgestellt — das war beim ursprünglichen Bau der
+  Dialog-Versionen übersehen worden.
+- **Beziehungsarten:** die Checkbox "Einseitig" aus dem Prototyp (invertiert zu
+  `isSymmetric`, missverständlich) wird durch zwei benannte `RadioGroup`-Optionen mit
+  Beispieltext ersetzt — "Gegenseitig" und "Gerichtet". Neues Primitiv
+  `components/ui/radio-group.tsx`. Im Code bleibt `isSymmetric`, nichts ist invertiert.
+- **Vorgangsarten:** die Vorbelegung (seit D1 eine Liste) bekommt ihren echten Editor —
+  Leistung oder Leistungsgruppe hinzufügen (eine Gruppe löst sich beim Hinzufügen sofort auf,
+  Regel 5), Menge, Reihenfolge über die D2-Pfeile, Entfernen. Die Menge ist eine notwendige
+  Abweichung vom Prototyp, der `leistungswahl()` ohne Mengenfeld zeigt — die echte Tabelle
+  (`activity_type_preset_item.quantity`) braucht sie.
+- **Mailkonto** heißt jetzt so (Singular), statt sich den Bereichstitel "Mailversand" zu
+  teilen. Passwortfeld: Platzhalter "unverändert lassen" beim Bearbeiten, Punkte im
+  Lesemodus statt eines leeren Felds.
+- **Mailvorlagen:** "Platzhalter verwenden"-Hinweis mit Link "Platzhalter ansehen", öffnet
+  einen `AlertDialog` mit `strings.mail.placeholderList`. Bewusst eine eigene, andere Liste
+  als die (nicht gebauten) Nummernkreis-Präfix-Platzhalter — geteilt hätten sie sich keine
+  Variable dürfen, das README warnt selbst davor.
+- **Nicht gebaut, wie besprochen:** Präfix-Platzhalter-Chips (YYYY/MM/Q) unter dem
+  Nummernkreis-Feld — eigenes, zurückgestelltes Paket, berührt die Nummernvergabe. Eine
+  Umsatzsteuer-ID für die Praxis — siehe "Before going live".
+- **Neuer Baustein:** `components/list-card.tsx` bekommt `ListCardTitleBar` (Titel, Hinweis,
+  rechtsbündige Aktion) — der Kartenkopf, den jede der fünf Katalogliste im Format
+  "Titel · Hinweis · Neu-Knopf" braucht, statt fünf Kopien derselben `flex`-Zeile.
+  `catalogue-controls.tsx` bekommt `DetailField` (Label über Wert), das jedes Inline-Detail
+  für seine gelesenen Felder verwendet.
+- `contact-type-settings.tsx` exportiert jetzt `RoleTypeSettings`/`RelationTypeSettings`
+  einzeln statt einer `Tabs`-kombinierten `ContactTypeSettings` — zwei Bereiche in der neuen
+  Spalte, nicht zwei Reiter auf einer Seite. `invoice-settings.tsx` verliert seine
+  Textbausteine an das neue `text-template-settings.tsx`; "Rechnungsstellung" ist jetzt
+  Nummernkreise, Zahlungsziel und Rechnungsvorlage.
 
 ---
 
@@ -1557,6 +1614,11 @@ each line names the reason, not the solution.
   the Drizzle schema, so the hand-written parts — triggers, the `EXCLUDE`
   constraint, RLS policies, the ICU locale check, partial indexes — survive
   the squash.
+- **Whether `practice_settings` needs a VAT id (`Umsatzsteuer-ID`).** The design
+  prototype's "Praxis" section shows a field for it; the real schema has only
+  `tax_number`. Not added retroactively as part of a layout pass (D4) — same
+  reasoning as the invoice number-range prefix placeholders. Decide when it is
+  actually needed, not before.
 - **`themeOptions` (German: `schiefer`, `blau`, …) vs. `startPageOptions` (English:
   `overview`, `contacts`, …)** in `packages/shared/src/user-preferences.ts` — the same kind of
   enum, named two different ways, because `theme` predates identifiers being applied

@@ -80,3 +80,59 @@ describe('invoiceTemplateSet', () => {
     expect(settings).not.toHaveProperty('invoiceTemplatePath')
   })
 })
+
+/**
+ * D4 splits the settings screen into independently-editable panels (Praxis,
+ * Rechnungsstellung) that each save only the fields they render. This is what
+ * makes that safe: a patch must touch nothing it did not mention, in either
+ * direction — an omitted field survives untouched, and that has to hold even
+ * for fields whose Zod schema carries a `.default()`, which is the specific
+ * way a naive `.partial()` would have gotten this wrong (see the comment on
+ * `practiceSettingsPatchSchema`).
+ */
+describe('updatePracticeSettings — patch semantics', () => {
+  it('leaves every field alone except the one that was sent', async () => {
+    await updatePracticeSettings(db(), tenantId, FORM)
+    await updatePracticeSettings(db(), tenantId, {
+      street: 'Ostertorsteinweg 1',
+      bankName: 'Sparkasse',
+    })
+
+    const patched = await updatePracticeSettings(db(), tenantId, { defaultPaymentTermDays: 30 })
+
+    expect(patched?.defaultPaymentTermDays).toBe(30)
+    expect(patched?.street).toBe('Ostertorsteinweg 1')
+    expect(patched?.bankName).toBe('Sparkasse')
+    expect(patched?.practiceName).toBe(FORM.practiceName)
+  })
+
+  /**
+   * The regression this whole schema exists to prevent: `country` and
+   * `defaultPaymentTermDays` both carry a `.default()`. A patch schema built
+   * as `practiceSettingsInputSchema.partial()` would reintroduce both the
+   * moment either was left out of the payload, silently resetting a value
+   * the caller never touched.
+   */
+  it('does not resurrect a defaulted field that was left out of the patch', async () => {
+    await updatePracticeSettings(db(), tenantId, { ...FORM, country: 'AT' })
+
+    const patched = await updatePracticeSettings(db(), tenantId, { street: 'Neue Straße 2' })
+
+    expect(patched?.country).toBe('AT')
+    expect(patched?.defaultPaymentTermDays).toBe(FORM.defaultPaymentTermDays)
+  })
+
+  /**
+   * `street: ''` on the wire becomes `street: null` by the time it reaches
+   * here — `optionalTextPatch` folds that at the Zod boundary, this domain
+   * function never sees a raw empty string. What it must do with an
+   * explicit `null` is clear the field, same as the full-input path.
+   */
+  it('still clears a field when the patch explicitly sends null', async () => {
+    await updatePracticeSettings(db(), tenantId, { ...FORM, street: 'Alte Straße 1' })
+
+    const patched = await updatePracticeSettings(db(), tenantId, { street: null })
+
+    expect(patched?.street).toBeNull()
+  })
+})

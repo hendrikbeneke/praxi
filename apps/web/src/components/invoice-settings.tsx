@@ -3,48 +3,33 @@ import {
   type NumberRange,
   type NumberRangeCode,
   numberRangeCodes,
-  type TextTemplate,
-  type TextTemplateInput,
-  type TextTemplateKind,
-  textTemplateKinds,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import { FileUp, Pencil } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { ApiError } from '@/lib/api'
 import {
-  createTextTemplate,
-  deleteTextTemplate,
   invoiceTemplatePagesQueryOptions,
   invoiceTemplateUrl,
   numberRangeListQueryOptions,
   saveNumberRange,
-  textTemplateListQueryOptions,
-  updateTextTemplate,
   uploadInvoiceTemplate,
 } from '@/lib/invoices'
-import { practiceSettingsQueryOptions } from '@/lib/settings'
+import { practiceSettingsQueryOptions, updatePracticeSettings } from '@/lib/settings'
 import { strings } from '@/lib/strings'
 
 /**
- * Everything about invoicing that is configuration rather than data: the
- * number ranges, the text blocks, and the letterhead.
+ * Everything about invoicing that is configuration rather than wording: the
+ * number range, the payment term default, and the letterhead. Text blocks
+ * moved to their own settings section, "Textbausteine" (D4) — this is about
+ * numbering and paper, not what the invoice says.
  *
  * The number range is here and not created automatically on purpose — it may
  * continue a numbering that began in the previous system, so it is set up by
@@ -54,8 +39,8 @@ export function InvoiceSettings() {
   return (
     <div className="space-y-6">
       <NumberRanges />
+      <PaymentTerm />
       <Letterhead />
-      <TextTemplates />
     </div>
   )
 }
@@ -253,6 +238,95 @@ function NumberRangeForm({
 }
 
 /**
+ * The one field left in `practice_settings` that belongs under
+ * "Rechnungsstellung" rather than "Praxis" — a default for new invoices, not
+ * master data about the practice. Its own card with its own "Bearbeiten",
+ * saved through the same `PATCH /api/settings` as the Praxis panel: each
+ * sends only the field it owns, so the two can never clobber each other (see
+ * `updatePracticeSettings` on the server).
+ */
+function PaymentTerm() {
+  const queryClient = useQueryClient()
+  const settings = useQuery(practiceSettingsQueryOptions)
+  const [editing, setEditing] = useState(false)
+  const [daysText, setDaysText] = useState('')
+
+  useEffect(() => {
+    if (settings.data) setDaysText(String(settings.data.defaultPaymentTermDays))
+  }, [settings.data])
+
+  const save = useMutation({
+    mutationFn: (defaultPaymentTermDays: number) =>
+      updatePracticeSettings({ defaultPaymentTermDays }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(practiceSettingsQueryOptions.queryKey, saved)
+      setEditing(false)
+      toast.success(strings.invoice.paymentTermSaved)
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : strings.invoice.paymentTermSaveFailed)
+    },
+  })
+
+  const parsed = toNumber(daysText)
+  const complete = parsed !== null && parsed >= 0 && parsed <= 365
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+        <CardTitle>{strings.invoice.paymentTermTitle}</CardTitle>
+        {!editing && (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Pencil className="size-4" aria-hidden />
+            {strings.actions.edit}
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        <ReadModeFieldset disabled={!editing}>
+          <div className="max-w-48">
+            <Label htmlFor="payment-term-days">{strings.settings.defaultPaymentTermDays}</Label>
+            <Input
+              id="payment-term-days"
+              className="mt-2"
+              inputMode="numeric"
+              value={daysText}
+              onChange={(event) => setDaysText(event.target.value)}
+            />
+            {editing && !complete && (
+              <p className="mt-1 text-destructive text-sm">{strings.validation.paymentTerm}</p>
+            )}
+          </div>
+        </ReadModeFieldset>
+
+        {editing && (
+          <div className="mt-4 flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={save.isPending}
+              onClick={() => {
+                if (settings.data) setDaysText(String(settings.data.defaultPaymentTermDays))
+                setEditing(false)
+              }}
+            >
+              {strings.actions.cancel}
+            </Button>
+            <Button
+              size="sm"
+              disabled={save.isPending || !complete}
+              onClick={() => parsed !== null && save.mutate(parsed)}
+            >
+              {save.isPending ? strings.settings.saving : strings.settings.save}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
  * The uploaded letterhead the invoice content is printed onto (rule 11).
  *
  * Whether one is stored is read from the server, not remembered from an upload
@@ -348,278 +422,5 @@ function Letterhead() {
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-const EMPTY_TEMPLATE: TextTemplateInput = {
-  kind: 'intro',
-  name: '',
-  body: '',
-  isDefault: false,
-  isPaidVariant: false,
-  sortOrder: 0,
-  active: true,
-}
-
-function TextTemplates() {
-  const queryClient = useQueryClient()
-  const templates = useQuery(textTemplateListQueryOptions)
-  const [editing, setEditing] = useState<TextTemplate | 'new' | null>(null)
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['text-templates'] })
-
-  const remove = useMutation({
-    mutationFn: (templateId: string) => deleteTextTemplate(templateId),
-    onSuccess: async () => {
-      await invalidate()
-      toast.success(strings.invoice.templateRemoved)
-    },
-    onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : strings.error.generic)
-    },
-  })
-
-  const rows = templates.data ?? []
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{strings.invoice.templates}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{strings.invoice.templateEmpty}</p>
-        ) : (
-          <ul className="space-y-2">
-            {rows.map((template) => (
-              <li key={template.id} className="rounded-md border px-4 py-3">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <button
-                    type="button"
-                    className="font-medium underline underline-offset-2"
-                    onClick={() => setEditing(template)}
-                  >
-                    {template.name}
-                  </button>
-                  <Badge variant="outline">{strings.invoice.templateKinds[template.kind]}</Badge>
-                  {template.isDefault && (
-                    <Badge variant="secondary">{strings.invoice.templateDefault}</Badge>
-                  )}
-                  {template.isPaidVariant && (
-                    <Badge variant="secondary">{strings.invoice.templatePaidVariant}</Badge>
-                  )}
-                  {!template.active && (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      {strings.invoice.templateActive}: —
-                    </Badge>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-auto"
-                    aria-label={strings.note.remove}
-                    onClick={() => remove.mutate(template.id)}
-                  >
-                    <Trash2 className="size-4" aria-hidden />
-                  </Button>
-                </div>
-                <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-muted-foreground text-sm">
-                  {template.body}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {editing === null ? (
-          <Button variant="outline" size="sm" onClick={() => setEditing('new')}>
-            <Plus className="size-4" aria-hidden />
-            {strings.invoice.templateNew}
-          </Button>
-        ) : (
-          <TextTemplateForm
-            template={editing === 'new' ? null : editing}
-            onDone={async () => {
-              await invalidate()
-              setEditing(null)
-            }}
-            onCancel={() => setEditing(null)}
-          />
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function TextTemplateForm({
-  template,
-  onDone,
-  onCancel,
-}: {
-  template: TextTemplate | null
-  onDone: () => void
-  onCancel: () => void
-}) {
-  const formId = useId()
-  const [input, setInput] = useState<TextTemplateInput>(
-    template
-      ? {
-          kind: template.kind,
-          name: template.name,
-          body: template.body,
-          isDefault: template.isDefault,
-          isPaidVariant: template.isPaidVariant,
-          sortOrder: template.sortOrder,
-          active: template.active,
-        }
-      : EMPTY_TEMPLATE,
-  )
-  /** Clicking a template's name opens it; a new one is being written, an
-   *  existing one is being looked at (CLAUDE.md, read mode first). */
-  const [editing, setEditing] = useState(template === null)
-
-  const save = useMutation({
-    mutationFn: () =>
-      template ? updateTextTemplate(template.id, input) : createTextTemplate(input),
-    onSuccess: () => {
-      toast.success(strings.invoice.templateSaved)
-      onDone()
-    },
-    onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : strings.error.generic)
-    },
-  })
-
-  return (
-    <div className="space-y-4 rounded-md border p-4">
-      <ReadModeFieldset disabled={!editing} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor={`${formId}-kind`}>{strings.invoice.templateKind}</Label>
-            <Select
-              value={input.kind}
-              onValueChange={(value) =>
-                setInput((current) => ({
-                  ...current,
-                  kind: value as TextTemplateKind,
-                  // The paid variant only exists for an outro; the check
-                  // constraint says so too.
-                  isPaidVariant: value === 'outro' ? current.isPaidVariant : false,
-                }))
-              }
-            >
-              <SelectTrigger id={`${formId}-kind`} className="mt-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {textTemplateKinds.map((kind) => (
-                  <SelectItem key={kind} value={kind}>
-                    {strings.invoice.templateKinds[kind]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor={`${formId}-name`}>{strings.invoice.templateName}</Label>
-            <Input
-              id={`${formId}-name`}
-              className="mt-2"
-              value={input.name}
-              onChange={(event) =>
-                setInput((current) => ({ ...current, name: event.target.value }))
-              }
-            />
-          </div>
-        </div>
-
-        <div>
-          <Label htmlFor={`${formId}-body`}>{strings.invoice.templateBody}</Label>
-          <Textarea
-            id={`${formId}-body`}
-            rows={4}
-            className="mt-2"
-            value={input.body}
-            onChange={(event) => setInput((current) => ({ ...current, body: event.target.value }))}
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-6">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${formId}-default`}
-              checked={input.isDefault}
-              onCheckedChange={(checked) =>
-                setInput((current) => ({ ...current, isDefault: checked === true }))
-              }
-            />
-            <Label htmlFor={`${formId}-default`} className="font-normal">
-              {strings.invoice.templateDefault}
-            </Label>
-          </div>
-
-          {input.kind === 'outro' && (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id={`${formId}-paid`}
-                checked={input.isPaidVariant}
-                onCheckedChange={(checked) =>
-                  setInput((current) => ({ ...current, isPaidVariant: checked === true }))
-                }
-              />
-              <Label htmlFor={`${formId}-paid`} className="font-normal">
-                {strings.invoice.templatePaidVariant}
-              </Label>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id={`${formId}-active`}
-              checked={input.active}
-              onCheckedChange={(checked) =>
-                setInput((current) => ({ ...current, active: checked === true }))
-              }
-            />
-            <Label htmlFor={`${formId}-active`} className="font-normal">
-              {strings.invoice.templateActive}
-            </Label>
-          </div>
-        </div>
-
-        <p className="text-muted-foreground text-xs">{strings.invoice.templateDefaultHint}</p>
-        {input.kind === 'outro' && (
-          <p className="text-muted-foreground text-xs">{strings.invoice.templatePaidVariantHint}</p>
-        )}
-      </ReadModeFieldset>
-
-      <div className="flex gap-2">
-        {editing ? (
-          <>
-            <Button
-              size="sm"
-              onClick={() => save.mutate()}
-              disabled={save.isPending || input.name.trim() === '' || input.body.trim() === ''}
-            >
-              {save.isPending ? strings.invoice.saving : strings.invoice.save}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onCancel}>
-              {strings.actions.cancel}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-              <Pencil className="size-4" aria-hidden />
-              {strings.actions.edit}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onCancel}>
-              {strings.actions.close}
-            </Button>
-          </>
-        )}
-      </div>
-    </div>
   )
 }

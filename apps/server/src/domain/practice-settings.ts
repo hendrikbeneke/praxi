@@ -1,4 +1,4 @@
-import type { PracticeSettings, PracticeSettingsInput } from '@praxi/shared'
+import type { PracticeSettings, PracticeSettingsPatch } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { practiceSettings } from '../db/schema.js'
@@ -54,10 +54,22 @@ export async function getPracticeSettings(
   return row ? toSettings(row) : null
 }
 
+/**
+ * A genuine column-level patch: `input` carries only the keys the caller
+ * actually wants to change (D4's Praxis and Rechnungsstellung panels each
+ * send their own, disjoint subset of fields), and `.set(input)` writes
+ * exactly those columns — Drizzle leaves every column whose key is absent
+ * from `input` untouched. This is what makes two independently-editable
+ * panels on the one settings row safe: saving one can never carry a stale
+ * in-memory value for a field the other panel owns, because that field's key
+ * was never in the payload to begin with. See `practiceSettingsPatchSchema`
+ * in packages/shared for why this could not simply be `.partial()` on the
+ * full input schema.
+ */
 export async function updatePracticeSettings(
   database: Database,
   tenantId: string,
-  input: PracticeSettingsInput,
+  input: PracticeSettingsPatch,
 ): Promise<PracticeSettings | null> {
   const [row] = await database
     .update(practiceSettings)

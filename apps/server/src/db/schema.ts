@@ -1571,10 +1571,11 @@ export const appointmentSyncConflict = pgTable(
  * The SMTP account invoices are sent from (slice 10). One row per tenant.
  *
  * Its own table rather than columns on `practice_settings`, and the reason is
- * structural: `updatePracticeSettings` writes the whole form object with
- * `.set(input)`. A password living there would travel to the client and back
- * on every save of the master data. Kept apart, "the settings response carries
- * no secret" is a property of the shape rather than something to remember.
+ * structural: `GET /api/settings` always answers with the whole row. A
+ * password living there would travel to the client on every load of the
+ * master data, patch semantics on the write side (D4) notwithstanding. Kept
+ * apart, "the settings response carries no secret" is a property of the shape
+ * rather than something to remember.
  *
  * The password is encrypted by `src/secrets.ts` — the same function and the
  * same key handling as the Google refresh token, not a second mechanism.
