@@ -10,7 +10,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError } from '@/lib/api'
 import { currentUserQueryOptions, resetCache, signIn } from '@/lib/auth'
+import { startPagePath } from '@/lib/navigation'
 import { strings } from '@/lib/strings'
+import { userPreferencesQueryOptions } from '@/lib/user-preferences'
 
 const searchSchema = z.object({
   /** Where to go after signing in. Relative paths only — an absolute URL here
@@ -60,7 +62,8 @@ function LoginPage() {
     onSuccess: async (user) => {
       await resetCache(queryClient)
       queryClient.setQueryData(currentUserQueryOptions.queryKey, user)
-      await navigate({ to: search.redirect ?? '/' })
+      const preferences = await queryClient.ensureQueryData(userPreferencesQueryOptions)
+      await navigate({ to: search.redirect ?? startPagePath(preferences.startPage) })
     },
   })
 

@@ -7,18 +7,25 @@
 export const strings = {
   app: {
     title: 'Praxisverwaltung',
+    /** The sidebar header's brand line — short on purpose, the practice name
+     *  underneath it already carries the rest. */
+    shortTitle: 'Praxi',
   },
   nav: {
     dashboard: 'Übersicht',
     contacts: 'Kontakte',
-    appointments: 'Termine',
+    appointments: 'Kalender',
     activities: 'Vorgänge',
-    billable: 'Abrechenbar',
-    invoices: 'Rechnungen',
-    receivables: 'Bezahlübersicht',
+    payments: 'Zahlungen',
     services: 'Leistungen',
     settings: 'Einstellungen',
     signOut: 'Abmelden',
+    collapse: 'Navigation einklappen',
+    expand: 'Navigation ausklappen',
+  },
+  account: {
+    settings: 'Einstellungen',
+    settingsDescription: 'Gilt nur für dieses Konto, nicht für die ganze Praxis.',
   },
   preferences: {
     theme: {
@@ -30,6 +37,18 @@ export const strings = {
         rose: 'Rosé',
         nacht: 'Nacht',
       },
+    },
+    startPage: {
+      label: 'Startseite nach dem Anmelden',
+      options: {
+        overview: 'Übersicht',
+        contacts: 'Kontakte',
+        calendar: 'Kalender',
+        activities: 'Vorgänge',
+      },
+      // The effect is invisible until the next sign-in, unlike the theme —
+      // without this the value just quietly changed.
+      saved: 'Startseite gespeichert. Wirkt beim nächsten Anmelden.',
     },
   },
   login: {
@@ -1079,7 +1098,6 @@ export const strings = {
     stateBilled: 'Abgerechnet',
   },
   actions: {
-    recheck: 'Erneut prüfen',
     retry: 'Erneut versuchen',
     back: 'Zurück',
     save: 'Speichern',
@@ -1100,13 +1118,13 @@ export const strings = {
   },
   status: {
     loading: 'Wird geladen …',
-    serverReachable: 'Server erreichbar',
-    serverUnreachable: 'Server nicht erreichbar',
-    serverTime: 'Serverzeit',
   },
   placeholder: {
-    /** Shown on the navigation targets whose slice has not been built yet. */
-    comingSoon: 'Dieser Bereich entsteht in einem späteren Schritt.',
+    /** For an area that is deliberately empty, not a stub waiting to be
+     *  filled — purely descriptive of now, no promise of what comes next
+     *  (CLAUDE.md, "a form never claims a state that does not exist"). Used
+     *  by Übersicht and Zahlungen today. */
+    empty: 'Hier gibt es aktuell nichts zu sehen.',
   },
   error: {
     generic: 'Es ist ein unerwarteter Fehler aufgetreten.',

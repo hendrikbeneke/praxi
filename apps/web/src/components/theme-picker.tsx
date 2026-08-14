@@ -35,8 +35,8 @@ function applyTheme(theme: Theme | undefined): void {
 
 /**
  * A user preference, not a practice setting — see CLAUDE.md and
- * `domain/user-preferences.ts`. Lives in the sidebar's account area for now;
- * the natural place once a topbar exists is a user menu there instead.
+ * `domain/user-preferences.ts`. Lives in the account dialog (`account-menu.tsx`),
+ * reached from the topbar's user menu.
  */
 export function ThemePicker() {
   const queryClient = useQueryClient()
@@ -59,7 +59,7 @@ export function ThemePicker() {
 
   return (
     <div>
-      <Label htmlFor="theme-picker" className="px-3 text-muted-foreground text-xs">
+      <Label htmlFor="theme-picker" className="text-muted-foreground text-xs">
         {strings.preferences.theme.label}
       </Label>
       <Select value={theme} onValueChange={(value) => mutation.mutate(value as Theme)}>

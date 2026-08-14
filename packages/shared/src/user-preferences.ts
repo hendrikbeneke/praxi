@@ -10,6 +10,13 @@ export const themeOptions = ['schiefer', 'blau', 'salbei', 'rose', 'nacht'] as c
 export const themeSchema = z.enum(themeOptions)
 export type Theme = z.infer<typeof themeSchema>
 
+/** Where to land after signing in. English identifiers, unlike `themeOptions`
+ *  above — that one predates this rule being applied consistently; left as
+ *  it is for now, see WORKPLAN.md "Before going live". */
+export const startPageOptions = ['overview', 'contacts', 'calendar', 'activities'] as const
+export const startPageSchema = z.enum(startPageOptions)
+export type StartPage = z.infer<typeof startPageSchema>
+
 /**
  * One schema for both reading and writing: every key is optional by nature —
  * a preference that was never set is simply absent, not a distinct "unset"
@@ -29,5 +36,7 @@ export type Theme = z.infer<typeof themeSchema>
  */
 export const userPreferencesSchema = z.object({
   theme: themeSchema.optional(),
+  startPage: startPageSchema.optional(),
+  sidebarCollapsed: z.boolean().optional(),
 })
 export type UserPreferences = z.infer<typeof userPreferencesSchema>

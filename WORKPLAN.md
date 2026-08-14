@@ -31,7 +31,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 |---|---|---|
 | D1 | Modelländerungen | **done** |
 | D2 | Querschnittsbausteine | **done** |
-| D3 | Navigation | todo |
+| D3 | Navigation | **done** |
 | D4 | Einstellungen | todo |
 | D5 | Leistungen | todo |
 | D6 | Kontaktbereich | todo |
@@ -39,6 +39,12 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D8 | Vorgänge | todo |
 | D9 | Kalender | todo |
 | D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
+
+**Für D7:** `routes/_app/billable.tsx`, `invoices.index.tsx` und `receivables.tsx` sind seit D3
+aus der Navigation, aber unverändert und funktionsfähig unter ihrer alten URL liegen geblieben —
+eine Weiterleitung auf die damals leere `/payments` hätte echten Funktionsverlust ohne Ersatz
+bedeutet. D7 überführt ihren Inhalt (Reiter, Statuschips, Rechnungseditor) nach `payments.tsx`
+und **löscht anschließend alle drei Dateien** — sonst bleiben sie als verwaiste Routen liegen.
 
 ## D10 — Rich Text für Notizen
 
@@ -107,8 +113,10 @@ D4/D5/D7, wenn die jeweiligen Screens ohnehin angefasst werden.
   verdrahtet: `moveRoleType`/`moveRelationType` (`domain/contact-type.ts`), `moveActivityType`,
   `moveService`/`moveServiceGroup`, `moveTextTemplate` (bleibt innerhalb seiner `kind`),
   `moveEmailTemplate` — je ein `POST .../:id/move` (Body `{delta}`, Schema `moveInputSchema`
-  aus `packages/shared`) und eine Client-Funktion in `lib/*.ts`. `false` (unbekannte id oder
-  Rand der Liste) beantwortet die Route mit 204, nicht 404 — ein Move ist kein Lookup.
+  aus `packages/shared`) und eine Client-Funktion in `lib/*.ts`. Rand der Liste (der Button
+  sollte da schon deaktiviert sein) beantwortet die Route mit 204, ein `false`-Aufruf mit
+  unbekannter id wirft `MoveTargetNotFoundError` und wird zu 404 — nachträglich getrennt,
+  ein unbemerkter Tippfehler in der id sollte kein stiller 204 sein.
 - **Inline-Detail:** `components/inline-detail-row.tsx` — `useInlineDetail()` (welche Zeile
   offen ist, Lese-/Bearbeitungsmodus) und `InlineDetailRow` (die aufklappende Zeile selbst).
   Der Bearbeitungsmodus-Fußzeile bleibt bewusst Sache der aufrufenden Stelle, wie schon bei
@@ -127,6 +135,50 @@ D4/D5/D7, wenn die jeweiligen Screens ohnehin angefasst werden.
 
 Nebenbei: `components/ui/checkbox.tsx` zeigt bei `checked="indeterminate"` jetzt einen Strich
 statt des Hakens (für D7s "Alle auswählen"-Kopfzeile).
+
+## D3 — Navigation
+
+Seitenleiste und Kopfzeile neu aus `_app.tsx` herausgezogen, dazu zwei neue
+Präferenzen und eine Konsolidierung in der Navigation.
+
+- **Seitenleiste:** `components/app-sidebar.tsx`. 234 px offen / 62 px eingeklappt, Kopf
+  "Praxi" (`strings.app.shortTitle`) über dem Praxisnamen (`practiceSettingsQueryOptions`,
+  neu in `_app.tsx`s `beforeLoad` vorab geladen). Die sieben Einträge liegen jetzt in
+  `lib/navigation.ts`, gemeinsam mit der Kopfzeile gelesen statt zweimal gepflegt.
+  "Termine" heißt jetzt "Kalender" (`strings.nav.appointments`), nur das Navigationslabel —
+  die Seite selbst behält ihre eigene Überschrift. Ein-/Ausklappen schreibt `sidebarCollapsed`
+  in `preferences`, optimistisch per `setQueryData` in `onMutate`.
+- **Kopfzeile:** `components/app-topbar.tsx`. Breadcrumb links zeigt nur das aktive
+  Navigationslabel aus derselben Liste — bewusst kein zweites Segment für eine Unterseite,
+  dafür gibt es noch keine Datenquelle. Rechts `components/account-menu.tsx`: ein
+  `DropdownMenu` (neu, `components/ui/dropdown-menu.tsx` — Popover ist im Repo für freien
+  Inhalt reserviert, nicht für ein Menü mit Tastaturnavigation) mit Initialen-Avatar, Name,
+  "Einstellungen" und "Abmelden" (die `signOutMutation` ist aus der Seitenleiste hierher
+  gewandert). Der Konto-Dialog ist ein `Dialog`, nicht das `AlertDialog` des Prototyps —
+  `AlertDialog` ist im Repo durchgehend Bestätigungen vorbehalten, ein Einstellungsformular
+  ist keine.
+- **Präferenzen wenden sofort an**, wie `ThemePicker` es schon vor D3 tat — kein
+  Speichern/Abbrechen, im Unterschied zum gepufferten Prototyp. `ThemePicker` ist nur
+  umgezogen (aus dem Fuß der Seitenleiste in den Dialog); neu `components/start-page-picker.tsx`
+  nach demselben Muster. Weil die Wirkung von `startPage` anders als beim Farbschema nicht
+  sofort sichtbar ist, sondern erst beim nächsten Anmelden, bestätigt eine Toast-Meldung das
+  Speichern. Die Checkbox "Navigation eingeklappt starten" aus dem Prototyp entfällt
+  ersatzlos — der Knopf in der Leiste ist die eine Wahrheit.
+- **Neue Präferenzen** in `packages/shared/src/user-preferences.ts`: `startPage`
+  (`startPageOptions` — `overview`/`contacts`/`calendar`/`activities`, englische Bezeichner,
+  im Unterschied zum deutschen `themeOptions`, siehe "Before going live") und
+  `sidebarCollapsed` (boolean). `login.tsx` schlägt nach dem Anmelden `search.redirect` nach
+  wie bisher, sonst `startPagePath(preferences.startPage)` aus `lib/navigation.ts`.
+- **"Übersicht" (`/`):** der bisherige Health-Check (Knopf, Serverzeit) war Gerüst aus
+  Slice 0 und ist entfernt, nicht ersetzt — die Seite nutzt jetzt die bereits vorhandene,
+  bis dahin ungenutzte `PlaceholderPage` mit dem neuen `strings.placeholder.empty` ("Hier
+  gibt es aktuell nichts zu sehen") statt des irreführenden `comingSoon`-Texts, den dieselbe
+  Komponente vorher trug. `strings.status.serverReachable/serverUnreachable/serverTime` und
+  `strings.actions.recheck` sind mit dem Health-Check gelöscht, `/api/health` selbst bleibt.
+- **"Zahlungen":** neu `routes/_app/payments.tsx`, derselbe leere Zustand. `billable.tsx`,
+  `invoices.index.tsx` und `receivables.tsx` verlieren nur ihren Navigationseintrag und
+  bleiben sonst unverändert liegen — siehe die Notiz unter D7 oben für die Begründung und
+  wann sie gelöscht werden.
 
 ---
 
@@ -1505,3 +1557,8 @@ each line names the reason, not the solution.
   the Drizzle schema, so the hand-written parts — triggers, the `EXCLUDE`
   constraint, RLS policies, the ICU locale check, partial indexes — survive
   the squash.
+- **`themeOptions` (German: `schiefer`, `blau`, …) vs. `startPageOptions` (English:
+  `overview`, `contacts`, …)** in `packages/shared/src/user-preferences.ts` — the same kind of
+  enum, named two different ways, because `theme` predates identifiers being applied
+  consistently to this file. Not touched retroactively; the migration squash is the point
+  where straightening it would cost nothing extra, if it still bothers anyone by then.
