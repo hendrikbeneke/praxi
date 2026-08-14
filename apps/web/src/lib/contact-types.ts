@@ -55,6 +55,15 @@ export async function deleteRoleType(typeId: string): Promise<void> {
   if (!res.ok) throw await apiError(res)
 }
 
+/** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. */
+export async function moveRoleType(typeId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api['contact-role-types'][':typeId'].move.$post({
+    param: { typeId },
+    json: { delta },
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
 export const relationTypeListQueryOptions = (includeInactive = false) =>
   queryOptions({
     queryKey: ['contact-relation-types', { includeInactive }],
@@ -89,6 +98,15 @@ export async function updateRelationType(
 
 export async function deleteRelationType(typeId: string): Promise<void> {
   const res = await api.api['contact-relation-types'][':typeId'].$delete({ param: { typeId } })
+  if (!res.ok) throw await apiError(res)
+}
+
+/** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. */
+export async function moveRelationType(typeId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api['contact-relation-types'][':typeId'].move.$post({
+    param: { typeId },
+    json: { delta },
+  })
   if (!res.ok) throw await apiError(res)
 }
 

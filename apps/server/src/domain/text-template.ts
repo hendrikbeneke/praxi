@@ -3,6 +3,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import type { Database, Transaction } from '../db/client.js'
 import { textTemplate } from '../db/schema.js'
 import { newId } from '../id.js'
+import { moveInList } from './reorder.js'
 
 /**
  * The intro and outro blocks. A catalogue like `service`, and template-shaped
@@ -109,4 +110,34 @@ export async function deleteTextTemplate(
     .returning({ id: textTemplate.id })
 
   return deleted.length > 0
+}
+
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. Order is kept
+ *  within a `kind` (intro/outro), matching `listTextTemplates`. */
+export function moveTextTemplate(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: async (reader, tid) => {
+      const [current] = await reader
+        .select({ kind: textTemplate.kind })
+        .from(textTemplate)
+        .where(and(eq(textTemplate.tenantId, tid), eq(textTemplate.id, id)))
+        .limit(1)
+      if (!current) return []
+
+      return reader
+        .select({ id: textTemplate.id, sortOrder: textTemplate.sortOrder })
+        .from(textTemplate)
+        .where(and(eq(textTemplate.tenantId, tid), eq(textTemplate.kind, current.kind)))
+        .orderBy(asc(textTemplate.sortOrder), asc(textTemplate.name))
+    },
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx.update(textTemplate).set({ sortOrder }).where(eq(textTemplate.id, rowId))
+    },
+  })
 }

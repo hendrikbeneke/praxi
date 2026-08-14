@@ -10,6 +10,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { contactRelation, contactRelationType, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
+import { moveInList } from './reorder.js'
 
 /**
  * The two catalogues behind CLAUDE.md rule 4: which roles a contact can hold,
@@ -127,6 +128,27 @@ export async function deleteRoleType(
   return deleted.length > 0
 }
 
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. */
+export function moveRoleType(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: (reader, tid) =>
+      reader
+        .select({ id: contactRoleType.id, sortOrder: contactRoleType.sortOrder })
+        .from(contactRoleType)
+        .where(eq(contactRoleType.tenantId, tid))
+        .orderBy(asc(contactRoleType.sortOrder), asc(contactRoleType.label)),
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx.update(contactRoleType).set({ sortOrder }).where(eq(contactRoleType.id, rowId))
+    },
+  })
+}
+
 // ------------------------------------------------------------ relation types
 
 export async function listRelationTypes(
@@ -226,4 +248,28 @@ export async function deleteRelationType(
     .returning({ id: contactRelationType.id })
 
   return deleted.length > 0
+}
+
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. */
+export function moveRelationType(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: (reader, tid) =>
+      reader
+        .select({ id: contactRelationType.id, sortOrder: contactRelationType.sortOrder })
+        .from(contactRelationType)
+        .where(eq(contactRelationType.tenantId, tid))
+        .orderBy(asc(contactRelationType.sortOrder), asc(contactRelationType.labelForward)),
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx
+        .update(contactRelationType)
+        .set({ sortOrder })
+        .where(eq(contactRelationType.id, rowId))
+    },
+  })
 }

@@ -3,6 +3,7 @@ import { and, asc, eq, ne } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import { emailTemplate } from '../db/schema.js'
 import { newId } from '../id.js'
+import { moveInList } from './reorder.js'
 
 /**
  * The catalogue of covering notes. One row is one complete message — subject
@@ -125,4 +126,25 @@ export async function deleteEmailTemplate(
     .returning({ id: emailTemplate.id })
 
   return row !== undefined
+}
+
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. */
+export function moveEmailTemplate(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: (reader, tid) =>
+      reader
+        .select({ id: emailTemplate.id, sortOrder: emailTemplate.sortOrder })
+        .from(emailTemplate)
+        .where(eq(emailTemplate.tenantId, tid))
+        .orderBy(asc(emailTemplate.sortOrder), asc(emailTemplate.name)),
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx.update(emailTemplate).set({ sortOrder }).where(eq(emailTemplate.id, rowId))
+    },
+  })
 }

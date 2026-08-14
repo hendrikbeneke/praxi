@@ -1088,6 +1088,16 @@ export const strings = {
     edit: 'Bearbeiten',
     close: 'Schließen',
   },
+  /** Shared by every catalogue list — `catalogue-controls.tsx` — rather than
+   *  each entity repeating "Aktiv"/"Nach oben" under its own key. */
+  catalogue: {
+    active: 'Aktiv',
+    inactive: 'Inaktiv',
+    moveUp: 'Nach oben',
+    moveDown: 'Nach unten',
+    columns: 'Spalten',
+    visibleColumns: 'Sichtbare Spalten',
+  },
   status: {
     loading: 'Wird geladen …',
     serverReachable: 'Server erreichbar',

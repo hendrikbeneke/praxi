@@ -55,3 +55,21 @@ export async function updateServiceGroup(
   if (!res.ok) throw await apiError(res)
   return res.json()
 }
+
+/** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. */
+export async function moveService(serviceId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api.services[':serviceId'].move.$post({
+    param: { serviceId },
+    json: { delta },
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
+/** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. */
+export async function moveServiceGroup(groupId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api['service-groups'][':groupId'].move.$post({
+    param: { groupId },
+    json: { delta },
+  })
+  if (!res.ok) throw await apiError(res)
+}

@@ -43,3 +43,13 @@ export async function deleteActivityType(typeId: string): Promise<void> {
   const res = await api.api['activity-types'][':typeId'].$delete({ param: { typeId } })
   if (!res.ok) throw await apiError(res)
 }
+
+/** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. The caller
+ *  invalidates the list query afterwards; the response carries no row. */
+export async function moveActivityType(typeId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api['activity-types'][':typeId'].move.$post({
+    param: { typeId },
+    json: { delta },
+  })
+  if (!res.ok) throw await apiError(res)
+}

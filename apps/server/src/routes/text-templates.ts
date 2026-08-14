@@ -1,4 +1,4 @@
-import { textTemplateInputSchema } from '@praxi/shared'
+import { moveInputSchema, textTemplateInputSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -9,6 +9,7 @@ import {
   createTextTemplate,
   deleteTextTemplate,
   listTextTemplates,
+  moveTextTemplate,
   updateTextTemplate,
 } from '../domain/text-template.js'
 import { messages } from '../messages.js'
@@ -74,3 +75,20 @@ export const textTemplatesRoute = new Hono<AppEnv>()
     if (!deleted) throw new HTTPException(404, { message: messages.textTemplate.notFound })
     return c.body(null, 204)
   })
+
+  /** `false` covers an unknown id and a boundary the button should already
+   *  have disabled alike — 204 either way, see `contact-types.ts`. */
+  .post(
+    '/:templateId/move',
+    validate('param', templateParam),
+    validate('json', moveInputSchema),
+    async (c) => {
+      await moveTextTemplate(
+        db(),
+        tenantId(c),
+        c.req.valid('param').templateId,
+        c.req.valid('json').delta,
+      )
+      return c.body(null, 204)
+    },
+  )

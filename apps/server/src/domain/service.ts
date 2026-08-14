@@ -15,6 +15,7 @@ import {
   serviceGroupItem,
 } from '../db/schema.js'
 import { newId } from '../id.js'
+import { moveInList } from './reorder.js'
 
 /**
  * The catalogue. Everything here is a template store — see CLAUDE.md rule 5.
@@ -385,4 +386,46 @@ export async function deleteServiceGroup(
     .returning({ id: serviceGroup.id })
 
   return deleted.length > 0
+}
+
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. */
+export function moveService(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: (reader, tid) =>
+      reader
+        .select({ id: service.id, sortOrder: service.sortOrder })
+        .from(service)
+        .where(eq(service.tenantId, tid))
+        .orderBy(asc(service.sortOrder), asc(service.description)),
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx.update(service).set({ sortOrder }).where(eq(service.id, rowId))
+    },
+  })
+}
+
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. */
+export function moveServiceGroup(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: (reader, tid) =>
+      reader
+        .select({ id: serviceGroup.id, sortOrder: serviceGroup.sortOrder })
+        .from(serviceGroup)
+        .where(eq(serviceGroup.tenantId, tid))
+        .orderBy(asc(serviceGroup.sortOrder), asc(serviceGroup.name)),
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx.update(serviceGroup).set({ sortOrder }).where(eq(serviceGroup.id, rowId))
+    },
+  })
 }

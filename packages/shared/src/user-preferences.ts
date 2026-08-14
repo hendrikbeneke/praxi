@@ -16,6 +16,16 @@ export type Theme = z.infer<typeof themeSchema>
  * value — so a `PATCH` body and a `GET` response have the same shape. Unknown
  * keys are dropped on parse rather than rejected, which is what lets an older
  * client read a `preferences` blob a newer one has already added a key to.
+ *
+ * **Every preference is its own flat, top-level key — never nested.**
+ * `updateUserPreferences` (`apps/server/src/domain/user-preferences.ts`)
+ * merges a save with Postgres's `jsonb || jsonb`, and that merge is shallow:
+ * it replaces a key wholesale rather than merging into it. A key like
+ * `columns: { contacts: [...], invoices: [...] }` would lose the invoice
+ * columns the instant the contact list saves its own — silently, and not
+ * noticed until both lists have been customized. `contactListColumns` and
+ * `invoiceListColumns` as two separate top-level keys cannot make that
+ * mistake; neither can ever overwrite the other.
  */
 export const userPreferencesSchema = z.object({
   theme: themeSchema.optional(),

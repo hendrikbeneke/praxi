@@ -154,6 +154,16 @@ export async function deleteTextTemplate(templateId: string): Promise<void> {
   if (!res.ok) throw await apiError(res)
 }
 
+/** One step up (`-1`) or down (`1`), within the template's own kind — see
+ *  `domain/text-template.ts`. */
+export async function moveTextTemplate(templateId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api['text-templates'][':templateId'].move.$post({
+    param: { templateId },
+    json: { delta },
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
 export const numberRangeListQueryOptions = queryOptions({
   queryKey: ['number-ranges'],
   queryFn: async (): Promise<NumberRange[]> => {

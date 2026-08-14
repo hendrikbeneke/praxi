@@ -1,4 +1,4 @@
-import { emailTemplateInputSchema, smtpSettingsInputSchema } from '@praxi/shared'
+import { emailTemplateInputSchema, moveInputSchema, smtpSettingsInputSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -9,6 +9,7 @@ import {
   createEmailTemplate,
   deleteEmailTemplate,
   listEmailTemplates,
+  moveEmailTemplate,
   updateEmailTemplate,
 } from '../domain/email-template.js'
 import { sendTestMail } from '../domain/invoice-send.js'
@@ -112,3 +113,20 @@ export const emailTemplatesRoute = new Hono<AppEnv>()
     if (!deleted) throw new HTTPException(404, { message: messages.emailTemplate.notFound })
     return c.body(null, 204)
   })
+
+  /** `false` covers an unknown id and a boundary the button should already
+   *  have disabled alike — 204 either way, see `contact-types.ts`. */
+  .post(
+    '/:templateId/move',
+    validate('param', templateParam),
+    validate('json', moveInputSchema),
+    async (c) => {
+      await moveEmailTemplate(
+        db(),
+        tenantId(c),
+        c.req.valid('param').templateId,
+        c.req.valid('json').delta,
+      )
+      return c.body(null, 204)
+    },
+  )

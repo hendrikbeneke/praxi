@@ -1,4 +1,4 @@
-import { catalogueListQuerySchema, serviceGroupInputSchema } from '@praxi/shared'
+import { catalogueListQuerySchema, moveInputSchema, serviceGroupInputSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -10,6 +10,7 @@ import {
   deleteServiceGroup,
   getServiceGroup,
   listServiceGroups,
+  moveServiceGroup,
   ServiceGroupInUseError,
   UnknownServiceError,
   updateServiceGroup,
@@ -80,3 +81,20 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
     if (!deleted) notFound()
     return c.body(null, 204)
   })
+
+  /** `false` covers an unknown id and a boundary the button should already
+   *  have disabled alike — 204 either way, see `contact-types.ts`. */
+  .post(
+    '/:groupId/move',
+    validate('param', groupParam),
+    validate('json', moveInputSchema),
+    async (c) => {
+      await moveServiceGroup(
+        db(),
+        tenantId(c),
+        c.req.valid('param').groupId,
+        c.req.valid('json').delta,
+      )
+      return c.body(null, 204)
+    },
+  )

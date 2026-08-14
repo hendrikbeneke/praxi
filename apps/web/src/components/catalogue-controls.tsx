@@ -14,19 +14,28 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
- * The three controls every catalogue list in the settings uses: roles,
- * relation types and activity types.
+ * The controls every catalogue list uses — roles, relation types, activity
+ * types today; services, service groups and the settings' text and mail
+ * templates from D4/D5 on (CLAUDE.md D2).
  *
- * They were written for the first of those and copied to the second within the
- * same file; the third would have been the point at which three copies drift
- * apart. What stays per catalogue is the wording — the delete dialog says what
- * happens to *that* kind of entry — so the texts are props.
+ * `OrderButtons` and `CheckboxField` were written for the first catalogue and
+ * copied to the second within the same file; the third would have been the
+ * point at which three copies drift apart. What stays per catalogue is the
+ * wording that names *what* is being deleted or activated — the delete
+ * dialog's title and body stay props — everything genuinely generic
+ * (Aktiv/Inaktiv, Nach oben/unten) reads from `strings.catalogue` instead of
+ * being repeated under each entity's own key.
  */
 
-/** Order is moved one step at a time rather than dragged: two rows swap their
- *  `sort_order`, which is two ordinary saves and needs no new endpoint. */
+/**
+ * Order is moved one step at a time, never dragged (design handoff rule 6).
+ * This component is presentation only: what `onMove` does — swap two rows'
+ * `sort_order` and renumber the list gaplessly, in one transaction — lives in
+ * `domain/reorder.ts` on the server, behind each catalogue's `/move` route.
+ */
 export function OrderButtons({
   index,
   count,
@@ -43,7 +52,7 @@ export function OrderButtons({
       <Button
         variant="ghost"
         size="icon"
-        aria-label={strings.contactType.moveUp}
+        aria-label={strings.catalogue.moveUp}
         disabled={index === 0 || pending}
         onClick={() => onMove(index, -1)}
       >
@@ -52,12 +61,32 @@ export function OrderButtons({
       <Button
         variant="ghost"
         size="icon"
-        aria-label={strings.contactType.moveDown}
+        aria-label={strings.catalogue.moveDown}
         disabled={index === count - 1 || pending}
         onClick={() => onMove(index, 1)}
       >
         <ChevronDown className="size-4" aria-hidden />
       </Button>
+    </span>
+  )
+}
+
+/**
+ * Status as a dot plus a word, not a badge (design handoff, "Durchgehende
+ * Muster" 4) — every catalogue list uses this instead of a `Badge` for its
+ * `active` column. Switched only in edit mode; the dot itself never takes a
+ * click, the caller's checkbox does.
+ */
+export function ActiveStatus({ active }: { active: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span
+        className={cn('size-[7px] rounded-full', active ? 'bg-primary' : 'bg-muted-foreground')}
+        aria-hidden
+      />
+      <span className="text-[12.5px] text-muted-foreground">
+        {active ? strings.catalogue.active : strings.catalogue.inactive}
+      </span>
     </span>
   )
 }

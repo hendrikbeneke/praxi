@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import { activityType, activityTypePresetItem, service } from '../db/schema.js'
 import { newId } from '../id.js'
+import { moveInList } from './reorder.js'
 import { UnknownServiceError } from './service.js'
 
 /**
@@ -246,4 +247,25 @@ export async function deleteActivityType(
     .returning({ id: activityType.id })
 
   return deleted.length > 0
+}
+
+/** Swaps with the neighbour `delta` steps away and renumbers the whole list
+ *  gaplessly, in one transaction — see `domain/reorder.ts`. */
+export function moveActivityType(
+  database: Database,
+  tenantId: string,
+  id: string,
+  delta: 1 | -1,
+): Promise<boolean> {
+  return moveInList(database, tenantId, id, delta, {
+    list: (reader, tid) =>
+      reader
+        .select({ id: activityType.id, sortOrder: activityType.sortOrder })
+        .from(activityType)
+        .where(eq(activityType.tenantId, tid))
+        .orderBy(asc(activityType.sortOrder), asc(activityType.label)),
+    setSortOrder: async (tx, rowId, sortOrder) => {
+      await tx.update(activityType).set({ sortOrder }).where(eq(activityType.id, rowId))
+    },
+  })
 }

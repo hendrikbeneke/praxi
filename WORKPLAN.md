@@ -30,7 +30,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | # | Paket | Status |
 |---|---|---|
 | D1 | Modelländerungen | **done** |
-| D2 | Querschnittsbausteine | todo |
+| D2 | Querschnittsbausteine | **done** |
 | D3 | Navigation | todo |
 | D4 | Einstellungen | todo |
 | D5 | Leistungen | todo |
@@ -85,6 +85,48 @@ Screens sonst nicht mehr kompiliert hätten.
 - **Leistungen löschbar**, wenn nirgends verwendet: `deleteService`/`deleteServiceGroup` mit
   Domänenprüfung vor dem Fremdschlüssel, für eine lesbare Meldung. `active` bleibt daneben
   bestehen für "nicht mehr zur Auswahl, aber in Gebrauch".
+
+## D2 — Querschnittsbausteine
+
+Sechs Bausteine, isoliert gebaut, ohne bestehende Screens umzustellen — das folgt in
+D4/D5/D7, wenn die jeweiligen Screens ohnehin angefasst werden.
+
+- **Listenkarte:** `components/list-card.tsx` — `ListCard`, `ListCardHeaderRow`,
+  `ListCardHeaderCell`, `DASH` ("—" für fehlende Werte). Richtigstellung zum
+  Design-Handoff-README: das dort behauptete "Klebe-Verhalten bereits in `table.tsx`
+  vorhanden" stimmt nicht — `table.tsx` ist die reine shadcn-Primitive ohne Sticky-Header;
+  die Optik entsteht neu in `ListCard`.
+- **Status als Punkt + Wort:** `ActiveStatus` in `components/catalogue-controls.tsx`, neben
+  dem bereits vorhandenen `OrderButtons`. Ausdrücklich nur für Aktiv/Inaktiv — `PaymentStatusBadge`
+  bleibt unangetastet. `strings.catalogue` neu, damit "Aktiv"/"Nach oben" nicht mehr unter
+  jeder Entität einzeln steht (auch `OrderButtons` liest jetzt von dort statt von
+  `strings.contactType`).
+- **Reihenfolge:** `domain/reorder.ts` (`moveInList`) — generisch über zwei Callbacks
+  (`list`, `setSortOrder`) statt über die Drizzle-Tabelle selbst, tauscht mit dem Nachbarn und
+  nummeriert die ganze Liste in einer Transaktion lückenlos ab 0 neu. Für alle sieben Kataloge
+  verdrahtet: `moveRoleType`/`moveRelationType` (`domain/contact-type.ts`), `moveActivityType`,
+  `moveService`/`moveServiceGroup`, `moveTextTemplate` (bleibt innerhalb seiner `kind`),
+  `moveEmailTemplate` — je ein `POST .../:id/move` (Body `{delta}`, Schema `moveInputSchema`
+  aus `packages/shared`) und eine Client-Funktion in `lib/*.ts`. `false` (unbekannte id oder
+  Rand der Liste) beantwortet die Route mit 204, nicht 404 — ein Move ist kein Lookup.
+- **Inline-Detail:** `components/inline-detail-row.tsx` — `useInlineDetail()` (welche Zeile
+  offen ist, Lese-/Bearbeitungsmodus) und `InlineDetailRow` (die aufklappende Zeile selbst).
+  Der Bearbeitungsmodus-Fußzeile bleibt bewusst Sache der aufrufenden Stelle, wie schon bei
+  `ReadModeFooter`.
+- **Spaltenauswahl und -reihenfolge:** `components/column-picker.tsx` — kontrolliert, kennt
+  `app_user.preferences` nicht. Reihenfolge per `OrderButtons`, nicht per Drag & Drop (der
+  Prototyp wich von seiner eigenen Regel 6 ab). Konvention für den Preference-Schlüssel als
+  Kommentar an `userPreferencesSchema` festgehalten: ein flacher Schlüssel je Liste
+  (`contactListColumns`, `invoiceListColumns`, …), nie verschachtelt — der Merge in
+  `updateUserPreferences` ist ein flaches `jsonb || jsonb`. Wird erst befüllt, wenn D6/D7 die
+  erste konkrete Liste umstellen.
+- **Spaltensortierung:** kein neuer Zustand — existiert in der Kontaktliste bereits über
+  Route-Suchparameter. `components/sortable-column-header.tsx` zieht nur die Kopfzeile
+  (Pfeil-Icon, Klick) aus `contacts.index.tsx` heraus, damit sie nicht in jeder Liste neu
+  entsteht.
+
+Nebenbei: `components/ui/checkbox.tsx` zeigt bei `checked="indeterminate"` jetzt einen Strich
+statt des Hakens (für D7s "Alle auswählen"-Kopfzeile).
 
 ---
 

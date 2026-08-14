@@ -73,6 +73,15 @@ export async function deleteEmailTemplate(templateId: string): Promise<void> {
   if (!res.ok) throw await apiError(res)
 }
 
+/** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. */
+export async function moveEmailTemplate(templateId: string, delta: 1 | -1): Promise<void> {
+  const res = await api.api['email-templates'][':templateId'].move.$post({
+    param: { templateId },
+    json: { delta },
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
 /** What the dialog opens with — placeholders already resolved on the server,
  *  so the screen shows exactly what will go out. */
 /** `templateId` prepares the draft again for another covering note. The
