@@ -37,7 +37,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D6 | Kontaktbereich | **done** |
 | D7 | Zahlungen | **done** |
 | D7.5 | Totes aufräumen | **done** |
-| D8 | Vorgänge | todo |
+| D8 | Vorgänge | **done** |
 | D9 | Kalender | todo |
 | D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
 
@@ -381,6 +381,43 @@ Kein Verhalten ändert sich; alles hier ist Entfernen oder Erklären.
   `canonicalNote`, `clearFlows`, `contrastRatio`, `isRealDate`, `SLOT_RELEASING_STATUSES` und
   `recipientSnapshotSchema` je einen Satz. Der Grund gehört an den Code, sonst ist der nächste
   Durchgang derselbe Durchgang.
+
+## D8 — Vorgänge
+
+Keine Migration. Der Kontaktname kommt über einen Join, der Art-Filter ist ein Query-Parameter,
+die Kennzahlen sind eine Aggregatabfrage.
+
+- **Inline statt eigener Screen, eine Komponente, drei Behälter.** `ActivityDetail` (lesen) und
+  `ActivityForm` (bearbeiten) sind aus dem 1083-Zeilen-Dialog herausgelöst. Die Vorgangsliste und
+  der Vorgänge-Reiter des Kontakts klappen sie in der Karte auf; der Kalender behält einen
+  Dialog, weil Wegnavigieren dort das Wochenraster mitnähme — `activity-dialog.tsx` ist jetzt
+  eine Hülle um dieselben zwei Komponenten und entscheidet nichts mehr selbst. Das eigene
+  Argument für einen Screen (drei Einstiege vereinheitlichen) hält nicht: der Kalender bräuchte
+  seinen Behälter ohnehin.
+- **Kein Reset-Effekt mehr.** Der Dialog blieb montiert und musste bei jedem Öffnen alles
+  zurücksetzen. Das Formular wird jetzt pro Datensatz neu montiert (`key`), liest seinen
+  Anfangszustand einmal aus den Props und hat keinen Reset-Pfad, in dem etwas stehenbleiben
+  könnte.
+- **Zwei Abschnitte statt einer Chronologie:** „Kommend" aufsteigend, „Bisher" absteigend,
+  getrennt am Zeitpunkt und nicht am Tag — um zehn Uhr ist die Neun-Uhr-Sitzung vorbei.
+- **Kennzahlen als eigener Endpunkt** (`GET /api/activities/summary`), anders als D7s
+  Rechnungsliste, die ihre 200 geladenen Zeilen selbst zählt. Der Unterschied steht als
+  Kommentar an `activitySummary`: das Standardfenster hier sind 120 Tage, für eine laufende
+  Praxis rund 700 Vorgänge — der Browser kann nicht zählen, was er nie geholt hat. Die Zahlen
+  beschreiben das Fenster, nicht die Auswahl, sonst änderte ein Chip die Zahl auf sich selbst.
+- **`unbilledCentsInRange` liegt in `billable.ts`**, nicht bei den Vorgängen: es ist der dritte
+  Leser von `claimedByAnActiveInvoice`, und alle drei müssen auf einer stornierten Rechnung
+  gleich antworten. Ohne Status und ohne Schnitt bei heute — die Zahl ist genau die Summe der
+  Zeilen mit „Offen", damit man die Spalte nachaddieren kann.
+- **Keine Spaltenauswahl** (Begründung als Kommentar an `activity-list.tsx`) und **keine zweite
+  Breadcrumb-Ebene** — es gibt keine URL für einen einzelnen Vorgang, also nichts zu benennen.
+  Der D6-Vermerk „beim zweiten Verbraucher" bleibt zutreffend.
+- **Sechs Dinge, die der Vorgänge-Prototyp weglässt, sind geblieben** und stehen als Tabelle im
+  Kopf von `activity-form.tsx`. Zwei davon tragen Regeln: ohne das Abrechenbar-Häkchen ist
+  Regel 6 nicht bedienbar, ohne den Terminstatus ließe sich ein Termin anlegen, aber nie absagen.
+- Beim Browser-Durchgang gefunden und mitbehoben: der Kalenderdialog hieß „Vorgang bearbeiten"
+  über einer Leseansicht, und der Schließen-Knopf jedes Dialogs trug das englische „Close" aus
+  der shadcn-Vorlage.
 
 ---
 

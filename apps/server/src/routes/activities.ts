@@ -1,4 +1,8 @@
-import { activityInputSchema, activityListQuerySchema } from '@praxi/shared'
+import {
+  activityInputSchema,
+  activityListQuerySchema,
+  activitySummaryQuerySchema,
+} from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -7,6 +11,7 @@ import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, isOverlapViolation } from '../db/errors.js'
 import {
   ActivityHasNotesError,
+  activitySummary,
   BilledItemError,
   createActivity,
   deleteActivity,
@@ -60,6 +65,12 @@ export const activitiesRoute = new Hono<AppEnv>()
 
   .get('/', validate('query', activityListQuerySchema), async (c) => {
     return c.json(await listActivities(db(), tenantId(c), c.req.valid('query')))
+  })
+
+  /** Registered before `/:activityId`, which is validated as a uuid — so the
+   *  two cannot be confused either way. */
+  .get('/summary', validate('query', activitySummaryQuerySchema), async (c) => {
+    return c.json(await activitySummary(db(), tenantId(c), c.req.valid('query'), new Date()))
   })
 
   .post('/', validate('json', activityInputSchema), async (c) => {

@@ -116,6 +116,15 @@ const weekdayFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   day: '2-digit',
   month: '2-digit',
 })
+/** With the year, for a list that spans months (D8). `formatBerlinWeekday`
+ *  leaves it out because the calendar it serves already names the week. */
+const weekdayDateFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+  timeZone: PRACTICE_TIME_ZONE,
+  weekday: 'short',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
 
 export function formatBerlinDate(iso: string): string {
   return dateFormat.format(new Date(iso))
@@ -127,6 +136,10 @@ export function formatBerlinTime(iso: string): string {
 
 export function formatBerlinWeekday(iso: string): string {
   return weekdayFormat.format(new Date(iso))
+}
+
+export function formatBerlinDateLong(iso: string): string {
+  return weekdayDateFormat.format(new Date(iso))
 }
 
 export function formatBerlinDateTime(iso: string): string {

@@ -14,7 +14,6 @@ import { Archive, ArchiveRestore, ArrowLeft, Pencil, Plus, ShieldCheck } from 'l
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { ActivityDialog } from '@/components/activity-dialog'
 import { ActivityList } from '@/components/activity-list'
 import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
@@ -224,20 +223,20 @@ function ContactDetailPage() {
   )
 }
 
+/**
+ * The contact's activities — the same list and the same inline detail as the
+ * Vorgänge page (D8), with the contact left out of every row and out of the
+ * detail's rail: it would repeat on each row and its link would lead back to
+ * this page.
+ */
 function ContactActivities({ contactId }: { contactId: string }) {
   const activities = useQuery(activityListQueryOptions({ contactId }))
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [edited, setEdited] = useState<Activity | undefined>()
-
-  function open(activity?: Activity) {
-    setEdited(activity)
-    setDialogOpen(true)
-  }
+  const [creating, setCreating] = useState(false)
 
   return (
     <>
       <div className="mb-4 flex justify-end">
-        <Button onClick={() => open()}>
+        <Button onClick={() => setCreating(true)}>
           <Plus className="size-4" aria-hidden />
           {strings.activity.create}
         </Button>
@@ -245,15 +244,12 @@ function ContactActivities({ contactId }: { contactId: string }) {
 
       <ActivityList
         activities={activities.data ?? []}
-        onOpen={open}
         emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
-      />
-
-      <ActivityDialog
-        activity={edited}
+        showContact={false}
         contactId={contactId}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        creating={creating}
+        onCreated={() => setCreating(false)}
+        onCancelCreate={() => setCreating(false)}
       />
     </>
   )

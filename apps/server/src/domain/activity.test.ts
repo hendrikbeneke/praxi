@@ -6,6 +6,7 @@ import { activity, activityItem, appointment } from '../db/schema.js'
 import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
 import {
+  activitySummary,
   createActivity,
   deleteActivity,
   getActivity,
@@ -770,6 +771,38 @@ describe('listing', () => {
     expect(noShows.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
   })
 
+  /** D8: the practice-wide list has a filter for the activity type, and it is
+   *  served here for the same reason the status filter is — the list is paged,
+   *  so narrowing it in the browser would hide rows the page never fetched. */
+  it('filters by activity type', async () => {
+    await createActivity(db(), tenantId, activityInput())
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({ type: 'initial', occurredAt: AT('2026-09-02T08:00:00Z') }),
+    )
+
+    const initial = await listActivities(db(), tenantId, {
+      contactId,
+      type: 'initial',
+      limit: 50,
+      offset: 0,
+    })
+    expect(initial.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
+  })
+
+  /** D8: the practice-wide list is the only place the rows need telling apart
+   *  by contact, so the name travels with the row rather than in a second
+   *  request — and it comes out of `formatContactName`, the way it does on the
+   *  invoice, so one contact reads the same in both. */
+  it('carries the contact name and number', async () => {
+    const created = await createActivity(db(), tenantId, activityInput())
+
+    expect(created).toMatchObject({ contactName: 'Erika Musterfrau', contactNumber: 1 })
+    const [listed] = await listActivities(db(), tenantId, { contactId, limit: 50, offset: 0 })
+    expect(listed?.contactName).toBe('Erika Musterfrau')
+  })
+
   it('shows only its own tenant', async () => {
     const otherTenant = await createTenant(db())
     await createActivity(db(), tenantId, activityInput())
@@ -781,5 +814,109 @@ describe('listing', () => {
         offset: 0,
       }),
     ).toEqual([])
+  })
+})
+
+/**
+ * The figures above the list (D8). They exist as a query rather than as a
+ * client-side count because the window is larger than a page — see the
+ * docstring on `activitySummary`.
+ */
+describe('the summary above the list', () => {
+  const WINDOW = { from: AT('2026-09-01T00:00:00Z'), to: AT('2026-10-01T00:00:00Z') }
+  const NOW = new Date('2026-09-15T12:00:00Z')
+
+  it('splits the window by status', async () => {
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-02T08:00:00Z') }))
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({ status: 'rendered', occurredAt: AT('2026-09-03T08:00:00Z') }),
+    )
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({ status: 'no_show', occurredAt: AT('2026-09-04T08:00:00Z') }),
+    )
+
+    expect(await activitySummary(db(), tenantId, WINDOW, NOW)).toMatchObject({
+      total: 3,
+      planned: 1,
+      rendered: 1,
+      noShow: 1,
+    })
+  })
+
+  /**
+   * Compared as an instant, not as a day: at noon, the eight o'clock session is
+   * behind you. A list that still counted it as upcoming would be wrong about
+   * the one thing the number is for.
+   */
+  it('counts what is still ahead against the given instant', async () => {
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-15T08:00:00Z') }))
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-15T16:00:00Z') }))
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-20T08:00:00Z') }))
+
+    expect((await activitySummary(db(), tenantId, WINDOW, NOW)).upcoming).toBe(2)
+  })
+
+  it('leaves out what falls outside the window', async () => {
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-08-31T23:00:00Z') }))
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-02T08:00:00Z') }))
+
+    expect((await activitySummary(db(), tenantId, WINDOW, NOW)).total).toBe(1)
+  })
+
+  /** The type filter sits above the chips, so it narrows the counts the chips
+   *  carry; picking a chip does not, or a chip would change the number written
+   *  on itself. */
+  it('narrows by activity type', async () => {
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-02T08:00:00Z') }))
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({ type: 'initial', occurredAt: AT('2026-09-03T08:00:00Z') }),
+    )
+
+    expect((await activitySummary(db(), tenantId, { ...WINDOW, type: 'initial' }, NOW)).total).toBe(
+      1,
+    )
+  })
+
+  it('answers with zeros for an empty window rather than nothing', async () => {
+    expect(await activitySummary(db(), tenantId, WINDOW, NOW)).toEqual({
+      total: 0,
+      planned: 0,
+      rendered: 0,
+      noShow: 0,
+      upcoming: 0,
+      unbilledCents: 0,
+    })
+  })
+
+  it('sums what is rendered and unclaimed', async () => {
+    const service = await createService(db(), tenantId, serviceInput({ defaultPriceCents: 9000 }))
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({
+        occurredAt: AT('2026-09-02T08:00:00Z'),
+        items: [
+          { kind: 'service', serviceId: service.id, quantity: 2, billable: true },
+          { kind: 'service', serviceId: service.id, quantity: 1, billable: false },
+        ],
+      }),
+    )
+
+    // Only the billable one, twice — the unbillable position documents that
+    // something was planned and did not happen, and is not owed.
+    expect((await activitySummary(db(), tenantId, WINDOW, NOW)).unbilledCents).toBe(18_000)
+  })
+
+  it('shows only its own tenant', async () => {
+    const otherTenant = await createTenant(db())
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-02T08:00:00Z') }))
+
+    expect((await activitySummary(db(), otherTenant, WINDOW, NOW)).total).toBe(0)
   })
 })

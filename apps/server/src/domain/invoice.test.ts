@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Invoice } from '@praxi/shared'
+import { type Invoice, sumItems } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -20,7 +20,7 @@ import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
 import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import { BilledItemError, createActivity, deleteActivity, updateActivity } from './activity.js'
-import { billingStateOf, listBillableItems } from './billable.js'
+import { billingStateOf, listBillableItems, unbilledCentsInRange } from './billable.js'
 import { cancelInvoice } from './cancel-invoice.js'
 import { FileStore } from './file-store.js'
 import { pdfPathFor } from './finalize-invoice.js'
@@ -844,5 +844,69 @@ describe('billingState', () => {
     expect(await billingStateOf(db(), tenantId, activity.id)).toBe('open')
     // And the two answers agree, which is the point.
     expect(await listBillableItems(db(), tenantId, contactId)).toHaveLength(1)
+  })
+})
+
+/**
+ * The money figure in the Vorgänge summary line (D8), tested here rather than
+ * in `activity.test.ts` because the interesting cases need real invoices.
+ *
+ * It is the third reader of `claimedByAnActiveInvoice`, and it has to answer
+ * like the other two in every case — which is only visible on a cancellation.
+ */
+describe('unbilled cents in a window', () => {
+  const WINDOW = { from: new Date('2026-08-01T00:00:00Z'), to: new Date('2026-09-01T00:00:00Z') }
+
+  it('adds up what no active invoice claims', async () => {
+    await makeActivityWithItem()
+
+    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(13_500)
+  })
+
+  it('counts nothing outside the window', async () => {
+    await makeActivityWithItem()
+
+    expect(
+      await unbilledCentsInRange(db(), tenantId, {
+        from: new Date('2026-09-01T00:00:00Z'),
+        to: new Date('2026-10-01T00:00:00Z'),
+      }),
+    ).toBe(0)
+  })
+
+  /** A draft counts as claimed, exactly as it does for the billable list — an
+   *  item already on someone's draft must not be offered a second time, and
+   *  must not be counted as still owed either. */
+  it('drops an item the moment it lands on a draft', async () => {
+    await makeActivityWithItem()
+    await draftFromBillable()
+
+    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(0)
+  })
+
+  /** The case that would break a second, simpler implementation, and the
+   *  reason this function lives next to the condition it shares. */
+  it('counts it again once the invoice is cancelled', async () => {
+    await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    await finalizeDocument(db(), tenantId, store, draft.id, render)
+
+    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(0)
+
+    await cancelInvoice(db(), tenantId, store, draft.id, render)
+
+    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(13_500)
+  })
+
+  /** The summary line is meant to be checkable by adding the column up, so it
+   *  has to equal what the rows badged "Offen" carry — no status of its own
+   *  and no cut-off at today (rule 6). */
+  it('agrees with the rows the list badges open', async () => {
+    const planned = await makeActivityWithItem()
+
+    expect(await billingStateOf(db(), tenantId, planned.id)).toBe('open')
+    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(
+      sumItems(planned.items, { billableOnly: true }),
+    )
   })
 })

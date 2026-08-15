@@ -131,6 +131,13 @@ export type ActivityItem = z.infer<typeof activityItemSchema>
 export const activitySchema = z.object({
   id: z.uuid(),
   contactId: z.uuid(),
+  /** Who it was for. On the practice-wide list this is the first thing read —
+   *  it is the only column that says the rows apart — and it comes along here
+   *  rather than through a second request, the same way `invoice.contactName`
+   *  does. `formatContactName()` on the server, so the list and the invoice
+   *  spell a name the same way. */
+  contactName: z.string(),
+  contactNumber: z.number().int(),
   type: z.string(),
   status: activityStatusSchema,
   occurredAt: z.iso.datetime(),
@@ -177,6 +184,9 @@ export const activityListQuerySchema = z
     from: z.iso.datetime().optional(),
     to: z.iso.datetime().optional(),
     status: activityStatusSchema.optional(),
+    /** The `code` of an `activity_type` (D8). Filtered on the server like the
+     *  status, and for the same reason: the list is paged. */
+    type: typeCodeSchema.optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
   })
@@ -185,6 +195,42 @@ export const activityListQuerySchema = z
   })
 
 export type ActivityListQuery = z.infer<typeof activityListQuerySchema>
+
+/** The same window the list is drawn for, without the paging — a summary is an
+ *  aggregate over the whole range or it says nothing. */
+export const activitySummaryQuerySchema = z.object({
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
+  type: typeCodeSchema.optional(),
+})
+
+export type ActivitySummaryQuery = z.infer<typeof activitySummaryQuerySchema>
+
+/**
+ * What the Vorgänge page says above the list: how many there are, how they
+ * split by status, how many are still ahead, and what has been rendered and
+ * not yet claimed.
+ *
+ * The status counts are what the filter chips carry, so switching a chip does
+ * not change them — they describe the window, not the selection.
+ */
+export const activitySummarySchema = z.object({
+  total: z.number().int(),
+  planned: z.number().int(),
+  rendered: z.number().int(),
+  noShow: z.number().int(),
+  /** Still ahead — `occurredAt` at or after the moment of asking, which is the
+   *  same rule the list's "Kommend" section uses. Compared as an instant and
+   *  not as a day on purpose: at ten in the morning, the nine o'clock session
+   *  has happened, and a list that still calls it upcoming is wrong about the
+   *  one thing this number is for. */
+  upcoming: z.number().int(),
+  /** Rendered and not yet on a non-cancelled invoice. The one figure here that
+   *  is money, and the reason the line is worth reading at all. */
+  unbilledCents: z.number().int(),
+})
+
+export type ActivitySummary = z.infer<typeof activitySummarySchema>
 
 /**
  * What to call an activity on screen: its own title, or the label of its type.

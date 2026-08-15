@@ -2,13 +2,15 @@ import type {
   Activity,
   ActivityInput,
   ActivityListQuery,
+  ActivitySummary,
+  ActivitySummaryQuery,
   AppointmentDraft,
   CalendarEntry,
 } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
-type ListParams = Pick<Partial<ActivityListQuery>, 'contactId' | 'from' | 'to' | 'status'>
+type ListParams = Pick<Partial<ActivityListQuery>, 'contactId' | 'from' | 'to' | 'status' | 'type'>
 
 export const activityListQueryOptions = (params: ListParams) =>
   queryOptions({
@@ -20,6 +22,25 @@ export const activityListQueryOptions = (params: ListParams) =>
           ...(params.from ? { from: params.from } : {}),
           ...(params.to ? { to: params.to } : {}),
           ...(params.status ? { status: params.status } : {}),
+          ...(params.type ? { type: params.type } : {}),
+        },
+      })
+      if (!res.ok) throw await apiError(res)
+      return res.json()
+    },
+  })
+
+/** The figures above the Vorgänge list. Its own request because the window is
+ *  larger than a page — see `activitySummary` in the domain. */
+export const activitySummaryQueryOptions = (params: ActivitySummaryQuery) =>
+  queryOptions({
+    queryKey: ['activities', 'summary', params],
+    queryFn: async (): Promise<ActivitySummary> => {
+      const res = await api.api.activities.summary.$get({
+        query: {
+          from: params.from,
+          to: params.to,
+          ...(params.type ? { type: params.type } : {}),
         },
       })
       if (!res.ok) throw await apiError(res)

@@ -1,6 +1,6 @@
 import type { ActivityBillingState, BillableItem } from '@praxi/shared'
 import { formatContactName } from '@praxi/shared'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
 import type { DbReader } from '../db/client.js'
 import { activity, activityItem, contact, invoice, invoiceLine } from '../db/schema.js'
 
@@ -140,6 +140,50 @@ export async function billingStateOf(
 
   if (!counts || counts.billable === 0) return 'none'
   return counts.open > 0 ? 'open' : 'billed'
+}
+
+/**
+ * What the activities in a window still carry unclaimed — the money figure in
+ * the Vorgänge summary line (D8).
+ *
+ * It lives here rather than in `activity.ts` for the reason the docstring above
+ * gives: `claimedByAnActiveInvoice` is the one definition of "already claimed",
+ * and every answer that depends on it is written next to it. A copy of the
+ * condition in another file would pass the easy cases and disagree on a
+ * cancelled invoice.
+ *
+ * **No status and no cut-off at today**, deliberately. This is exactly the sum
+ * of the rows the list badges "Offen", so the practitioner can add the column
+ * up by hand and land on the same number — which somebody eventually will. A
+ * cut-off would have been a second rule about what counts as owed, sitting
+ * beside `billingStateOf`, and rule 6 already refused to let a status decide
+ * that.
+ */
+export async function unbilledCentsInRange(
+  reader: DbReader,
+  tenantId: string,
+  range: { from: Date; to: Date; type?: string | undefined },
+): Promise<number> {
+  const filters = [
+    eq(activityItem.tenantId, tenantId),
+    eq(activityItem.billable, true),
+    gte(activity.occurredAt, range.from),
+    lt(activity.occurredAt, range.to),
+    sql`not ${claimedByAnActiveInvoice}`,
+  ]
+  if (range.type) filters.push(eq(activity.type, range.type))
+
+  const [row] = await reader
+    .select({
+      cents: sql<number>`coalesce(sum(
+        ${activityItem.quantity} * ${activityItem.unitPriceCents}
+      ), 0)::int`.mapWith(Number),
+    })
+    .from(activityItem)
+    .innerJoin(activity, eq(activity.id, activityItem.activityId))
+    .where(and(...filters))
+
+  return row?.cents ?? 0
 }
 
 /**

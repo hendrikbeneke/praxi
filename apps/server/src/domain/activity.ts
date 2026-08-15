@@ -4,21 +4,25 @@ import type {
   ActivityItem,
   ActivityItemInput,
   ActivityListQuery,
+  ActivitySummary,
+  ActivitySummaryQuery,
   Appointment,
   AppointmentDraft,
 } from '@praxi/shared'
-import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm'
+import { formatContactName } from '@praxi/shared'
+import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import {
   activity,
   activityItem,
   appointment,
+  contact,
   note,
   service,
   serviceGroupItem,
 } from '../db/schema.js'
 import { newId } from '../id.js'
-import { billingStateOf, blockingInvoiceLines } from './billable.js'
+import { billingStateOf, blockingInvoiceLines, unbilledCentsInRange } from './billable.js'
 import { enqueueDelete, enqueueUpsert } from './google-sync.js'
 
 /**
@@ -307,6 +311,12 @@ async function loadActivity(
     .select({
       id: activity.id,
       contactId: activity.contactId,
+      contactNumber: contact.contactNumber,
+      contactKind: contact.kind,
+      contactTitle: contact.title,
+      contactFirstName: contact.firstName,
+      contactLastName: contact.lastName,
+      contactCompanyName: contact.companyName,
       type: activity.type,
       status: activity.status,
       occurredAt: activity.occurredAt,
@@ -316,6 +326,10 @@ async function loadActivity(
       appointmentId: activity.appointmentId,
     })
     .from(activity)
+    // A join on a row that is being fetched anyway, not a fifth query: the
+    // practice-wide list needs the name in every row (D8), and the four
+    // queries below are already one per activity.
+    .innerJoin(contact, eq(contact.id, activity.contactId))
     .where(and(eq(activity.tenantId, tenantId), eq(activity.id, id)))
     .limit(1)
 
@@ -348,6 +362,16 @@ async function loadActivity(
   return {
     id: row.id,
     contactId: row.contactId,
+    // The same function the contact list, the billable list and the recipient
+    // snapshot use, so one contact reads the same wherever they appear.
+    contactName: formatContactName({
+      kind: row.contactKind,
+      title: row.contactTitle,
+      firstName: row.contactFirstName,
+      lastName: row.contactLastName,
+      companyName: row.contactCompanyName,
+    }),
+    contactNumber: row.contactNumber,
     type: row.type,
     status: row.status,
     occurredAt: row.occurredAt.toISOString(),
@@ -556,6 +580,7 @@ export async function listActivities(
   if (query.from) filters.push(gte(activity.occurredAt, new Date(query.from)))
   if (query.to) filters.push(lt(activity.occurredAt, new Date(query.to)))
   if (query.status) filters.push(eq(activity.status, query.status))
+  if (query.type) filters.push(eq(activity.type, query.type))
 
   const rows = await database
     .select({ id: activity.id })
@@ -567,4 +592,74 @@ export async function listActivities(
 
   const loaded = await Promise.all(rows.map((row) => loadActivity(database, tenantId, row.id)))
   return loaded.filter((item): item is Activity => item !== null)
+}
+
+/**
+ * The figures above the Vorgänge list: how many activities the window holds,
+ * how they split by status, how many are still ahead, and what is rendered and
+ * unclaimed.
+ *
+ * **Why this is an endpoint at all, when D7's invoice list counts in the
+ * browser.** There the whole window fits in one page of 200 rows, so filtering
+ * client-side hands the counts over for free. Here it does not: the default
+ * window is 120 days, and a practice with six sessions a day puts some 700
+ * activities in it. The list is therefore paged and filtered on the server, and
+ * a browser cannot count what it never fetched. The two screens differ because
+ * their data does, not because one of them was built carelessly.
+ *
+ * The counts describe the **window, not the selection** — they are what the
+ * filter chips carry, so picking a chip must not change the number written on
+ * it. Only `type` narrows them, because that filter sits above the chips.
+ */
+export async function activitySummary(
+  database: Database,
+  tenantId: string,
+  query: ActivitySummaryQuery,
+  now: Date,
+): Promise<ActivitySummary> {
+  const from = new Date(query.from)
+  const to = new Date(query.to)
+
+  const filters = [
+    eq(activity.tenantId, tenantId),
+    gte(activity.occurredAt, from),
+    lt(activity.occurredAt, to),
+  ]
+  if (query.type) filters.push(eq(activity.type, query.type))
+
+  const counted = database
+    .select({
+      total: sql<number>`count(*)::int`.mapWith(Number),
+      planned: sql<number>`count(*) filter (where ${activity.status} = 'planned')::int`.mapWith(
+        Number,
+      ),
+      rendered: sql<number>`count(*) filter (where ${activity.status} = 'rendered')::int`.mapWith(
+        Number,
+      ),
+      noShow: sql<number>`count(*) filter (where ${activity.status} = 'no_show')::int`.mapWith(
+        Number,
+      ),
+      // Built with the operator rather than by interpolating `now` into the
+      // template: a bare Date in a `sql` chunk is bound without the column's
+      // type, and postgres refuses it.
+      upcoming: sql<number>`count(*) filter (where ${gte(activity.occurredAt, now)})::int`.mapWith(
+        Number,
+      ),
+    })
+    .from(activity)
+    .where(and(...filters))
+
+  const [counts, unbilledCents] = await Promise.all([
+    counted,
+    unbilledCentsInRange(database, tenantId, { from, to, type: query.type }),
+  ])
+
+  return {
+    total: counts[0]?.total ?? 0,
+    planned: counts[0]?.planned ?? 0,
+    rendered: counts[0]?.rendered ?? 0,
+    noShow: counts[0]?.noShow ?? 0,
+    upcoming: counts[0]?.upcoming ?? 0,
+    unbilledCents,
+  }
 }

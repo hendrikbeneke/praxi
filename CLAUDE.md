@@ -688,9 +688,16 @@ service_group_item    tenant_id uuid not null -> tenant(id),
                       -- gone now — see activity_type_preset_item below, which
                       -- holds service references only, never a group.
 
--- as built (slice 4), retyped and split in slice 7.5
+-- as built (slice 4), retyped and split in slice 7.5. D8 changed no column
+-- here; it added two DERIVED fields to the read payload and a filter.
 activity              tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null,
+                        -- The payload additionally carries contactName and
+                        -- contactNumber, joined in loadActivity and stored
+                        -- nowhere — the practice-wide list needs the name in
+                        -- every row and it comes from formatContactName(), the
+                        -- same function the invoice snapshot uses. Like
+                        -- billingState, derived on read (D8).
                       type text not null,                     -- the `code` of
                         -- an activity_type. Was a check constraint until 7.5;
                         -- the set is not merely expected to change, it is

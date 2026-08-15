@@ -430,7 +430,12 @@ export const strings = {
     description: 'Was wann für wen erbracht wurde.',
     create: 'Neuer Vorgang',
     createTitle: 'Vorgang anlegen',
+    createHint: 'Was erbracht wurde, und ob ein Termin dazugehört.',
     editTitle: 'Vorgang bearbeiten',
+    /** The calendar's dialog in read mode — it is not an editor until
+     *  "Bearbeiten" is pressed, and the heading must not say otherwise. */
+    detailTitle: 'Vorgang',
+    detailHint: 'Zum Ändern auf „Bearbeiten“.',
     empty: 'Noch keine Vorgänge.',
 
     type: 'Art',
@@ -444,6 +449,16 @@ export const strings = {
      *  not a switch. */
     statusHint: 'Der Status ist nur Dokumentation und steuert die Abrechnung nicht.',
     allStatuses: 'Alle',
+    allTypes: 'Alle Arten',
+    rangeFrom: 'Von',
+    rangeTo: 'Bis',
+    /** The line above the list. Reads as one sentence rather than three
+     *  figures: it is the reason the page gets opened. */
+    summary: (total: number, upcoming: number, unbilled: string) =>
+      `${total} ${total === 1 ? 'Vorgang' : 'Vorgänge'} · ${upcoming} kommend · ` +
+      `${unbilled} noch nicht abgerechnet`,
+    sectionUpcoming: 'Kommend',
+    sectionPast: 'Bisher',
     /** What the dialog says instead of quietly overwriting. */
     presetsUnchanged: 'Dauer und Positionen bleiben unverändert.',
     presetsApply: 'Aus der Vorgangsart übernehmen',
@@ -481,7 +496,12 @@ export const strings = {
     itemMoveDown: 'Nach unten',
     sumBillable: 'Abrechenbar',
     sumTotal: 'Gesamt',
+    sumTotalLong: 'Gesamt inkl. nicht abrechenbarer Positionen',
     notBillableBadge: 'nicht abrechenbar',
+    section: 'Vorgang',
+    appointmentSection: 'Termin',
+    noAppointment: 'Kein Kalendertermin',
+    openInCalendar: 'Im Kalender öffnen',
 
     withAppointment: 'Termin im Kalender anlegen',
     withAppointmentHint:

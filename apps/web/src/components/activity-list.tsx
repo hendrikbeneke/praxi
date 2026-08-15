@@ -1,9 +1,8 @@
 import {
   type Activity,
-  activityLabel,
   activityTypeColor,
   activityTypeLabel,
-  formatBerlinDateTime,
+  formatBerlinDateLong,
   formatBerlinTime,
   formatEuro,
   occupiesSlot,
@@ -11,124 +10,192 @@ import {
   sumItems,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
+import { ActivityDetail } from '@/components/activity-detail'
+import { ActivityForm } from '@/components/activity-form'
+import { useInlineDetail } from '@/components/inline-detail-row'
 import { Badge } from '@/components/ui/badge'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
- * The chronological list of what happened, used on the contact page and on the
- * Vorgänge page.
+ * The chronological list of what happened, on the Vorgänge page and on the
+ * contact — with the detail opening **inside the card that was clicked** (D8).
  *
- * Each row shows the billable sum, because that is the number the practitioner
- * checks against — a no-show shows the Ausfallhonorar, not the session that
- * did not take place.
+ * **Not a `<Table>`, and therefore no column picker.** A row carries a
+ * position list of variable length, which is not a cell; the three badges are
+ * already conditional, which reduces better than a preference could because it
+ * is decided per row; and the one column a picker could sensibly hide is the
+ * contact name, which depends on *where* the list stands rather than on
+ * anything the practitioner should have to set. A setting that can make one of
+ * the two lists wrong is worse than no setting.
  *
- * Two statuses appear, and they say different things: the activity's says what
- * became of the treatment, the appointment's what became of the slot. Only the
- * ones worth reading are shown — a planned activity in a planned slot is the
- * normal case and gets no badge at all.
+ * For the same reason `InlineDetailRow` from D2 is not used here — that one is
+ * a `TableRow` spanning the columns above it. The hook beside it,
+ * `useInlineDetail`, carries all the state and is shared unchanged.
+ *
+ * **Two sections, not one run of dates.** What is still ahead comes first and
+ * ascending, what is behind follows descending. A pure chronology puts the
+ * oldest thing at one end and the practitioner works from both.
  */
 export function ActivityList({
   activities,
-  onOpen,
   emptyText,
+  showContact = true,
+  contactId,
+  creating = false,
+  onCreated,
+  onCancelCreate,
 }: {
   activities: readonly Activity[]
-  onOpen: (activity: Activity) => void
   emptyText?: string
+  /** False inside a contact, where the name would repeat on every row. */
+  showContact?: boolean
+  /** Fixed on the create form when the list stands inside a contact. */
+  contactId?: string | undefined
+  creating?: boolean
+  onCreated?: () => void
+  onCancelCreate?: () => void
 }) {
   const types = useQuery(activityTypeListQueryOptions(true))
+  const detail = useInlineDetail()
 
-  if (activities.length === 0) {
-    return <p className="text-muted-foreground text-sm">{emptyText ?? strings.activity.empty}</p>
-  }
+  const now = Date.now()
+  const upcoming = activities
+    .filter((entry) => Date.parse(entry.occurredAt) >= now)
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
+  const past = activities
+    .filter((entry) => Date.parse(entry.occurredAt) < now)
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+
+  const sections = [
+    { label: strings.activity.sectionUpcoming, rows: upcoming },
+    { label: strings.activity.sectionPast, rows: past },
+  ].filter((section) => section.rows.length > 0)
 
   return (
-    <ul className="space-y-3">
-      {activities.map((activity) => {
-        const billable = sumItems(activity.items, { billableOnly: true })
-        const total = sumItems(activity.items)
-        const color = activityTypeColor(types.data, activity.type)
-        const typeLabel = activityTypeLabel(types.data, activity.type)
+    <div className="space-y-2">
+      {creating && (
+        <section className="rounded-[10px] border border-primary bg-card p-4">
+          <p className="mb-4 font-semibold">{strings.activity.createTitle}</p>
+          <ActivityForm
+            {...(contactId ? { contactId } : {})}
+            onSaved={() => onCreated?.()}
+            onCancel={() => onCancelCreate?.()}
+          />
+        </section>
+      )}
 
-        return (
-          <li key={activity.id}>
-            <button
-              type="button"
-              onClick={() => onOpen(activity)}
-              className="w-full rounded-md border px-4 py-3 text-left transition-colors hover:bg-accent"
-            >
-              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="font-medium">{formatBerlinDateTime(activity.occurredAt)}</span>
-                <span
-                  className="rounded px-1.5 py-0.5 text-xs"
-                  style={{ backgroundColor: color, color: readableTextOn(color) }}
+      {activities.length === 0 && !creating && (
+        <p className="text-muted-foreground text-sm">{emptyText ?? strings.activity.empty}</p>
+      )}
+
+      {sections.map((section) => (
+        <div key={section.label}>
+          <p className="mt-3 mb-2 font-semibold">{section.label}</p>
+
+          {section.rows.map((activity) => {
+            const open = detail.isOpen(activity.id)
+            const color = activityTypeColor(types.data, activity.type)
+            const typeLabel = activityTypeLabel(types.data, activity.type)
+            const billable = sumItems(activity.items, { billableOnly: true })
+
+            return (
+              <div
+                key={activity.id}
+                className={cn(
+                  'mb-2 overflow-hidden rounded-[10px] border bg-card',
+                  open && 'border-primary',
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => detail.toggle(activity.id)}
+                  className={cn(
+                    'block w-full px-4 py-3 text-left transition-colors hover:bg-accent',
+                    open && 'bg-muted/40',
+                  )}
                 >
-                  {typeLabel}
-                </span>
-
-                {activity.status !== 'planned' && (
-                  <Badge variant={activity.status === 'no_show' ? 'secondary' : 'outline'}>
-                    {strings.activity.statuses[activity.status]}
-                  </Badge>
-                )}
-                {activity.appointment && !occupiesSlot(activity.appointment.status) && (
-                  <Badge variant="secondary">
-                    {strings.appointment.status[activity.appointment.status]}
-                  </Badge>
-                )}
-
-                {/* Whether the work has been claimed, derived on read from the
-                    invoice lines and never stored — a cancelled invoice puts
-                    this back to "Offen" on its own. `none` says there is
-                    nothing to bill here and gets no badge. */}
-                {activity.billingState !== 'none' && (
-                  <Badge variant={activity.billingState === 'billed' ? 'secondary' : 'outline'}>
-                    {activity.billingState === 'billed'
-                      ? strings.billable.stateBilled
-                      : strings.billable.stateOpen}
-                  </Badge>
-                )}
-
-                {/* The title if there is one, otherwise the type's label is
-                    already the name of this activity and stands above. */}
-                {activity.title && (
-                  <span className="text-muted-foreground text-sm">
-                    {activityLabel(activity, typeLabel)}
-                  </span>
-                )}
-                <span className="ml-auto font-medium tabular-nums">{formatEuro(billable)}</span>
-              </span>
-
-              {activity.appointment && (
-                <span className="mt-1 block text-muted-foreground text-xs">
-                  {formatBerlinTime(activity.appointment.startsAt)}–
-                  {formatBerlinTime(activity.appointment.endsAt)}
-                </span>
-              )}
-
-              {activity.items.length > 0 && (
-                <span className="mt-2 block space-y-0.5 text-muted-foreground text-sm">
-                  {activity.items.map((item) => (
-                    <span key={item.id} className="block">
-                      {item.quantity}× {item.description}
-                      {!item.billable && (
-                        <span className="ml-1 text-xs">({strings.activity.notBillableBadge})</span>
-                      )}
+                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="w-[150px] shrink-0 text-muted-foreground tabular-nums">
+                      {formatBerlinDateLong(activity.occurredAt)}
                     </span>
-                  ))}
-                </span>
-              )}
+                    {showContact && <span className="font-semibold">{activity.contactName}</span>}
+                    <span
+                      className="rounded px-1.5 py-0.5 text-xs"
+                      style={{ backgroundColor: color, color: readableTextOn(color) }}
+                    >
+                      {typeLabel}
+                    </span>
 
-              {total !== billable && (
-                <span className="mt-1 block text-muted-foreground text-xs">
-                  {strings.activity.sumTotal}: {formatEuro(total)}
-                </span>
-              )}
-            </button>
-          </li>
-        )
-      })}
-    </ul>
+                    {/* Only the badges that say something. A planned activity
+                        in a planned slot is the normal case and gets none. */}
+                    {activity.appointment === null ? (
+                      <span className="text-muted-foreground text-xs">
+                        {strings.activity.noAppointment}
+                      </span>
+                    ) : (
+                      !occupiesSlot(activity.appointment.status) && (
+                        <Badge variant="secondary">
+                          {strings.appointment.status[activity.appointment.status]}
+                        </Badge>
+                      )
+                    )}
+                    {activity.status !== 'planned' && (
+                      <Badge variant={activity.status === 'no_show' ? 'secondary' : 'outline'}>
+                        {strings.activity.statuses[activity.status]}
+                      </Badge>
+                    )}
+                    {/* Derived on read from the invoice lines and never stored
+                        — a cancelled invoice puts this back to "Offen" on its
+                        own. `none` says there is nothing to bill here. */}
+                    {activity.billingState !== 'none' && (
+                      <Badge variant={activity.billingState === 'billed' ? 'secondary' : 'outline'}>
+                        {activity.billingState === 'billed'
+                          ? strings.billable.stateBilled
+                          : strings.billable.stateOpen}
+                      </Badge>
+                    )}
+                    {activity.title && (
+                      <span className="text-muted-foreground text-sm">{activity.title}</span>
+                    )}
+
+                    <span className="ml-auto font-semibold tabular-nums">
+                      {formatEuro(billable)}
+                    </span>
+                  </span>
+
+                  <span className="mt-1 flex gap-3 text-muted-foreground text-xs">
+                    <span className="w-[150px] shrink-0 tabular-nums">
+                      {activity.appointment
+                        ? `${formatBerlinTime(activity.appointment.startsAt)}–${formatBerlinTime(activity.appointment.endsAt)}`
+                        : formatBerlinTime(activity.occurredAt)}
+                    </span>
+                    <span className="min-w-0">
+                      {activity.items
+                        .map((item) => `${item.quantity}× ${item.description}`)
+                        .join(' · ')}
+                    </span>
+                  </span>
+                </button>
+
+                {open && (
+                  <div className="border-t px-4 py-4">
+                    <ActivityDetail
+                      activity={activity}
+                      editing={detail.editing}
+                      onStartEditing={detail.startEditing}
+                      onStopEditing={detail.stopEditing}
+                      onSaved={detail.close}
+                      showContact={showContact}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
   )
 }
