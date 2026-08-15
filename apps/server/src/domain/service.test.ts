@@ -5,6 +5,9 @@ import { db } from '../db/client.js'
 import { service, serviceGroup, serviceGroupItem } from '../db/schema.js'
 import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
+import { createActivity } from './activity.js'
+import { createActivityType } from './activity-type.js'
+import { createContact } from './contact.js'
 import {
   createService,
   createServiceGroup,
@@ -343,7 +346,13 @@ describe('deleting the catalogue', () => {
     expect(await getService(db(), tenantId, created.id)).toBeNull()
   })
 
-  it('refuses to delete a service used by a group, with a readable error', async () => {
+  /**
+   * D5: the error carries *which* of the three tables still reference the
+   * service, not just that one does — "wird verwendet" alone is a message
+   * the practitioner cannot act on. One test per reason, plus one where more
+   * than one applies at once, since the message has to name all of them.
+   */
+  it('refuses to delete a service used by a group, and names that reason', async () => {
     const created = await createService(db(), tenantId, serviceInput())
     await createServiceGroup(
       db(),
@@ -351,10 +360,108 @@ describe('deleting the catalogue', () => {
       groupInput({ items: [{ serviceId: created.id, quantity: 1 }] }),
     )
 
-    await expect(deleteService(db(), tenantId, created.id)).rejects.toBeInstanceOf(
-      ServiceInUseError,
-    )
+    const error = await deleteService(db(), tenantId, created.id).catch((caught) => caught)
+    expect(error).toBeInstanceOf(ServiceInUseError)
+    expect((error as ServiceInUseError).usage).toEqual({
+      activity: false,
+      group: true,
+      preset: false,
+    })
     expect(await getService(db(), tenantId, created.id)).not.toBeNull()
+  })
+
+  it('refuses to delete a service used by an activity item, and names that reason', async () => {
+    const created = await createService(db(), tenantId, serviceInput())
+    const contact = await createContact(db(), tenantId, {
+      kind: 'person',
+      salutation: null,
+      title: null,
+      firstName: 'Erika',
+      lastName: 'Musterfrau',
+      dateOfBirth: null,
+      birthPlace: null,
+      gender: null,
+      vatId: null,
+      street: null,
+      houseNumber: null,
+      postalCode: null,
+      city: null,
+      country: 'DE',
+      email: null,
+      phoneMobile: null,
+      phoneLandline: null,
+      internalNote: null,
+      diagnosis: null,
+      roles: [{ roleCode: 'patient', since: null }],
+    })
+    await createActivity(db(), tenantId, {
+      contactId: contact.id,
+      type: 'session',
+      status: 'planned',
+      occurredAt: new Date('2026-09-01T08:00:00Z').toISOString(),
+      durationMin: null,
+      title: null,
+      internalNote: null,
+      appointment: null,
+      items: [{ kind: 'service', serviceId: created.id, quantity: 1, billable: true }],
+    })
+
+    const error = await deleteService(db(), tenantId, created.id).catch((caught) => caught)
+    expect(error).toBeInstanceOf(ServiceInUseError)
+    expect((error as ServiceInUseError).usage).toEqual({
+      activity: true,
+      group: false,
+      preset: false,
+    })
+  })
+
+  it('refuses to delete a service used as an activity type preset, and names that reason', async () => {
+    const created = await createService(db(), tenantId, serviceInput())
+    await createActivityType(db(), tenantId, {
+      code: 'preset_user',
+      label: 'Verwendet Vorbelegung',
+      color: '#64748b',
+      defaultDurationMin: null,
+      presetItems: [{ serviceId: created.id, quantity: 1 }],
+      isDefault: false,
+      sortOrder: 100,
+      active: true,
+    })
+
+    const error = await deleteService(db(), tenantId, created.id).catch((caught) => caught)
+    expect(error).toBeInstanceOf(ServiceInUseError)
+    expect((error as ServiceInUseError).usage).toEqual({
+      activity: false,
+      group: false,
+      preset: true,
+    })
+  })
+
+  it('names every reason at once when more than one applies', async () => {
+    const created = await createService(db(), tenantId, serviceInput())
+    await createServiceGroup(
+      db(),
+      tenantId,
+      groupInput({ items: [{ serviceId: created.id, quantity: 1 }] }),
+    )
+    await createActivityType(db(), tenantId, {
+      code: 'preset_user_2',
+      label: 'Verwendet Vorbelegung 2',
+      color: '#64748b',
+      defaultDurationMin: null,
+      presetItems: [{ serviceId: created.id, quantity: 1 }],
+      isDefault: false,
+      sortOrder: 100,
+      active: true,
+    })
+
+    const error = await deleteService(db(), tenantId, created.id).catch((caught) => caught)
+    expect(error).toBeInstanceOf(ServiceInUseError)
+    expect((error as ServiceInUseError).usage).toEqual({
+      activity: false,
+      group: true,
+      preset: true,
+    })
   })
 
   it('reports false rather than throwing for an id in another tenant', async () => {

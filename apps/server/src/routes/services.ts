@@ -31,7 +31,7 @@ function translate(error: unknown): never {
     throw new HTTPException(409, { message: messages.service.shortCodeTaken })
   }
   if (error instanceof ServiceInUseError) {
-    throw new HTTPException(409, { message: messages.service.inUse })
+    throw new HTTPException(409, { message: messages.service.inUse(error.usage) })
   }
   if (error instanceof MoveTargetNotFoundError) notFound()
   throw error

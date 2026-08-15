@@ -56,6 +56,16 @@ export async function updateServiceGroup(
   return res.json()
 }
 
+export async function deleteService(serviceId: string): Promise<void> {
+  const res = await api.api.services[':serviceId'].$delete({ param: { serviceId } })
+  if (!res.ok) throw await apiError(res)
+}
+
+export async function deleteServiceGroup(groupId: string): Promise<void> {
+  const res = await api.api['service-groups'][':groupId'].$delete({ param: { groupId } })
+  if (!res.ok) throw await apiError(res)
+}
+
 /** One step up (`-1`) or down (`1`) — see `domain/reorder.ts`. */
 export async function moveService(serviceId: string, delta: 1 | -1): Promise<void> {
   const res = await api.api.services[':serviceId'].move.$post({

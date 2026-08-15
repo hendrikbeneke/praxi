@@ -33,7 +33,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D2 | Querschnittsbausteine | **done** |
 | D3 | Navigation | **done** |
 | D4 | Einstellungen | **done** |
-| D5 | Leistungen | todo |
+| D5 | Leistungen | **done** |
 | D6 | Kontaktbereich | todo |
 | D7 | Zahlungen | todo |
 | D8 | Vorgänge | todo |
@@ -236,6 +236,48 @@ Google-Anmeldung), rechts eine von acht Karten.
   Spalte, nicht zwei Reiter auf einer Seite. `invoice-settings.tsx` verliert seine
   Textbausteine an das neue `text-template-settings.tsx`; "Rechnungsstellung" ist jetzt
   Nummernkreise, Zahlungsziel und Rechnungsvorlage.
+
+## D5 — Leistungen
+
+Kleiner als D4, dieselben Bausteine — mit einer Ausnahme.
+
+- **Grid statt `<Table>`.** Die Kopf- und Zeilenraster in `service-list.tsx` und
+  `service-group-list.tsx` (58/1fr/48/76/80 px bzw. 150/1fr/96/84 px) sind ein CSS-Grid mit
+  einer `1fr`-Spalte dazwischen — ein HTML-Table gibt das nicht her. Beide Dateien tragen
+  dafür einen Kommentar am Kopf, warum sie bewusst kein `ListCard`-`<Table>` verwenden.
+  **Aufgespalten werden musste dafür nichts:** `ListCard`, `ListCardTitleBar`,
+  `ActiveStatus`, `OrderButtons`, `DeleteButton`, `DetailField` und `CheckboxField` sind
+  bereits markup-neutrale Bausteine (Divs/Spans/Buttons) und funktionieren unverändert in
+  einem Grid wie in einer Tabelle. Nur `InlineDetailRow` selbst (an `<TableRow>`/`<TableCell>`
+  gebunden) kommt hier nicht zum Einsatz — `useInlineDetail()`, die reine Zustandslogik
+  dahinter, schon; das aufklappende Detail ist ein einfaches `div` in derselben Optik. Bleibt
+  bei dieser einen Ausnahme, keine zweite Variante der D2-Bausteine nötig.
+- **`serviceIsInUse` heißt jetzt `serviceUsage` und sagt, wo.** Bisher ein bloßes
+  `boolean` — die Meldung konnte nur "wird verwendet" sagen, nicht wo. Jetzt ein
+  `{ activity, group, preset }`, `ServiceInUseError` trägt es, und
+  `messages.service.inUse(usage)` baut daraus einen Satz, der alle zutreffenden Gründe nennt
+  ("in Vorgängen", "in einer Leistungsgruppe", "als Vorbelegung einer Vorgangsart"),
+  kombiniert wo mehr als einer zutrifft. Vier neue Domänen-Tests, je einer pro Grund und
+  einer für die Kombination — vorher war nur der Gruppen-Fall abgedeckt.
+- **Löschen bleibt reaktiv**, wie in D4: der Knopf ist immer da, der Versuch schlägt fehl,
+  die — jetzt spezifische — Meldung kommt als Toast. Bewusst nicht die im Prototyp gezeigte
+  vorab gesperrte Variante, die vor dem Öffnen einer Zeile schon wüsste, ob sie löschbar ist —
+  das bräuchte eine eigene Abfrage pro Zeile. `deleteService`/`deleteServiceGroup` sind neu in
+  `lib/services.ts`; die Routen dafür gab es seit D1, nur noch keine Oberfläche.
+- **Reihenfolge geprüft, wo sie greift:** `listServices`/`listServiceGroups` sortieren
+  serverseitig nach `sortOrder`, das ist die einzige Quelle. `activity-dialog.tsx` und D4s
+  Vorbelegungs-Editor rendern die Antwort unverändert, ohne eigene Sortierung — beide
+  übernehmen die Reihenfolge also schon richtig. Der Rechnungseditor bietet den Katalog
+  nirgends direkt an (eine Position kommt aus einem Vorgangsposten oder wird frei getippt),
+  dort gibt es nichts zu prüfen.
+- **`service-dialog.tsx`/`service-group-dialog.tsx`** sind umbenannt zu
+  **`service-list.tsx`**/**`service-group-list.tsx`** (`ServiceList`/`ServiceGroupList`) —
+  kein Dialog mehr. `services.tsx` verliert den "Inaktive anzeigen"-Filter und den
+  Anlegen-Knopf im `PageHeader`; jede Liste bringt ihren eigenen "Neu"-Knopf in der
+  `ListCardTitleBar` mit, wie in D4.
+- Anlegen einheitlich als Bereich über der Liste, für Leistungen wie für Gruppen — der
+  Prototyp macht es an den beiden Stellen unterschiedlich (Leistung: eigener Kasten
+  oberhalb; Gruppe: sofort aufgeklappte Zeile), das wird hier vereinheitlicht.
 
 ---
 

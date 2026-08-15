@@ -61,9 +61,28 @@ export const messages = {
   service: {
     notFound: 'Diese Leistung existiert nicht.',
     shortCodeTaken: 'Dieses Kürzel ist bereits vergeben.',
-    inUse:
-      'Diese Leistung wird noch verwendet und kann nicht gelöscht werden. ' +
-      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.',
+    /**
+     * "Wird noch verwendet" without saying where is a message the
+     * practitioner cannot act on (D5) — this names every table that still
+     * references the service, not just that one does.
+     */
+    inUse: (usage: { activity: boolean; group: boolean; preset: boolean }) => {
+      const reasons = [
+        usage.activity && 'in Vorgängen',
+        usage.group && 'in einer Leistungsgruppe',
+        usage.preset && 'als Vorbelegung einer Vorgangsart',
+      ].filter((reason): reason is string => reason !== false)
+
+      const where =
+        reasons.length <= 1
+          ? (reasons[0] ?? '')
+          : `${reasons.slice(0, -1).join(', ')} und ${reasons.at(-1)}`
+
+      return (
+        `Diese Leistung wird noch verwendet (${where}) und kann nicht gelöscht werden. ` +
+        'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.'
+      )
+    },
     groupNotFound: 'Diese Leistungsgruppe existiert nicht.',
     groupNameTaken: 'Eine Leistungsgruppe mit diesem Namen existiert bereits.',
     groupInUse:

@@ -33,12 +33,28 @@ export class UnknownServiceError extends Error {
   }
 }
 
+/** Which of the three tables a service is still referenced from — D5 needs
+ *  this broken out because "wird verwendet" without saying where is a
+ *  message that does not help the practitioner act on it. */
+export type ServiceUsage = {
+  activity: boolean
+  group: boolean
+  preset: boolean
+}
+
+function usageIsEmpty(usage: ServiceUsage): boolean {
+  return !usage.activity && !usage.group && !usage.preset
+}
+
 /** A service still referenced elsewhere is refused before the foreign keys
  *  even see it, so the message can name what stands in the way. */
 export class ServiceInUseError extends Error {
-  constructor() {
+  readonly usage: ServiceUsage
+
+  constructor(usage: ServiceUsage) {
     super('service is referenced by an activity item, a group or a preset')
     this.name = 'ServiceInUseError'
+    this.usage = usage
   }
 }
 
@@ -305,12 +321,12 @@ export async function updateServiceGroup(
 }
 
 /**
- * Whether a service is referenced anywhere it must not be deleted out from
- * under — checked in the domain so the message can say so in a sentence
- * rather than surfacing a constraint name. The foreign keys from all three
- * tables stay in place as the actual guarantee; this only runs ahead of them.
+ * Where a service is still referenced, if anywhere — checked in the domain so
+ * the message can name every place rather than surfacing a constraint name or
+ * a bare "in use". The foreign keys from all three tables stay in place as
+ * the actual guarantee; this only runs ahead of them, for the sentence.
  */
-async function serviceIsInUse(reader: DbReader, tenantId: string, id: string): Promise<boolean> {
+async function serviceUsage(reader: DbReader, tenantId: string, id: string): Promise<ServiceUsage> {
   const [usedByActivity, usedByGroup, usedByPreset] = await Promise.all([
     reader
       .select({ id: activityItem.id })
@@ -334,7 +350,11 @@ async function serviceIsInUse(reader: DbReader, tenantId: string, id: string): P
       .limit(1),
   ])
 
-  return usedByActivity.length > 0 || usedByGroup.length > 0 || usedByPreset.length > 0
+  return {
+    activity: usedByActivity.length > 0,
+    group: usedByGroup.length > 0,
+    preset: usedByPreset.length > 0,
+  }
 }
 
 /** Deletable once nothing references it; deactivation is the answer while it
@@ -344,7 +364,8 @@ export async function deleteService(
   tenantId: string,
   id: string,
 ): Promise<boolean> {
-  if (await serviceIsInUse(database, tenantId, id)) throw new ServiceInUseError()
+  const usage = await serviceUsage(database, tenantId, id)
+  if (!usageIsEmpty(usage)) throw new ServiceInUseError(usage)
 
   const deleted = await database
     .delete(service)

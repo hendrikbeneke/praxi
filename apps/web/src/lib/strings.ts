@@ -373,11 +373,10 @@ export const strings = {
 
     tabServices: 'Leistungen',
     tabGroups: 'Leistungsgruppen',
-    showInactive: 'Inaktive anzeigen',
 
     create: 'Neue Leistung',
     createTitle: 'Leistung anlegen',
-    editTitle: 'Leistung bearbeiten',
+    createHint: 'wird in den Katalog aufgenommen',
     empty: 'Noch keine Leistungen im Katalog.',
 
     shortCode: 'Kürzel',
@@ -391,21 +390,30 @@ export const strings = {
     durationEmpty: 'ohne Dauer',
     active: 'Aktiv',
     activeHint: 'Inaktive Leistungen erscheinen in keiner Auswahlliste.',
-    inactiveBadge: 'Inaktiv',
+    /** The inline detail's own hint — a fuller sentence than `activeHint`,
+     *  which is the checkbox's caption in the form. */
+    detailHintActive: 'Erscheint in allen Auswahllisten.',
+    detailHintInactive: 'Erscheint in keiner Auswahlliste, bleibt aber an bestehenden Vorgängen.',
+    deleteTitle: 'Leistung löschen?',
+    deleteBody:
+      'Die Leistung verschwindet aus dem Katalog. Vorgänge und Rechnungen, die sie bereits ' +
+      'übernommen haben, bleiben unverändert — dort ist die Leistung kopiert.',
+    deleted: 'Leistung gelöscht.',
+    deleteFailed: 'Die Leistung konnte nicht gelöscht werden.',
 
     groupCreate: 'Neue Gruppe',
     groupCreateTitle: 'Leistungsgruppe anlegen',
-    groupEditTitle: 'Leistungsgruppe bearbeiten',
+    groupCreateHint: 'wird zur Auswahl beim Anlegen eines Vorgangs',
     groupEmpty: 'Noch keine Leistungsgruppen.',
+    groupColumnLabel: 'Gruppe',
+    groupColumnContains: 'Enthalten',
+    groupColumnCount: 'Anzahl',
     groupName: 'Name',
     groupItems: 'Enthaltene Leistungen',
     groupItemsEmpty: 'Noch keine Leistung hinzugefügt.',
-    groupAddItem: 'Leistung hinzufügen',
     groupChooseService: 'Leistung wählen',
     groupQuantity: 'Menge',
     groupSum: 'Summe',
-    groupMoveUp: 'Nach oben',
-    groupMoveDown: 'Nach unten',
     groupRemove: 'Entfernen',
     groupCount: (count: number) => (count === 1 ? '1 Leistung' : `${count} Leistungen`),
     /** A group may hold a service that was deactivated afterwards. */
@@ -413,6 +421,11 @@ export const strings = {
     groupHint:
       'Eine Gruppe ist nur eine Auswahlhilfe. Beim Anlegen eines Vorgangs wird sie sofort in ' +
       'einzelne Positionen aufgelöst; gespeichert wird kein Verweis auf die Gruppe.',
+    groupDeleteTitle: 'Leistungsgruppe löschen?',
+    groupDeleteBody:
+      'Die Gruppe verschwindet aus der Auswahl. Die enthaltenen Leistungen bleiben im Katalog.',
+    groupDeleted: 'Leistungsgruppe gelöscht.',
+    groupDeleteFailed: 'Die Leistungsgruppe konnte nicht gelöscht werden.',
 
     save: 'Speichern',
     saving: 'Wird gespeichert …',
