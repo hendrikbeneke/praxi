@@ -38,5 +38,11 @@ export const userPreferencesSchema = z.object({
   theme: themeSchema.optional(),
   startPage: startPageSchema.optional(),
   sidebarCollapsed: z.boolean().optional(),
+  /** Column keys, visible ones in display order — membership is visibility,
+   *  array order is column order (D6, `ColumnPicker`). The appointment
+   *  column is deliberately not part of this list: its visibility already
+   *  follows the Aktuell/A–Z view, and letting a preference override that
+   *  too would mean two mechanisms fighting over one column. */
+  contactListColumns: z.array(z.string()).optional(),
 })
 export type UserPreferences = z.infer<typeof userPreferencesSchema>

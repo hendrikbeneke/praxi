@@ -274,8 +274,14 @@ export const strings = {
     },
 
     sectionName: 'Name',
+    sectionRoles: 'Rollen',
+    sectionRolesHint: 'Nur beim Anlegen hier wählbar, später über den Kopfbereich.',
     sectionAddress: 'Anschrift',
+    sectionAddressHint:
+      'Hausnummer ihr eigenes Feld, für Anzeige und Rechnung wieder zusammengesetzt.',
     sectionContact: 'Kontakt',
+    sectionContactHint:
+      'Mobil und Festnetz getrennt — die Art entscheidet, ob man anruft oder schreibt.',
     sectionInternal: 'Intern',
     salutation: 'Anrede',
     salutationOptions: ['Herr', 'Frau'],

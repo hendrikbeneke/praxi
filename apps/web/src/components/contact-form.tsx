@@ -14,7 +14,6 @@ import { z } from 'zod'
 import { DateField } from '@/components/date-field'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +27,33 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { roleTypeListQueryOptions } from '@/lib/contact-types'
 import { strings } from '@/lib/strings'
+
+/**
+ * One section of the master-data grid (design handoff, "Abschnittsraster") —
+ * a 200px label-and-hint column beside a field grid, sections separated by a
+ * rule rather than each living in its own `Card`. Local to this file: both
+ * `ContactForm` call sites (the "Stammdaten" tab and `contacts/new`) go
+ * through the one component, so there is nowhere else this would be reused.
+ */
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="grid gap-4 border-t pt-6 first:border-t-0 first:pt-0 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-6">
+      <div>
+        <p className="font-semibold">{title}</p>
+        {hint && <p className="mt-1 text-muted-foreground text-sm">{hint}</p>}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-6">{children}</div>
+    </div>
+  )
+}
 
 /**
  * The API models a contact as a discriminated union, which is right for the
@@ -203,72 +229,66 @@ export function ContactForm({
       onSubmit={form.handleSubmit((values) => onSubmit(toContactUpdate(values), values.roles))}
       noValidate
     >
-      <ReadModeFieldset disabled={!editing} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.contact.sectionName}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-6">
-            <div className="sm:col-span-2">
-              <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
-              {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
-              <Select
-                value={kind}
-                onValueChange={(value) => form.setValue('kind', value as ContactKind)}
-                disabled={Boolean(contact)}
-              >
-                <SelectTrigger id="kind" className="mt-2 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {contactKinds.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {strings.contact.kind[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {contact && (
-                <p className="mt-1 text-muted-foreground text-xs">
-                  {strings.contact.kindImmutable}
-                </p>
-              )}
-            </div>
+      <ReadModeFieldset disabled={!editing} className="space-y-0">
+        <Section title={strings.contact.sectionName}>
+          <div className="sm:col-span-2">
+            <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
+            {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
+            <Select
+              value={kind}
+              onValueChange={(value) => form.setValue('kind', value as ContactKind)}
+              disabled={Boolean(contact)}
+            >
+              <SelectTrigger id="kind" className="mt-2 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {contactKinds.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {strings.contact.kind[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {contact && (
+              <p className="mt-1 text-muted-foreground text-xs">{strings.contact.kindImmutable}</p>
+            )}
+          </div>
 
-            {kind === 'person' ? (
-              <>
-                <Field
-                  className="sm:col-span-2"
-                  id="salutation"
-                  label={strings.contact.salutation}
-                  list="salutation-options"
-                  {...form.register('salutation')}
-                />
-                <datalist id="salutation-options">
-                  {strings.contact.salutationOptions.map((option) => (
-                    <option key={option} value={option} />
-                  ))}
-                </datalist>
-                <Field
-                  className="sm:col-span-2"
-                  id="title"
-                  label={strings.contact.academicTitle}
-                  {...form.register('title')}
-                />
-                <Field
-                  className="sm:col-span-3"
-                  id="firstName"
-                  label={strings.contact.firstName}
-                  {...form.register('firstName')}
-                />
-                <Field
-                  className="sm:col-span-3"
-                  id="lastName"
-                  label={strings.contact.lastName}
-                  error={errors.lastName && strings.validation.required}
-                  {...form.register('lastName')}
-                />
-                {/*
+          {kind === 'person' ? (
+            <>
+              <Field
+                className="sm:col-span-2"
+                id="salutation"
+                label={strings.contact.salutation}
+                list="salutation-options"
+                {...form.register('salutation')}
+              />
+              <datalist id="salutation-options">
+                {strings.contact.salutationOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+              <Field
+                className="sm:col-span-2"
+                id="title"
+                label={strings.contact.academicTitle}
+                {...form.register('title')}
+              />
+              <Field
+                className="sm:col-span-3"
+                id="firstName"
+                label={strings.contact.firstName}
+                {...form.register('firstName')}
+              />
+              <Field
+                className="sm:col-span-3"
+                id="lastName"
+                label={strings.contact.lastName}
+                error={errors.lastName && strings.validation.required}
+                {...form.register('lastName')}
+              />
+              {/*
                   The one field that asks for `past`, and the reason is a
                   property of this field alone: it is the only one that reaches
                   back far enough for "00–69 means the 2000s" to give a wrong
@@ -279,92 +299,88 @@ export function ContactForm({
                   ordinary rule — and nothing about this belongs anywhere else.
                   A four-digit year is taken at its word here too.
                 */}
-                <div className="sm:col-span-3">
-                  <Label htmlFor="dateOfBirth">{strings.contact.dateOfBirth}</Label>
-                  <Controller
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <DateField
-                        id="dateOfBirth"
-                        className="mt-2"
-                        twoDigitYear="past"
-                        value={field.value ?? ''}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                </div>
+              <div className="sm:col-span-3">
+                <Label htmlFor="dateOfBirth">{strings.contact.dateOfBirth}</Label>
+                <Controller
+                  control={form.control}
+                  name="dateOfBirth"
+                  render={({ field }) => (
+                    <DateField
+                      id="dateOfBirth"
+                      className="mt-2"
+                      twoDigitYear="past"
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
 
-                <div className="sm:col-span-3">
-                  <Label htmlFor="gender">{strings.contact.gender}</Label>
-                  <Controller
-                    control={form.control}
-                    name="gender"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value === '' ? NO_GENDER : field.value}
-                        onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
-                      >
-                        <SelectTrigger id="gender" className="mt-2 w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {/* Not recorded is a value one can pick back, not
+              <div className="sm:col-span-3">
+                <Label htmlFor="gender">{strings.contact.gender}</Label>
+                <Controller
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value === '' ? NO_GENDER : field.value}
+                      onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
+                    >
+                      <SelectTrigger id="gender" className="mt-2 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Not recorded is a value one can pick back, not
                               only a state one starts in. */}
-                          <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
-                          {contactGenders.map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {strings.contact.genders[value]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
+                        <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
+                        {contactGenders.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {strings.contact.genders[value]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
 
-                <Field
-                  className="sm:col-span-3"
-                  id="birthPlace"
-                  label={strings.contact.birthPlace}
-                  {...form.register('birthPlace')}
-                />
-              </>
-            ) : (
-              <>
-                <Field
-                  className="sm:col-span-4"
-                  id="companyName"
-                  label={strings.contact.companyName}
-                  error={errors.companyName && strings.validation.required}
-                  {...form.register('companyName')}
-                />
-                <Field
-                  className="sm:col-span-3"
-                  id="contactPerson"
-                  label={strings.contact.contactPerson}
-                  {...form.register('contactPerson')}
-                />
-              </>
-            )}
+              <Field
+                className="sm:col-span-3"
+                id="birthPlace"
+                label={strings.contact.birthPlace}
+                {...form.register('birthPlace')}
+              />
+            </>
+          ) : (
+            <>
+              <Field
+                className="sm:col-span-4"
+                id="companyName"
+                label={strings.contact.companyName}
+                error={errors.companyName && strings.validation.required}
+                {...form.register('companyName')}
+              />
+              <Field
+                className="sm:col-span-3"
+                id="contactPerson"
+                label={strings.contact.contactPerson}
+                {...form.register('contactPerson')}
+              />
+            </>
+          )}
 
-            {/* A sole trader is a person and can still have a VAT id. */}
-            <Field
-              className="sm:col-span-3"
-              id="vatId"
-              label={strings.contact.vatId}
-              {...form.register('vatId')}
-            />
-          </CardContent>
-        </Card>
+          {/* A sole trader is a person and can still have a VAT id. */}
+          <Field
+            className="sm:col-span-3"
+            id="vatId"
+            label={strings.contact.vatId}
+            {...form.register('vatId')}
+          />
+        </Section>
 
         {creating && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{strings.contact.roleLabel}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Section title={strings.contact.sectionRoles} hint={strings.contact.sectionRolesHint}>
+            <div className="col-span-full grid gap-3 sm:grid-cols-2">
               {roleTypes.length === 0 && (
                 <p className="text-muted-foreground text-sm">{strings.contact.roleHint}</p>
               )}
@@ -394,83 +410,87 @@ export function ContactForm({
                   </div>
                 )
               })}
-            </CardContent>
-          </Card>
+            </div>
+          </Section>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.contact.sectionAddress}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-6">
-            <Field
-              className="sm:col-span-4"
-              id="street"
-              label={strings.contact.street}
-              {...form.register('street')}
-            />
-            {/* Its own field. The two are put back together for display by
+        <Section title={strings.contact.sectionAddress} hint={strings.contact.sectionAddressHint}>
+          <Field
+            className="sm:col-span-4"
+            id="street"
+            label={strings.contact.street}
+            {...form.register('street')}
+          />
+          {/* Its own field. The two are put back together for display by
                 `formatStreetLine`, on screen and on the invoice alike. */}
-            <Field
-              className="sm:col-span-2"
-              id="houseNumber"
-              label={strings.contact.houseNumber}
-              {...form.register('houseNumber')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="postalCode"
-              label={strings.contact.postalCode}
-              {...form.register('postalCode')}
-            />
-            <Field
-              className="sm:col-span-4"
-              id="city"
-              label={strings.contact.city}
-              {...form.register('city')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="country"
-              label={strings.contact.country}
-              error={errors.country && strings.validation.country}
-              {...form.register('country')}
-            />
-          </CardContent>
-        </Card>
+          <Field
+            className="sm:col-span-2"
+            id="houseNumber"
+            label={strings.contact.houseNumber}
+            {...form.register('houseNumber')}
+          />
+          <Field
+            className="sm:col-span-2"
+            id="postalCode"
+            label={strings.contact.postalCode}
+            {...form.register('postalCode')}
+          />
+          <Field
+            className="sm:col-span-4"
+            id="city"
+            label={strings.contact.city}
+            {...form.register('city')}
+          />
+          <Field
+            className="sm:col-span-2"
+            id="country"
+            label={strings.contact.country}
+            error={errors.country && strings.validation.country}
+            {...form.register('country')}
+          />
+        </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.contact.sectionContact}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field
-              id="email"
-              type="email"
-              label={strings.contact.email}
-              error={errors.email && strings.validation.email}
-              {...form.register('email')}
-            />
-            <Field
-              id="phoneMobile"
-              type="tel"
-              label={strings.contact.phoneMobile}
-              {...form.register('phoneMobile')}
-            />
-            <Field
-              id="phoneLandline"
-              type="tel"
-              label={strings.contact.phoneLandline}
-              {...form.register('phoneLandline')}
-            />
-          </CardContent>
-        </Card>
+        <Section title={strings.contact.sectionContact} hint={strings.contact.sectionContactHint}>
+          <Field
+            className="sm:col-span-2"
+            id="email"
+            type="email"
+            label={strings.contact.email}
+            error={errors.email && strings.validation.email}
+            {...form.register('email')}
+          />
+          <Field
+            className="sm:col-span-2"
+            id="phoneMobile"
+            type="tel"
+            label={strings.contact.phoneMobile}
+            {...form.register('phoneMobile')}
+          />
+          <Field
+            className="sm:col-span-2"
+            id="phoneLandline"
+            type="tel"
+            label={strings.contact.phoneLandline}
+            {...form.register('phoneLandline')}
+          />
+        </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.contact.sectionInternal}</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Its own section, not folded into "Intern" — a health datum under
+            Art. 9 GDPR should not be able to disappear between internal
+            notes (CLAUDE.md rule 12). Left off `contacts/new`: writing a
+            diagnosis before the contact exists is not what this field is
+            for. */}
+        {!creating && (
+          <Section title={strings.contact.diagnosis} hint={strings.contact.diagnosisHint}>
+            <div className="col-span-full">
+              <Label htmlFor="diagnosis">{strings.contact.diagnosis}</Label>
+              <Textarea id="diagnosis" rows={3} className="mt-2" {...form.register('diagnosis')} />
+            </div>
+          </Section>
+        )}
+
+        <Section title={strings.contact.sectionInternal} hint={strings.contact.internalNoteHint}>
+          <div className="col-span-full">
             <Label htmlFor="internalNote">{strings.contact.internalNote}</Label>
             <Textarea
               id="internalNote"
@@ -478,15 +498,8 @@ export function ContactForm({
               className="mt-2"
               {...form.register('internalNote')}
             />
-            <p className="mt-1 text-muted-foreground text-xs">{strings.contact.internalNoteHint}</p>
-
-            <Label htmlFor="diagnosis" className="mt-4 block">
-              {strings.contact.diagnosis}
-            </Label>
-            <Textarea id="diagnosis" rows={3} className="mt-2" {...form.register('diagnosis')} />
-            <p className="mt-1 text-muted-foreground text-xs">{strings.contact.diagnosisHint}</p>
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
       </ReadModeFieldset>
 
       {editing && (

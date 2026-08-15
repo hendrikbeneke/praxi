@@ -9,13 +9,15 @@ import {
   formatRelativeBerlin,
   sortDirectionSchema,
 } from '@praxi/shared'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createColumnHelper, flexRender, tableFeatures, useTable } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { z } from 'zod'
+import { type ColumnDefinition, ColumnPicker } from '@/components/column-picker'
 import { PageHeader } from '@/components/page-header'
+import { SortableColumnHeader } from '@/components/sortable-column-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -39,11 +41,30 @@ import {
 import { roleTypeListQueryOptions } from '@/lib/contact-types'
 import { contactListQueryOptions } from '@/lib/contacts'
 import { strings } from '@/lib/strings'
+import {
+  updateUserPreferences,
+  userPreferencesQueryKey,
+  userPreferencesQueryOptions,
+} from '@/lib/user-preferences'
 
 /** `role` absent means the default tab — the first role flagged as one. `all`
  *  is the explicit choice, and the two have to stay distinguishable. */
 const ALL_ROLES = 'all'
 const PAGE_SIZE = 50
+
+/**
+ * Every column the picker offers, in the order a fresh preference falls back
+ * to. Deliberately not the appointment column — see the comment on
+ * `contactColumns` for why that one stays out of the picker entirely.
+ */
+const COLUMN_DEFINITIONS: ColumnDefinition[] = [
+  { key: 'number', label: strings.contact.columns.number },
+  { key: 'name', label: strings.contact.columns.name, locked: true },
+  { key: 'roles', label: strings.contact.columns.roles },
+  { key: 'city', label: strings.contact.columns.city },
+  { key: 'dateOfBirth', label: strings.contact.columns.dateOfBirth },
+]
+const DEFAULT_COLUMNS = COLUMN_DEFINITIONS.map((entry) => entry.key)
 
 /**
  * Role, order and archived live in the URL; the search term deliberately does
@@ -83,6 +104,8 @@ const column = createColumnHelper<typeof features, ContactListItem>()
 
 type ColumnOptions = {
   roleLabels: Map<string, string>
+  /** Which columns to show and in what order — the picker's answer. */
+  visibleColumns: string[]
   /** Only the `current` order has an appointment to show, and only there does
    *  the column explain anything. */
   showAppointment: boolean
@@ -93,68 +116,99 @@ type ColumnOptions = {
 /**
  * Built inside the component rather than at module level: the role labels come
  * from `contact_role_type`, which the practitioner maintains, and the columns
- * depend on the chosen order.
+ * depend on the chosen order and on the stored column preference.
  *
  * `columns()` keeps each column's own value type; a plain array would widen
  * them to a single one and stop type-checking the cells.
  */
 function contactColumns(options: ColumnOptions) {
+  const definitions = [
+    {
+      key: 'number',
+      def: column.accessor('contactNumber', {
+        header: () => options.sortHeader('number', strings.contact.columns.number),
+        cell: (info) => <span className="tabular-nums">{info.getValue()}</span>,
+      }),
+    },
+    {
+      key: 'name',
+      def: column.display({
+        id: 'name',
+        header: () => options.sortHeader('name', strings.contact.columns.name),
+        cell: (info) => {
+          const contact = info.row.original
+          return (
+            <span className="flex items-center gap-2">
+              <span className="font-medium">{formatContactNameSorted(contact)}</span>
+              {contact.archivedAt && (
+                <Badge variant="secondary">{strings.contact.archivedBadge}</Badge>
+              )}
+            </span>
+          )
+        },
+      }),
+    },
+    {
+      key: 'roles',
+      def: column.display({
+        id: 'roles',
+        header: strings.contact.columns.roles,
+        cell: (info) => {
+          const { roles } = info.row.original
+          if (roles.length === 0) {
+            return <span className="text-muted-foreground text-xs">—</span>
+          }
+          return (
+            <span className="flex flex-wrap gap-1">
+              {roles.map((entry) => (
+                <Badge key={entry.roleCode} variant="outline">
+                  {options.roleLabels.get(entry.roleCode) ?? entry.roleCode}
+                </Badge>
+              ))}
+            </span>
+          )
+        },
+      }),
+    },
+    {
+      key: 'city',
+      def: column.accessor('city', {
+        header: strings.contact.columns.city,
+        cell: (info) => info.getValue() ?? '—',
+      }),
+    },
+    {
+      key: 'dateOfBirth',
+      def: column.accessor('dateOfBirth', {
+        header: strings.contact.columns.dateOfBirth,
+        cell: (info) => {
+          const date = info.getValue()
+          // A plain date rendered through the Berlin formatter needs an instant;
+          // midday can never fall on the wrong side of a timezone boundary.
+          return date ? (
+            <span className="tabular-nums">{formatBerlinDate(`${date}T12:00:00Z`)}</span>
+          ) : (
+            '—'
+          )
+        },
+      }),
+    },
+  ]
+
+  const byKey = new Map(definitions.map((entry) => [entry.key, entry.def]))
+  const ordered = options.visibleColumns
+    .map((key) => byKey.get(key))
+    .filter((def): def is (typeof definitions)[number]['def'] => def !== undefined)
+
   return column.columns([
-    column.accessor('contactNumber', {
-      header: () => options.sortHeader('number', strings.contact.columns.number),
-      cell: (info) => <span className="tabular-nums">{info.getValue()}</span>,
-    }),
-    column.display({
-      id: 'name',
-      header: () => options.sortHeader('name', strings.contact.columns.name),
-      cell: (info) => {
-        const contact = info.row.original
-        return (
-          <span className="flex items-center gap-2">
-            <span className="font-medium">{formatContactNameSorted(contact)}</span>
-            {contact.archivedAt && (
-              <Badge variant="secondary">{strings.contact.archivedBadge}</Badge>
-            )}
-          </span>
-        )
-      },
-    }),
-    column.display({
-      id: 'roles',
-      header: strings.contact.columns.roles,
-      cell: (info) => {
-        const { roles } = info.row.original
-        if (roles.length === 0) {
-          return <span className="text-muted-foreground text-xs">—</span>
-        }
-        return (
-          <span className="flex flex-wrap gap-1">
-            {roles.map((entry) => (
-              <Badge key={entry.roleCode} variant="outline">
-                {options.roleLabels.get(entry.roleCode) ?? entry.roleCode}
-              </Badge>
-            ))}
-          </span>
-        )
-      },
-    }),
-    column.accessor('city', {
-      header: strings.contact.columns.city,
-      cell: (info) => info.getValue() ?? '—',
-    }),
-    column.accessor('dateOfBirth', {
-      header: strings.contact.columns.dateOfBirth,
-      cell: (info) => {
-        const date = info.getValue()
-        // A plain date rendered through the Berlin formatter needs an instant;
-        // midday can never fall on the wrong side of a timezone boundary.
-        return date ? (
-          <span className="tabular-nums">{formatBerlinDate(`${date}T12:00:00Z`)}</span>
-        ) : (
-          '—'
-        )
-      },
-    }),
+    ...ordered,
+    /**
+     * Deliberately not one of `definitions` above, and so never offered by
+     * `ColumnPicker`: this column's visibility already follows the
+     * Aktuell/A–Z view (`showAppointment`), not a stored preference. Letting
+     * both the picker and the view decide the same column would leave it
+     * unclear which of the two is actually in charge (D6).
+     */
     ...(options.showAppointment
       ? [
           column.accessor('appointmentAt', {
@@ -180,6 +234,7 @@ function contactColumns(options: ColumnOptions) {
 function ContactListPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
+  const queryClient = useQueryClient()
 
   const [term, setTerm] = useState('')
   // Keeps typing responsive without a timer: the list re-queries with the
@@ -193,6 +248,19 @@ function ContactListPage() {
   const types = roleTypes.data ?? []
   const tabTypes = types.filter((type) => type.active && type.showAsTab)
   const otherTypes = types.filter((type) => type.active && !type.showAsTab)
+
+  const preferences = useQuery(userPreferencesQueryOptions)
+  const visibleColumns = preferences.data?.contactListColumns ?? DEFAULT_COLUMNS
+  const saveColumns = useMutation({
+    mutationFn: (next: string[]) => updateUserPreferences({ contactListColumns: next }),
+    onMutate: (next) => {
+      queryClient.setQueryData(userPreferencesQueryKey, (current) => ({
+        ...(current ?? {}),
+        contactListColumns: next,
+      }))
+    },
+    onSuccess: (saved) => queryClient.setQueryData(userPreferencesQueryKey, saved),
+  })
 
   /** No role in the URL means the first tab — "Patienten" after the seed. With
    *  no flagged role at all there is nothing to default to, so it is Alle. */
@@ -232,12 +300,11 @@ function ContactListPage() {
    *  `current` order the sort would have nowhere to take effect. */
   const sortHeader = (field: ContactSortField, label: string) => {
     const activeHere = search.order === 'alpha' && search.sort === field && !searching
-    const Arrow = search.dir === 'desc' ? ArrowDown : ArrowUp
-
     return (
-      <button
-        type="button"
-        className="-mx-2 flex items-center gap-1 rounded px-2 py-1 hover:bg-muted"
+      <SortableColumnHeader
+        label={label}
+        active={activeHere}
+        direction={search.dir}
         onClick={() =>
           setSearch({
             order: 'alpha',
@@ -245,10 +312,7 @@ function ContactListPage() {
             dir: activeHere && search.dir === 'asc' ? 'desc' : 'asc',
           })
         }
-      >
-        {label}
-        {activeHere && <Arrow className="size-3" aria-hidden />}
-      </button>
+      />
     )
   }
 
@@ -259,6 +323,7 @@ function ContactListPage() {
   // table holds no state of its own that recreating them could disturb.
   const columns = contactColumns({
     roleLabels: new Map(types.map((type) => [type.code, type.label])),
+    visibleColumns,
     showAppointment,
     sortHeader,
     now,
@@ -339,6 +404,7 @@ function ContactListPage() {
             <Button
               key={type.code}
               size="sm"
+              className="rounded-full"
               variant={activeRole === type.code ? 'default' : 'outline'}
               onClick={() => setSearch({ role: type.code })}
             >
@@ -347,6 +413,7 @@ function ContactListPage() {
           ))}
           <Button
             size="sm"
+            className="rounded-full"
             variant={activeRole === ALL_ROLES ? 'default' : 'outline'}
             onClick={() => setSearch({ role: ALL_ROLES })}
           >
@@ -354,21 +421,31 @@ function ContactListPage() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant={search.order === 'current' ? 'default' : 'outline'}
-            onClick={() => setSearch({ order: 'current' })}
-          >
-            {strings.contact.orderCurrent}
-          </Button>
-          <Button
-            size="sm"
-            variant={search.order === 'alpha' ? 'default' : 'outline'}
-            onClick={() => setSearch({ order: 'alpha' })}
-          >
-            {strings.contact.orderAlpha}
-          </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              className="rounded-full"
+              variant={search.order === 'current' ? 'default' : 'outline'}
+              onClick={() => setSearch({ order: 'current' })}
+            >
+              {strings.contact.orderCurrent}
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-full"
+              variant={search.order === 'alpha' ? 'default' : 'outline'}
+              onClick={() => setSearch({ order: 'alpha' })}
+            >
+              {strings.contact.orderAlpha}
+            </Button>
+          </div>
+
+          <ColumnPicker
+            columns={COLUMN_DEFINITIONS}
+            visible={visibleColumns}
+            onChange={(next) => saveColumns.mutate(next)}
+          />
         </div>
       </div>
 

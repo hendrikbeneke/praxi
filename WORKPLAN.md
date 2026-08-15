@@ -34,7 +34,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D3 | Navigation | **done** |
 | D4 | Einstellungen | **done** |
 | D5 | Leistungen | **done** |
-| D6 | Kontaktbereich | todo |
+| D6 | Kontaktbereich | **done** |
 | D7 | Zahlungen | todo |
 | D8 | Vorgänge | todo |
 | D9 | Kalender | todo |
@@ -278,6 +278,41 @@ Kleiner als D4, dieselben Bausteine — mit einer Ausnahme.
 - Anlegen einheitlich als Bereich über der Liste, für Leistungen wie für Gruppen — der
   Prototyp macht es an den beiden Stellen unterschiedlich (Leistung: eigener Kasten
   oberhalb; Gruppe: sofort aufgeklappte Zeile), das wird hier vereinheitlicht.
+
+## D6 — Kontaktbereich
+
+Weniger Neubau als D4/D5 — Liste, Akte und "Kontakt anlegen" (schon ein eigener Screen,
+kein Dialog) bestanden inhaltlich schon; D6 verdrahtet D2-Bausteine und bringt das
+Abschnittsraster.
+
+- **Kontaktliste:** `ColumnPicker` (D2) verdrahtet — Nr., Name (`locked`), Rollen, Ort,
+  Geburtsdatum, gespeichert als `contactListColumns` in `preferences`. Die Terminspalte
+  ist bewusst nicht Teil der Auswahl: ihre Sichtbarkeit folgt schon der Aktuell/A–Z-Ansicht
+  (`showAppointment`), eine zweite Steuerung über die Spaltenauswahl hätte nicht mehr
+  erkennen lassen, welcher der beiden Mechanismen gerade entscheidet — der Kommentar an
+  `contactColumns` in `contacts.index.tsx` hält das fest. `SortableColumnHeader` (D2)
+  ersetzt den inline `sortHeader()`-Closure, der in D2 aus genau dieser Datei gezogen, aber
+  nie hier eingesetzt wurde. Sortierung bleibt inhaltlich in der URL. Reiterzeile und
+  Aktuell/A–Z-Umschalter bekommen die abgerundete Optik, keine Zähler neben den Rollen-Tabs
+  — bräuchte eine neue Aggregatabfrage für eine Zahl, die niemand angefordert hat.
+- **Kontaktakte und Anlegen-Screen** teilen sich jetzt `Section` (lokal in
+  `contact-form.tsx`) statt eigener `Card`s je Abschnitt — 200-px-Titel-und-Hinweis-Spalte
+  neben einem Feld-Grid, Abschnitte durch eine Linie statt eines Kartenrahmens getrennt.
+  **Diagnose bekommt einen eigenen Abschnitt**, getrennt von "Intern" — ein
+  Gesundheitsdatum nach Art. 9 DSGVO soll nicht zwischen internen Notizen verschwinden
+  können (Regel 12). Auf `contacts/new` erscheint das Feld nicht: eine Diagnose
+  einzutragen, bevor der Kontakt überhaupt existiert, ist nicht, wofür das Feld gedacht
+  ist. Regel 12 bleibt unverändert — Diagnose nur in Stammdaten und Rechnungsentwurf, nie
+  in der Liste, nie geloggt.
+- **Breadcrumb, zweite Ebene:** `useSecondBreadcrumbSegment()` in `app-topbar.tsx` kennt
+  genau zwei Routen namentlich (`/_app/contacts/$contactId` → Kontaktname aus dem
+  Query-Cache, den der Loader schon gefüllt hat; `/_app/contacts/new` → "Kontakt anlegen").
+  Bewusst kein allgemeiner Registrierungsmechanismus für Routen — der Kommentar im Code
+  sagt, wann das der richtige Schritt wird: beim zweiten Verbraucher, vermutlich ein
+  Vorgang oder eine Rechnung unter einem Kontakt.
+- Übersicht, Beziehungskarte, Rollen-Chips im Kopf und alle sechs Tabs (Termine bleibt,
+  obwohl der Prototyp es als eigenen Reiter weglässt) unverändert in ihrer Logik, nur die
+  Optik zieht mit.
 
 ---
 
