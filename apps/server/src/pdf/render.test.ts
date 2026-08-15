@@ -131,6 +131,36 @@ describe('renderInvoicePdf', () => {
     )
   })
 
+  /**
+   * The diagnosis belongs on the document (CLAUDE.md rule 12 lists the PDF as
+   * one of the two places it may appear). It was stored and editable from D1
+   * on but never printed — the data model claimed otherwise, which is what
+   * D7 found and closed.
+   */
+  it('prints the diagnosis', async () => {
+    const withDiagnosis = { ...invoice, diagnosis: 'F43.2' }
+    expect(sha256(await renderInvoicePdf(withDiagnosis, null))).not.toBe(
+      sha256(await renderInvoicePdf(invoice, null)),
+    )
+  })
+
+  /** A cancellation takes a document back rather than making a fresh claim,
+   *  which is why it carries no intro text either. */
+  it('leaves the diagnosis off a cancellation', async () => {
+    const cancellation: Invoice = {
+      ...invoice,
+      type: 'cancellation_invoice',
+      introText: null,
+      outroText: null,
+      diagnosis: null,
+    }
+    const withDiagnosis = { ...cancellation, diagnosis: 'F43.2' }
+
+    expect(sha256(await renderInvoicePdf(withDiagnosis, null))).toBe(
+      sha256(await renderInvoicePdf(cancellation, null)),
+    )
+  })
+
   /** Rule 11: one template page backs every page; two pages mean page 1 backs
    *  the first sheet and page 2 all following ones. */
   it('keeps the page count of the content, whatever the template has', async () => {

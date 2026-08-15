@@ -15,7 +15,7 @@ import type {
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
-type ListParams = { contactId?: string; status?: InvoiceStatus }
+type ListParams = { contactId?: string; status?: InvoiceStatus; limit?: number }
 
 export const invoiceListQueryOptions = (params: ListParams) =>
   queryOptions({
@@ -25,6 +25,7 @@ export const invoiceListQueryOptions = (params: ListParams) =>
         query: {
           ...(params.contactId ? { contactId: params.contactId } : {}),
           ...(params.status ? { status: params.status } : {}),
+          ...(params.limit === undefined ? {} : { limit: String(params.limit) }),
         },
       })
       if (!res.ok) throw await apiError(res)

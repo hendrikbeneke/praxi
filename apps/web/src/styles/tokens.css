@@ -68,6 +68,11 @@
 
   /* --- Signal ------------------------------------------------------------- */
   --destructive: oklch(51% 0.15 27); /* Löschen, Fehler, „nicht dokumentiert" */
+  /* Hinweis, kein Fehler: fehlender Sorgeberechtigter, Sync-Konflikt, eine
+     Mail ohne hinterlegte Adresse. Vorher stand an diesen drei Stellen ein
+     hartcodiertes amber-500 aus Tailwinds Palette, das kein Theme mitzog —
+     in „Nacht" blieb der Warnkasten hell (D7). */
+  --warning: oklch(62% 0.13 75);
 
   /* --- Linien und Fokus --------------------------------------------------- */
   --border: oklch(90.2% 0.008 80); /* Trennlinien: sichtbar, nie hart */
@@ -149,6 +154,8 @@ input,
   --accent: oklch(33% 0.011 62);
   --accent-foreground: oklch(96% 0.004 85);
   --destructive: oklch(62% 0.16 27);
+  /* Heller als im Hellmodus, damit Rahmen und Text auf dunklem Grund tragen. */
+  --warning: oklch(74% 0.13 78);
   --border: oklch(35% 0.01 62);
   --input: oklch(40% 0.012 62);
   --ring: oklch(60% 0.07 252);

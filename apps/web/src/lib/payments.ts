@@ -1,13 +1,13 @@
-import type { Payment, PaymentInput, Receivable, ReceivableFilter } from '@praxi/shared'
+import type { Payment, PaymentInput } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
 /**
- * Payments and the receivables view (CLAUDE.md rule 9).
+ * Payments (CLAUDE.md rule 9).
  *
  * Nothing here computes a status: `invoicePaymentState()` in
  * `packages/shared` does that, from the invoice and the sum of its payments,
- * and the receivables endpoint has already applied it to its rows.
+ * wherever the answer is needed.
  */
 
 export const paymentListQueryOptions = (invoiceId: string) =>
@@ -35,13 +35,3 @@ export async function deletePayment(invoiceId: string, paymentId: string): Promi
   })
   if (!res.ok) throw await apiError(res)
 }
-
-export const receivableListQueryOptions = (filter?: ReceivableFilter) =>
-  queryOptions({
-    queryKey: ['receivables', { filter: filter ?? null }],
-    queryFn: async (): Promise<Receivable[]> => {
-      const res = await api.api.receivables.$get({ query: filter ? { filter } : {} })
-      if (!res.ok) throw await apiError(res)
-      return res.json()
-    },
-  })

@@ -35,16 +35,10 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D4 | Einstellungen | **done** |
 | D5 | Leistungen | **done** |
 | D6 | Kontaktbereich | **done** |
-| D7 | Zahlungen | todo |
+| D7 | Zahlungen | **done** |
 | D8 | Vorgänge | todo |
 | D9 | Kalender | todo |
 | D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
-
-**Für D7:** `routes/_app/billable.tsx`, `invoices.index.tsx` und `receivables.tsx` sind seit D3
-aus der Navigation, aber unverändert und funktionsfähig unter ihrer alten URL liegen geblieben —
-eine Weiterleitung auf die damals leere `/payments` hätte echten Funktionsverlust ohne Ersatz
-bedeutet. D7 überführt ihren Inhalt (Reiter, Statuschips, Rechnungseditor) nach `payments.tsx`
-und **löscht anschließend alle drei Dateien** — sonst bleiben sie als verwaiste Routen liegen.
 
 ## D10 — Rich Text für Notizen
 
@@ -313,6 +307,49 @@ Abschnittsraster.
 - Übersicht, Beziehungskarte, Rollen-Chips im Kopf und alle sechs Tabs (Termine bleibt,
   obwohl der Prototyp es als eigenen Reiter weglässt) unverändert in ihrer Logik, nur die
   Optik zieht mit.
+
+## D7 — Zahlungen
+
+Drei Seiten werden eine. `routes/_app/payments.tsx` hat zwei Reiter, `billable.tsx`,
+`invoices.index.tsx` und `receivables.tsx` sind ersatzlos gelöscht — harter Schnitt, keine
+Weiterleitungen: nichts ist produktiv, es gibt keine Lesezeichen zu schonen.
+
+- **Reiter im URL-Zustand:** `?tab=invoices`, Abwesenheit heißt erster Reiter, wie bei
+  `services.tsx`. Der Filter des zweiten Reiters ist ein eigener Parameter (`?filter=overdue`)
+  und wird beim Reiterwechsel verworfen statt mitgeschleppt. **Die Massenauswahl des ersten
+  Reiters steht bewusst nicht in der URL:** sie ist eine flüchtige Absicht, und sie ist eine
+  Liste von `activity_item`-IDs — mittelbar also, was in welcher Sitzung passiert ist (Regel 12).
+- **Offene Vorgänge** (`components/billable-list.tsx`): nach Kontakt gruppiert, mit der
+  dreiwertigen Kopf-Checkbox aus D2 — deren erster Verbraucher; vorher las eine teilweise
+  ausgewählte Gruppe als gar nicht ausgewählt. Feste Fußzeile mit Anzahl und Betrag statt eines
+  Knopfes im Seitenkopf, der bei vielen Kontakten genau dann aus dem Bild lief, wenn die Auswahl
+  interessant wurde. Der Vorgangsstatus wird weiterhin angezeigt und filtert nicht.
+- **Rechnungen** (`components/invoice-list.tsx`): **ein** Chipband statt zweier. Die beiden
+  alten Seiten filterten auf zwei Achsen — Rechnungsstatus und Zahlungsstand —, aber ein
+  Dokument ist in *einem* Zustand. Die zusammengeführte Liste heißt `invoiceListFilters` in
+  `packages/shared`; `matchesInvoiceListFilter` ist die eine Definition und braucht neben dem
+  abgeleiteten Zustand auch `invoice.status`, weil zwei der sechs Antworten sich am Zustand
+  allein nicht ablesen lassen: ein Entwurf sieht für `invoicePaymentState()` wie „offen" aus,
+  und „Storniert" muss auch Stornodokumente (`cancellation`) finden — was der Vorgänger
+  `matchesReceivableFilter` nicht tat. Das war ein Fehler, keine Entscheidung.
+  Dazu `ColumnPicker` mit `invoiceListColumns`.
+- **`/api/receivables` ist gelöscht** — Route, `domain/receivables.ts`, dessen Test und die
+  Client-Funktion. Die zusammengeführte Liste braucht auch Entwürfe und liest deshalb
+  `/api/invoices`, womit `listReceivables` seinen letzten Aufrufer verlor. Die Begründung, die
+  daran hing („in memory statt SQL, damit die Statusregel nur einmal existiert"), steht jetzt
+  an `invoice-list.tsx`; die zwei Domänentests, die über die Liste gingen, fragen die Regel
+  direkt.
+- **PDF-Lücke geschlossen:** Die Diagnose war seit D1 gespeichert und im Entwurf editierbar,
+  wurde aber **nie gedruckt** — obwohl das Datenmodell in CLAUDE.md „appears on the draft and
+  the PDF only" behauptete. Sie steht jetzt über den Positionen, auf einer Stornorechnung
+  nicht (die trägt auch keinen Einleitungstext). Zwei Tests in `render.test.ts`.
+- **Farbsemantik:** neues Token `--warning`, in „Nacht" heller überschrieben. Die drei
+  hartcodierten `amber-500`-Stellen (`contact-overview.tsx`, `invoice-send-dialog.tsx`,
+  `sync-conflicts.tsx`) ziehen jetzt mit dem Theme — vorher blieb der Warnkasten im
+  Dunkelmodus hell. Die Überfällig-Zeile ist `bg-destructive/10` statt `/5`: fünf Prozent auf
+  einer ohnehin dunklen Fläche sind keine Markierung. `--destructive` bleibt in den drei
+  hellen Themes geerbt; auf „Rosé" trägt es, weil dessen Hintergrund mit Chroma 0.006
+  praktisch neutral ist.
 
 ---
 

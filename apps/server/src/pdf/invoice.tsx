@@ -181,6 +181,7 @@ export type PdfLabels = {
   invoiceDate: string
   dueDate: string
   contactNumber: string
+  diagnosis: string
   position: string
   dateOfService: string
   description: string
@@ -234,6 +235,16 @@ export function InvoiceDocument({
         )}
 
         {invoice.introText && <Text style={styles.paragraph}>{invoice.introText}</Text>}
+
+        {/* Above the items, because it is the heading the services are read
+            under, not an afterthought. A cancellation carries none, for the
+            same reason it carries no intro text: it takes a document back
+            rather than making a fresh claim. */}
+        {invoice.type !== 'cancellation_invoice' && invoice.diagnosis && (
+          <Text style={styles.paragraph}>
+            {labels.diagnosis} {invoice.diagnosis}
+          </Text>
+        )}
 
         <View style={styles.tableHead} fixed>
           <Text style={styles.colPos}>{labels.position}</Text>

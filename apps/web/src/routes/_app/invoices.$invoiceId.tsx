@@ -263,7 +263,7 @@ function InvoiceDetailPage() {
     onSuccess: async () => {
       await invalidate()
       toast.success(strings.invoice.discarded)
-      void navigate({ to: '/invoices' })
+      void navigate({ to: '/payments', search: { tab: 'invoices' } })
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.error.generic)
@@ -358,7 +358,7 @@ function InvoiceDetailPage() {
             )}
 
             <Button variant="ghost" asChild>
-              <Link to="/invoices">
+              <Link to="/payments" search={{ tab: 'invoices' }}>
                 <ArrowLeft className="size-4" aria-hidden />
                 {strings.actions.back}
               </Link>

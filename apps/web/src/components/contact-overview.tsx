@@ -84,8 +84,8 @@ function GuardianHint({ contact }: { contact: Contact }) {
   if (hasGuardian) return null
 
   return (
-    <div className="flex items-start gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm lg:col-span-2">
-      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+    <div className="flex items-start gap-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm lg:col-span-2">
+      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
       <span>{strings.contact.guardianMissing}</span>
     </div>
   )

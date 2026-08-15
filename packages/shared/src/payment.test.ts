@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { dueDate, type InvoiceStatus, type InvoiceType } from './invoice.js'
-import { invoicePaymentState } from './payment.js'
+import { type InvoiceListFilter, invoicePaymentState, matchesInvoiceListFilter } from './payment.js'
 
 type Facts = {
   type: InvoiceType
@@ -120,5 +120,49 @@ describe('what has no payment state', () => {
   it('a draft has no due date', () => {
     const state = stateOn('2026-12-31', 0, { status: 'draft' })
     expect(state).toMatchObject({ status: 'open', dueDate: null, daysOverdue: null })
+  })
+})
+
+/**
+ * The one chip band of the invoice list (D7). Two of the six answers cannot
+ * be read off the payment state alone, and those two are what this covers.
+ */
+describe('matchesInvoiceListFilter', () => {
+  const matches = (filter: InvoiceListFilter, overrides: Partial<Facts> = {}, paid = 0) => {
+    const facts = { ...INVOICE, ...overrides }
+    return matchesInvoiceListFilter(facts, invoicePaymentState(facts, paid, '2026-09-30'), filter)
+  }
+
+  /**
+   * `invoicePaymentState()` answers `open` for a draft, because nothing has
+   * been paid on it. Right for the state, wrong for the filter: a draft is
+   * not a claim, so it must not turn up under "Offen".
+   */
+  it('keeps a draft out of every filter but its own', () => {
+    expect(matches('draft', { status: 'draft' })).toBe(true)
+    for (const filter of ['open', 'partially_paid', 'overdue', 'paid', 'cancelled'] as const) {
+      expect(matches(filter, { status: 'draft' })).toBe(false)
+    }
+  })
+
+  /**
+   * The predecessor of this function compared the filter name against the
+   * status directly, so "Storniert" found cancelled invoices and missed every
+   * Stornorechnung — a bug, not a decision.
+   */
+  it('finds both a cancelled invoice and a cancellation document under "cancelled"', () => {
+    expect(matches('cancelled', { status: 'cancelled' })).toBe(true)
+    expect(matches('cancelled', { type: 'cancellation_invoice', totalCents: -10_000 })).toBe(true)
+  })
+
+  it('counts an overpayment as paid, not as open', () => {
+    expect(matches('paid', {}, 12_000)).toBe(true)
+    expect(matches('open', {}, 12_000)).toBe(false)
+  })
+
+  /** Overdue is the second axis: partly paid *and* late is both at once. */
+  it('reports a partly paid invoice as both partially_paid and overdue', () => {
+    expect(matches('partially_paid', {}, 4000)).toBe(true)
+    expect(matches('overdue', {}, 4000)).toBe(true)
   })
 })

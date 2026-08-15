@@ -833,7 +833,6 @@ export const strings = {
   },
   invoice: {
     title: 'Rechnungen',
-    description: 'Entwürfe, festgeschriebene Rechnungen und ihre Dokumente.',
     create: 'Neue Rechnung',
     createHint: 'Für welchen Kontakt? Die Positionen kommen danach im Entwurf dazu.',
     createConfirm: 'Entwurf anlegen',
@@ -851,11 +850,25 @@ export const strings = {
       cancellation_invoice: 'Stornorechnung',
     },
     all: 'Alle',
+    /** The one chip band of the merged list (D7) — `invoiceListFilters` in
+     *  `packages/shared` decides what each of them matches. */
+    filters: {
+      draft: 'Entwürfe',
+      open: 'Offen',
+      partially_paid: 'Teilweise bezahlt',
+      overdue: 'Überfällig',
+      paid: 'Bezahlt',
+      cancelled: 'Storniert',
+    },
+    emptyFiltered: 'Keine Rechnung passt zu diesem Filter.',
+    openTotal: (amount: string) => `Offen insgesamt: ${amount}`,
 
     number: 'Nummer',
     contact: 'Empfänger',
     invoiceDate: 'Rechnungsdatum',
     dueDate: 'Zahlbar bis',
+    paidAmount: 'Bezahlt',
+    openAmount: 'Offen',
     paymentTermDays: 'Zahlungsziel in Tagen',
     total: 'Betrag',
     introText: 'Einleitungstext',
@@ -1043,31 +1056,17 @@ export const strings = {
       'hinterlegt — das Dokument fordert daher weiterhin zur Zahlung auf. Sie hinterlegen ihn ' +
       'in den Einstellungen unter „Rechnungsstellung".',
   },
-  receivable: {
-    title: 'Bezahlübersicht',
-    description: 'Was noch offen ist, und seit wann.',
-    empty: 'Keine Rechnung passt zu diesem Filter.',
-    filters: {
-      open: 'Offen',
-      partially_paid: 'Teilweise bezahlt',
-      paid: 'Bezahlt',
-      overdue: 'Fällig',
-      cancelled: 'Storniert',
-    },
-    all: 'Alle',
-    columns: {
-      number: 'Nummer',
-      contact: 'Empfänger',
-      invoiceDate: 'Rechnungsdatum',
-      dueDate: 'Fällig am',
-      total: 'Betrag',
-      paid: 'Bezahlt',
-      open: 'Offen',
-      status: 'Status',
-      overdue: 'Überfällig',
-    },
-    days: (days: number) => (days === 1 ? '1 Tag' : `${days} Tage`),
-    openTotal: (amount: string) => `Offen insgesamt: ${amount}`,
+  /** The Zahlungen screen (D7): the two tabs that replaced Abrechenbar,
+   *  Rechnungen and Bezahlübersicht. */
+  payments: {
+    title: 'Zahlungen',
+    description: 'Was erbracht und noch nicht abgerechnet ist, und was daraus geworden ist.',
+    tabBillable: 'Offene Vorgänge',
+    tabInvoices: 'Rechnungen',
+    /** The sticky footer of the first tab. */
+    selection: (count: number) =>
+      count === 1 ? '1 Position ausgewählt' : `${count} Positionen ausgewählt`,
+    selectionEmpty: 'Nichts ausgewählt',
   },
   /** Everything the date and time fields say. The *format* they follow is not
    *  here — that is `dateFormat` in packages/shared, one descriptor for the
@@ -1102,7 +1101,6 @@ export const strings = {
    * shown here and never filters — see `billableQuerySchema`.
    */
   billable: {
-    title: 'Abrechenbar',
     description:
       'Alle erbrachten Leistungen, die auf keiner aktiven Rechnung stehen — nach Kontakt ' +
       'gruppiert. Der Status eines Vorgangs wird angezeigt, filtert aber nicht: ein ' +

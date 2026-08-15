@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Invoice } from '@praxi/shared'
-import { invoicePaymentState, sumPayments } from '@praxi/shared'
+import { invoicePaymentState, matchesInvoiceListFilter, sumPayments } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -19,7 +19,6 @@ import { finalizeInvoice } from './finalize-invoice.js'
 import { createInvoice, getInvoice } from './invoice.js'
 import { upsertNumberRange } from './number-range.js'
 import { addPayment, deletePayment, InvoiceNotPayableError, listPayments } from './payment.js'
-import { listReceivables } from './receivables.js'
 
 let tenantId: string
 let contactId: string
@@ -247,19 +246,27 @@ describe('cancelling and payments', () => {
     expect(after?.paidCents).toBe(PRICE)
     expect(await listPayments(db(), tenantId, entry.id)).toHaveLength(1)
 
-    expect((await stateOn(entry.id, '2026-09-30')).status).toBe('cancelled')
-    const open = await listReceivables(db(), tenantId, { filter: 'open', today: '2026-09-30' })
-    expect(open.map((row) => row.id)).not.toContain(entry.id)
+    const state = await stateOn(entry.id, '2026-09-30')
+    expect(state.status).toBe('cancelled')
+    expect(matchesInvoiceListFilter({ status: 'cancelled' }, state, 'open')).toBe(false)
   })
 
+  /**
+   * Asked of the rule directly rather than through a listing query. Until D7
+   * this went through `listReceivables`, which narrowed the invoices
+   * server-side; that endpoint is gone and `matchesInvoiceListFilter` in
+   * `packages/shared` is the one place the question is answered now.
+   */
   it('also takes an unpaid cancelled invoice out of the open items', async () => {
     const entry = await finalized()
     await cancelInvoice(db(), tenantId, store, entry.id, render)
 
+    const state = await stateOn(entry.id, '2026-12-31')
     for (const filter of ['open', 'overdue'] as const) {
-      const rows = await listReceivables(db(), tenantId, { filter, today: '2026-12-31' })
-      expect(rows.map((row) => row.id)).not.toContain(entry.id)
+      expect(matchesInvoiceListFilter({ status: 'cancelled' }, state, filter)).toBe(false)
     }
+    // …and does turn up under the chip that is meant to find it.
+    expect(matchesInvoiceListFilter({ status: 'cancelled' }, state, 'cancelled')).toBe(true)
   })
 })
 

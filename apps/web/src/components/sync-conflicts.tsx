@@ -33,7 +33,7 @@ export function SyncConflictBanner({ conflicts }: { conflicts: SyncConflict[] })
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm">
         <AlertTriangle className="size-4 shrink-0" aria-hidden />
         <span>{strings.google.conflictsBanner(conflicts.length)}</span>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => setOpen(true)}>

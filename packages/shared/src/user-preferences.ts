@@ -44,5 +44,8 @@ export const userPreferencesSchema = z.object({
    *  follows the Aktuell/A–Z view, and letting a preference override that
    *  too would mean two mechanisms fighting over one column. */
   contactListColumns: z.array(z.string()).optional(),
+  /** The same shape for the invoice list under Zahlungen (D7) — its own flat
+   *  key, never nested with the one above; see the paragraph on the merge. */
+  invoiceListColumns: z.array(z.string()).optional(),
 })
 export type UserPreferences = z.infer<typeof userPreferencesSchema>

@@ -194,6 +194,8 @@ export const messages = {
     invoiceDate: 'Rechnungsdatum',
     dueDate: 'Zahlbar bis',
     contactNumber: 'Kundennummer',
+    /** Prefixes the diagnosis line above the items, where one is recorded. */
+    diagnosis: 'Diagnose:',
     position: 'Pos.',
     dateOfService: 'Datum',
     description: 'Leistung',

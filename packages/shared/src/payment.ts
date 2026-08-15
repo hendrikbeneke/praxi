@@ -167,41 +167,64 @@ export function sumPayments(payments: readonly Pick<Payment, 'amountCents'>[]): 
   return payments.reduce((total, payment) => total + payment.amountCents, 0)
 }
 
-/** One row of the receivables view: the invoice, plus what it derives. */
-export const receivableSchema = z.object({
-  id: z.uuid(),
-  contactId: z.uuid(),
-  contactName: z.string(),
-  number: z.string().nullable(),
-  invoiceDate: z.iso.date(),
-  dueDate: z.iso.date().nullable(),
-  totalCents: z.number().int(),
-  paidCents: z.number().int(),
-  openCents: z.number().int(),
-  status: paymentStatusSchema,
-  daysOverdue: z.number().int().nullable(),
-})
-
-export type Receivable = z.infer<typeof receivableSchema>
+/**
+ * What the invoice list under Zahlungen may be filtered by — one band of
+ * chips, not two (D7).
+ *
+ * Until D7 there were two screens with a filter each: the invoice list
+ * filtered on `invoice.status` (Entwurf / Festgeschrieben / Storniert) and the
+ * Bezahlübersicht filtered on the payment state. Merging them mechanically
+ * would have produced two rows of chips stacked on each other, and that is
+ * not how a document reads: it is in *one* state, and which of the two axes
+ * that state comes from is the software's business, not the practitioner's.
+ *
+ * So the two vocabularies became this one. `draft` is the only entry that
+ * comes from `invoice.status`; every other decision is made by
+ * `invoicePaymentState()`, which stays the single definition of what
+ * "bezahlt" or "überfällig" means.
+ *
+ * `overdue` is a filter and not a status, for the reason given on
+ * `paymentStatuses` above: an invoice can be partly paid *and* overdue, so
+ * the two travel on separate axes. Here — as a filter, where they cannot
+ * collide — it may sit in the same list.
+ */
+export const invoiceListFilters = [
+  'draft',
+  'open',
+  'partially_paid',
+  'overdue',
+  'paid',
+  'cancelled',
+] as const
+export const invoiceListFilterSchema = z.enum(invoiceListFilters)
+export type InvoiceListFilter = z.infer<typeof invoiceListFilterSchema>
 
 /**
- * What the receivables view may be filtered by. `overdue` is not a status
- * (see above) but it is the most useful thing to filter on, so it joins the
- * list here — as a filter, where the two axes do not collide.
+ * Does an invoice belong under this filter? The one definition, shared so
+ * that the chips and whatever else asks the question cannot drift apart.
+ *
+ * Takes the invoice's own status *and* its derived state, because two of the
+ * six answers cannot be read off the state alone:
+ *
+ * - **`draft`** — `invoicePaymentState()` answers `open` for a draft, since
+ *   nothing has been paid on it. That is right for the state and wrong for
+ *   the filter: a draft is not a claim, so it must not turn up under "Offen".
+ * - **`cancelled`** — this catches both a cancelled invoice (`cancelled`) and
+ *   a cancellation document (`cancellation`). The predecessor of this
+ *   function compared against the filter name directly and therefore missed
+ *   every Stornorechnung, which was a bug and not a decision.
  */
-export const receivableFilters = ['open', 'partially_paid', 'paid', 'overdue', 'cancelled'] as const
-export const receivableFilterSchema = z.enum(receivableFilters)
-export type ReceivableFilter = z.infer<typeof receivableFilterSchema>
+export function matchesInvoiceListFilter(
+  invoice: Pick<InvoiceFacts, 'status'>,
+  state: PaymentState,
+  filter: InvoiceListFilter,
+): boolean {
+  if (filter === 'draft') return invoice.status === 'draft'
+  if (invoice.status === 'draft') return false
 
-export const receivableQuerySchema = z.object({
-  filter: receivableFilterSchema.optional(),
-})
-
-/** Does a row belong under this filter? Shared, because the server narrows the
- *  list and the client labels the buttons from the same set. */
-export function matchesReceivableFilter(row: Receivable, filter: ReceivableFilter): boolean {
-  if (filter === 'overdue') return row.daysOverdue !== null
+  if (filter === 'overdue') return state.daysOverdue !== null
+  if (filter === 'cancelled') return state.status === 'cancelled' || state.status === 'cancellation'
   // An overpayment is settled — it belongs under "bezahlt", not under "offen".
-  if (filter === 'paid') return row.status === 'paid' || row.status === 'overpaid'
-  return row.status === filter
+  if (filter === 'paid') return state.status === 'paid' || state.status === 'overpaid'
+  return state.status === filter
 }
