@@ -88,7 +88,7 @@ describe('the catalogue', () => {
   })
 
   it('keeps the tenants apart', async () => {
-    const other = await createTenant(db(), 'Mandant B')
+    const other = await createTenant(db())
     await createActivityType(db(), other, typeInput())
 
     expect(codes(await listActivityTypes(db(), tenantId, true))).not.toContain('supervision')
@@ -249,7 +249,7 @@ describe('the presets', () => {
   })
 
   it('refuses a service from another tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     const foreign = await createService(db(), otherTenant, {
       shortCode: null,
       description: 'Folgesitzung',

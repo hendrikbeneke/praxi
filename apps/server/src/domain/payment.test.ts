@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Invoice } from '@praxi/shared'
-import { invoicePaymentState, matchesInvoiceListFilter, sumPayments } from '@praxi/shared'
+import { invoicePaymentState, matchesInvoiceListFilter } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -119,7 +119,6 @@ describe('recording a payment', () => {
 
     const payments = await listPayments(db(), tenantId, entry.id)
     expect(payments.map((row) => row.paidOn)).toEqual(['2026-09-05', '2026-09-10'])
-    expect(sumPayments(payments)).toBe(8500)
     expect((await getInvoice(db(), tenantId, entry.id))?.paidCents).toBe(8500)
   })
 
@@ -355,7 +354,7 @@ describe('tenant isolation', () => {
     const entry = await finalized()
     await pay(entry.id, 1000)
 
-    const other = await createTenant(db(), 'Mandant B')
+    const other = await createTenant(db())
     expect(await listPayments(db(), other, entry.id)).toEqual([])
     expect(await deletePayment(db(), other, entry.id, newId())).toBe(false)
     // …and the invoice still has its payment.

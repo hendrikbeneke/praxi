@@ -107,7 +107,7 @@ describe('moveInList', () => {
 
   it('does not reach into another tenant, and throws the same as an unknown id', async () => {
     const { a } = await seed({ a: 0, b: 1 })
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
     await expect(moveInList(db(), otherTenant, a, 1, ops)).rejects.toThrow(MoveTargetNotFoundError)
   })

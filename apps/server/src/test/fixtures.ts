@@ -19,9 +19,9 @@ import { newId } from '../id.js'
  * contact could not hold the `patient` role and an activity could have no type
  * at all.
  */
-export async function createTenant(database: Database, name = 'Testmandant'): Promise<string> {
+export async function createTenant(database: Database): Promise<string> {
   const id = newId()
-  await database.insert(tenant).values({ id, name })
+  await database.insert(tenant).values({ id })
   await seedContactTypes(database, id)
   await seedActivityTypes(database, id)
   return id

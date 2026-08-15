@@ -85,19 +85,3 @@ export async function assertNumberFree(
 
   if (existing) throw new NumberAlreadyIssuedError(formatted)
 }
-
-/** The prefix and padding in force right now, for showing what the next
- *  invoice will be called. */
-export async function getNumberRange(
-  database: Database,
-  tenantId: string,
-  code: string,
-): Promise<NumberRange | null> {
-  const [row] = await database
-    .select(columns)
-    .from(numberRange)
-    .where(and(eq(numberRange.tenantId, tenantId), eq(numberRange.code, code)))
-    .limit(1)
-
-  return row ?? null
-}

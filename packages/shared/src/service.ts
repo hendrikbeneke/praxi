@@ -51,8 +51,6 @@ export const serviceGroupItemInputSchema = z.object({
   quantity: z.number().int().positive().max(999).default(1),
 })
 
-export type ServiceGroupItemInput = z.infer<typeof serviceGroupItemInputSchema>
-
 export const serviceGroupInputSchema = z.object({
   name: requiredText(120),
   sortOrder: z.number().int().min(0).max(9999).default(0),

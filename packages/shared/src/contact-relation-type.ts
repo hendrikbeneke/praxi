@@ -79,10 +79,12 @@ export const contactRelationTypeSchema = z.object({
 export type ContactRelationType = z.infer<typeof contactRelationTypeSchema>
 
 /**
- * The system relation types, by code. Logic is allowed to depend on these two
- * and on nothing else in the catalogue: `guardian` is what the reminder about
- * a minor without one looks for, `billing_recipient` is who a later slice will
- * address the invoice to.
+ * Logic is allowed to depend on the codes of system relation types and on
+ * nothing else in the catalogue. This is the only one both sides read:
+ * `guardian` is what the reminder about a minor without one looks for.
+ *
+ * `billing_recipient` had a constant here too and nothing ever imported it —
+ * `domain/invoice-send.ts` declares its own, next to the query that uses it.
+ * One definition beat two, and the one that survived is the one with a caller.
  */
 export const GUARDIAN_RELATION_CODE = 'guardian'
-export const BILLING_RECIPIENT_RELATION_CODE = 'billing_recipient'

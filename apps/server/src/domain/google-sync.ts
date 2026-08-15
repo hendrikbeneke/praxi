@@ -278,7 +278,13 @@ async function pushUpsert(
     .where(and(eq(appointment.tenantId, tenantId), eq(appointment.id, current.id)))
 }
 
-/** Drains what is due. Returns how many went out and how many failed. */
+/**
+ * Drains what is due. Returns how many went out and how many failed.
+ *
+ * The worker calls `runSync`, never this — it and `pullRemote` are exported so
+ * the tests can drive one direction at a time, which is the only way the
+ * backoff and the ETag comparison can be asserted separately.
+ */
 export async function pushQueue(
   database: Database,
   tenantId: string,
@@ -367,6 +373,8 @@ async function applyRemote(
 /**
  * The return channel: `events.list` with a sync token, three fields applied,
  * everything else ignored — a title someone typed in on a phone included.
+ *
+ * Exported for the tests, like `pushQueue` above; `runSync` is the caller.
  */
 export async function pullRemote(
   database: Database,

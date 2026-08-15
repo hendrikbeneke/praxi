@@ -249,7 +249,7 @@ describe('copying from the catalogue', () => {
   })
 
   it('refuses a service from another tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     const foreign = await createService(db(), otherTenant, serviceInput())
 
     await expect(
@@ -771,7 +771,7 @@ describe('listing', () => {
   })
 
   it('shows only its own tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     await createActivity(db(), tenantId, activityInput())
 
     expect(

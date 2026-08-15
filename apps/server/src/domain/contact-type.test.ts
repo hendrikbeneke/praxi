@@ -216,7 +216,7 @@ describe('the practice’s own entries', () => {
 
 describe('tenant scoping', () => {
   it('refuses a role type that belongs to another tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     await createRoleType(db(), otherTenant, {
       code: 'referrer',
       label: 'Zuweiser',

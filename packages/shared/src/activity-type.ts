@@ -36,7 +36,6 @@ const presetItemFields = {
 /** What an edit may change. Order is the array order, exactly as with
  *  `service_group_item` — `position` is written from the index on save. */
 export const activityTypePresetItemInputSchema = z.object(presetItemFields)
-export type ActivityTypePresetItemInput = z.infer<typeof activityTypePresetItemInputSchema>
 
 const presetItemsField = z
   .array(activityTypePresetItemInputSchema)

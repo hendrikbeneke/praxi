@@ -11,7 +11,6 @@ import {
   isSessionExpired,
   login,
   logout,
-  logoutAllSessions,
   needsRefresh,
   SESSION_REFRESH_AFTER_MS,
   SESSION_TTL_MS,
@@ -230,19 +229,6 @@ describe('logout', () => {
     expect(await db().select().from(session)).toHaveLength(0)
     expect(await validateSession(db(), token, at(HOUR))).toBeNull()
   })
-
-  it('ends every session of one user', async () => {
-    const tenantId = await createTenant(db())
-    const user = await createUser(db(), { tenantId })
-    await login(db(), { email: user.email, password: user.password }, T0)
-    await login(db(), { email: user.email, password: user.password }, at(HOUR))
-
-    expect(await db().select().from(session)).toHaveLength(2)
-
-    await logoutAllSessions(db(), tenantId, user.id)
-
-    expect(await db().select().from(session)).toHaveLength(0)
-  })
 })
 
 describe('session tenant integrity', () => {
@@ -253,8 +239,8 @@ describe('session tenant integrity', () => {
    * exists so that guarantee cannot be dropped unnoticed.
    */
   it('refuses a session whose tenant differs from its user', async () => {
-    const tenantA = await createTenant(db(), 'Mandant A')
-    const tenantB = await createTenant(db(), 'Mandant B')
+    const tenantA = await createTenant(db())
+    const tenantB = await createTenant(db())
     const user = await createUser(db(), { tenantId: tenantA })
 
     await expect(

@@ -186,6 +186,9 @@ function toIsoDay(instant: Date): string {
  * the third of March instead of refusing, so only comparing the result back
  * against the input catches an impossible date. Same reasoning as `parseLocal`
  * in `datetime.ts`.
+ *
+ * Exported for `date-format.test.ts`, which walks impossible dates one by one;
+ * the parsers in this module are the callers.
  */
 export function isRealDate(iso: string): boolean {
   const match = ISO_DATE.exec(iso)

@@ -65,7 +65,7 @@ describe('nextNumber', () => {
   })
 
   it('keeps ranges of different tenants apart', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
     expect(await take('contact')).toBe(1)
     expect(await db().transaction((tx) => nextNumber(tx, otherTenant, 'contact'))).toBe(1)

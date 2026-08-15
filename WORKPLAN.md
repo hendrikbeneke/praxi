@@ -36,6 +36,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D5 | Leistungen | **done** |
 | D6 | Kontaktbereich | **done** |
 | D7 | Zahlungen | **done** |
+| D7.5 | Totes aufräumen | **done** |
 | D8 | Vorgänge | todo |
 | D9 | Kalender | todo |
 | D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
@@ -350,6 +351,36 @@ Weiterleitungen: nichts ist produktiv, es gibt keine Lesezeichen zu schonen.
   einer ohnehin dunklen Fläche sind keine Markierung. `--destructive` bleibt in den drei
   hellen Themes geerbt; auf „Rosé" trägt es, weil dessen Hintergrund mit Chroma 0.006
   praktisch neutral ist.
+
+## D7.5 — Totes aufräumen
+
+Ein Durchgang durchs ganze Repo nach der neuen Konvention „Delete code that nothing uses".
+Kein Verhalten ändert sich; alles hier ist Entfernen oder Erklären.
+
+- **Vier Endpunkte für einzelne Datensätze** waren nie erreichbar, weil die Listen dieselben
+  Spalten liefern: `GET /api/notes/:noteId`, `/api/services/:serviceId`,
+  `/api/service-groups/:groupId` sind weg. `getService` und `getServiceGroup` gingen mit —
+  ihr einziger Leser war danach `service.test.ts`, das jetzt über `listServices`/
+  `listServiceGroups` nachlädt und damit die Abfrage prüft, die die Anwendung wirklich fährt.
+  `getNote` bleibt: `note-lock.ts` ruft es.
+- **`GET /api/health` bleibt** und trägt jetzt einen Kommentar, der sagt warum: der
+  `HEALTHCHECK` im Dockerfile und Coolify hängen daran. Ohne diesen Satz fällt die Route
+  beim nächsten Aufräumen.
+- **`tenant.name` ist weg** (Migration `0031`). Geschrieben von Seed und Fixtures, gelesen von
+  nichts — der Praxisname steht in `practice_settings.practice_name`. Das Namensargument von
+  `createTenant()` fiel an 22 Stellen mit weg.
+- Gelöscht ohne Ersatz: `ui/separator.tsx`, `getNumberRange`, `checkViolationConstraint`,
+  `CONTENT_WIDTH`, `isLocked`, `PATIENT_ROLE_CODE`, `BILLING_RECIPIENT_RELATION_CODE`,
+  `logoutAllSessions`, `sumPayments`, zehn nur deklarierte Typaliase, drei `messages`- und
+  43 `strings`-Schlüssel.
+- **`BILLING_RECIPIENT_RELATION_CODE` war eine doppelte Definition**, nicht bloß ungenutzt:
+  `domain/invoice-send.ts` hält sein eigenes `BILLING_RECIPIENT` neben der Abfrage. Von zweien
+  blieb die mit einem Aufrufer.
+- **Was nur der Test von außen braucht**, ist nicht gelöscht, sondern benannt: `auth.ts` trägt
+  einen Absatz über der Session-Arithmetik, `pushQueue`/`pullRemote`, `resolveRecipient`,
+  `canonicalNote`, `clearFlows`, `contrastRatio`, `isRealDate`, `SLOT_RELEASING_STATUSES` und
+  `recipientSnapshotSchema` je einen Satz. Der Grund gehört an den Code, sonst ist der nächste
+  Durchgang derselbe Durchgang.
 
 ---
 

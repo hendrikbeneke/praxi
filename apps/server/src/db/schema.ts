@@ -54,9 +54,15 @@ const timestamps = {
  * Identity only. Everything configurable about the practice lives in
  * `practice_settings`, so this table never grows columns.
  */
+/**
+ * Identity only. What the practice is *called* lives in `practice_settings`,
+ * which is where every screen reads it from — this table had a `name` column
+ * as well, written by the seed and the fixtures and read by nothing, and a
+ * second place holding the practice name would eventually hold a different
+ * one. Migration 0031 dropped it.
+ */
 export const tenant = pgTable('tenant', {
   id: uuid().primaryKey(),
-  name: text().notNull(),
   ...timestamps,
 })
 

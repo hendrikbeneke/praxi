@@ -113,7 +113,12 @@ export function takeFlow(state: string, now: Date): PendingFlow | null {
   return flow.expiresAt > now.getTime() ? flow : null
 }
 
-/** Only for the tests, which must not depend on state left by another one. */
+/**
+ * Exported for the tests alone — they share this module-level map and must not
+ * depend on state another one left behind. That is a use, not a leftover: the
+ * application never calls it, and deleting it would break test isolation
+ * rather than remove anything dead.
+ */
 export function clearFlows(): void {
   pending.clear()
 }

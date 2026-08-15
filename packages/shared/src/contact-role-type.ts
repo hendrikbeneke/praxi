@@ -55,8 +55,3 @@ export const contactRoleTypeSchema = z.object({
 })
 
 export type ContactRoleType = z.infer<typeof contactRoleTypeSchema>
-
-/** The one role type the software itself knows about: professional secrecy
- *  under § 203 StGB and the pseudonymization towards Google key off this code
- *  (CLAUDE.md rule 4 and rule 12). */
-export const PATIENT_ROLE_CODE = 'patient'

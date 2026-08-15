@@ -32,7 +32,8 @@ export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>
 
 /** The statuses that release the slot for someone else. Kept next to the list
  *  it belongs to, because the exclusion constraint in migration 0009 repeats
- *  it in SQL and the two must not drift. */
+ *  it in SQL and the two must not drift — which is also who reads it: the test
+ *  that compares the two, and nothing else. */
 export const SLOT_RELEASING_STATUSES: readonly AppointmentStatus[] = ['cancelled', 'cancelled_late']
 
 export function occupiesSlot(status: AppointmentStatus): boolean {
@@ -85,5 +86,3 @@ export const appointmentRangeQuerySchema = z.object({
   from: z.iso.datetime(),
   to: z.iso.datetime(),
 })
-
-export type AppointmentRangeQuery = z.infer<typeof appointmentRangeQuerySchema>

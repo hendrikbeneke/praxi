@@ -47,8 +47,6 @@ export const practiceSettingsInputSchema = z.object({
   defaultPaymentTermDays: z.coerce.number().int().min(0).max(365).default(14),
 })
 
-export type PracticeSettingsInput = z.infer<typeof practiceSettingsInputSchema>
-
 /**
  * The same fields, for a **patch**: every key optional, and — unlike
  * `.partial()` on the schema above — genuinely so. `practiceSettingsInputSchema

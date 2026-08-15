@@ -369,8 +369,15 @@ Enum values marked `?` below are deliberately undecided and get settled in their
 All tables carry `id uuid primary key` (UUIDv7, generated in the application), `tenant_id`, `created_at`, `updated_at`.
 
 ```
--- as built (slice 1)
-tenant                name text not null
+-- as built (slice 1), name dropped in D7.5
+tenant                -- id and timestamps, nothing else. Identity only, as the
+                      -- glossary always said: what the practice is CALLED is
+                      -- practice_settings.practice_name, which is what the
+                      -- sidebar, the account menu and the settings form read.
+                      -- A `name` column lived here until migration 0031,
+                      -- written by the seed and the fixtures and read by
+                      -- nothing — and a second place holding the practice name
+                      -- would eventually hold a different one.
 
 -- as built (slice 1)
 practice_settings     tenant_id uuid not null unique -> tenant(id),

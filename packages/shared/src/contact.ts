@@ -143,7 +143,6 @@ export type ContactInput = z.infer<typeof contactInputSchema>
 
 /** The body of the roles endpoint — the only way roles change. */
 export const contactRolesInputSchema = z.object({ roles: rolesField })
-export type ContactRolesInput = z.infer<typeof contactRolesInputSchema>
 
 /** What the API returns. Flat, with every field of both kinds present and
  *  `null` where it does not apply. */

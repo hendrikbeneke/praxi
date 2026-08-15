@@ -54,8 +54,6 @@ export const CONTENT = {
   bottom: 20,
 } as const
 
-export const CONTENT_WIDTH = PAGE.width - CONTENT.left - CONTENT.right
-
 /**
  * Folding and punching marks, at the left edge.
  *

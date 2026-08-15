@@ -218,6 +218,13 @@
       "when": 1786739940459,
       "tag": "0030_design_model_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786829831667,
+      "tag": "0031_drop_tenant_name",
+      "breakpoints": true
     }
   ]
 }

@@ -35,6 +35,9 @@ export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>
  * that simply does not have the key, and reading it must produce the same
  * document it produced on the day it was issued. This holds after going live
  * as much as before it.
+ *
+ * Exported so `contact-address.test.ts` can parse an old snapshot directly and
+ * hold that rule in place; `invoiceSchema` below is where it is used.
  */
 export const recipientSnapshotSchema = z.object({
   contactNumber: z.number().int(),

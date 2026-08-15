@@ -13,8 +13,6 @@ import {
   createServiceGroup,
   deleteService,
   deleteServiceGroup,
-  getService,
-  getServiceGroup,
   listServiceGroups,
   listServices,
   ServiceGroupInUseError,
@@ -32,6 +30,21 @@ beforeEach(async () => {
 
 const active: CatalogueListQuery = { includeInactive: false }
 const all: CatalogueListQuery = { includeInactive: true }
+
+/*
+ * Reloading goes through the list, because the catalogue has no single-record
+ * read: `getService` and `getServiceGroup` existed for two HTTP routes nothing
+ * ever called, and both went with them. The list carries the same columns, and
+ * asserting through it has the side benefit that these tests exercise the query
+ * the application actually runs.
+ */
+async function reloadService(tenant: string, id: string) {
+  return (await listServices(db(), tenant, all)).find((row) => row.id === id) ?? null
+}
+
+async function reloadGroup(tenant: string, id: string) {
+  return (await listServiceGroups(db(), tenant, all)).find((row) => row.id === id) ?? null
+}
 
 function serviceInput(overrides: Partial<ServiceInput> = {}): ServiceInput {
   return {
@@ -100,7 +113,7 @@ describe('services', () => {
   })
 
   it('lets two tenants use the same short code', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     await createService(db(), tenantId, serviceInput({ shortCode: 'FS' }))
 
     await expect(
@@ -154,9 +167,9 @@ describe('services', () => {
 
   it('does not reach into another tenant', async () => {
     const created = await createService(db(), tenantId, serviceInput())
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
-    expect(await getService(db(), otherTenant, created.id)).toBeNull()
+    expect(await reloadService(otherTenant, created.id)).toBeNull()
     expect(await updateService(db(), otherTenant, created.id, serviceInput())).toBeNull()
   })
 })
@@ -262,13 +275,13 @@ describe('service groups', () => {
       first.id,
       serviceInput({ description: 'Erstgespräch', active: false }),
     )
-    const reloaded = await getServiceGroup(db(), tenantId, group.id)
+    const reloaded = await reloadGroup(tenantId, group.id)
 
     expect(reloaded?.items[0]?.serviceActive).toBe(false)
   })
 
   it('refuses a service from another tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     const foreign = await createService(db(), otherTenant, serviceInput())
 
     await expect(
@@ -324,14 +337,14 @@ describe('service groups', () => {
 
     await updateServiceGroup(db(), tenantId, group.id, groupInput())
 
-    expect(await getService(db(), tenantId, first.id)).not.toBeNull()
+    expect(await reloadService(tenantId, first.id)).not.toBeNull()
   })
 
   it('does not reach into another tenant', async () => {
     const group = await createServiceGroup(db(), tenantId, groupInput())
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
-    expect(await getServiceGroup(db(), otherTenant, group.id)).toBeNull()
+    expect(await reloadGroup(otherTenant, group.id)).toBeNull()
     expect(
       await updateServiceGroup(db(), otherTenant, group.id, groupInput({ name: 'Umbenannt' })),
     ).toBeNull()
@@ -343,7 +356,7 @@ describe('deleting the catalogue', () => {
     const created = await createService(db(), tenantId, serviceInput())
 
     expect(await deleteService(db(), tenantId, created.id)).toBe(true)
-    expect(await getService(db(), tenantId, created.id)).toBeNull()
+    expect(await reloadService(tenantId, created.id)).toBeNull()
   })
 
   /**
@@ -367,7 +380,7 @@ describe('deleting the catalogue', () => {
       group: true,
       preset: false,
     })
-    expect(await getService(db(), tenantId, created.id)).not.toBeNull()
+    expect(await reloadService(tenantId, created.id)).not.toBeNull()
   })
 
   it('refuses to delete a service used by an activity item, and names that reason', async () => {
@@ -466,17 +479,17 @@ describe('deleting the catalogue', () => {
 
   it('reports false rather than throwing for an id in another tenant', async () => {
     const created = await createService(db(), tenantId, serviceInput())
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
     expect(await deleteService(db(), otherTenant, created.id)).toBe(false)
-    expect(await getService(db(), tenantId, created.id)).not.toBeNull()
+    expect(await reloadService(tenantId, created.id)).not.toBeNull()
   })
 
   it('deletes a service group that nothing references', async () => {
     const group = await createServiceGroup(db(), tenantId, groupInput())
 
     expect(await deleteServiceGroup(db(), tenantId, group.id)).toBe(true)
-    expect(await getServiceGroup(db(), tenantId, group.id)).toBeNull()
+    expect(await reloadGroup(tenantId, group.id)).toBeNull()
   })
 
   /**
@@ -566,7 +579,7 @@ describe('the catalogue holds no live references', () => {
 
     // The group holds a reference, not a copy — it is a selection helper, and
     // the copy happens in slice 4 when an activity item is created from it.
-    const reloaded = await getServiceGroup(db(), tenantId, group.id)
+    const reloaded = await reloadGroup(tenantId, group.id)
     expect(reloaded?.items[0]?.defaultPriceCents).toBe(9900)
     expect(reloaded?.items[0]?.quantity).toBe(2)
   })

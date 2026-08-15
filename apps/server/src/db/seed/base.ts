@@ -14,8 +14,6 @@ import type { Database } from '../client.js'
 import { appUser, practiceSettings, tenant } from '../schema.js'
 
 /** Obviously fake master data — never a realistic person or practice. */
-const SEED_TENANT_NAME = 'Testpraxis'
-
 const SEED_PRACTICE = {
   practiceName: 'Praxis Musterfrau — Heilpraktikerin für Psychotherapie',
   street: 'Beispielweg 1',
@@ -59,7 +57,7 @@ export async function seedBase(database: Database): Promise<string> {
     if (existing) return existing.id
 
     const id = newId()
-    await tx.insert(tenant).values({ id, name: SEED_TENANT_NAME })
+    await tx.insert(tenant).values({ id })
     return id
   })
 

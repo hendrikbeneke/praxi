@@ -42,7 +42,10 @@ export function relativeLuminance(color: string): number {
   return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
 }
 
-/** WCAG 2.1 contrast ratio between two colours, from 1 to 21. */
+/** WCAG 2.1 contrast ratio between two colours, from 1 to 21. Exported, like
+ *  `BLACK` and `WHITE` below, for `color.test.ts`: `readableTextOn` only ever
+ *  answers black or white, so the ratio behind that choice is testable
+ *  nowhere else. */
 export function contrastRatio(one: string, other: string): number {
   const first = relativeLuminance(one)
   const second = relativeLuminance(other)

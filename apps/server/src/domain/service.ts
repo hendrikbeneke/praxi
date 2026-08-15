@@ -95,20 +95,6 @@ export async function listServices(
     .orderBy(asc(service.sortOrder), asc(service.description))
 }
 
-export async function getService(
-  database: Database,
-  tenantId: string,
-  id: string,
-): Promise<Service | null> {
-  const [row] = await database
-    .select(serviceColumns)
-    .from(service)
-    .where(and(eq(service.tenantId, tenantId), eq(service.id, id)))
-    .limit(1)
-
-  return row ?? null
-}
-
 export async function createService(
   database: Database,
   tenantId: string,
@@ -224,14 +210,6 @@ async function loadGroup(
 
   const items = await itemsFor(reader, [row.id])
   return { ...row, items: items.get(row.id) ?? [] }
-}
-
-export function getServiceGroup(
-  database: Database,
-  tenantId: string,
-  id: string,
-): Promise<ServiceGroup | null> {
-  return loadGroup(database, tenantId, id)
 }
 
 /**

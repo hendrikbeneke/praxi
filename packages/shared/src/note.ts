@@ -114,10 +114,6 @@ export const noteListQuerySchema = z
 
 export type NoteListQuery = z.infer<typeof noteListQuerySchema>
 
-export function isLocked(note: Pick<Note, 'lockedAt'>): boolean {
-  return note.lockedAt !== null
-}
-
 /**
  * The verification report.
  *

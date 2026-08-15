@@ -161,12 +161,6 @@ export function invoicePaymentState(
   return { status, paidCents, openCents, dueDate: due, daysOverdue }
 }
 
-/** Sum of a set of payments. One implementation, so the invoice screen, the
- *  receivables view and the tests cannot disagree. */
-export function sumPayments(payments: readonly Pick<Payment, 'amountCents'>[]): number {
-  return payments.reduce((total, payment) => total + payment.amountCents, 0)
-}
-
 /**
  * What the invoice list under Zahlungen may be filtered by — one band of
  * chips, not two (D7).

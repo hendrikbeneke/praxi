@@ -8,5 +8,3 @@ import { z } from 'zod'
 export const moveInputSchema = z.object({
   delta: z.union([z.literal(1), z.literal(-1)]),
 })
-
-export type MoveInput = z.infer<typeof moveInputSchema>

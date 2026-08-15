@@ -77,8 +77,6 @@ export const busyRangeQuerySchema = z.object({
   to: z.iso.datetime(),
 })
 
-export type BusyRangeQuery = z.infer<typeof busyRangeQuerySchema>
-
 /**
  * Why a conflict exists.
  *
@@ -119,12 +117,10 @@ export type ConflictResolution = z.infer<typeof conflictResolutionSchema>
 /** Choosing the practice calendar. Null detaches it: nothing is enqueued then,
  *  and what is already in Google stays where it is. */
 export const googleCalendarSelectionSchema = z.object({ calendarId: z.string().min(1).nullable() })
-export type GoogleCalendarSelection = z.infer<typeof googleCalendarSelectionSchema>
 
 export const googleFreebusySelectionSchema = z.object({
   calendarIds: z.array(z.string().min(1)).max(20),
 })
-export type GoogleFreebusySelection = z.infer<typeof googleFreebusySelectionSchema>
 
 /**
  * Disconnecting. Whether the events in Google go with it is a decision only
@@ -132,7 +128,6 @@ export type GoogleFreebusySelection = z.infer<typeof googleFreebusySelectionSche
  * standing is the default, because it loses nothing.
  */
 export const googleDisconnectSchema = z.object({ deleteRemoteEvents: z.boolean().default(false) })
-export type GoogleDisconnect = z.infer<typeof googleDisconnectSchema>
 
 /**
  * What disconnecting did.

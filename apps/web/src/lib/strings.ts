@@ -52,7 +52,6 @@ export const strings = {
     },
   },
   login: {
-    title: 'Anmelden',
     description: 'Bitte melden Sie sich mit Ihren Zugangsdaten an.',
     email: 'E-Mail-Adresse',
     password: 'Passwort',
@@ -96,7 +95,6 @@ export const strings = {
     saving: 'Wird gespeichert …',
     saved: 'Praxisstammdaten gespeichert.',
     saveFailed: 'Die Praxisstammdaten konnten nicht gespeichert werden.',
-    loadFailed: 'Die Praxisstammdaten konnten nicht geladen werden.',
   },
   contactType: {
     tabRoles: 'Rollen',
@@ -144,12 +142,10 @@ export const strings = {
     saved: 'Eintrag gespeichert.',
     deleted: 'Eintrag gelöscht.',
     saveFailed: 'Der Eintrag konnte nicht gespeichert werden.',
-    deleteFailed: 'Der Eintrag konnte nicht gelöscht werden.',
     deleteTitle: 'Eintrag löschen?',
     deleteBody:
       'Der Eintrag verschwindet aus der Auswahl. Solange er noch verwendet wird, lässt er sich ' +
       'nicht löschen — setzen Sie ihn dann auf inaktiv.',
-    loadFailed: 'Rollen und Beziehungsarten konnten nicht geladen werden.',
   },
   activityType: {
     title: 'Vorgangsarten',
@@ -168,7 +164,6 @@ export const strings = {
     defaultDuration: 'Dauer in Minuten',
     defaultDurationHint: 'Leer lassen, wenn es keine übliche Dauer gibt.',
     preset: 'Leistungen',
-    presetHint: 'werden beim Anlegen eines Vorgangs kopiert',
     presetLongHint:
       'Wird beim Anlegen eines Vorgangs als Position eingesetzt. Eine Gruppe wird dabei sofort ' +
       'in einzelne Positionen aufgelöst und erscheint selbst nie in dieser Liste. Spätere ' +
@@ -191,7 +186,6 @@ export const strings = {
     deleteBody:
       'Die Art verschwindet aus der Auswahl. Solange sie noch von Vorgängen verwendet wird, ' +
       'lässt sie sich nicht löschen — setzen Sie sie dann auf inaktiv.',
-    loadFailed: 'Die Vorgangsarten konnten nicht geladen werden.',
   },
   validation: {
     required: 'Dieses Feld ist erforderlich.',
@@ -202,7 +196,6 @@ export const strings = {
     tooLong: 'Diese Eingabe ist zu lang.',
     amount: 'Bitte einen Betrag eingeben, zum Beispiel 90,00.',
     duration: 'Bitte eine Dauer in Minuten eingeben oder das Feld leer lassen.',
-    quantity: 'Bitte eine Menge ab 1 eingeben.',
   },
   contact: {
     title: 'Kontakte',
@@ -211,8 +204,6 @@ export const strings = {
     createTitle: 'Kontakt anlegen',
     search: 'Suchen',
     searchPlaceholder: 'Name, Firma oder Kontaktnummer',
-    /** Never in the URL — a search term here is usually a patient's name. */
-    searchHint: 'Der Suchbegriff wird nicht in der Adresszeile gespeichert.',
     showArchived: 'Archivierte anzeigen',
     empty: 'Keine Kontakte vorhanden.',
     emptyFiltered: 'Kein Kontakt passt zu dieser Suche.',
@@ -236,14 +227,10 @@ export const strings = {
     searchAll: 'Die Suche geht über alle Kontakte — unabhängig von Rolle und Zeitfenster.',
     emptyCurrent: 'In den letzten und nächsten zwei Wochen hat niemand einen Termin.',
     emptyCurrentAction: 'Alle Kontakte anzeigen',
-    roleInactive: 'inaktiv',
     allRolesTab: 'Alle',
     noRoles: 'Keine Rolle zugewiesen',
 
     relations: 'Beziehungen',
-    relationsHint:
-      'Beziehungen verbinden zwei Kontakte und erscheinen in beiden Akten — jeweils mit ' +
-      'der passenden Beschriftung.',
     relationsEmpty: 'Keine Beziehungen hinterlegt.',
     relationAdd: 'Beziehung hinzufügen',
     relationKind: 'Art der Beziehung',
@@ -260,7 +247,6 @@ export const strings = {
     relationFailed: 'Die Beziehung konnte nicht gespeichert werden.',
     relationNoTypes:
       'Es sind keine Beziehungsarten hinterlegt. Sie legen sie in den Einstellungen an.',
-    relationSaveFirst: 'Beziehungen können hinterlegt werden, sobald der Kontakt gespeichert ist.',
 
     columns: {
       number: 'Nr.',
@@ -269,8 +255,6 @@ export const strings = {
       city: 'Ort',
       dateOfBirth: 'Geburtsdatum',
       appointment: 'Termin',
-      email: 'E-Mail',
-      phone: 'Telefon',
     },
 
     sectionName: 'Name',
@@ -321,7 +305,6 @@ export const strings = {
     created: 'Kontakt angelegt.',
     saved: 'Kontakt gespeichert.',
     saveFailed: 'Der Kontakt konnte nicht gespeichert werden.',
-    loadFailed: 'Der Kontakt konnte nicht geladen werden.',
 
     archive: 'Archivieren',
     unarchive: 'Wiederherstellen',
@@ -449,12 +432,8 @@ export const strings = {
     createTitle: 'Vorgang anlegen',
     editTitle: 'Vorgang bearbeiten',
     empty: 'Noch keine Vorgänge.',
-    noItems: 'Ohne Leistungen',
 
     type: 'Art',
-    /** The labels themselves come from `activity_type` — the practitioner
-     *  maintains them in the settings, so there is nothing to translate. */
-    typeHint: 'Die Vorgangsarten pflegen Sie in den Einstellungen.',
     statusLabel: 'Status',
     statuses: {
       planned: 'Geplant',
@@ -469,7 +448,6 @@ export const strings = {
     presetsUnchanged: 'Dauer und Positionen bleiben unverändert.',
     presetsApply: 'Aus der Vorgangsart übernehmen',
     presetsApplied: 'Vorbelegung übernommen.',
-    presetsNone: 'Diese Vorgangsart hat keine Vorbelegung.',
     contact: 'Kontakt',
     contactSearch: 'Name oder Kontaktnummer tippen',
     contactNoResults: 'Kein Kontakt gefunden. Archivierte Kontakte werden nicht vorgeschlagen.',
@@ -488,8 +466,6 @@ export const strings = {
     addService: 'Leistung hinzufügen',
     addGroup: 'Leistungsgruppe einfügen',
     addFree: 'Freie Position',
-    chooseService: 'Leistung wählen',
-    chooseGroup: 'Gruppe wählen',
     /** Rule 5, said plainly where it matters most. */
     copyHint:
       'Beim Hinzufügen werden Bezeichnung, Ziffer, Preis und Dauer aus dem Katalog kopiert. ' +
@@ -499,30 +475,22 @@ export const strings = {
     itemFeeCode: 'Ziffer',
     itemQuantity: 'Menge',
     itemPrice: 'Einzelpreis',
-    itemDuration: 'Dauer',
     itemBillable: 'Abrechenbar',
-    itemBillableHint:
-      'Nicht abrechenbar heißt: die Position bleibt als Dokumentation stehen, ' +
-      'kommt aber auf keine Rechnung.',
     itemRemove: 'Position entfernen',
     itemMoveUp: 'Nach oben',
     itemMoveDown: 'Nach unten',
-    freeItemDefault: 'Freie Position',
     sumBillable: 'Abrechenbar',
     sumTotal: 'Gesamt',
     notBillableBadge: 'nicht abrechenbar',
 
-    appointment: 'Termin',
     withAppointment: 'Termin im Kalender anlegen',
     withAppointmentHint:
       'Ohne Termin wird der Vorgang nur dokumentiert und erscheint nicht im Kalender.',
-    appointmentFrom: 'Beginn',
     appointmentTo: 'Ende',
     appointmentRange: 'Zeitraum',
     appointmentRangeHint: 'Ergibt sich aus Beginn und Dauer.',
     durationRequired: 'Für einen Termin wird eine Dauer gebraucht.',
     appointmentStatus: 'Status',
-    appointmentTitle: 'Titel im Kalender',
     appointmentNote: 'Notiz zum Termin',
 
     save: 'Speichern',
@@ -531,12 +499,6 @@ export const strings = {
     created: 'Vorgang angelegt.',
     saved: 'Vorgang gespeichert.',
     saveFailed: 'Der Vorgang konnte nicht gespeichert werden.',
-    remove: 'Vorgang löschen',
-    removeTitle: 'Vorgang löschen?',
-    removeBody:
-      'Der Vorgang und seine Positionen werden gelöscht, der Termin im Kalender ebenfalls. ' +
-      'Das lässt sich nicht rückgängig machen.',
-    removed: 'Vorgang gelöscht.',
   },
   appointment: {
     title: 'Termine',
@@ -557,13 +519,10 @@ export const strings = {
       cancelled: 'Abgesagt',
       cancelled_late: 'Kurzfristig abgesagt',
     },
-    statusFilter: 'Status',
     allStatuses: 'Alle',
     /** The distinction the exclusion constraint makes. */
     releasesSlot: 'Der Zeitraum wird dadurch wieder frei.',
     holdsSlot: 'Der Zeitraum bleibt belegt.',
-    moved: 'Termin verschoben.',
-    moveFailed: 'Der Termin konnte nicht verschoben werden.',
   },
   mail: {
     title: 'Mailversand',
@@ -663,8 +622,6 @@ export const strings = {
     historyEmpty: 'Noch nicht versendet.',
     historyOk: 'zugestellt an den Server',
     historyFailed: 'fehlgeschlagen',
-    lastSent: (at: string, recipient: string) => `Zuletzt am ${at} an ${recipient}`,
-    neverSent: 'Noch nicht versendet',
   },
   google: {
     title: 'Google-Kalender',
@@ -733,7 +690,6 @@ export const strings = {
     conflictKeepRemote: 'Google übernehmen',
     conflictCancelled: 'abgesagt',
     conflictReasons: {
-      both_changed: 'Beidseitig geändert',
       overlap: 'Die Zeiten aus Google überschneiden sich mit einem anderen Termin.',
     },
     conflictResolved: 'Konflikt aufgelöst.',
@@ -760,7 +716,6 @@ export const strings = {
     text: 'Text',
     activity: 'Zum Vorgang',
     activityNone: 'Kein Vorgang',
-    writtenBy: 'Verfasst von',
 
     save: 'Speichern',
     saving: 'Wird gespeichert …',
@@ -790,7 +745,6 @@ export const strings = {
     lockedBadge: 'Gesperrt',
     lockedAt: 'Gesperrt am',
     openBadge: 'Offen',
-    addendum: 'Nachtrag',
     addendumTo: 'Nachtrag zu',
     writeAddendum: 'Nachtrag',
 
@@ -802,7 +756,6 @@ export const strings = {
     fileFailed: 'Die Datei konnte nicht angehängt werden.',
     fileRemove: 'Datei entfernen',
     fileRemoved: 'Datei entfernt.',
-    fileOpen: 'Öffnen',
     fileDownload: 'Herunterladen',
     fileHint:
       'PDF sowie JPEG, PNG, WebP, HEIC und TIFF, höchstens 25 MB. ' +
@@ -888,7 +841,6 @@ export const strings = {
     lineDate: 'Datum',
     lineQuantity: 'Menge',
     lineUnitPrice: 'Einzelpreis',
-    lineAmount: 'Betrag',
     lineRemove: 'Position entfernen',
     lineMoveUp: 'Nach oben',
     lineMoveDown: 'Nach unten',
@@ -907,7 +859,6 @@ export const strings = {
     saveFailed: 'Die Rechnung konnte nicht gespeichert werden.',
     created: 'Entwurf angelegt.',
     preview: 'Vorschau',
-    previewHint: 'Wird nur angezeigt und nirgends gespeichert.',
     download: 'Dokument öffnen',
     discard: 'Entwurf verwerfen',
     discardTitle: 'Entwurf verwerfen?',
@@ -1038,7 +989,6 @@ export const strings = {
       cancellation: 'Stornorechnung',
     },
     overdueBy: (days: number) => (days === 1 ? 'seit 1 Tag fällig' : `seit ${days} Tagen fällig`),
-    draftNotPayable: 'Ein Entwurf kann nicht bezahlt werden.',
 
     settle: 'Betrag erhalten',
     settleTitle: 'Rechnung festschreiben und als bezahlt erfassen?',
@@ -1126,12 +1076,10 @@ export const strings = {
 
     /** On a single activity. */
     fromActivity: 'Rechnung erstellen',
-    fromActivityNothing: 'Für diesen Vorgang ist nichts mehr offen.',
     stateOpen: 'Offen',
     stateBilled: 'Abgerechnet',
   },
   actions: {
-    retry: 'Erneut versuchen',
     back: 'Zurück',
     save: 'Speichern',
     cancel: 'Abbrechen',

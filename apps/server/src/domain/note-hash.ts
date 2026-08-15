@@ -59,6 +59,9 @@ export type HashableNote = {
   fileHashes: readonly string[]
 }
 
+/** Exported for `note-hash.test.ts`, which asserts the serialization itself —
+ *  a hash can only ever say that something changed, not that the key order and
+ *  the whitespace are the ones rule 7 names. `hashNote` is the caller. */
 export function canonicalNote(note: HashableNote): string {
   return JSON.stringify(
     {

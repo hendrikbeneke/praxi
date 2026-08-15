@@ -227,7 +227,7 @@ describe('updateContact', () => {
 
   it('does not reach into another tenant', async () => {
     const created = await createContact(db(), tenantId, person())
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
     expect(await updateContact(db(), otherTenant, created.id, person())).toBeNull()
     expect(await getContact(db(), otherTenant, created.id)).toBeNull()
@@ -406,7 +406,7 @@ describe('listContacts', () => {
   })
 
   it('shows only its own tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     await createContact(db(), otherTenant, person({ lastName: 'Fremd' }))
 
     const { items, total } = await listContacts(db(), tenantId, query())
@@ -683,7 +683,7 @@ describe('database guarantees', () => {
 
   it('refuses a role row whose tenant differs from its contact', async () => {
     const created = await createContact(db(), tenantId, person())
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
     await expect(
       db().insert(contactRole).values({

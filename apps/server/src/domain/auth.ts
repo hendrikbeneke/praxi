@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { type Algorithm, hash as argonHash, verify as argonVerify } from '@node-rs/argon2'
 import type { CurrentUser } from '@praxi/shared'
-import { and, eq, lt } from 'drizzle-orm'
+import { eq, lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { appUser, session } from '../db/schema.js'
 import { newId } from '../id.js'
@@ -25,6 +25,14 @@ const argon2Options = {
   timeCost: 2,
   parallelism: 1,
 } as const
+
+/*
+ * Of everything down to `needsRefresh`, only `hashPassword` is called from
+ * outside this module — the rest are exported so `auth.test.ts` can take the
+ * expiry and refresh arithmetic apart one function at a time. That is a use,
+ * not a leftover: the pieces are what the tests assert on, and inlining them
+ * would leave `login` and `validateSession` testable only end to end.
+ */
 
 /** How long a session lives from its last use. */
 export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000
@@ -207,15 +215,4 @@ export async function logout(database: Database, token: string): Promise<void> {
 
 export async function deleteExpiredSessions(database: Database, now: Date): Promise<void> {
   await database.delete(session).where(lt(session.expiresAt, now))
-}
-
-/** Ends every session of a user, for instance after a password change. */
-export async function logoutAllSessions(
-  database: Database,
-  tenantId: string,
-  userId: string,
-): Promise<void> {
-  await database
-    .delete(session)
-    .where(and(eq(session.tenantId, tenantId), eq(session.userId, userId)))
 }

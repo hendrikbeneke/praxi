@@ -124,7 +124,7 @@ describe('no two appointments in one slot', () => {
   })
 
   it('allows the same slot in a different tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     const otherContact = (await createContact(db(), otherTenant, person())).id
 
     await expect(
@@ -139,7 +139,7 @@ describe('no two appointments in one slot', () => {
 describe('which statuses hold the slot', () => {
   it('frees the slot when the appointment is cancelled', async () => {
     for (const status of SLOT_RELEASING_STATUSES) {
-      const tenant = await createTenant(db(), `Mandant ${status}`)
+      const tenant = await createTenant(db())
       const held = (await createContact(db(), tenant, person())).id
       const next = (await createContact(db(), tenant, person({ lastName: 'Nachrücker' }))).id
 
@@ -280,7 +280,7 @@ describe('moving and restatusing', () => {
     )
     const id = created.appointment?.id
     if (!id) throw new Error('fixture missing')
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
 
     const draft = {
       startsAt: AT('2026-09-03T08:00:00Z'),
@@ -325,7 +325,7 @@ describe('the calendar view', () => {
   })
 
   it('shows only its own tenant', async () => {
-    const otherTenant = await createTenant(db(), 'Mandant B')
+    const otherTenant = await createTenant(db())
     await createActivity(db(), tenantId, booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'))
 
     expect(

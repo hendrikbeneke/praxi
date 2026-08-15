@@ -117,8 +117,6 @@ export const messages = {
     addendumTargetUnlocked:
       'Ein Nachtrag ist nur zu einer gesperrten Notiz möglich. ' +
       'Eine offene Notiz können Sie direkt bearbeiten.',
-    addendumTypeFixed:
-      'Ob eine Notiz ein Nachtrag ist, steht mit dem Anlegen fest und lässt sich nicht ändern.',
     chainForked:
       'Diese Notiz konnte nicht gesperrt werden, weil zeitgleich eine andere gesperrt wurde. ' +
       'Bitte versuchen Sie es erneut.',
@@ -221,7 +219,6 @@ export const messages = {
     encryptionKeyMissing:
       'Ohne ENCRYPTION_KEY in der Umgebung kann kein Passwort gespeichert werden. ' +
       'Siehe .env.example.',
-    saved: 'Mailkonto gespeichert.',
   },
   emailTemplate: {
     notFound: 'Diese Vorlage existiert nicht.',
@@ -236,7 +233,6 @@ export const messages = {
     // template — are said by the screen and not from here: they stop applying
     // the moment the field is filled in by hand, and only the screen knows
     // that. See `invoiceSendDraftSchema`.
-    failed: 'Die Mail konnte nicht versendet werden.',
     /** The test send. It goes to the configured sender and nowhere else. */
     testSubject: 'Testmail aus der Praxisverwaltung',
     testBody:
@@ -248,14 +244,12 @@ export const messages = {
       'Die Google-Anbindung ist nicht eingerichtet. ' +
       'Es fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET oder ENCRYPTION_KEY in der Umgebung.',
     notConnected: 'Es besteht keine Verbindung zu Google.',
-    noCalendar: 'Es ist kein Praxiskalender ausgewählt.',
     // The key changed under a stored token. Nothing is deleted automatically:
     // a key set wrongly by accident must not throw a connection away.
     keyMismatch:
       'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. ' +
       'Setzen Sie den ursprünglichen ENCRYPTION_KEY zurück oder verbinden Sie neu.',
     authExpired: 'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.',
-    unreachable: 'Google ist nicht erreichbar. Die Änderung wurde trotzdem gespeichert.',
     stateInvalid:
       'Die Anmeldung bei Google ist abgelaufen oder wurde nicht von hier gestartet. ' +
       'Bitte erneut versuchen.',

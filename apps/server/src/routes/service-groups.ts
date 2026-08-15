@@ -9,7 +9,6 @@ import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
   createServiceGroup,
   deleteServiceGroup,
-  getServiceGroup,
   listServiceGroups,
   moveServiceGroup,
   ServiceGroupInUseError,
@@ -53,11 +52,6 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
       translate,
     )
     return c.json(created, 201)
-  })
-
-  .get('/:groupId', validate('param', groupParam), async (c) => {
-    const found = await getServiceGroup(db(), tenantId(c), c.req.valid('param').groupId)
-    return found ? c.json(found) : notFound()
   })
 
   .put(

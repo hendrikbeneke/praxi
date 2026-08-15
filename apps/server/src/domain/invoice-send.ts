@@ -65,6 +65,10 @@ type Recipient = { email: string | null; name: string }
  * exists, otherwise the contact. Only a default — the dialog lets it be
  * overwritten, which is the difference to the test send that has no recipient
  * at all.
+ *
+ * Exported for `invoice-send.test.ts` alone — `prepareSend` below is the
+ * caller. The resolution has more cases than a prepared draft shows, so it is
+ * asserted on its own.
  */
 export async function resolveRecipient(
   reader: DbReader,

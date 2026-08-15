@@ -9,7 +9,6 @@ import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
   createService,
   deleteService,
-  getService,
   listServices,
   moveService,
   ServiceInUseError,
@@ -53,11 +52,6 @@ export const servicesRoute = new Hono<AppEnv>()
   .post('/', validate('json', serviceInputSchema), async (c) => {
     const created = await createService(db(), tenantId(c), c.req.valid('json')).catch(translate)
     return c.json(created, 201)
-  })
-
-  .get('/:serviceId', validate('param', serviceParam), async (c) => {
-    const found = await getService(db(), tenantId(c), c.req.valid('param').serviceId)
-    return found ? c.json(found) : notFound()
   })
 
   .put(

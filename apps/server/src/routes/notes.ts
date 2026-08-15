@@ -13,7 +13,6 @@ import {
   deleteNote,
   FileTooLargeError,
   getFileForDownload,
-  getNote,
   listNotes,
   NoteLockedError,
   removeFile,
@@ -85,11 +84,6 @@ export const notesRoute = new Hono<AppEnv>()
       translate,
     )
     return c.json(created, 201)
-  })
-
-  .get('/:noteId', validate('param', noteParam), async (c) => {
-    const found = await getNote(db(), tenantId(c), c.req.valid('param').noteId)
-    return found ? c.json(found) : notFound()
   })
 
   .put('/:noteId', validate('param', noteParam), validate('json', noteUpdateSchema), async (c) => {
