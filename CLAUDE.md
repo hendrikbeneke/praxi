@@ -392,19 +392,35 @@ practice_settings     tenant_id uuid not null unique -> tenant(id),
                       -- letter_template_path waits for a letter module —
                       -- nothing on spec.
                       -- The SMTP account is deliberately NOT here (slice 10):
-                      -- updatePracticeSettings writes the whole form object,
-                      -- so a password in this table would travel to the client
-                      -- and back on every save. See smtp_settings.
+                      -- GET /api/settings answers with the whole row, so a
+                      -- password in this table would travel to the client on
+                      -- every load of the master data. See smtp_settings.
+                      -- (Until D4 the write side was the argument too — the
+                      -- update took the whole form object. It is a genuine
+                      -- column patch now, which fixes the way back but not
+                      -- the way out.)
 
 -- as built (slice 1)
 app_user              tenant_id uuid not null -> tenant(id),
                       email text not null,
                       password_hash text not null,           (argon2id)
                       name text not null,
-                      active boolean not null default true
+                      active boolean not null default true,
+                      preferences jsonb not null default '{}' (slice 12)
+                        -- What this user prefers, never what the practice
+                        -- does — theme, start page, sidebar state, a list's
+                        -- column choice. Its shape is
+                        -- `userPreferencesSchema` in packages/shared, and
+                        -- every entry is its own FLAT top-level key:
+                        -- updateUserPreferences merges with Postgres's
+                        -- `jsonb || jsonb`, which replaces a key wholesale
+                        -- rather than merging into it, so a nested
+                        -- `columns: {...}` would lose one list's choice the
+                        -- moment another list saved its own.
                       unique index on (email)                -- global, not per
                         -- tenant: the login form has no tenant context
                       check (email = lower(email))
+                      check app_user_preferences_is_object
                       unique (id, tenant_id)                 -- for the FK below
                       index on (tenant_id)
 
@@ -564,9 +580,9 @@ contact_relation      tenant_id uuid not null -> tenant(id),
                       since date,
                       exclusive boolean not null default false
                         -- a mirror of contact_relation_type.is_exclusive,
-                        -- written ONLY by the trigger
-                        -- contact_relation_set_exclusive. It exists because a
-                        -- partial index cannot read a second table, and
+                        -- written ONLY by the trigger contact_relation_exclusive
+                        -- (function contact_relation_set_exclusive). It exists
+                        -- because a partial index cannot read a second table, and
                         -- exclusivity has to be a database guarantee. Never
                         -- written by application code, never in a payload.
                       foreign key (from_contact_id, tenant_id)
@@ -737,6 +753,11 @@ activity_item         tenant_id uuid not null -> tenant(id),
                       unique (id, tenant_id)                     -- target of
                         -- invoice_line's foreign key in slice 6
                       index (activity_id, position)
+                      -- trigger protect_billed_activity_item (migration 0014),
+                      -- BEFORE UPDATE: an item an invoice_line of a FINALIZED,
+                      -- non-cancelled invoice points at can no longer be
+                      -- changed (rule 6). Cancelling frees it again, because
+                      -- the trigger asks the invoice's current status.
                       -- Rows are stable across an edit: `syncItems` updates in
                       -- place rather than replacing, because slice 6 points
                       -- invoice_line.activity_item_id at these ids.
@@ -985,15 +1006,20 @@ invoice               tenant_id uuid not null -> tenant(id),
                       payment_term_days integer not null
                         check (between 0 and 365),
                       recipient_snapshot jsonb,       -- formatContactName(),
-                        -- the same function the screen uses. EVERY key in it is
-                        -- optional with a default, and that is the model rather
-                        -- than a concession to old rows: a snapshot holds what
-                        -- the contact looked like at finalization, so when the
-                        -- contact schema grows a field — house_number did in
-                        -- 10.5 — older snapshots simply do not carry the key and
-                        -- have to render the document they rendered then. True
-                        -- after go-live as much as before it; asserted in
+                        -- the same function the screen uses. Every key ADDED
+                        -- AFTER the first version is optional with a default,
+                        -- and that is the model rather than a concession to
+                        -- old rows: a snapshot holds what the contact looked
+                        -- like at finalization, so when the contact schema
+                        -- grows a field — house_number did in 10.5 — older
+                        -- snapshots simply do not carry the key and have to
+                        -- render the document they rendered then. True after
+                        -- go-live as much as before it; asserted in
                         -- contact-address.test.ts.
+                        -- contact_number, name and country are the exception
+                        -- and stay REQUIRED: defaulting them would let a
+                        -- snapshot render an invoice addressed to nobody,
+                        -- which is worse than a parse that refuses.
                       intro_text, outro_text          (text, nullable)
                         -- plain text, not a reference to a text_template: a
                         -- foreign key to a mutable table on an immutable row
@@ -1134,12 +1160,12 @@ smtp_settings         tenant_id uuid not null unique -> tenant(id),
                       check smtp_settings_password_needs_user (
                         password_cipher is null or username is not null)
                       -- Its own table rather than columns on practice_settings,
-                      -- and the reason is structural: updatePracticeSettings
-                      -- writes the whole form object with .set(input). Kept
-                      -- apart, "the settings response carries no secret" is a
-                      -- property of the shape rather than something to
-                      -- remember. getSmtpSettings answers with passwordSet and
-                      -- has no password field of any kind.
+                      -- and the reason is structural: getPracticeSettings
+                      -- answers with the whole row. Kept apart, "the settings
+                      -- response carries no secret" is a property of the
+                      -- shape rather than something to remember.
+                      -- getSmtpSettings answers with passwordSet and has no
+                      -- password field of any kind.
                       -- set_updated_at; RLS created and disabled.
 
 -- as built (slice 10, sort_order added in D1)
@@ -1369,6 +1395,8 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - One Zod schema per entity in `packages/shared`, types derived from it. No hand-maintained parallel interfaces.
 - Migrations are immutable once applied: never edit a migration file that has run, always add a new one. But do not contort a design to avoid a migration — there is no production database yet, and a migration during development is cheap. Prefer the correct schema over the one that avoids an `ALTER TABLE`.
 - Before going live the migration history will be squashed into a single baseline. That baseline must be produced with `pg_dump --schema-only` against the real database, never regenerated from the Drizzle schema: Drizzle does not know the hand-written parts — triggers, the `EXCLUDE` constraint, RLS policies, the ICU locale check, partial indexes — and would silently drop them.
+- **Nothing is in production yet.** No real patient data exists, no URL is bookmarked, no database holds anything that cannot be recreated by the seed. So there is no compatibility to preserve: a route may be deleted rather than redirected, a column renamed rather than aliased, a payload reshaped rather than versioned. Do not ask whether an existing URL, an existing row or a migration path needs sparing — until go-live, it does not. This is the one assumption that changes on the day the practice starts using it, and the "Before going live" list in `WORKPLAN.md` is where that day is prepared for.
+- **Delete code that nothing uses.** Not commented out, not left behind "for later", not kept alive by a test that is its only caller — deleted. Git still has it if it is ever wanted back. Two unused things are worse than one: the next reader has to work out which of the two ways is the real one, and that question costs more than rewriting the twenty lines would. This applies to components, endpoints, domain functions, strings, schema fields and dependencies alike.
 - Every new entity follows the structure of the entity built before it. Consistency beats local cleverness — if you want to deviate from an established pattern, say so and explain why before doing it.
 - Tests are mandatory for everything in `domain/`. UI and simple CRUD routes need none.
 - Do not add optimizations, caching or short-circuits that were not asked for. If you think one is warranted, propose it separately instead of building it in.
