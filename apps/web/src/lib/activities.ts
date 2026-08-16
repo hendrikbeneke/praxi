@@ -6,6 +6,8 @@ import type {
   ActivitySummaryQuery,
   AppointmentMove,
   CalendarEntry,
+  FreeSlotQuery,
+  FreeSlotsResponse,
 } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
@@ -99,3 +101,28 @@ export async function moveAppointment(appointmentId: string, move: AppointmentMo
   })
   if (!res.ok) throw await apiError(res)
 }
+
+/**
+ * Where a treatment of a given length would still fit (D9.5).
+ *
+ * The busy times behind this never reach the browser — the server computes
+ * with them and answers with free windows and two flags. See `findFreeSlots`
+ * in the domain.
+ */
+export const freeSlotsQueryOptions = (params: FreeSlotQuery | null) =>
+  queryOptions({
+    queryKey: ['appointments', 'free-slots', params],
+    enabled: params !== null,
+    queryFn: async (): Promise<FreeSlotsResponse> => {
+      if (!params) throw new Error('no query')
+      const res = await api.api.appointments['free-slots'].$get({
+        query: {
+          from: params.from,
+          to: params.to,
+          durationMin: String(params.durationMin),
+        },
+      })
+      if (!res.ok) throw await apiError(res)
+      return res.json()
+    },
+  })

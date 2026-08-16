@@ -2,21 +2,23 @@ import {
   activityTypeLabel,
   appointmentStatuses,
   type CalendarEntry,
+  type FreeSlot,
   fromBerlinDateTimeLocal,
   occupiesSlot,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { CalendarGrid, type CalendarView, type DropTarget } from '@/components/calendar-grid'
 import { CalendarRail, type RailSelection } from '@/components/calendar-rail'
+import { SlotFinder, type SlotSearch } from '@/components/slot-finder'
 import { SyncConflictBanner } from '@/components/sync-conflicts'
 import { Button } from '@/components/ui/button'
-import { calendarQueryOptions, moveAppointment } from '@/lib/activities'
+import { calendarQueryOptions, freeSlotsQueryOptions, moveAppointment } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import {
@@ -115,6 +117,16 @@ function CalendarPage() {
   const [selection, setSelection] = useState<RailSelection>(null)
 
   /**
+   * The slot finder (D9.5). Its range is the window on screen, so paging
+   * forward is how one looks further — the answer stays in the grid, where a
+   * time on a day is readable rather than merely describable.
+   */
+  const [slotSearch, setSlotSearch] = useState<SlotSearch | null>(null)
+  const freeSlots = useQuery(
+    freeSlotsQueryOptions(slotSearch ? { from, to, durationMin: slotSearch.durationMin } : null),
+  )
+
+  /**
    * Moving an entry, optimistically — **and put back on refusal.**
    *
    * The rollback is the point, not the speed. With a toast alone the block
@@ -153,6 +165,20 @@ function CalendarPage() {
       await queryClient.invalidateQueries({ queryKey: ['activities'] })
     },
   })
+
+  /** Taking a suggestion: the finder closes and the form opens on that slot,
+   *  with the length and the kind already set — the two things the search was
+   *  about. */
+  const pickSlot = (slot: FreeSlot) => {
+    const chosen = slotSearch
+    setSlotSearch(null)
+    setSelection({
+      kind: 'new',
+      startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
+      ...(chosen?.typeCode ? { typeCode: chosen.typeCode } : {}),
+      ...(chosen ? { durationMin: chosen.durationMin } : {}),
+    })
+  }
 
   const setSearch = (change: Partial<z.infer<typeof searchSchema>>) =>
     void navigate({ search: (previous) => ({ ...previous, ...change }) })
@@ -207,6 +233,18 @@ function CalendarPage() {
               </Button>
             ))}
           </div>
+
+          <Button
+            size="sm"
+            variant={slotSearch ? 'default' : 'outline'}
+            onClick={() => {
+              setSelection(null)
+              setSlotSearch((current) => (current ? null : { durationMin: 60, typeCode: null }))
+            }}
+          >
+            <Search className="size-4" aria-hidden />
+            {strings.slotFinder.open}
+          </Button>
 
           <Button size="sm" onClick={() => setSelection({ kind: 'new' })}>
             <Plus className="size-4" aria-hidden />
@@ -282,6 +320,13 @@ function CalendarPage() {
           }}
           onNewAt={(startsAtLocal) => setSelection({ kind: 'new', startsAtLocal })}
           onMove={(target) => move.mutate(target)}
+          {...(slotSearch
+            ? {
+                freeSlots: freeSlots.data?.slots ?? [],
+                freeSlotsAreComplete: freeSlots.data?.privateCalendarsChecked ?? true,
+                onPickSlot: pickSlot,
+              }
+            : {})}
         />
       </section>
 
@@ -290,6 +335,18 @@ function CalendarPage() {
         entries={shown}
         occupied={occupied}
         selection={selection}
+        finder={
+          slotSearch ? (
+            <SlotFinder
+              search={slotSearch}
+              result={freeSlots.data}
+              loading={freeSlots.isPending}
+              onSearch={setSlotSearch}
+              onClear={() => setSlotSearch(null)}
+              onPick={pickSlot}
+            />
+          ) : null
+        }
         onPickDay={(date) => setSearch({ date })}
         onSelectEntry={(entry) => {
           if (!entry.activityId) return

@@ -12,6 +12,7 @@ import { RelationTypeSettings, RoleTypeSettings } from '@/components/contact-typ
 import { GoogleSettings } from '@/components/google-settings'
 import { InvoiceSettings } from '@/components/invoice-settings'
 import { MailSettings } from '@/components/mail-settings'
+import { OpeningHoursSettings } from '@/components/opening-hours-settings'
 import { PageHeader } from '@/components/page-header'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { TextTemplateSettings } from '@/components/text-template-settings'
@@ -110,7 +111,14 @@ function SettingsPage() {
         </nav>
 
         <div className="min-w-0">
-          {section === 'practice' && <PracticeForm />}
+          {section === 'practice' && (
+            <div className="space-y-6">
+              <PracticeForm />
+              {/* Its own table and its own save, so it sits beside the form
+                  rather than inside it (D9.5). */}
+              <OpeningHoursSettings />
+            </div>
+          )}
           {section === 'invoicing' && <InvoiceSettings />}
           {section === 'roles' && <RoleTypeSettings />}
           {section === 'relations' && <RelationTypeSettings />}

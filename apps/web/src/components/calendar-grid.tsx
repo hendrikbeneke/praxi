@@ -4,6 +4,7 @@ import {
   activityTypeLabel,
   type BusyInterval,
   type CalendarEntry,
+  type FreeSlot,
   formatBerlinTime,
   fromBerlinDateTimeLocal,
   minutesBetween,
@@ -75,9 +76,12 @@ export function CalendarGrid({
   types,
   conflicted,
   selectedId,
+  freeSlots,
+  freeSlotsAreComplete = true,
   onSelect,
   onNewAt,
   onMove,
+  onPickSlot,
 }: {
   days: readonly string[]
   view: CalendarView
@@ -86,9 +90,17 @@ export function CalendarGrid({
   types: readonly ActivityType[] | undefined
   conflicted: ReadonlySet<string>
   selectedId: string | null
+  /** Suggestions from the slot finder (D9.5). Empty unless it is running. */
+  freeSlots?: readonly FreeSlot[]
+  /** False when the private calendars could not be consulted. The suggestions
+   *  are then painted in the warning tone rather than the primary one —
+   *  whoever clicks a slot without reading the rail still sees that the
+   *  answer is the weaker kind. */
+  freeSlotsAreComplete?: boolean
   onSelect: (entry: CalendarEntry) => void
   onNewAt: (startsAtLocal: string) => void
   onMove: (target: DropTarget) => void
+  onPickSlot?: (slot: FreeSlot) => void
 }) {
   const perMinute = MINUTE_PX[view]
   const height = DAY_MINUTES * perMinute
@@ -237,6 +249,36 @@ export function CalendarGrid({
                     onClick={() => onNewAt(`${day}T${String(hour).padStart(2, '0')}:00`)}
                   />
                 ))}
+
+                {/* Where a treatment would fit (D9.5). Below the entries in
+                    the stack, so an existing appointment always wins the
+                    click. Dashed, because it is an offer and not a thing. */}
+                {(freeSlots ?? [])
+                  .filter((slot) => dayOf(slot.startsAt) === day)
+                  .map((slot) => (
+                    <button
+                      type="button"
+                      key={slot.startsAt}
+                      onClick={() => onPickSlot?.(slot)}
+                      style={{
+                        top: startMinutesOf(slot.startsAt) * perMinute,
+                        height: Math.max(
+                          MIN_BLOCK_PX,
+                          minutesBetween(slot.startsAt, slot.endsAt) * perMinute - 2,
+                        ),
+                      }}
+                      className={cn(
+                        'absolute inset-x-0.5 z-[1] overflow-hidden rounded border border-dashed px-1.5 py-0.5 text-left text-[11px] leading-tight',
+                        freeSlotsAreComplete
+                          ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/20'
+                          : 'border-warning/60 bg-warning/10 text-warning hover:bg-warning/20',
+                      )}
+                    >
+                      <span className="block truncate font-semibold tabular-nums">
+                        {formatBerlinTime(slot.startsAt)}–{formatBerlinTime(slot.endsAt)}
+                      </span>
+                    </button>
+                  ))}
 
                 {/* Somebody else's calendar. Behind the entries, not clickable,
                     and never in the way of a drop — see the note above. */}

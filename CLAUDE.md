@@ -54,6 +54,7 @@ The practice does not only treat patients. It also sells courses, exam preparati
 | Zahlweg | `payment_method` | |
 | Bezahlübersicht | `receivables` | |
 | Nummernkreis | `number_range` | holds the next number, edited manually |
+| Öffnungszeiten | `opening_hour` | one row per interval, not per weekday |
 | Zahlungsziel | `payment_term_days` | |
 | Einleitungs-/Schlusstext | `text_template` | intro and outro blocks on the invoice |
 | Ausfallhonorar | a `service` like any other | no special mechanism |
@@ -406,6 +407,49 @@ practice_settings     tenant_id uuid not null unique -> tenant(id),
                       -- update took the whole form object. It is a genuine
                       -- column patch now, which fixes the way back but not
                       -- the way out.)
+                      -- Opening hours are NOT here either, and for a
+                      -- different reason: they are a list, not a field. See
+                      -- opening_hour below.
+
+-- as built (D9.5)
+opening_hour          tenant_id uuid not null -> tenant(id),
+                      weekday integer not null check (between 1 and 7),
+                        -- ISO 8601, Monday = 1, matching Postgres' `isodow`.
+                        -- The client counts from zero and converts in one
+                        -- place (weekdayIndex in lib/calendar-dates.ts).
+                      starts_at time not null,
+                      ends_at time not null,
+                        -- Wall clock, no zone: "open from eight on Mondays"
+                        -- is eight before and after the clocks change.
+                      check opening_hour_ends_after_starts
+                      EXCLUDE USING gist (tenant_id WITH =, weekday WITH =,
+                        tsrange(DATE '2000-01-01' + starts_at,
+                                DATE '2000-01-01' + ends_at) WITH &&)
+                        -- Two windows on one weekday cannot overlap. The same
+                        -- mechanism as appointment_no_overlap; `time` is not
+                        -- gist-indexable, so a constant date turns the pair
+                        -- into a tsrange and the date itself means nothing.
+                        -- The domain refuses first so the message names the
+                        -- day instead of a constraint.
+                      index on (tenant_id, weekday, starts_at)
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- ONE ROW PER INTERVAL, not per weekday. A lunch break
+                      -- is two rows, a morning-only day is one, and a day off
+                      -- is no rows at all: "closed" needs no marker because it
+                      -- is the absence of an entry. A row per weekday with
+                      -- from/to could not hold the break without a second pair
+                      -- of columns, and two breaks would have needed a third.
+                      --
+                      -- Nothing seeds this. An empty table means "not
+                      -- configured", and the slot finder says so rather than
+                      -- assuming a working day — `openingHoursSet` travels in
+                      -- the answer for exactly that sentence.
+                      --
+                      -- Deliberately absent: exceptions. A holiday belongs to
+                      -- a DATE, not to a weekday, and arrives as a second
+                      -- table beside this one; this pattern does not change
+                      -- for it.
 
 -- as built (slice 1)
 app_user              tenant_id uuid not null -> tenant(id),

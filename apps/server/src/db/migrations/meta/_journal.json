@@ -225,6 +225,13 @@
       "when": 1786829831667,
       "tag": "0031_drop_tenant_name",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786877536204,
+      "tag": "0032_opening_hours",
+      "breakpoints": true
     }
   ]
 }

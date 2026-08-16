@@ -184,8 +184,9 @@ function presetItemsOf(entry: ActivityType, services: readonly Service[]): Draft
 /** With a calendar entry its length wins: that is the interval the calendar
  *  and the overlap constraint actually work with, and saving writes the same
  *  value back to the activity so the two stop drifting. */
-function initialDuration(activity: Activity | undefined): string {
-  if (!activity) return String(DEFAULT_DURATION_MIN)
+function initialDuration(activity: Activity | undefined, requested?: number): string {
+  // What the slot finder searched for, where it searched by a bare duration.
+  if (!activity) return String(requested ?? DEFAULT_DURATION_MIN)
   if (activity.appointment) {
     return String(minutesBetween(activity.appointment.startsAt, activity.appointment.endsAt))
   }
@@ -196,6 +197,8 @@ export function ActivityForm({
   activity,
   contactId,
   startsAtLocal,
+  initialTypeCode,
+  initialDurationMin,
   onSaved,
   onCancel,
 }: {
@@ -204,6 +207,13 @@ export function ActivityForm({
   contactId?: string | undefined
   /** Pre-filled when a slot in the calendar was clicked. */
   startsAtLocal?: string | undefined
+  /** From the slot finder (D9.5): the kind that was searched for. Its presets
+   *  are drawn as if it had been picked by hand, because it was — one screen
+   *  earlier. */
+  initialTypeCode?: string | undefined
+  /** Likewise the length. Only meaningful for a search by free duration; with
+   *  a type the preset supplies it. */
+  initialDurationMin?: number | undefined
   onSaved: () => void
   onCancel: () => void
 }) {
@@ -238,7 +248,9 @@ export function ActivityForm({
    */
   const [occurredDate, setOccurredDate] = useState(start.slice(0, 10))
   const [occurredTime, setOccurredTime] = useState(start.slice(11, 16))
-  const [durationText, setDurationText] = useState(() => initialDuration(activity))
+  const [durationText, setDurationText] = useState(() =>
+    initialDuration(activity, initialDurationMin),
+  )
   /**
    * What a preset last wrote into the duration field, so "has the practitioner
    * touched this?" is answerable. Applying a type's presets silently is only
@@ -246,7 +258,7 @@ export function ActivityForm({
    * activity nothing came from a preset, so everything counts as touched.
    */
   const [presetDurationText, setPresetDurationText] = useState(() =>
-    activity ? '' : String(DEFAULT_DURATION_MIN),
+    activity ? '' : initialDuration(undefined, initialDurationMin),
   )
   /** Set when a type was chosen whose presets were *not* applied, because
    *  something would have been overwritten. Shows the line and the button. */
@@ -293,22 +305,27 @@ export function ActivityForm({
   )
 
   /**
-   * The default type, drawn once the catalogue has arrived. It cannot happen
-   * in the initial state above, which is read while the queries are still in
-   * flight, so `type` starts empty and this fills it exactly once.
+   * The type, drawn once the catalogue has arrived. It cannot happen in the
+   * initial state above, which is read while the queries are still in flight,
+   * so `type` starts empty and this fills it exactly once.
+   *
+   * `initialTypeCode` wins over the default when the slot finder handed one
+   * over — and it goes through the same `applyPresetOf`, because the type was
+   * chosen by hand, just one screen earlier.
    */
   useEffect(() => {
     if (activity !== undefined || type !== '') return
     if (!types.data || !services.data) return
 
     const chosen =
-      types.data.find((entry) => entry.isDefault && entry.active) ??
+      (initialTypeCode && types.data.find((entry) => entry.code === initialTypeCode)) ||
+      types.data.find((entry) => entry.isDefault && entry.active) ||
       types.data.find((entry) => entry.active)
     if (!chosen) return
 
     setType(chosen.code)
     applyPresetOf(chosen)
-  }, [activity, type, types.data, services.data, applyPresetOf])
+  }, [activity, type, types.data, services.data, applyPresetOf, initialTypeCode])
 
   /**
    * Choosing a type by hand.

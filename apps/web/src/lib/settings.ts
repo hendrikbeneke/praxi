@@ -1,4 +1,9 @@
-import type { PracticeSettings, PracticeSettingsPatch } from '@praxi/shared'
+import type {
+  OpeningHour,
+  OpeningHoursInput,
+  PracticeSettings,
+  PracticeSettingsPatch,
+} from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
@@ -24,6 +29,24 @@ export async function updatePracticeSettings(
   patch: PracticeSettingsPatch,
 ): Promise<PracticeSettings> {
   const res = await api.api.settings.$patch({ json: patch })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+/** The weekly opening pattern (D9.5). Its own key under `settings`, so the
+ *  practice panel's invalidation reaches it too. */
+export const openingHoursQueryOptions = queryOptions({
+  queryKey: ['settings', 'opening-hours'],
+  queryFn: async (): Promise<OpeningHour[]> => {
+    const res = await api.api.settings['opening-hours'].$get()
+    if (!res.ok) throw await apiError(res)
+    return res.json()
+  },
+})
+
+/** A replace, unlike the patch above: one form, one table, one statement. */
+export async function replaceOpeningHours(input: OpeningHoursInput): Promise<OpeningHour[]> {
+  const res = await api.api.settings['opening-hours'].$put({ json: input })
   if (!res.ok) throw await apiError(res)
   return res.json()
 }

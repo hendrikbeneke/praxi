@@ -23,6 +23,16 @@ export const messages = {
   settings: {
     missing: 'Es sind keine Praxisstammdaten hinterlegt.',
   },
+  openingHours: {
+    /** The database refuses this too (`opening_hour_no_overlap`); the domain
+     *  refuses first so the answer names the day instead of a constraint. */
+    overlap: (weekday: number) =>
+      `Am ${
+        ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'][
+          weekday
+        ] ?? 'gewählten Tag'
+      } überschneiden sich zwei Zeitfenster.`,
+  },
   contact: {
     notFound: 'Dieser Kontakt existiert nicht.',
     kindImmutable:

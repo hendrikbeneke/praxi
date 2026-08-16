@@ -78,6 +78,7 @@ export const strings = {
     sectionContact: 'Kontakt',
     sectionBanking: 'Bankverbindung',
     sectionInvoicing: 'Rechnungsstellung',
+    sectionOpeningHours: 'Öffnungszeiten',
     practiceName: 'Praxisname',
     street: 'Straße und Hausnummer',
     postalCode: 'PLZ',
@@ -519,6 +520,41 @@ export const strings = {
     created: 'Vorgang angelegt.',
     saved: 'Vorgang gespeichert.',
     saveFailed: 'Der Vorgang konnte nicht gespeichert werden.',
+  },
+  /** "Freien Termin finden" (D9.5) — the calendar rail's third state. */
+  slotFinder: {
+    title: 'Freien Termin finden',
+    open: 'Freien Termin finden',
+    clear: 'Auswahl aufheben',
+    minutes: (value: number) => `${value} Min`,
+    orDuration: 'Oder nach freier Dauer (Minuten)',
+    empty: 'In diesem Zeitraum ist nichts frei. Blättern Sie weiter.',
+    /** Why the list of activity types is short — a missing entry, not a bug. */
+    typesWithoutDuration: 'Arten ohne hinterlegte Dauer stehen hier nicht.',
+    toActivityTypes: 'Vorgangsarten pflegen',
+    noOpeningHours:
+      'Ohne Öffnungszeiten kann nicht gesucht werden — sonst würde ein Arbeitstag geraten.',
+    toOpeningHours: 'Öffnungszeiten hinterlegen',
+    /** No connection, no selected calendar, or the query failed — all three
+     *  mean the same thing here, so they read the same. */
+    privateNotChecked:
+      'Private Termine wurden nicht geprüft. Die Vorschläge kennen nur die Termine der Praxis.',
+    slotLabel: (from: string, to: string) => `${from}–${to} frei`,
+  },
+  /** The weekly opening pattern (D9.5). A day with no window is closed, and
+   *  the screen says that word rather than showing empty time fields. */
+  openingHours: {
+    title: 'Öffnungszeiten',
+    hint:
+      'Grundlage für die Terminsuche. Ein Tag ohne Zeitfenster gilt als geschlossen; ' +
+      'eine Mittagspause ist einfach eine Lücke zwischen zwei Fenstern.',
+    weekdays: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+    closed: 'Geschlossen',
+    from: 'Von',
+    to: 'Bis',
+    addWindow: 'Zeitfenster',
+    removeWindow: 'Zeitfenster entfernen',
+    saved: 'Öffnungszeiten gespeichert.',
   },
   appointment: {
     title: 'Termine',

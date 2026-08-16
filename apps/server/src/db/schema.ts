@@ -38,6 +38,7 @@ import {
   pgEnum,
   pgTable,
   text,
+  time,
   timestamp,
   unique,
   uniqueIndex,
@@ -1723,5 +1724,46 @@ export const invoiceSend = pgTable(
     /** A failed attempt has to say why; a successful one has nothing to
      *  explain. */
     check('invoice_send_error_pair', sql`(not ${t.ok}) = (${t.error} is not null)`),
+  ],
+)
+
+/**
+ * When the practice is open — the weekly pattern, **one row per interval**
+ * (D9.5).
+ *
+ * A lunch break is two rows for that weekday, a morning-only day is one, and a
+ * day off is no rows at all: "closed" needs no marker because it is the
+ * absence of an entry. A row per weekday with from/to could not hold the break
+ * without a second pair of columns, and two breaks would have needed a third.
+ *
+ * Nothing seeds this. An empty table means "not configured", and the slot
+ * finder says exactly that instead of assuming a working day.
+ *
+ * Exceptions — holidays, one closed afternoon — belong to a *date*, not to a
+ * weekday, and arrive as a second table beside this one. This pattern does not
+ * change for them.
+ */
+export const openingHour = pgTable(
+  'opening_hour',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    /** ISO 8601, Monday = 1, matching Postgres' own `isodow`. */
+    weekday: integer().notNull(),
+    /** Wall clock, no zone: "open from eight" is eight before and after the
+     *  clocks change. */
+    startsAt: time().notNull(),
+    endsAt: time().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    index('opening_hour_tenant_weekday_idx').on(t.tenantId, t.weekday, t.startsAt),
+    check('opening_hour_weekday_range', sql`${t.weekday} between 1 and 7`),
+    check('opening_hour_ends_after_starts', sql`${t.endsAt} > ${t.startsAt}`),
+    // The EXCLUDE constraint against overlapping windows on one weekday is
+    // added by hand in migration 0032 — drizzle-kit cannot express it, the
+    // same as `appointment_no_overlap` in 0009.
   ],
 )

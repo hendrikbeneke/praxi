@@ -1,9 +1,14 @@
-import { practiceSettingsPatchSchema } from '@praxi/shared'
+import { openingHoursInputSchema, practiceSettingsPatchSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { MAX_UPLOAD_BYTES } from '../domain/file-type.js'
+import {
+  listOpeningHours,
+  OverlappingWindowsError,
+  replaceOpeningHours,
+} from '../domain/opening-hour.js'
 import {
   getPracticeSettings,
   invoiceTemplatePath,
@@ -38,6 +43,31 @@ export const settingsRoute = new Hono<AppEnv>()
     if (!settings) throw new HTTPException(404, { message: messages.settings.missing })
 
     return c.json(settings)
+  })
+
+  .get('/opening-hours', async (c) => {
+    return c.json(await listOpeningHours(db(), tenantId(c)))
+  })
+
+  /**
+   * A replace, unlike the patch above, and for a reason rather than by
+   * accident: this is one form editing one table, and "this is the week" is a
+   * single statement. There is no neighbouring panel whose unsaved field could
+   * be overwritten by it.
+   */
+  .put('/opening-hours', validate('json', openingHoursInputSchema), async (c) => {
+    const saved = await replaceOpeningHours(db(), tenantId(c), c.req.valid('json')).catch(
+      (error: unknown) => {
+        if (error instanceof OverlappingWindowsError) {
+          throw new HTTPException(409, {
+            message: messages.openingHours.overlap(error.weekday),
+          })
+        }
+        throw error
+      },
+    )
+
+    return c.json(saved)
   })
 
   /**

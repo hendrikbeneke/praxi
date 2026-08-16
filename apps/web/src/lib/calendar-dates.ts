@@ -1,3 +1,4 @@
+import { clockToMinutes } from '@praxi/shared'
 import { strings } from './strings'
 
 /**
@@ -64,11 +65,10 @@ export function shortDate(date: string): string {
 
 /** Minutes since midnight of the Berlin wall-clock time an instant falls on. */
 export function minutesOfDay(local: string): number {
-  return Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16))
+  return clockToMinutes(local.slice(11, 16))
 }
 
-/** `540` → `09:00`. */
-export function minutesToClock(minutes: number): string {
-  const clamped = Math.max(0, Math.min(24 * 60, Math.round(minutes)))
-  return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`
-}
+// `minutesToClock` lives in `@praxi/shared` (D9.5): the opening hours and the
+// slot search need the same conversion on the server, and one of the two
+// copies would eventually round differently.
+export { minutesToClock } from '@praxi/shared'

@@ -39,7 +39,7 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D7.5 | Totes aufräumen | **done** |
 | D8 | Vorgänge | **done** |
 | D9 | Kalender | **done** |
-| D9.5 | Freien Termin finden | todo — braucht Öffnungszeiten, eigene DDL-Vorlage |
+| D9.5 | Freien Termin finden | **done** |
 | D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
 
 ## D10 — Rich Text für Notizen
@@ -453,6 +453,35 @@ Keine Migration. Der einzige Screen, der ganz neu entsteht.
 - Beim Browser-Durchgang gefunden: `ActivityDetail` und `ActivityForm` fragten mit `lg:`/`sm:`
   nach der **Fenster**breite und zerlegten sich in der 380-px-Leiste. Beide messen jetzt per
   Container-Query den Platz, den sie bekommen haben — siehe die Notiz unten.
+
+## D9.5 — Freien Termin finden
+
+Der Teil aus D9, der Öffnungszeiten braucht. Migration `0032`.
+
+- **`opening_hour`: eine Zeile pro Zeitfenster, nicht pro Wochentag.** Mittagspause = zwei
+  Zeilen, nur vormittags = eine, geschlossen = keine. „Geschlossen" braucht kein Kennzeichen,
+  es ist die Abwesenheit von Zeilen. Gegen JSONB entschieden, weil es hier echte Invarianten
+  gibt: `ends_at > starts_at` als Check und ein EXCLUDE gegen Überschneidungen am selben Tag —
+  dasselbe Mittel wie `appointment_no_overlap`, mit einem konstanten Datum vor der `time`,
+  weil `time` allein nicht gist-indizierbar ist.
+- **Kein Seed.** Eine leere Tabelle heißt „nicht hinterlegt", und die Suche antwortet mit
+  `openingHoursSet: false` und einem Satz mit Link, statt 8 bis 18 Uhr zu erfinden.
+- **Die Suche läuft auf dem Server, und Regel 13 wird dadurch strenger.** Sie holt die
+  Belegtzeiten, rechnet damit und gibt sie **nicht zurück** — die Antwort sind freie Fenster und
+  zwei Flags. In der Kalenderansicht müssen sie an den Browser, weil sie gemalt werden; hier
+  nicht. Steht als Kommentar über `findFreeSlots`.
+- **`privateCalendarsChecked` an zwei Stellen sichtbar**: als Hinweiskasten in der Leiste und
+  als Farbton der Vorschläge selbst (`--warning` statt `--primary`). Wer den Kasten nicht liest
+  und direkt in eine Fläche klickt, hat trotzdem gesehen, dass die Aussage schwächer ist.
+- **Keine dritte Spalte, sondern der dritte Zustand der Leiste.** Die Treffer gehören ins
+  Raster — eine Zeit an einem Tag ist dort ablesbar und in einer Liste nur beschreibbar — und
+  die Eingabe ist ein Modus, kein Möbelstück.
+- **Dauer aus der Vorgangsart.** Arten ohne hinterlegte Dauer stehen nicht in der Liste, und die
+  Leiste sagt das mit Link in die Einstellungen, damit eine kurze Liste nicht wie ein Fehler
+  aussieht.
+- 22 Domänentests: Mittagspause, geschlossener Tag, abgesagt blockiert nicht, No-Show blockiert,
+  Belegtzeit blockiert, Ganztagssperre, Übergriff vom Vortag, Viertelstundenraster, Kachelung,
+  Vergangenes fällt weg, Google-Ausfall, Mandantentrennung, EXCLUDE.
 
 ---
 

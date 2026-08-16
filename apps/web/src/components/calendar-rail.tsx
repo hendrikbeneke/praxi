@@ -34,7 +34,10 @@ import { strings } from '@/lib/strings'
  */
 export type RailSelection =
   | { kind: 'activity'; activityId: string; appointmentId: string }
-  | { kind: 'new'; startsAtLocal?: string }
+  /** `typeCode` and `durationMin` are set when the slot finder handed the slot
+   *  over: they are what the search was about, and asking for them again would
+   *  be asking twice (D9.5). */
+  | { kind: 'new'; startsAtLocal?: string; typeCode?: string; durationMin?: number }
   | null
 
 export function CalendarRail({
@@ -42,6 +45,7 @@ export function CalendarRail({
   entries,
   occupied,
   selection,
+  finder,
   onPickDay,
   onSelectEntry,
   onClose,
@@ -51,6 +55,9 @@ export function CalendarRail({
   entries: readonly CalendarEntry[]
   occupied: ReadonlySet<string>
   selection: RailSelection
+  /** The slot finder's third state (D9.5), rendered by the page so the search
+   *  parameters and the grid's overlay stay one piece of state. */
+  finder: React.ReactNode | null
   onPickDay: (date: string) => void
   onSelectEntry: (entry: CalendarEntry) => void
   onClose: () => void
@@ -60,11 +67,12 @@ export function CalendarRail({
       <MiniMonth anchor={anchor} occupied={occupied} onPick={onPickDay} />
 
       <div className="mt-6">
-        {selection === null ? (
-          <DayOverview anchor={anchor} entries={entries} onSelectEntry={onSelectEntry} />
-        ) : (
-          <Selected selection={selection} onClose={onClose} />
-        )}
+        {finder ??
+          (selection === null ? (
+            <DayOverview anchor={anchor} entries={entries} onSelectEntry={onSelectEntry} />
+          ) : (
+            <Selected selection={selection} onClose={onClose} />
+          ))}
       </div>
     </aside>
   )
@@ -105,6 +113,8 @@ function Selected({
       {selection.kind === 'new' ? (
         <ActivityForm
           {...(selection.startsAtLocal ? { startsAtLocal: selection.startsAtLocal } : {})}
+          {...(selection.typeCode ? { initialTypeCode: selection.typeCode } : {})}
+          {...(selection.durationMin ? { initialDurationMin: selection.durationMin } : {})}
           onSaved={onClose}
           onCancel={onClose}
         />
