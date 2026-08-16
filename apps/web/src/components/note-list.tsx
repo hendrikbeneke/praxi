@@ -2,6 +2,7 @@ import { formatBerlinDate, formatBerlinDateTime, type Note } from '@praxi/shared
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CornerDownRight, Lock, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { NoteText } from '@/components/note-text'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,7 +134,7 @@ function NoteCard({
         </span>
       </header>
 
-      <p className="mt-2 whitespace-pre-wrap text-sm">{note.text}</p>
+      <NoteText className="mt-2" text={note.text} />
 
       {note.files.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">

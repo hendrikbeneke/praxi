@@ -44,6 +44,25 @@ import { createHash } from 'node:crypto'
  *
  * `note-hash.test.ts` pins the output against a hard-coded expected value.
  * If that test fails, the format changed — do not update the expectation.
+ *
+ * ## Which normalizations are safe, and which are not
+ *
+ * `text` reaches the database already trimmed — `requiredText` in
+ * `packages/shared/src/field.ts` does that. That is harmless, and the rule
+ * behind why is worth stating, because it is what decided the shape of the
+ * note editor:
+ *
+ * > A normalization on the way **in** is harmless as long as it is
+ * > idempotent — `trim(trim(x)) === trim(x)`, so saving without changing
+ * > anything cannot move the text. A normalization on the way **out of
+ * > storage**, when loading into an editor, is dangerous: there,
+ * > opening-and-saving changes the text without anybody having typed.
+ *
+ * That is why D10 gave notes a `<textarea>` holding Markdown and not a
+ * ProseMirror editor. ProseMirror keeps a document model, so loading parses
+ * and saving re-serializes: list markers get unified, blank lines collapse,
+ * heading levels are clamped. For a note about to be locked, the hashed text
+ * would then not be the text that was typed — and nobody would see it happen.
  */
 
 /** Exactly the keys that go into the hash. Sorted at use, not by hand: the

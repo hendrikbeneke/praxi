@@ -839,6 +839,17 @@ export const strings = {
     fileHint:
       'PDF sowie JPEG, PNG, WebP, HEIC und TIFF, höchstens 25 MB. ' +
       'Anhänge sind Teil der Notiz und werden beim Sperren mit festgeschrieben.',
+    /** The small Markdown a note may carry (D10). Five constructs, and the
+     *  hint names all of them — the syntax is typed faster than it is clicked
+     *  once one knows it. */
+    formatBold: 'Fett',
+    formatHeading: 'Zwischenüberschrift',
+    formatBullets: 'Aufzählung',
+    formatNumbered: 'Nummerierte Liste',
+    formatHint: '**fett** · ## Überschrift · - Aufzählung · 1. Nummerierung',
+    previewOn: 'Vorschau',
+    previewOff: 'Bearbeiten',
+    previewEmpty: 'Noch kein Text.',
     filesAfterSave: 'Dateien lassen sich anhängen, sobald die Notiz gespeichert ist.',
 
     chainCheck: 'Dokumentation prüfen',

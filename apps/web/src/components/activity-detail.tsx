@@ -7,6 +7,7 @@ import {
   formatBerlinTime,
   formatEuro,
   invoicePaymentState,
+  plainNoteText,
   sumItems,
   toBerlinDate,
 } from '@praxi/shared'
@@ -332,8 +333,11 @@ function ActivityNotes({ activityId }: { activityId: string }) {
                 </span>
               )}
             </div>
+            {/* An excerpt, so the markers come off rather than being
+                rendered — two clamped lines are no place for a heading, and
+                showing `**Befund**` would be worse than either. */}
             <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-muted-foreground text-sm">
-              {entry.text}
+              {plainNoteText(entry.text)}
             </p>
           </li>
         ))}

@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { DateField } from '@/components/date-field'
+import { NoteEditor } from '@/components/note-editor'
 import { NoteFiles } from '@/components/note-files'
 import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
@@ -32,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { activityListQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
@@ -87,10 +87,15 @@ export function NoteDialog({
    *  same fieldset — uploading or removing one changes the note, and
    *  downloading a file is a link, which a disabled fieldset leaves alone. */
   const [editing, setEditing] = useState(true)
+  /** Read mode already shows the rendered note, so the preview is only ever
+   *  interesting while writing — and it starts off, because one opens the
+   *  dialog to write, not to look. */
+  const [previewing, setPreviewing] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setEditing(note === undefined || startEditing)
+    setPreviewing(false)
 
     if (note) {
       setNoteDate(note.noteDate)
@@ -203,13 +208,16 @@ export function NoteDialog({
 
           <div>
             <Label htmlFor={`${formId}-text`}>{strings.note.text}</Label>
-            <Textarea
-              id={`${formId}-text`}
-              rows={10}
-              className="mt-2"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-            />
+            <div className="mt-2">
+              <NoteEditor
+                id={`${formId}-text`}
+                value={text}
+                onChange={setText}
+                previewing={previewing}
+                onTogglePreview={() => setPreviewing((current) => !current)}
+                disabled={!editing}
+              />
+            </div>
           </div>
 
           {note ? (

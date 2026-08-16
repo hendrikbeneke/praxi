@@ -1469,6 +1469,17 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
 - **No test calls out to a service.** Not to an external host, not to `localhost`, not to a mail catcher — Google, SMTP, anything. The one deliberate exception is Postgres: the domain layer is tested against a real database because triggers and constraints *are* the rules being tested, and that is a local dependency the repository sets up itself. Everything else is a **parameter** — the shape `google/client.ts` established in slice 9: the transport is injected, and the tests assert on the *assembled request* rather than on what a mock chose to answer. A test that needs a service running somewhere is a test that fails for reasons that have nothing to do with the code.
 - **Addresses in tests, fixtures and seeds use `praxi.invalid`** — `beispiel.test` where a second domain is genuinely needed. Both TLDs are reserved by RFC 2606 and guaranteed never to resolve. Not `example.com`: it is reserved too and accepts no mail, but it *exists in the DNS*, and an address that takes a second thought to classify does not belong in a fixture. The same goes for URLs — `https://www.praxi.invalid`, not a domain that resolves.
+- **`document.execCommand` is banned for formatting, not for inserting text.** No
+  `contentEditable` editor and no `execCommand('bold' | 'insertHTML' | …)`: those *invent*
+  markup, browser by browser, and a field holding treatment documentation must not contain
+  HTML nobody wrote. `execCommand('insertText', false, plainString)` in a `<textarea>` is a
+  different thing and is **allowed, in `note-editor.tsx` and nowhere else**: the string is
+  entirely ours, the result is still plain text, and the only thing the API contributes is the
+  undo entry. It is the one API that does — measured in Chrome 151 against a real Cmd+Z
+  delivered through the input pipeline: a React-style controlled update, a plain
+  `el.value = …` and `setRangeText` all leave the undo stack **empty**, not merely unextended,
+  so three typed paragraphs are unrecoverable after one toolbar click. Deprecated for a decade
+  with no successor. Do not "modernize" that call site.
 - Conventional Commits, in English, one commit per slice — made before the report goes out (see "How we work"), not after.
 
 **Read mode first.** Detail views and dialogs open in read mode. Editing is a deliberate step: the user presses "Bearbeiten", the fields become editable, and "Speichern" / "Abbrechen" appear. Never open a record with editable fields. The exception is creating a new record — there is nothing to read yet, so the form is editable from the start.

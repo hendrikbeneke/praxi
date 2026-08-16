@@ -40,27 +40,40 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D8 | Vorgänge | **done** |
 | D9 | Kalender | **done** |
 | D9.5 | Freien Termin finden | **done** |
-| D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
+| D10 | Rich Text für Notizen | **done** |
 
 ## D10 — Rich Text für Notizen
 
-Eigenes Paket, aus den Prototyp-Funden vom D2-Vorlauf: `Kontaktdetail.dc.html` zeigt einen
-`contentEditable`-Editor mit Werkzeugleiste (Fett, Kursiv, Zwischenüberschrift, Aufzählung,
-Nummerierung) für `note.text`, zweimal — im Notizen-Tab und inline im Notizfeld eines Vorgangs.
+Keine Migration. `note.text` bleibt `text`, das Format ist eine Konvention über dem String.
 
-Entscheidung: ja, aber nicht als Nachbau des Prototyps.
-
-- Gespeichert wird **Markdown**, nicht HTML — bleibt ein String, `note.text` und die
-  Hash-Kette aus Regel 7 ändern sich nicht, das Rendern ist kontrollierbar.
-- **Kein** `document.execCommand` (abgekündigt) und kein `contentEditable`-HTML-Editor —
-  bei einem Feld mit Behandlungsdokumentation ist HTML im Feld eine XSS-Frage, die nicht
-  eingegangen wird.
-- Der Editor aus dem Design ist ausdrücklich nur ein Beispiel für die Werkzeugleiste
-  (welche Formatierungen), nicht für die Umsetzung. Vor dem Bauen: Plan zuerst, insbesondere
-  welche Markdown-Bibliothek fürs Rendern, wie die Werkzeugleiste einen Markdown-Editor ohne
-  `contentEditable` bedient, und ob das rückwirkend bestehende Notizen (reiner Text) unberührt
-  lässt.
-- Nicht vor D9 einordnen, nicht ungefragt anfangen.
+- **Fünf Konstrukte, abschließend:** `## Überschrift`, `- Aufzählung`, `1. Nummerierung`,
+  `**fett**`, alles andere Absatz. Kursiv fiel weg — zwei Betonungsstufen heißen jedes Mal
+  entscheiden, welche, und Kursiv hat in einer Akte keine verabredete Bedeutung. Links,
+  Tabellen, Zitate, Code, Bilder ebenfalls nicht; ein Bild gehört als `note_file` an die Notiz,
+  wo es die Sperrsemantik erbt.
+- **Eine bewusste Abweichung von CommonMark:** ein einzelner Zeilenumbruch bleibt einer.
+  CommonMark zöge ihn zu einem Leerzeichen zusammen — drei Namen untereinander gehören aber
+  untereinander. Steht als Begründung am Parser.
+- **Der Renderer erzeugt kein HTML.** `parseNoteText` liefert einen Baum, `note-text.tsx` bildet
+  ihn auf React-Elemente ab. Es gibt keinen String, der zu Markup überredet werden könnte, also
+  nichts zu desinfizieren und kein `dangerouslySetInnerHTML` — die Fehlerklasse existiert nicht,
+  statt abgewehrt zu werden.
+- **Textarea statt ProseMirror**, und das ist die Hash-Entscheidung: ProseMirror hält ein
+  Dokumentmodell, also normalisiert Laden-und-Speichern den Text, ohne dass jemand getippt hat.
+  Bei einer Notiz, die anschließend gesperrt wird, wäre der gehashte nicht der getippte Text.
+  Die Unterscheidung (hinein idempotent = harmlos, heraus = gefährlich) steht an `canonicalNote`.
+- **Die Werkzeugleiste benutzt `document.execCommand('insertText')`** — als einzige Ausnahme vom
+  Verbot, das jetzt in CLAUDE.md präzisiert ist: verboten ist execCommand für *Formatierung* im
+  contentEditable, nicht das Einfügen von reinem Text in ein textarea. Gemessen in Chrome 151:
+  ein React-Zustandsupdate, `el.value =` und `setRangeText` **leeren** den Undo-Stapel, statt
+  ihn nur nicht zu ergänzen — drei getippte Absätze wären nach einem Klick verloren.
+- **Vorschau als Umschalter**, nicht als zweite Spalte: beide Orte, an denen eine Notiz
+  geschrieben wird, sind schmal. Im Lesemodus zeigt das Feld gar keine Textarea, sondern die
+  gerenderte Notiz.
+- `activity.internalNote` bleibt bewusst einfacher Text — anderes Feld, andere Semantik, nie
+  gedruckt, nie gesperrt.
+- 40 Parser-Tests in `packages/shared`, darunter die zwei Eigenschaften: **total** (20 000
+  Zeichen, `\r\n`, eine Wand aus Sternchen, leer) und **Unbekanntes bleibt wörtlich**.
 
 ## D1 — Modelländerungen
 
@@ -1865,6 +1878,14 @@ each line names the reason, not the solution.
   `tax_number`. Not added retroactively as part of a layout pass (D4) — same
   reasoning as the invoice number-range prefix placeholders. Decide when it is
   actually needed, not before.
+- **Handing treatment documentation out needs a second renderer for the note Markdown.**
+  Auskunft nach Art. 15 DSGVO, Weitergabe an einen Nachbehandler, Aufbewahrung nach § 630f BGB
+  beim Praxisende — das wird ein PDF, und `@react-pdf/renderer` versteht kein Markdown. Die
+  Antwort ist ein zweiter Renderer auf dieselbe `Block[]`-Struktur aus
+  `packages/shared/src/note-markdown.ts`, nicht eine Markdown-Bibliothek. Genau deshalb liegt
+  der Parser in `packages/shared` und nicht im Frontend, und genau deshalb ist das Format auf
+  fünf Konstrukte begrenzt: vier Blockarten im PDF nachzubauen ist ein Nachmittag, dreißig
+  sind es nicht.
 - **`themeOptions` (German: `schiefer`, `blau`, …) vs. `startPageOptions` (English:
   `overview`, `contacts`, …)** in `packages/shared/src/user-preferences.ts` — the same kind of
   enum, named two different ways, because `theme` predates identifiers being applied
