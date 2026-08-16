@@ -840,7 +840,13 @@ activity_type_preset_item
                       -- outside the catalogue references a group" rule.
                       -- set_updated_at; RLS created and disabled.
 
--- as built (slice 4), status narrowed in slice 7.5, extended in slice 9
+-- as built (slice 4), status narrowed in slice 7.5, extended in slice 9.
+-- D9 changed no column here. What it changed is who may move one: dragging
+-- goes through moveAppointment(), which writes this row AND its activity's
+-- occurred_at/duration_min in one transaction. The times of the two are one
+-- fact in two places, and until D9 only the editor wrote them — both, from a
+-- single value. A drag that touched this row alone would have been the first
+-- writer to pull them apart, and it would have done it silently.
 appointment           tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null                  -- NOT null,
                         -- against the sketch: every appointment belongs to an
@@ -1411,6 +1417,8 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - Before going live the migration history will be squashed into a single baseline. That baseline must be produced with `pg_dump --schema-only` against the real database, never regenerated from the Drizzle schema: Drizzle does not know the hand-written parts — triggers, the `EXCLUDE` constraint, RLS policies, the ICU locale check, partial indexes — and would silently drop them.
 - **Nothing is in production yet.** No real patient data exists, no URL is bookmarked, no database holds anything that cannot be recreated by the seed. So there is no compatibility to preserve: a route may be deleted rather than redirected, a column renamed rather than aliased, a payload reshaped rather than versioned. Do not ask whether an existing URL, an existing row or a migration path needs sparing — until go-live, it does not. This is the one assumption that changes on the day the practice starts using it, and the "Before going live" list in `WORKPLAN.md` is where that day is prepared for.
 - **Delete code that nothing uses.** Not commented out, not left behind "for later", not kept alive by a test that is its only caller — deleted. Git still has it if it is ever wanted back. Two unused things are worse than one: the next reader has to work out which of the two ways is the real one, and that question costs more than rewriting the twenty lines would. This applies to components, endpoints, domain functions, strings, schema fields and dependencies alike.
+
+  **Searching for the callers by name alone will lie to you**, and it lied once already: the D7.5 sweep cleared `updateAppointment` in `apps/web/src/lib/activities.ts`, which nothing called, because `domain/appointment.ts` exports a function of the same name and the grep counted its own definition and its tests as references. Client and server are different packages that deliberately use the same vocabulary — `updateAppointment`, `createInvoice`, `listNotes` — so a name is not an identity. Count references **per package**, or resolve the import, before believing that something is alive. D9 found the leftover the sweep had passed.
 - Every new entity follows the structure of the entity built before it. Consistency beats local cleverness — if you want to deviate from an established pattern, say so and explain why before doing it.
 - Tests are mandatory for everything in `domain/`. UI and simple CRUD routes need none.
 - Do not add optimizations, caching or short-circuits that were not asked for. If you think one is warranted, propose it separately instead of building it in.

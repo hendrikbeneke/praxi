@@ -478,11 +478,16 @@ export function ActivityForm({
     <>
       {/* Always editable — this component exists only while editing. The
           fieldset stays for the Select context it provides, which is what
-          keeps a dropdown from opening on a disabled form elsewhere. */}
-      <ReadModeFieldset disabled={false} className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-12">
+          keeps a dropdown from opening on a disabled form elsewhere.
+
+          `@container` and `@xl:` rather than `sm:` (D9): the breakpoints have
+          to answer "how wide is this form", not "how wide is the window". In
+          the calendar rail the window is wide and the form is 348 px, and a
+          twelve-column grid in 348 px is a pile. */}
+      <ReadModeFieldset disabled={false} className="@container space-y-6">
+        <div className="grid gap-4 @xl:grid-cols-12">
           {!contactLocked && (
-            <div className="sm:col-span-12">
+            <div className="@xl:col-span-12">
               <Label htmlFor={`${formId}-contact`}>{strings.activity.contact}</Label>
               <ContactPicker
                 inputId={`${formId}-contact`}
@@ -493,7 +498,7 @@ export function ActivityForm({
             </div>
           )}
 
-          <div className="sm:col-span-6">
+          <div className="@xl:col-span-6">
             <Label htmlFor={`${formId}-type`}>{strings.activity.type}</Label>
             <Select value={type} onValueChange={chooseType}>
               <SelectTrigger id={`${formId}-type`} className="mt-2 w-full">
@@ -514,7 +519,7 @@ export function ActivityForm({
             </Select>
           </div>
 
-          <div className="sm:col-span-6">
+          <div className="@xl:col-span-6">
             <Label htmlFor={`${formId}-activity-status`}>{strings.activity.statusLabel}</Label>
             <Select
               value={activityStatus}
@@ -538,7 +543,7 @@ export function ActivityForm({
               practitioner's would have been overwritten. Say that plainly,
               and make taking them over an action with a name. */}
           {presetNotice && currentType && (
-            <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed px-3 py-2 sm:col-span-12">
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed px-3 py-2 @xl:col-span-12">
               <span className="text-muted-foreground text-sm">
                 {strings.activity.presetsUnchanged}
               </span>
@@ -557,7 +562,7 @@ export function ActivityForm({
             </div>
           )}
 
-          <div className="sm:col-span-6">
+          <div className="@xl:col-span-6">
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-[8rem] flex-1">
                 <Label htmlFor={`${formId}-occurred`}>{strings.activity.occurredAt}</Label>
@@ -597,7 +602,7 @@ export function ActivityForm({
             </p>
           </div>
 
-          <div className="sm:col-span-6">
+          <div className="@xl:col-span-6">
             <Label htmlFor={`${formId}-title`}>{strings.activity.activityTitle}</Label>
             <Input
               id={`${formId}-title`}
@@ -817,8 +822,8 @@ export function ActivityForm({
           </p>
 
           {withAppointment && (
-            <div className="mt-3 grid gap-4 sm:grid-cols-12">
-              <div className="sm:col-span-4">
+            <div className="mt-3 grid gap-4 @xl:grid-cols-12">
+              <div className="@xl:col-span-4">
                 <span className="font-medium text-sm">{strings.activity.appointmentRange}</span>
                 <p className="mt-2 text-sm tabular-nums">
                   {endsAtLocal === null
@@ -832,7 +837,7 @@ export function ActivityForm({
 
               {/* Only a cancellation releases the slot, so without this the
                   appointment could be made and never called off. */}
-              <div className="sm:col-span-4">
+              <div className="@xl:col-span-4">
                 <Label htmlFor={`${formId}-status`}>{strings.activity.appointmentStatus}</Label>
                 <Select
                   value={status}
@@ -856,7 +861,7 @@ export function ActivityForm({
                 </p>
               </div>
 
-              <div className="sm:col-span-4">
+              <div className="@xl:col-span-4">
                 <Label htmlFor={`${formId}-appointment-note`}>
                   {strings.activity.appointmentNote}
                 </Label>

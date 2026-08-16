@@ -1,37 +1,48 @@
 import {
-  activityTypeColor,
   activityTypeLabel,
   appointmentStatuses,
   type CalendarEntry,
-  formatBerlinTime,
   fromBerlinDateTimeLocal,
-  minutesBetween,
   occupiesSlot,
-  readableTextOn,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { z } from 'zod'
-import { ActivityDialog } from '@/components/activity-dialog'
-import { PageHeader } from '@/components/page-header'
+import { CalendarGrid, type CalendarView, type DropTarget } from '@/components/calendar-grid'
+import { CalendarRail, type RailSelection } from '@/components/calendar-rail'
 import { SyncConflictBanner } from '@/components/sync-conflicts'
 import { Button } from '@/components/ui/button'
-import { activityQueryOptions, calendarQueryOptions } from '@/lib/activities'
+import { calendarQueryOptions, moveAppointment } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
+import { ApiError } from '@/lib/api'
+import {
+  addDays,
+  isoWeek,
+  monthLabel,
+  shortDate,
+  startOfWeek,
+  todayInBerlin,
+} from '@/lib/calendar-dates'
 import { busyQueryOptions, googleConflictsQueryOptions } from '@/lib/google'
 import { strings } from '@/lib/strings'
 
-/** Nothing personal in the URL: an anchor date and the view. */
+/**
+ * Nothing personal in the URL: an anchor date, the view and the slot status.
+ *
+ * Which entry is selected is deliberately not in here, the same call D8 made
+ * for its expanded row — a selection belongs to the visit, not to the address.
+ */
 const searchSchema = z.object({
   /** `YYYY-MM-DD` in Berlin — the day, or the day the week is taken from. */
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
-  view: z.enum(['week', 'day']).optional(),
+  view: z.enum(['day', 'workweek', 'week']).optional(),
   /** The slot's status. What became of the treatment is the activity's status
    *  and is filtered on the Vorgänge page, where the list is the record. */
   status: z.enum(appointmentStatuses).optional(),
@@ -42,71 +53,34 @@ export const Route = createFileRoute('/_app/appointments')({
   component: CalendarPage,
 })
 
-const DAY_START_HOUR = 7
-const DAY_END_HOUR = 21
-const PIXELS_PER_HOUR = 56
-
-/** Today in Berlin as `YYYY-MM-DD`. */
-function todayInBerlin(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date())
-}
-
-/** Calendar arithmetic on plain `YYYY-MM-DD` strings, so a day never shifts by
- *  an hour when the clocks change. */
-function addDays(date: string, days: number): string {
-  const shifted = new Date(`${date}T12:00:00Z`)
-  shifted.setUTCDate(shifted.getUTCDate() + days)
-  return shifted.toISOString().slice(0, 10)
-}
-
-/** Monday of the week the date falls in. */
-function startOfWeek(date: string): string {
-  const at = new Date(`${date}T12:00:00Z`)
-  const weekday = (at.getUTCDay() + 6) % 7
-  return addDays(date, -weekday)
-}
-
-const WEEKDAY_NAMES = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const
-
 /**
- * Where a block sits in a day column and how tall it is.
+ * Five days by default (D9).
  *
- * Clamped at both ends: an entry starting before the visible day — an all-day
- * blocker from a private calendar begins at 00:00 — must not paint above the
- * grid, and one running past the end must not paint over the columns below.
+ * The seven-day view stays for the Saturdays a course falls on, but it is not
+ * what a week looks like here — the design gives Saturday and Sunday 62 % of a
+ * column and thereby says so itself. Five columns give each working day 40 %
+ * more width, and width is the scarce thing: a block has to hold a time, a
+ * name and a type.
  */
-function blockGeometry(startsAt: string, endsAt: string): { top: number; height: number } {
-  const startLocal = toBerlinDateTimeLocal(startsAt)
-  const startMinutes = Number(startLocal.slice(11, 13)) * 60 + Number(startLocal.slice(14, 16))
-  const gridHeight = (DAY_END_HOUR - DAY_START_HOUR) * PIXELS_PER_HOUR
-
-  const rawTop = ((startMinutes - DAY_START_HOUR * 60) / 60) * PIXELS_PER_HOUR
-  const top = Math.max(0, rawTop)
-  const rawHeight = (minutesBetween(startsAt, endsAt) / 60) * PIXELS_PER_HOUR - 2
-
-  return {
-    top,
-    height: Math.min(Math.max(18, rawHeight + Math.min(0, rawTop)), Math.max(18, gridHeight - top)),
-  }
-}
+const DAY_COUNT: Record<CalendarView, number> = { day: 1, workweek: 5, week: 7 }
 
 function CalendarPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
+  const queryClient = useQueryClient()
 
-  const view = search.view ?? 'week'
+  const view: CalendarView = search.view ?? 'workweek'
   const anchor = search.date ?? todayInBerlin()
-  const firstDay = view === 'week' ? startOfWeek(anchor) : anchor
-  const dayCount = view === 'week' ? 7 : 1
+  const dayCount = DAY_COUNT[view]
+  const firstDay = view === 'day' ? anchor : startOfWeek(anchor)
   const days = Array.from({ length: dayCount }, (_, index) => addDays(firstDay, index))
   const lastDay = addDays(firstDay, dayCount)
 
-  const entries = useQuery(
-    calendarQueryOptions(
-      fromBerlinDateTimeLocal(`${firstDay}T00:00`),
-      fromBerlinDateTimeLocal(`${lastDay}T00:00`),
-    ),
-  )
+  const from = fromBerlinDateTimeLocal(`${firstDay}T00:00`)
+  const to = fromBerlinDateTimeLocal(`${lastDay}T00:00`)
+
+  const calendarKey = calendarQueryOptions(from, to).queryKey
+  const entries = useQuery(calendarQueryOptions(from, to))
   const types = useQuery(activityTypeListQueryOptions(true))
 
   /**
@@ -116,14 +90,11 @@ function CalendarPage() {
    *
    * It fails quietly. Without a connection or without a line the calendar
    * simply shows no foreign blocks, rather than covering a screen that
-   * otherwise works with an error.
+   * otherwise works with an error. The minute of `staleTime` is a cache and
+   * not storage — it keeps paging through weeks with the arrow keys from
+   * firing a request per keystroke.
    */
-  const busy = useQuery(
-    busyQueryOptions(
-      fromBerlinDateTimeLocal(`${firstDay}T00:00`),
-      fromBerlinDateTimeLocal(`${lastDay}T00:00`),
-    ),
-  )
+  const busy = useQuery(busyQueryOptions(from, to))
   const conflicts = useQuery(googleConflictsQueryOptions)
   const conflicted = new Set((conflicts.data ?? []).map((entry) => entry.appointmentId))
 
@@ -135,303 +106,201 @@ function CalendarPage() {
   const shown = (entries.data ?? []).filter(
     (entry) => search.status === undefined || entry.status === search.status,
   )
-
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [slotLocal, setSlotLocal] = useState<string | undefined>()
-  const [editedId, setEditedId] = useState<string | undefined>()
-
-  const edited = useQuery({
-    ...activityQueryOptions(editedId ?? ''),
-    enabled: dialogOpen && editedId !== undefined,
-  })
-
-  function openSlot(day: string, hour: number) {
-    setEditedId(undefined)
-    setSlotLocal(`${day}T${String(hour).padStart(2, '0')}:00`)
-    setDialogOpen(true)
-  }
-
-  function openEntry(entry: CalendarEntry) {
-    if (!entry.activityId) return
-    setEditedId(entry.activityId)
-    setSlotLocal(undefined)
-    setDialogOpen(true)
-  }
-
-  function go(days_: number) {
-    void navigate({
-      search: (previous) => ({ ...previous, date: addDays(anchor, days_) }),
-    })
-  }
-
-  const hours = Array.from(
-    { length: DAY_END_HOUR - DAY_START_HOUR },
-    (_, index) => DAY_START_HOUR + index,
+  const occupied = new Set(
+    (entries.data ?? [])
+      .filter((entry) => occupiesSlot(entry.status))
+      .map((entry) => toBerlinDateTimeLocal(entry.startsAt).slice(0, 10)),
   )
 
+  const [selection, setSelection] = useState<RailSelection>(null)
+
+  /**
+   * Moving an entry, optimistically — **and put back on refusal.**
+   *
+   * The rollback is the point, not the speed. With a toast alone the block
+   * would stay where it was dropped while the database held the old time, and
+   * some later refetch would move it back at a moment nobody connected with
+   * the drop. Springing back is the answer arriving where the question was
+   * asked.
+   */
+  const move = useMutation({
+    mutationFn: (target: DropTarget) =>
+      moveAppointment(target.appointmentId, {
+        startsAt: target.startsAt,
+        endsAt: target.endsAt,
+      }),
+    onMutate: async (target) => {
+      await queryClient.cancelQueries({ queryKey: calendarKey })
+      const previous = queryClient.getQueryData<CalendarEntry[]>(calendarKey)
+      queryClient.setQueryData<CalendarEntry[]>(calendarKey, (current) =>
+        (current ?? []).map((entry) =>
+          entry.id === target.appointmentId
+            ? { ...entry, startsAt: target.startsAt, endsAt: target.endsAt }
+            : entry,
+        ),
+      )
+      return { previous }
+    },
+    onError: (error, _target, context) => {
+      if (context?.previous) queryClient.setQueryData(calendarKey, context.previous)
+      toast.error(error instanceof ApiError ? error.message : strings.appointment.moveFailed)
+    },
+    onSuccess: () => toast.success(strings.appointment.moved),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      // The activity moved with it (see `moveAppointment` in the domain), so
+      // every list that shows a date of service is stale too.
+      await queryClient.invalidateQueries({ queryKey: ['activities'] })
+    },
+  })
+
+  const setSearch = (change: Partial<z.infer<typeof searchSchema>>) =>
+    void navigate({ search: (previous) => ({ ...previous, ...change }) })
+
+  const title =
+    view === 'day'
+      ? `${strings.date.weekdays[(new Date(`${anchor}T12:00:00Z`).getUTCDay() + 6) % 7]}, ${shortDate(anchor)}${anchor.slice(0, 4)}`
+      : `${shortDate(firstDay)} – ${shortDate(addDays(firstDay, dayCount - 1))} ${monthLabel(firstDay).slice(-4)}`
+
   return (
-    <>
-      <PageHeader
-        title={strings.appointment.title}
-        description={strings.appointment.description}
-        actions={
-          <Button
-            onClick={() => {
-              setEditedId(undefined)
-              setSlotLocal(undefined)
-              setDialogOpen(true)
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            {strings.activity.create}
+    <div className="-m-8 flex h-[calc(100svh-3.5rem)] min-w-0">
+      <section className="flex min-w-0 flex-1 flex-col">
+        <div className="flex flex-wrap items-center gap-3 border-b bg-card px-5 py-3">
+          <Button variant="outline" size="sm" onClick={() => setSearch({ date: undefined })}>
+            {strings.appointment.today}
           </Button>
-        }
-      />
-
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={strings.appointment.previous}
-          onClick={() => go(-dayCount)}
-        >
-          <ChevronLeft className="size-4" aria-hidden />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={strings.appointment.next}
-          onClick={() => go(dayCount)}
-        >
-          <ChevronRight className="size-4" aria-hidden />
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() =>
-            void navigate({ search: (previous) => ({ ...previous, date: undefined }) })
-          }
-        >
-          {strings.appointment.today}
-        </Button>
-
-        <div className="ml-auto flex gap-1">
-          {(['week', 'day'] as const).map((value) => (
+          <div className="flex items-center gap-0.5">
             <Button
-              key={value}
-              variant={view === value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() =>
-                void navigate({
-                  search: (previous) => ({
-                    ...previous,
-                    view: value === 'week' ? undefined : value,
-                  }),
-                })
-              }
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label={strings.appointment.previous}
+              onClick={() => setSearch({ date: addDays(anchor, -dayCount) })}
             >
-              {value === 'week' ? strings.appointment.week : strings.appointment.day}
+              <ChevronLeft className="size-4" aria-hidden />
             </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex flex-wrap gap-1">
-          {[undefined, ...appointmentStatuses].map((value) => (
             <Button
-              key={value ?? 'all'}
-              size="sm"
-              variant={search.status === value ? 'default' : 'outline'}
-              onClick={() =>
-                void navigate({ search: (previous) => ({ ...previous, status: value }) })
-              }
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label={strings.appointment.next}
+              onClick={() => setSearch({ date: addDays(anchor, dayCount) })}
             >
-              {value === undefined
-                ? strings.appointment.allStatuses
-                : strings.appointment.status[value]}
+              <ChevronRight className="size-4" aria-hidden />
             </Button>
-          ))}
+          </div>
+          <h1 className="whitespace-nowrap font-semibold text-lg">{title}</h1>
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {strings.appointment.calendarWeek(isoWeek(anchor))}
+          </span>
+
+          <div className="ml-auto flex items-center gap-0.5 rounded-lg border p-0.5">
+            {(['day', 'workweek', 'week'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                variant={view === value ? 'default' : 'ghost'}
+                className="h-7"
+                onClick={() => setSearch({ view: value === 'workweek' ? undefined : value })}
+              >
+                {strings.appointment.views[value]}
+              </Button>
+            ))}
+          </div>
+
+          <Button size="sm" onClick={() => setSelection({ kind: 'new' })}>
+            <Plus className="size-4" aria-hidden />
+            {strings.appointment.newAppointment}
+          </Button>
         </div>
 
-        {/* The legend, so a colour in the grid can be read without opening an
-            entry. Only the active types — the rest are history. */}
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          {(types.data ?? [])
-            .filter((entry) => entry.active)
-            .map((entry) => (
-              <span key={entry.code} className="flex items-center gap-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-5 py-2">
+          <div className="flex flex-wrap gap-1">
+            {[undefined, ...appointmentStatuses].map((value) => (
+              <Button
+                key={value ?? 'all'}
+                size="sm"
+                variant={search.status === value ? 'default' : 'outline'}
+                className="h-7 rounded-full"
+                onClick={() => setSearch({ status: value })}
+              >
+                {value === undefined
+                  ? strings.appointment.allStatuses
+                  : strings.appointment.status[value]}
+              </Button>
+            ))}
+          </div>
+
+          {/* The legend, so a colour in the grid can be read without opening an
+              entry. Only the active types — the rest are history. */}
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            {(types.data ?? [])
+              .filter((entry) => entry.active)
+              .map((entry) => (
+                <span key={entry.code} className="flex items-center gap-1.5 text-xs">
+                  <span
+                    aria-hidden
+                    className="inline-block size-2.5 rounded-full"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  {activityTypeLabel(types.data, entry.code)}
+                </span>
+              ))}
+            {(busy.data ?? []).length > 0 && (
+              <span className="flex items-center gap-1.5 text-xs">
                 <span
                   aria-hidden
-                  className="inline-block size-2.5 rounded-full"
-                  style={{ backgroundColor: entry.color }}
+                  className="inline-block size-2.5 rounded-full bg-muted-foreground/30"
                 />
-                {entry.label}
+                {strings.google.busyLegend}
               </span>
-            ))}
-          {(busy.data ?? []).length > 0 && (
-            <span className="flex items-center gap-1.5 text-xs">
-              <span
-                aria-hidden
-                className="inline-block size-2.5 rounded-full bg-muted-foreground/30"
-              />
-              {strings.google.busyLegend}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <SyncConflictBanner conflicts={conflicts.data ?? []} />
-
-      <div className="overflow-x-auto rounded-md border">
-        <div className="min-w-[720px]">
-          {/* Day headers */}
-          <div
-            className="grid border-b bg-muted/40"
-            style={{ gridTemplateColumns: `4rem repeat(${dayCount}, minmax(0, 1fr))` }}
-          >
-            <div />
-            {days.map((day, index) => (
-              <div key={day} className="border-l px-2 py-2 text-center">
-                <span className="text-muted-foreground text-xs">{WEEKDAY_NAMES[index % 7]}</span>{' '}
-                <span
-                  className={
-                    day === todayInBerlin()
-                      ? 'font-semibold text-sm'
-                      : 'text-muted-foreground text-sm'
-                  }
-                >
-                  {day.slice(8, 10)}.{day.slice(5, 7)}.
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Hour grid with absolutely positioned entries per day */}
-          <div
-            className="relative grid"
-            style={{ gridTemplateColumns: `4rem repeat(${dayCount}, minmax(0, 1fr))` }}
-          >
-            <div>
-              {hours.map((hour) => (
-                <div
-                  key={hour}
-                  className="border-b pr-2 text-right text-muted-foreground text-xs"
-                  style={{ height: PIXELS_PER_HOUR }}
-                >
-                  {String(hour).padStart(2, '0')}:00
-                </div>
-              ))}
-            </div>
-
-            {days.map((day) => (
-              <div key={day} className="relative border-l">
-                {hours.map((hour) => (
-                  <button
-                    type="button"
-                    key={hour}
-                    className="block w-full border-b transition-colors hover:bg-accent/50"
-                    style={{ height: PIXELS_PER_HOUR }}
-                    aria-label={`${strings.appointment.newHere} ${day} ${hour}:00`}
-                    onClick={() => openSlot(day, hour)}
-                  />
-                ))}
-
-                {/* Foreign blockers, behind the entries and not clickable:
-                    they are somebody else's calendar, and all we know about
-                    them is that the time is taken. */}
-                {(busy.data ?? [])
-                  .filter((slot) => toBerlinDateTimeLocal(slot.startsAt).slice(0, 10) === day)
-                  .map((slot) => {
-                    const box = blockGeometry(slot.startsAt, slot.endsAt)
-                    return (
-                      <div
-                        key={`${slot.startsAt}-${slot.endsAt}`}
-                        aria-hidden
-                        title={strings.google.busyLegend}
-                        style={{ top: box.top, height: box.height }}
-                        className="pointer-events-none absolute inset-x-0 rounded-sm bg-[repeating-linear-gradient(45deg,var(--color-muted-foreground)_0_2px,transparent_2px_8px)] opacity-20"
-                      />
-                    )
-                  })}
-
-                {shown
-                  .filter((entry) => toBerlinDateTimeLocal(entry.startsAt).slice(0, 10) === day)
-                  .map((entry) => {
-                    const { top, height } = blockGeometry(entry.startsAt, entry.endsAt)
-                    const released = !occupiesSlot(entry.status)
-                    /**
-                     * The colour of the activity's type, with the label in
-                     * whichever of black and white reads on it — see
-                     * `readableTextOn`. A released slot keeps the muted look
-                     * instead: it is struck through, and painting it in the
-                     * type's colour would make it as loud as a live entry.
-                     */
-                    const color = activityTypeColor(types.data, entry.activityType)
-                    const paint = released
-                      ? undefined
-                      : { backgroundColor: color, color: readableTextOn(color), borderColor: color }
-
-                    return (
-                      <button
-                        type="button"
-                        key={entry.id}
-                        onClick={() => openEntry(entry)}
-                        style={{ top, height, ...paint }}
-                        className={`absolute inset-x-1 overflow-hidden rounded border px-1.5 py-0.5 text-left text-xs ${
-                          released
-                            ? 'border-dashed bg-muted text-muted-foreground line-through'
-                            : ''
-                        } ${
-                          // Changed here and in Google at the same time. The
-                          // banner above offers the decision; this says which
-                          // slot it is about.
-                          conflicted.has(entry.id) ? 'ring-2 ring-amber-500 ring-offset-1' : ''
-                        }`}
-                        title={[
-                          entry.activityType
-                            ? activityTypeLabel(types.data, entry.activityType)
-                            : null,
-                          strings.appointment.status[entry.status],
-                          entry.activityStatus && entry.activityStatus !== 'planned'
-                            ? strings.activity.statuses[entry.activityStatus]
-                            : null,
-                          entry.contactName,
-                        ]
-                          .filter((part) => part !== null)
-                          .join(' — ')}
-                      >
-                        <span className="block truncate font-medium">{entry.contactName}</span>
-                        <span className="block truncate">
-                          {formatBerlinTime(entry.startsAt)}–{formatBerlinTime(entry.endsAt)}
-                          {/* A no-show must not look like an ordinary
-                              appointment: the slot is occupied, but nothing
-                              happened in it. */}
-                          {entry.activityStatus !== null && entry.activityStatus !== 'planned' && (
-                            <> · {strings.activity.statuses[entry.activityStatus]}</>
-                          )}
-                        </span>
-                      </button>
-                    )
-                  })}
-              </div>
-            ))}
+            )}
           </div>
         </div>
-      </div>
 
-      {entries.data !== undefined && shown.length === 0 && (
-        <p className="mt-3 text-muted-foreground text-sm">{strings.appointment.empty}</p>
-      )}
+        {conflicts.data && conflicts.data.length > 0 && (
+          <div className="px-5 pt-3">
+            <SyncConflictBanner conflicts={conflicts.data} />
+          </div>
+        )}
 
-      <ActivityDialog
-        activity={editedId ? edited.data : undefined}
-        startsAtLocal={slotLocal}
-        open={dialogOpen}
-        onOpenChange={(next) => {
-          setDialogOpen(next)
-          if (!next) setEditedId(undefined)
+        <CalendarGrid
+          days={days}
+          view={view}
+          entries={shown}
+          busy={busy.data ?? []}
+          types={types.data}
+          conflicted={conflicted}
+          selectedId={selection?.kind === 'activity' ? selection.appointmentId : null}
+          onSelect={(entry) => {
+            if (!entry.activityId) return
+            setSelection({
+              kind: 'activity',
+              activityId: entry.activityId,
+              appointmentId: entry.id,
+            })
+          }}
+          onNewAt={(startsAtLocal) => setSelection({ kind: 'new', startsAtLocal })}
+          onMove={(target) => move.mutate(target)}
+        />
+      </section>
+
+      <CalendarRail
+        anchor={anchor}
+        entries={shown}
+        occupied={occupied}
+        selection={selection}
+        onPickDay={(date) => setSearch({ date })}
+        onSelectEntry={(entry) => {
+          if (!entry.activityId) return
+          setSelection({
+            kind: 'activity',
+            activityId: entry.activityId,
+            appointmentId: entry.id,
+          })
         }}
+        onClose={() => setSelection(null)}
       />
-    </>
+    </div>
   )
 }

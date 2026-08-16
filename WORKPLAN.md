@@ -38,7 +38,8 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D7 | Zahlungen | **done** |
 | D7.5 | Totes aufräumen | **done** |
 | D8 | Vorgänge | **done** |
-| D9 | Kalender | todo |
+| D9 | Kalender | **done** |
+| D9.5 | Freien Termin finden | todo — braucht Öffnungszeiten, eigene DDL-Vorlage |
 | D10 | Rich Text für Notizen | todo — Plan zuerst, nicht ungefragt anfangen |
 
 ## D10 — Rich Text für Notizen
@@ -418,6 +419,40 @@ die Kennzahlen sind eine Aggregatabfrage.
 - Beim Browser-Durchgang gefunden und mitbehoben: der Kalenderdialog hieß „Vorgang bearbeiten"
   über einer Leseansicht, und der Schließen-Knopf jedes Dialogs trug das englische „Close" aus
   der shadcn-Vorlage.
+
+## D9 — Kalender
+
+Keine Migration. Der einzige Screen, der ganz neu entsteht.
+
+- **Drei Ansichten von fünf.** Tag, Arbeitswoche (Standard), Woche. Der Monat fiel weg, weil
+  seine Zellen bei sechs Sitzungen am Tag „+5 weitere" anzeigen würden — der Mini-Monat in der
+  Leiste erledigt die Navigationshälfte auf einem Vierzigstel der Fläche. Die Listenansicht fiel
+  weg, weil es sie gibt: ein Termin kann ohne Vorgang nicht existieren, also sind die Slots
+  einer Woche die Vorgänge einer Woche, und das ist D8.
+- **Zwei Spalten statt drei.** App-Sidebar 234 + linke Leiste 238 + rechte 330 hätten auf einem
+  1440er Bildschirm 118 px pro Tag gelassen, und ein Block braucht rund 110 px. Die linke Leiste
+  trug „Neuer Termin" (gehört in den Kopf), den Mini-Monat (steht jetzt rechts) und den
+  Terminfinder (ist D9.5) — ohne den bleibt für eine dritte Spalte nichts übrig.
+- **Volle 24 Stunden, beim Öffnen auf 07:00 gescrollt.** Der Vorgänger zeichnete 07:00–21:00 und
+  klemmte alles außerhalb an den Rand. Für einen Google-Block war das gewollt; für einen echten
+  Termin um 06:00 war es eine Falschanzeige — er stand dort, wo 07:00 ist, und sah richtig aus.
+- **Ziehen mit Zurückspringen.** Optimistisch verschieben, bei 409 den Cache zurückrollen und
+  die Meldung zeigen. Ohne Rückroller bliebe der Block an der falschen Stelle, bis irgendein
+  späterer Refetch ihn zurückschöbe. Drei Schichten: Vorschau im Browser (nur beratend, kennt
+  nur die geladene Woche), `moveAppointment` in der Domäne, `appointment_no_overlap` in der
+  Datenbank — nur die letzte entscheidet. **Auf einen Google-Block darf man ziehen:** eine Regel,
+  die bei Verbindungsausfall erlaubt, was mit Verbindung verboten wäre, ist die schlechteste
+  Sorte.
+- **`moveAppointment` schreibt beide Enden.** Der Fund aus der Planung: `updateAppointment`
+  verschob nur die Terminzeile, `activity.occurred_at` wäre stehengeblieben. Die alte allgemeine
+  `PUT`-Route ist ersetzt durch `POST /:id/move`, das nur `{startsAt, endsAt}` nimmt — Status,
+  Titel und Notiz werden am Vorgang bearbeitet, und eine Route, die sie hier annähme, wäre ein
+  zweiter Weg dorthin. Ein Test hält den Invariant fest und sagt, dass er nicht gelockert wird.
+- **`activity-dialog.tsx` ist gelöscht.** Die Leiste ist der dritte Behälter für
+  `ActivityDetail`; das Modal verdeckte beim Verschieben genau das, was man sehen muss.
+- Beim Browser-Durchgang gefunden: `ActivityDetail` und `ActivityForm` fragten mit `lg:`/`sm:`
+  nach der **Fenster**breite und zerlegten sich in der 380-px-Leiste. Beide messen jetzt per
+  Container-Query den Platz, den sie bekommen haben — siehe die Notiz unten.
 
 ---
 

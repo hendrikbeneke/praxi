@@ -4,7 +4,7 @@ import type {
   ActivityListQuery,
   ActivitySummary,
   ActivitySummaryQuery,
-  AppointmentDraft,
+  AppointmentMove,
   CalendarEntry,
 } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
@@ -90,13 +90,12 @@ export async function deleteActivity(activityId: string): Promise<void> {
   if (!res.ok) throw await apiError(res)
 }
 
-export async function updateAppointment(
-  appointmentId: string,
-  draft: AppointmentDraft,
-): Promise<void> {
-  const res = await api.api.appointments[':appointmentId'].$put({
+/** Dragging an entry to another time. Moves the activity with it — see
+ *  `moveAppointment` in the domain, which is why this is not a plain update. */
+export async function moveAppointment(appointmentId: string, move: AppointmentMove): Promise<void> {
+  const res = await api.api.appointments[':appointmentId'].move.$post({
     param: { appointmentId },
-    json: draft,
+    json: move,
   })
   if (!res.ok) throw await apiError(res)
 }

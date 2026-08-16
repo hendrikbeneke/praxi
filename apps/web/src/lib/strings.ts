@@ -526,10 +526,33 @@ export const strings = {
     today: 'Heute',
     previous: 'Zurück',
     next: 'Weiter',
-    week: 'Woche',
-    day: 'Tag',
+    /** Three views (D9). The month was dropped because at six sessions a day
+     *  its cells would read "+5 weitere", and the list view is the Vorgänge
+     *  page — an appointment cannot exist without its activity. */
+    views: {
+      day: 'Tag',
+      workweek: 'Arbeitswoche',
+      week: 'Woche',
+    },
     empty: 'Keine Termine in diesem Zeitraum.',
     newHere: 'Termin anlegen',
+    newAppointment: 'Neuer Termin',
+    calendarWeek: (week: number) => `KW ${week}`,
+    /** The right-hand rail. */
+    dayOverview: 'Tagesüberblick',
+    daySchedule: 'Ablauf',
+    dayEmpty: 'Keine Termine an diesem Tag.',
+    countAppointments: 'Termine',
+    countHours: 'Stunden',
+    countCancelled: 'Abgesagt',
+    previousMonth: 'Vorheriger Monat',
+    nextMonth: 'Nächster Monat',
+    /** Dragging. The block springs back on refusal, so the message explains a
+     *  movement the practitioner has already seen undone. */
+    dragOverlap: 'Überschneidet sich',
+    moved: 'Termin verschoben.',
+    moveFailed: 'Der Termin konnte nicht verschoben werden.',
+    close: 'Auswahl schließen',
     /** The slot, and only the slot. Whether the session took place is the
      *  activity's status. */
     status: {

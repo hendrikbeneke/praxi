@@ -70,6 +70,34 @@ export const appointmentDraftSchema = z
 
 export type AppointmentDraft = z.infer<typeof appointmentDraftSchema>
 
+/**
+ * Dragging an entry to another time (D9) — the two instants and nothing else.
+ *
+ * Deliberately narrower than `appointmentDraftSchema`: a drag says *when*, and
+ * a payload that could also carry the status, the title or the note would be a
+ * second way to edit them beside the activity form. What it moves is not only
+ * the appointment, either — see `moveAppointment` in the domain, which carries
+ * `activity.occurred_at` along so the record of what happened cannot drift
+ * away from the slot it happened in.
+ */
+export const appointmentMoveSchema = z
+  .object({
+    startsAt: z.iso.datetime(),
+    endsAt: z.iso.datetime(),
+  })
+  .refine((move) => new Date(move.endsAt) > new Date(move.startsAt), {
+    message: 'endsAt must be after startsAt',
+    path: ['endsAt'],
+  })
+  .refine(
+    (move) =>
+      new Date(move.endsAt).getTime() - new Date(move.startsAt).getTime() <=
+      MAX_APPOINTMENT_MINUTES * 60_000,
+    { message: 'appointment is longer than a day', path: ['endsAt'] },
+  )
+
+export type AppointmentMove = z.infer<typeof appointmentMoveSchema>
+
 export const appointmentSchema = z.object({
   id: z.uuid(),
   contactId: z.uuid(),

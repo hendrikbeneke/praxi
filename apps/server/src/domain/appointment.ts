@@ -1,4 +1,4 @@
-import type { AppointmentDraft, CalendarEntry } from '@praxi/shared'
+import type { AppointmentMove, CalendarEntry } from '@praxi/shared'
 import { formatContactName } from '@praxi/shared'
 import { and, asc, eq, gte, lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
@@ -10,7 +10,7 @@ import { enqueueUpsert } from './google-sync.js'
  *
  * Appointments are never created here — they come into being with their
  * activity (`domain/activity.ts`). What this file offers is what a calendar
- * needs: everything in a window, and moving or restatusing one entry.
+ * needs: everything in a window, and dragging one entry to another time.
  */
 
 /**
@@ -84,36 +84,54 @@ export async function listCalendarEntries(
 }
 
 /**
- * Moves an entry or changes its status.
+ * Drags an entry to another time — **both ends of it** (D9).
  *
- * The status says what became of the slot and does not gate billing. What it
- * does decide is whether the slot stays occupied — setting `cancelled` frees
- * it for someone else, every other status holds it. That is enforced by the
- * exclusion constraint, not here; a clash surfaces as SQLSTATE 23P01.
+ * The appointment and its activity are moved in one transaction, and that is
+ * the whole reason this function exists rather than a plain update of the
+ * appointment row. `activity.occurred_at` is the record of *when it happened*;
+ * the appointment is the slot it happened in. The editor has always written
+ * the two from one value, so nothing had pulled them apart yet — a drag that
+ * touched only the appointment would have been the first thing to do it, and
+ * silently: the calendar would show the new time while the Vorgänge list,
+ * every invoice line's date of service and the note attached to the session
+ * kept the old one.
  *
- * Whether the session took place is `activity.status`, not this one, and is
- * changed through the activity.
+ * `duration_min` follows for the same reason. Where the activity has no
+ * calendar entry there is nothing to drag, so this cannot reach it.
+ *
+ * Only the times. Status, title and note are edited through the activity, and
+ * a payload here that could carry them would be a second way to change them.
+ *
+ * Whether the slot may be taken at all is the exclusion constraint's decision,
+ * not this one — a clash surfaces as SQLSTATE 23P01 and the route turns it
+ * into a sentence. Cancelled entries do not hold their slot; a no-show does,
+ * because that is `activity.status` and the time really was occupied.
  */
-export async function updateAppointment(
+export async function moveAppointment(
   database: Database,
   tenantId: string,
   id: string,
-  draft: AppointmentDraft,
+  move: AppointmentMove,
 ): Promise<boolean> {
+  const startsAt = new Date(move.startsAt)
+  const endsAt = new Date(move.endsAt)
+
   return database.transaction(async (tx) => {
     const [row] = await tx
       .update(appointment)
-      .set({
-        startsAt: new Date(draft.startsAt),
-        endsAt: new Date(draft.endsAt),
-        status: draft.status,
-        title: draft.title,
-        note: draft.note,
-      })
+      .set({ startsAt, endsAt })
       .where(and(eq(appointment.tenantId, tenantId), eq(appointment.id, id)))
       .returning({ id: appointment.id })
 
     if (!row) return false
+
+    await tx
+      .update(activity)
+      .set({
+        occurredAt: startsAt,
+        durationMin: Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000),
+      })
+      .where(and(eq(activity.tenantId, tenantId), eq(activity.appointmentId, id)))
 
     // Moving an entry is a change Google has to learn about, and it is
     // enqueued in the same transaction so a dead line cannot stop the move

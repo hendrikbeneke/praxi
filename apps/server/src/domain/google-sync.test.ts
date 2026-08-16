@@ -14,7 +14,7 @@ import { googleEventId } from '../google/payload.js'
 import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
 import { createActivity, deleteActivity, updateActivity } from './activity.js'
-import { updateAppointment } from './appointment.js'
+import { moveAppointment } from './appointment.js'
 import { createContact } from './contact.js'
 import { disconnect } from './google-connection.js'
 import {
@@ -150,12 +150,6 @@ async function appointmentRow(id: string) {
   return row
 }
 
-async function onlyAppointmentId(): Promise<string> {
-  const [row] = await db().select().from(appointment).where(eq(appointment.tenantId, tenantId))
-  if (!row) throw new Error('no appointment')
-  return row.id
-}
-
 const NOW = new Date('2026-09-01T10:00:00.000Z')
 
 beforeEach(async () => {
@@ -194,12 +188,9 @@ describe('enqueueing', () => {
     await updateActivity(db(), tenantId, created.id, {
       ...booking('2026-09-02T10:00:00.000Z', '2026-09-02T11:00:00.000Z'),
     })
-    await updateAppointment(db(), tenantId, created.appointment?.id ?? '', {
+    await moveAppointment(db(), tenantId, created.appointment?.id ?? '', {
       startsAt: '2026-09-02T11:00:00.000Z',
       endsAt: '2026-09-02T12:00:00.000Z',
-      status: 'planned',
-      title: null,
-      note: null,
     })
 
     // Three changes, one instruction: the push reads the appointment fresh.
@@ -245,20 +236,24 @@ describe('pushing', () => {
     await connect()
     const recorder = fakeApi()
 
-    await createActivity(
+    const created = await createActivity(
       db(),
       tenantId,
       booking('2026-09-02T08:00:00.000Z', '2026-09-02T09:00:00.000Z'),
     )
     await pushQueue(db(), tenantId, recorder.api, NOW)
 
-    const appointmentId = await onlyAppointmentId()
-    await updateAppointment(db(), tenantId, appointmentId, {
-      startsAt: '2026-09-02T08:00:00.000Z',
-      endsAt: '2026-09-02T09:00:00.000Z',
-      status: 'cancelled',
-      title: null,
-      note: null,
+    // Cancelling goes through the activity, which is the only way the
+    // application offers: a drag says *when* and cannot say `cancelled`.
+    await updateActivity(db(), tenantId, created.id, {
+      ...booking('2026-09-02T08:00:00.000Z', '2026-09-02T09:00:00.000Z'),
+      appointment: {
+        startsAt: '2026-09-02T08:00:00.000Z',
+        endsAt: '2026-09-02T09:00:00.000Z',
+        status: 'cancelled',
+        title: null,
+        note: null,
+      },
     })
     await pushQueue(db(), tenantId, recorder.api, NOW)
 
@@ -506,12 +501,9 @@ describe('conflicts', () => {
     const appointmentId = created.appointment?.id ?? ''
 
     // Changed here, not out yet.
-    await updateAppointment(db(), tenantId, appointmentId, {
+    await moveAppointment(db(), tenantId, appointmentId, {
       startsAt: '2026-09-02T12:00:00.000Z',
       endsAt: '2026-09-02T13:00:00.000Z',
-      status: 'planned',
-      title: null,
-      note: null,
     })
 
     // And changed in Google meanwhile.
@@ -559,12 +551,9 @@ describe('conflicts', () => {
   it('holds back a push that is enqueued again while the conflict is open', async () => {
     const appointmentId = await bothSidesChanged()
 
-    await updateAppointment(db(), tenantId, appointmentId, {
+    await moveAppointment(db(), tenantId, appointmentId, {
       startsAt: '2026-09-02T18:00:00.000Z',
       endsAt: '2026-09-02T19:00:00.000Z',
-      status: 'planned',
-      title: null,
-      note: null,
     })
     expect(await queueRows()).toHaveLength(1)
 

@@ -72,118 +72,130 @@ export function ActivityDetail({
   const typeLabel = activityTypeLabel(types.data, activity.type)
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_250px]">
-      <div>
-        {activity.title && <p className="mb-3 font-semibold text-lg">{activity.title}</p>}
+    /*
+     * A **container** query, not a viewport one (D9). This was `lg:` until the
+     * calendar rail became the third container: `lg:` asks how wide the window
+     * is, and in a 380 px rail on a 1512 px screen it answered "wide", so the
+     * two columns were forced into the rail and printed on top of each other.
+     * The component has to measure the space it was actually given — which is
+     * also the honest reading of "one component, three containers".
+     */
+    <div className="@container">
+      <div className="grid gap-8 @2xl:grid-cols-[minmax(0,1fr)_250px]">
+        <div>
+          {activity.title && <p className="mb-3 font-semibold text-lg">{activity.title}</p>}
 
-        {activity.items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{strings.activity.itemsEmpty}</p>
-        ) : (
-          <ul>
-            {activity.items.map((item) => (
-              <li
-                key={item.id}
-                className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-baseline gap-3 border-t py-2"
-              >
-                <span className="text-muted-foreground text-sm tabular-nums">{item.quantity}×</span>
-                <span className="min-w-0">
-                  {item.description}
-                  {item.feeCode && (
-                    <span className="ml-2 text-muted-foreground text-xs">{item.feeCode}</span>
-                  )}
-                  {!item.billable && (
-                    <span className="ml-2 text-muted-foreground text-xs">
-                      {strings.activity.notBillableBadge}
-                    </span>
-                  )}
-                </span>
-                <span className="text-right tabular-nums">
-                  {formatEuro(item.quantity * item.unitPriceCents)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+          {activity.items.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{strings.activity.itemsEmpty}</p>
+          ) : (
+            <ul>
+              {activity.items.map((item) => (
+                <li
+                  key={item.id}
+                  className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-baseline gap-3 border-t py-2"
+                >
+                  <span className="text-muted-foreground text-sm tabular-nums">
+                    {item.quantity}×
+                  </span>
+                  <span className="min-w-0">
+                    {item.description}
+                    {item.feeCode && (
+                      <span className="ml-2 text-muted-foreground text-xs">{item.feeCode}</span>
+                    )}
+                    {!item.billable && (
+                      <span className="ml-2 text-muted-foreground text-xs">
+                        {strings.activity.notBillableBadge}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-right tabular-nums">
+                    {formatEuro(item.quantity * item.unitPriceCents)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
-        <div className="mt-1 flex items-baseline justify-between gap-4 border-t pt-3">
-          <span className="font-medium">{strings.activity.sumBillable}</span>
-          <span className="font-medium text-lg tabular-nums">{formatEuro(billable)}</span>
-        </div>
-        {total !== billable && (
-          <div className="mt-1 flex items-baseline justify-between gap-4 text-muted-foreground text-xs">
-            <span>{strings.activity.sumTotalLong}</span>
-            <span className="tabular-nums">{formatEuro(total)}</span>
+          <div className="mt-1 flex items-baseline justify-between gap-4 border-t pt-3">
+            <span className="font-medium">{strings.activity.sumBillable}</span>
+            <span className="font-medium text-lg tabular-nums">{formatEuro(billable)}</span>
           </div>
-        )}
+          {total !== billable && (
+            <div className="mt-1 flex items-baseline justify-between gap-4 text-muted-foreground text-xs">
+              <span>{strings.activity.sumTotalLong}</span>
+              <span className="tabular-nums">{formatEuro(total)}</span>
+            </div>
+          )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button type="button" variant="outline" size="sm" onClick={onStartEditing}>
-            {strings.actions.edit}
-          </Button>
-          {/* Acts on what is stored, not on what is on screen — which is why
-              it is only offered while the activity is open for billing. */}
-          {activity.billingState === 'open' && <BillActivity activity={activity} />}
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button type="button" variant="outline" size="sm" onClick={onStartEditing}>
+              {strings.actions.edit}
+            </Button>
+            {/* Acts on what is stored, not on what is on screen — which is why
+                it is only offered while the activity is open for billing. */}
+            {activity.billingState === 'open' && <BillActivity activity={activity} />}
+          </div>
+
+          <ActivityNotes activityId={activity.id} />
         </div>
 
-        <ActivityNotes activityId={activity.id} />
-      </div>
-
-      <div className="flex flex-col gap-4 lg:border-l lg:pl-6">
-        {showContact && (
-          <Rail label={strings.activity.contact}>
-            <Link
-              to="/contacts/$contactId"
-              params={{ contactId: activity.contactId }}
-              className="underline underline-offset-4"
-            >
-              {activity.contactName}
-            </Link>
-            <span className="text-muted-foreground text-sm tabular-nums">
-              {strings.contact.contactNumber} {activity.contactNumber}
-            </span>
-          </Rail>
-        )}
-
-        <Rail label={strings.activity.appointmentSection}>
-          {activity.appointment ? (
-            <>
-              <span className="tabular-nums">
-                {formatBerlinDateTime(activity.appointment.startsAt)}
-              </span>
+        <div className="flex flex-col gap-4 @2xl:border-l @2xl:pl-6">
+          {showContact && (
+            <Rail label={strings.activity.contact}>
+              <Link
+                to="/contacts/$contactId"
+                params={{ contactId: activity.contactId }}
+                className="underline underline-offset-4"
+              >
+                {activity.contactName}
+              </Link>
               <span className="text-muted-foreground text-sm tabular-nums">
-                {formatBerlinTime(activity.appointment.startsAt)}–
-                {formatBerlinTime(activity.appointment.endsAt)} ·{' '}
-                {strings.appointment.status[activity.appointment.status]}
+                {strings.contact.contactNumber} {activity.contactNumber}
               </span>
-              {/* The way back out of the activity and into the week it sits
+            </Rail>
+          )}
+
+          <Rail label={strings.activity.appointmentSection}>
+            {activity.appointment ? (
+              <>
+                <span className="tabular-nums">
+                  {formatBerlinDateTime(activity.appointment.startsAt)}
+                </span>
+                <span className="text-muted-foreground text-sm tabular-nums">
+                  {formatBerlinTime(activity.appointment.startsAt)}–
+                  {formatBerlinTime(activity.appointment.endsAt)} ·{' '}
+                  {strings.appointment.status[activity.appointment.status]}
+                </span>
+                {/* The way back out of the activity and into the week it sits
                   in. The other direction — a calendar entry opening this — is
                   the dialog in `appointments.tsx`. */}
-              <Link
-                to="/appointments"
-                search={{ date: toBerlinDate(activity.appointment.startsAt), view: 'day' }}
-                className="mt-1 text-sm underline underline-offset-4"
-              >
-                {strings.activity.openInCalendar}
-              </Link>
-            </>
-          ) : (
-            <span className="text-muted-foreground">{strings.activity.noAppointment}</span>
-          )}
-        </Rail>
+                <Link
+                  to="/appointments"
+                  search={{ date: toBerlinDate(activity.appointment.startsAt), view: 'day' }}
+                  className="mt-1 text-sm underline underline-offset-4"
+                >
+                  {strings.activity.openInCalendar}
+                </Link>
+              </>
+            ) : (
+              <span className="text-muted-foreground">{strings.activity.noAppointment}</span>
+            )}
+          </Rail>
 
-        <Rail label={strings.activity.section}>
-          <span className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="size-2.5 rounded-full"
-              style={{ backgroundColor: color }}
-            />
-            {typeLabel}
-          </span>
-          <span>{strings.activity.statuses[activity.status]}</span>
-        </Rail>
+          <Rail label={strings.activity.section}>
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="size-2.5 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              {typeLabel}
+            </span>
+            <span>{strings.activity.statuses[activity.status]}</span>
+          </Rail>
 
-        <ActivityInvoices activity={activity} />
+          <ActivityInvoices activity={activity} />
+        </div>
       </div>
     </div>
   )
