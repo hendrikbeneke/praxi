@@ -16,19 +16,13 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
-import {
-  DASH,
-  ListCard,
-  ListCardHeaderCell,
-  ListCardHeaderRow,
-  ListCardTitleBar,
-} from '@/components/list-card'
+import { DASH, ListCard, ListCardTitleBar } from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { ApiError } from '@/lib/api'
 import {
   createRelationType,
@@ -104,134 +98,132 @@ export function RoleTypeSettings() {
   const rows = types.data ?? []
 
   return (
-    <ListCard>
-      <ListCardTitleBar
-        title={strings.contactType.tabRoles}
-        hint={strings.contactType.rolesHint}
-        action={
-          <Button
-            size="sm"
-            onClick={() => {
-              detail.close()
-              setCreating((current) => !current)
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            {strings.contactType.createRole}
-          </Button>
-        }
-      />
+    <>
+      <ListCard>
+        <ListCardTitleBar
+          title={strings.contactType.tabRoles}
+          hint={strings.contactType.rolesHint}
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                detail.close()
+                setCreating((current) => !current)
+              }}
+            >
+              <Plus className="size-4" aria-hidden />
+              {strings.contactType.createRole}
+            </Button>
+          }
+        />
 
-      {creating && (
-        <div className="border-b bg-muted/20 p-4">
-          <RoleTypeForm
-            pending={save.isPending}
-            onCancel={() => setCreating(false)}
-            onSubmit={(values) => save.mutate({ values })}
-          />
-        </div>
-      )}
+        {creating && (
+          <div className="border-b bg-muted/20 p-4">
+            <RoleTypeForm
+              pending={save.isPending}
+              onCancel={() => setCreating(false)}
+              onSubmit={(values) => save.mutate({ values })}
+            />
+          </div>
+        )}
 
-      {rows.length === 0 ? (
-        <p className="p-4 text-muted-foreground text-sm">
-          {types.isPending ? strings.status.loading : strings.contactType.emptyRoles}
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <ListCardHeaderRow>
-              <ListCardHeaderCell>{strings.contactType.label}</ListCardHeaderCell>
-              <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
-              <ListCardHeaderCell className="w-[72px]" />
-            </ListCardHeaderRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((type, index) => (
-              <Fragment key={type.id}>
-                <TableRow
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setCreating(false)
-                    detail.toggle(type.id)
-                  }}
-                >
-                  <TableCell>
-                    <span className="font-medium">{type.label}</span>
-                    <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
-                    {type.showAsTab && (
-                      <Badge variant="outline" className="ml-2">
-                        {strings.contactType.showAsTab}
-                      </Badge>
-                    )}
-                    {type.isSystem && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-2"
-                        title={strings.contactType.systemHint}
-                      >
-                        {strings.contactType.systemBadge}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <ActiveStatus active={type.active} />
-                  </TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}>
-                    <OrderButtons
-                      index={index}
-                      count={rows.length}
-                      pending={move.isPending}
-                      onMove={(i, delta) => {
-                        const row = rows[i]
-                        if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
-                      }}
-                    />
-                  </TableCell>
-                </TableRow>
-
-                {detail.isOpen(type.id) && (
-                  <InlineDetailRow colSpan={3}>
-                    {detail.editing ? (
-                      <RoleTypeForm
-                        type={type}
-                        pending={save.isPending}
-                        onCancel={detail.stopEditing}
-                        onSubmit={(values) => save.mutate({ id: type.id, values })}
+        {rows.length === 0 ? (
+          <p className="p-4 text-muted-foreground text-sm">
+            {types.isPending ? strings.status.loading : strings.contactType.emptyRoles}
+          </p>
+        ) : (
+          <Table>
+            <TableBody>
+              {rows.map((type, index) => (
+                <Fragment key={type.id}>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setCreating(false)
+                      detail.toggle(type.id)
+                    }}
+                  >
+                    <TableCell>
+                      <span className="font-medium">{type.label}</span>
+                      <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
+                      {type.showAsTab && (
+                        <Badge variant="outline" className="ml-2">
+                          {strings.contactType.showAsTab}
+                        </Badge>
+                      )}
+                      {type.isSystem && (
+                        <Badge
+                          variant="secondary"
+                          className="ml-2"
+                          title={strings.contactType.systemHint}
+                        >
+                          {strings.contactType.systemBadge}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <ActiveStatus active={type.active} />
+                    </TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <OrderButtons
+                        index={index}
+                        count={rows.length}
+                        pending={move.isPending}
+                        onMove={(i, delta) => {
+                          const row = rows[i]
+                          if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
+                        }}
                       />
-                    ) : (
-                      <div className="space-y-4">
-                        <dl className="flex flex-wrap gap-8">
-                          <DetailField label={strings.contactType.code} value={type.code} />
-                          <DetailField
-                            label={strings.contactType.showAsTab}
-                            value={type.showAsTab ? strings.contactType.showAsTab : DASH}
-                          />
-                        </dl>
-                        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-                          <Button size="sm" variant="outline" onClick={detail.startEditing}>
-                            {strings.actions.edit}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={detail.close}>
-                            {strings.actions.close}
-                          </Button>
-                          <DeleteButton
-                            disabled={type.isSystem}
-                            onConfirm={() => remove.mutate(type.id)}
-                            hint={type.isSystem ? strings.contactType.systemHint : undefined}
-                            title={strings.contactType.deleteTitle}
-                            body={strings.contactType.deleteBody}
-                          />
+                    </TableCell>
+                  </TableRow>
+
+                  {detail.isOpen(type.id) && (
+                    <InlineDetailRow colSpan={3}>
+                      {detail.editing ? (
+                        <RoleTypeForm
+                          type={type}
+                          pending={save.isPending}
+                          onCancel={detail.stopEditing}
+                          onSubmit={(values) => save.mutate({ id: type.id, values })}
+                        />
+                      ) : (
+                        <div className="space-y-4">
+                          <dl className="flex flex-wrap gap-8">
+                            <DetailField label={strings.contactType.code} value={type.code} />
+                            <DetailField
+                              label={strings.contactType.showAsTab}
+                              value={type.showAsTab ? strings.contactType.showAsTab : DASH}
+                            />
+                          </dl>
+                          <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+                            <Button size="sm" variant="outline" onClick={detail.startEditing}>
+                              {strings.actions.edit}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={detail.close}>
+                              {strings.actions.close}
+                            </Button>
+                            <DeleteButton
+                              disabled={type.isSystem}
+                              onConfirm={() => remove.mutate(type.id)}
+                              hint={type.isSystem ? strings.contactType.systemHint : undefined}
+                              title={strings.contactType.deleteTitle}
+                              body={strings.contactType.deleteBody}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </InlineDetailRow>
-                )}
-              </Fragment>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </ListCard>
+                      )}
+                    </InlineDetailRow>
+                  )}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ListCard>
+      {/* The sentence the design puts under the card — it answers the question
+          the list itself raises, so it belongs below it, not in the title bar (K3). */}
+      <p className="mt-3 text-muted-foreground text-sm">{strings.contactType.rolesFooter}</p>
+    </>
   )
 }
 
@@ -363,142 +355,140 @@ export function RelationTypeSettings() {
   const rows = types.data ?? []
 
   return (
-    <ListCard>
-      <ListCardTitleBar
-        title={strings.contactType.tabRelations}
-        hint={strings.contactType.relationsHint}
-        action={
-          <Button
-            size="sm"
-            onClick={() => {
-              detail.close()
-              setCreating((current) => !current)
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            {strings.contactType.createRelation}
-          </Button>
-        }
-      />
+    <>
+      <ListCard>
+        <ListCardTitleBar
+          title={strings.contactType.tabRelations}
+          hint={strings.contactType.relationsHint}
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                detail.close()
+                setCreating((current) => !current)
+              }}
+            >
+              <Plus className="size-4" aria-hidden />
+              {strings.contactType.createRelation}
+            </Button>
+          }
+        />
 
-      {creating && (
-        <div className="border-b bg-muted/20 p-4">
-          <RelationTypeForm
-            pending={save.isPending}
-            onCancel={() => setCreating(false)}
-            onSubmit={(values) => save.mutate({ values })}
-          />
-        </div>
-      )}
+        {creating && (
+          <div className="border-b bg-muted/20 p-4">
+            <RelationTypeForm
+              pending={save.isPending}
+              onCancel={() => setCreating(false)}
+              onSubmit={(values) => save.mutate({ values })}
+            />
+          </div>
+        )}
 
-      {rows.length === 0 ? (
-        <p className="p-4 text-muted-foreground text-sm">
-          {types.isPending ? strings.status.loading : strings.contactType.emptyRelations}
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <ListCardHeaderRow>
-              <ListCardHeaderCell>{strings.contactType.label}</ListCardHeaderCell>
-              <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
-              <ListCardHeaderCell className="w-[72px]" />
-            </ListCardHeaderRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((type, index) => (
-              <Fragment key={type.id}>
-                <TableRow
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setCreating(false)
-                    detail.toggle(type.id)
-                  }}
-                >
-                  <TableCell>
-                    <span className="font-medium">{type.labelForward}</span>
-                    {type.labelInverse && (
-                      <span className="text-muted-foreground"> ↔ {type.labelInverse}</span>
-                    )}
-                    <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
-                    {type.isExclusive && (
-                      <Badge variant="outline" className="ml-2">
-                        {strings.contactType.exclusiveBadge}
-                      </Badge>
-                    )}
-                    {type.isSymmetric && (
-                      <Badge variant="outline" className="ml-2">
-                        {strings.contactType.symmetricBadge}
-                      </Badge>
-                    )}
-                    {type.isSystem && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-2"
-                        title={strings.contactType.systemHint}
-                      >
-                        {strings.contactType.systemBadge}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <ActiveStatus active={type.active} />
-                  </TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}>
-                    <OrderButtons
-                      index={index}
-                      count={rows.length}
-                      pending={move.isPending}
-                      onMove={(i, delta) => {
-                        const row = rows[i]
-                        if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
-                      }}
-                    />
-                  </TableCell>
-                </TableRow>
-
-                {detail.isOpen(type.id) && (
-                  <InlineDetailRow colSpan={3}>
-                    {detail.editing ? (
-                      <RelationTypeForm
-                        type={type}
-                        pending={save.isPending}
-                        onCancel={detail.stopEditing}
-                        onSubmit={(values) => save.mutate({ id: type.id, values })}
+        {rows.length === 0 ? (
+          <p className="p-4 text-muted-foreground text-sm">
+            {types.isPending ? strings.status.loading : strings.contactType.emptyRelations}
+          </p>
+        ) : (
+          <Table>
+            <TableBody>
+              {rows.map((type, index) => (
+                <Fragment key={type.id}>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setCreating(false)
+                      detail.toggle(type.id)
+                    }}
+                  >
+                    <TableCell>
+                      <span className="font-medium">{type.labelForward}</span>
+                      {type.labelInverse && (
+                        <span className="text-muted-foreground"> ↔ {type.labelInverse}</span>
+                      )}
+                      <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
+                      {type.isExclusive && (
+                        <Badge variant="outline" className="ml-2">
+                          {strings.contactType.exclusiveBadge}
+                        </Badge>
+                      )}
+                      {type.isSymmetric && (
+                        <Badge variant="outline" className="ml-2">
+                          {strings.contactType.symmetricBadge}
+                        </Badge>
+                      )}
+                      {type.isSystem && (
+                        <Badge
+                          variant="secondary"
+                          className="ml-2"
+                          title={strings.contactType.systemHint}
+                        >
+                          {strings.contactType.systemBadge}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <ActiveStatus active={type.active} />
+                    </TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <OrderButtons
+                        index={index}
+                        count={rows.length}
+                        pending={move.isPending}
+                        onMove={(i, delta) => {
+                          const row = rows[i]
+                          if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
+                        }}
                       />
-                    ) : (
-                      <div className="space-y-4">
-                        <dl className="flex flex-wrap gap-8">
-                          <DetailField label={strings.contactType.code} value={type.code} />
-                          <DetailField
-                            label={strings.contactType.labelInverse}
-                            value={type.labelInverse ?? DASH}
-                          />
-                        </dl>
-                        <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-                          <Button size="sm" variant="outline" onClick={detail.startEditing}>
-                            {strings.actions.edit}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={detail.close}>
-                            {strings.actions.close}
-                          </Button>
-                          <DeleteButton
-                            disabled={type.isSystem}
-                            onConfirm={() => remove.mutate(type.id)}
-                            hint={type.isSystem ? strings.contactType.systemHint : undefined}
-                            title={strings.contactType.deleteTitle}
-                            body={strings.contactType.deleteBody}
-                          />
+                    </TableCell>
+                  </TableRow>
+
+                  {detail.isOpen(type.id) && (
+                    <InlineDetailRow colSpan={3}>
+                      {detail.editing ? (
+                        <RelationTypeForm
+                          type={type}
+                          pending={save.isPending}
+                          onCancel={detail.stopEditing}
+                          onSubmit={(values) => save.mutate({ id: type.id, values })}
+                        />
+                      ) : (
+                        <div className="space-y-4">
+                          <dl className="flex flex-wrap gap-8">
+                            <DetailField label={strings.contactType.code} value={type.code} />
+                            <DetailField
+                              label={strings.contactType.labelInverse}
+                              value={type.labelInverse ?? DASH}
+                            />
+                          </dl>
+                          <div className="flex flex-wrap items-center gap-2 border-t pt-4">
+                            <Button size="sm" variant="outline" onClick={detail.startEditing}>
+                              {strings.actions.edit}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={detail.close}>
+                              {strings.actions.close}
+                            </Button>
+                            <DeleteButton
+                              disabled={type.isSystem}
+                              onConfirm={() => remove.mutate(type.id)}
+                              hint={type.isSystem ? strings.contactType.systemHint : undefined}
+                              title={strings.contactType.deleteTitle}
+                              body={strings.contactType.deleteBody}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </InlineDetailRow>
-                )}
-              </Fragment>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </ListCard>
+                      )}
+                    </InlineDetailRow>
+                  )}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ListCard>
+      {/* The sentence the design puts under the card — it answers the question
+          the list itself raises, so it belongs below it, not in the title bar (K3). */}
+      <p className="mt-3 text-muted-foreground text-sm">{strings.contactType.relationsFooter}</p>
+    </>
   )
 }
 

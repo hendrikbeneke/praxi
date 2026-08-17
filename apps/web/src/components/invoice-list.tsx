@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
+import { filterChipClass } from '@/components/chip'
 import { type ColumnDefinition, ColumnPicker } from '@/components/column-picker'
 import { listHeaderClass } from '@/components/list-card'
 import { NewInvoiceDialog } from '@/components/new-invoice-dialog'
@@ -118,25 +119,39 @@ export function InvoiceList({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-1">
-          <Button
-            size="sm"
-            className="rounded-full"
-            variant={filter === undefined ? 'default' : 'outline'}
+        {/* Every chip carries its count, and the count is what makes the row
+            worth reading: "Überfällig 2" is the sentence, the chip is only how
+            one acts on it (K3). Counted over the loaded rows — the same array
+            the table renders, so no second request. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            className={filterChipClass(filter === undefined)}
             onClick={() => onFilterChange(undefined)}
           >
             {strings.invoice.all}
-          </Button>
+            <span className="font-semibold tabular-nums">{loaded.length}</span>
+          </button>
           {invoiceListFilters.map((entry) => (
-            <Button
+            <button
               key={entry}
-              size="sm"
-              className="rounded-full"
-              variant={filter === entry ? 'default' : 'outline'}
+              type="button"
+              className={filterChipClass(filter === entry)}
               onClick={() => onFilterChange(entry)}
             >
               {strings.invoice.filters[entry]}
-            </Button>
+              <span className="font-semibold tabular-nums">
+                {
+                  loaded.filter((invoice) =>
+                    matchesInvoiceListFilter(
+                      invoice,
+                      invoicePaymentState(invoice, invoice.paidCents, today),
+                      entry,
+                    ),
+                  ).length
+                }
+              </span>
+            </button>
           ))}
         </div>
 

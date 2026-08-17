@@ -67,7 +67,7 @@ Text, nicht als deaktivierte Felder.
 |---|---|---|
 | K1 | Fundament | **done** |
 | K2 | Lesemodus | **done** |
-| K3 | Zusammenfassungen | offen |
+| K3 | Zusammenfassungen | **done** |
 | K4 | Einstellungen | offen |
 | K5 | Leistungen | offen |
 | K6 | Kontaktbereich | offen |
@@ -119,6 +119,45 @@ Blöcke mitzählte. Gemessen gilt:
 - **Pfeile statt Chevrons** in `catalogue-controls.tsx`: `ArrowUp`/`ArrowDown`, Knopf 26 × 26
   statt 36 × 36, Icon 14 px, Strichstärke 2 — Muster 6 des Handoffs sagt „Pfeiltasten", und
   der Prototyp zeichnet sie. Wirkt auf alle sieben Katalog-Listen zugleich.
+
+## K3 — Zusammenfassungen
+
+Der Befund, der sich am häufigsten wiederholte: über acht Listen fehlte die Zählzeile, und in
+den Einstellungen war dieselbe Bewegung in beide Richtungen passiert — der erklärende
+Schlusssatz war weg, eine Spaltenkopfzeile war dazugekommen.
+
+- **Alle Zahlen lagen schon im Browser.** Keine einzige zusätzliche Abfrage: die drei
+  Kontakt-Reiter laden ihre Liste in `contacts.$contactId.tsx` selbst, `invoice-list.tsx`
+  rechnet `invoicePaymentState()` je Zeile ohnehin, und `services.tsx` liest für die
+  Reiter-Zähler dieselben Query-Keys, die die beiden Listen darin schon geholt haben — ein
+  Cache-Treffer. Nachgesehen wurde vorher, nicht hinterher.
+- **Zahl hinter dem Wort, überall** (`components/chip.tsx`). Der Prototyp macht es auf den
+  Leistungen-Reitern so und auf allen anderen Chips umgekehrt; vereinheitlicht per
+  Entscheidung, festgehalten in `docs/design-korrektur/abweichungen.md`. Die Prosa-Zeile
+  daneben bleibt Prosa.
+- **Die Zähl-Chips filtern nicht, also sind sie keine Knöpfe.** Am Prototyp geprüft: ein Klick
+  verschiebt nur die Auswahl. Im Prototyp sind es trotzdem `<button>` — gebaut ist `<span>`,
+  weil ein Bedienelement ohne Funktion dasselbe Muster ist wie der Briefbogen-Knopf mit 404.
+  Deshalb entfällt auch ein Chip mit `0`: bei einem Filter wäre die Null eine Aussage, bei
+  einer Zählung ist sie Rauschen. Die **Filter**-Chips (Zahlungen, Vorgänge) behalten ihre
+  Nullen.
+- **Der aktive Chip ist ein heller Primary-Ton mit Primary-Rahmen**, nicht die dunkle Füllung
+  von `Button variant="default"`: in einer Reihe von sieben liest eine gefüllte Pille als
+  Hauptaktion des Bildschirms und nicht als „diese ist gewählt". Mitgenommen, weil K3 jede
+  Chip-Zeile ohnehin anfasst.
+- **Fünf Spaltenkopfzeilen entfernt, nicht vier** — zu Rollen, Beziehungen, Vorgangsarten und
+  Mailvorlagen kam **Textbausteine**, das im Abgleich durchgerutscht war. Damit hatten
+  `ListCardHeaderRow` und `ListCardHeaderCell` keine Aufrufer mehr und sind gelöscht;
+  `listHeaderClass` bleibt, und `invoice-list.tsx` zeigt, wie eine Kopfzeile ohne die beiden
+  aussieht.
+- **Die drei Schlusssätze** stehen wieder unter ihrer Karte, im Wortlaut des Prototyps.
+- **Aus dem Sweep über alle neun Prototypen** kam eine Zeile hinzu, die nicht auf der Liste
+  stand: die Fußzeile der Kontaktliste nennt jetzt die Seitengröße („45 von 214 angezeigt ·
+  Seitengröße 50"), und zwar weiter nur dann, wenn die Liste wirklich gekürzt ist. Ebenfalls
+  gefunden und **nicht** hier behoben: **Zahlungen → Offene Vorgänge hat gar keine Zählzeile**,
+  dort zählt die Kachel (K8); die Kartenzahlen der Kontakt-Übersicht sind K7; die
+  Kalender-Kennzahlen K10. Die praxisweite Vorgänge-Seite hatte Zähler und Summenzeile schon
+  richtig.
 
 ## K2 — Lesemodus als Text
 

@@ -19,13 +19,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
-import {
-  DASH,
-  ListCard,
-  ListCardHeaderCell,
-  ListCardHeaderRow,
-  ListCardTitleBar,
-} from '@/components/list-card'
+import { DASH, ListCard, ListCardTitleBar } from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import {
   activityTypeListQueryOptions,
   createActivityType,
@@ -105,121 +99,118 @@ export function ActivityTypeSettings() {
   const groupRows = groups.data ?? []
 
   return (
-    <ListCard>
-      <ListCardTitleBar
-        title={strings.activityType.title}
-        hint={strings.activityType.hint}
-        action={
-          <Button
-            size="sm"
-            onClick={() => {
-              detail.close()
-              setCreating((current) => !current)
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            {strings.activityType.create}
-          </Button>
-        }
-      />
+    <>
+      <ListCard>
+        <ListCardTitleBar
+          title={strings.activityType.title}
+          hint={strings.activityType.hint}
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                detail.close()
+                setCreating((current) => !current)
+              }}
+            >
+              <Plus className="size-4" aria-hidden />
+              {strings.activityType.create}
+            </Button>
+          }
+        />
 
-      {creating && (
-        <div className="border-b bg-muted/20 p-4">
-          <ActivityTypeForm
-            services={serviceRows}
-            groups={groupRows}
-            pending={save.isPending}
-            onCancel={() => setCreating(false)}
-            onSubmit={(values) => save.mutate({ values })}
-          />
-        </div>
-      )}
+        {creating && (
+          <div className="border-b bg-muted/20 p-4">
+            <ActivityTypeForm
+              services={serviceRows}
+              groups={groupRows}
+              pending={save.isPending}
+              onCancel={() => setCreating(false)}
+              onSubmit={(values) => save.mutate({ values })}
+            />
+          </div>
+        )}
 
-      {rows.length === 0 ? (
-        <p className="p-4 text-muted-foreground text-sm">
-          {types.isPending ? strings.status.loading : strings.activityType.empty}
-        </p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <ListCardHeaderRow>
-              <ListCardHeaderCell />
-              <ListCardHeaderCell>{strings.activityType.label}</ListCardHeaderCell>
-              <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
-              <ListCardHeaderCell className="w-[72px]" />
-            </ListCardHeaderRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((type, index) => (
-              <Fragment key={type.id}>
-                <TableRow
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setCreating(false)
-                    detail.toggle(type.id)
-                  }}
-                >
-                  <TableCell>
-                    <ColorSwatch color={type.color} label={type.label} />
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{type.label}</span>
-                    <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
-                    {type.defaultDurationMin !== null && (
-                      <span className="ml-2 text-muted-foreground text-xs tabular-nums">
-                        {type.defaultDurationMin} {strings.service.durationMinutes}
-                      </span>
-                    )}
-                    {type.isDefault && (
-                      <Badge variant="outline" className="ml-2">
-                        {strings.activityType.defaultBadge}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <ActiveStatus active={type.active} />
-                  </TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}>
-                    <OrderButtons
-                      index={index}
-                      count={rows.length}
-                      pending={move.isPending}
-                      onMove={(i, delta) => {
-                        const row = rows[i]
-                        if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
-                      }}
-                    />
-                  </TableCell>
-                </TableRow>
-
-                {detail.isOpen(type.id) && (
-                  <InlineDetailRow colSpan={4}>
-                    {detail.editing ? (
-                      <ActivityTypeForm
-                        type={type}
-                        services={serviceRows}
-                        groups={groupRows}
-                        pending={save.isPending}
-                        onCancel={detail.stopEditing}
-                        onSubmit={(values) => save.mutate({ id: type.id, values })}
+        {rows.length === 0 ? (
+          <p className="p-4 text-muted-foreground text-sm">
+            {types.isPending ? strings.status.loading : strings.activityType.empty}
+          </p>
+        ) : (
+          <Table>
+            <TableBody>
+              {rows.map((type, index) => (
+                <Fragment key={type.id}>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setCreating(false)
+                      detail.toggle(type.id)
+                    }}
+                  >
+                    <TableCell>
+                      <ColorSwatch color={type.color} label={type.label} />
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{type.label}</span>
+                      <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
+                      {type.defaultDurationMin !== null && (
+                        <span className="ml-2 text-muted-foreground text-xs tabular-nums">
+                          {type.defaultDurationMin} {strings.service.durationMinutes}
+                        </span>
+                      )}
+                      {type.isDefault && (
+                        <Badge variant="outline" className="ml-2">
+                          {strings.activityType.defaultBadge}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <ActiveStatus active={type.active} />
+                    </TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <OrderButtons
+                        index={index}
+                        count={rows.length}
+                        pending={move.isPending}
+                        onMove={(i, delta) => {
+                          const row = rows[i]
+                          if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
+                        }}
                       />
-                    ) : (
-                      <ActivityTypeDetail
-                        type={type}
-                        services={serviceRows}
-                        onEdit={detail.startEditing}
-                        onClose={detail.close}
-                        onDelete={() => remove.mutate(type.id)}
-                      />
-                    )}
-                  </InlineDetailRow>
-                )}
-              </Fragment>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </ListCard>
+                    </TableCell>
+                  </TableRow>
+
+                  {detail.isOpen(type.id) && (
+                    <InlineDetailRow colSpan={4}>
+                      {detail.editing ? (
+                        <ActivityTypeForm
+                          type={type}
+                          services={serviceRows}
+                          groups={groupRows}
+                          pending={save.isPending}
+                          onCancel={detail.stopEditing}
+                          onSubmit={(values) => save.mutate({ id: type.id, values })}
+                        />
+                      ) : (
+                        <ActivityTypeDetail
+                          type={type}
+                          services={serviceRows}
+                          onEdit={detail.startEditing}
+                          onClose={detail.close}
+                          onDelete={() => remove.mutate(type.id)}
+                        />
+                      )}
+                    </InlineDetailRow>
+                  )}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ListCard>
+      {/* The sentence the design puts under the card — it answers the question
+          the list itself raises, so it belongs below it, not in the title bar (K3). */}
+      <p className="mt-3 text-muted-foreground text-sm">{strings.activityType.footer}</p>
+    </>
   )
 }
 

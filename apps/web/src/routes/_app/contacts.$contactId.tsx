@@ -1,10 +1,13 @@
 import {
   type Activity,
+  activityStatuses,
   type ContactUpdate,
   formatBerlinDate,
   formatBerlinTime,
   formatEuro,
+  invoicePaymentState,
   type Note,
+  noteTypes,
   occupiesSlot,
   toBerlinDate,
 } from '@praxi/shared'
@@ -15,6 +18,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { ActivityList } from '@/components/activity-list'
+import { CountChip } from '@/components/chip'
 import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
@@ -238,17 +242,45 @@ function ContactActivities({ contactId }: { contactId: string }) {
   const activities = useQuery(activityListQueryOptions({ contactId }))
   const [creating, setCreating] = useState(false)
 
+  const rows = activities.data ?? []
+  const now = new Date().toISOString()
+  const activityChips = [
+    ...activityStatuses.map((status) => ({
+      label: strings.activity.statuses[status],
+      count: rows.filter((entry) => entry.status === status).length,
+    })),
+    {
+      label: strings.counts.activitiesBilled,
+      count: rows.filter((entry) => entry.billingState === 'billed').length,
+    },
+    {
+      label: strings.counts.activitiesUnbilled,
+      count: rows.filter((entry) => entry.billingState === 'open').length,
+    },
+    {
+      label: strings.counts.activitiesNoAppointment,
+      count: rows.filter((entry) => entry.appointment === null).length,
+    },
+  ]
+
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={() => setCreating(true)}>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <CountRow
+          summary={strings.counts.activities(
+            rows.length,
+            rows.filter((entry) => entry.occurredAt > now).length,
+          )}
+          chips={activityChips}
+        />
+        <Button className="ml-auto" onClick={() => setCreating(true)}>
           <Plus className="size-4" aria-hidden />
           {strings.activity.create}
         </Button>
       </div>
 
       <ActivityList
-        activities={activities.data ?? []}
+        activities={rows}
         emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
         showContact={false}
         contactId={contactId}
@@ -286,11 +318,30 @@ function ContactInvoices({ contactId }: { contactId: string }) {
   })
 
   const rows = invoices.data ?? []
+  const today = toBerlinDate(new Date().toISOString())
+  const states = rows.map((invoice) => invoicePaymentState(invoice, invoice.paidCents, today))
+  const invoiceChips = [
+    {
+      label: strings.counts.invoicesOpen,
+      count: states.filter((state) => state.status === 'open').length,
+    },
+    {
+      label: strings.counts.invoicesPaid,
+      count: states.filter((state) => state.status === 'paid').length,
+    },
+    {
+      /* Overdue is a second axis, not a status (CLAUDE.md rule 9) — an invoice
+         can be partly paid and overdue at once, so this counts the axis. */
+      label: strings.counts.invoicesOverdue,
+      count: states.filter((state) => state.daysOverdue !== null).length,
+    },
+  ]
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={() => create.mutate()} disabled={create.isPending}>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <CountRow summary={strings.counts.invoices(rows.length)} chips={invoiceChips} />
+        <Button className="ml-auto" onClick={() => create.mutate()} disabled={create.isPending}>
           <Plus className="size-4" aria-hidden />
           {strings.invoice.create}
         </Button>
@@ -330,6 +381,21 @@ function ContactInvoices({ contactId }: { contactId: string }) {
 
 function ContactNotes({ contactId }: { contactId: string }) {
   const notes = useQuery(noteListQueryOptions({ contactId }))
+  const noteRows = notes.data ?? []
+  /* Locked state first, then one chip per type that actually occurs — a type
+     with no note is left out rather than shown as a zero, because these count
+     and do not filter (K3). */
+  const noteChips = [
+    {
+      label: strings.counts.notesLocked,
+      count: noteRows.filter((n) => n.lockedAt !== null).length,
+    },
+    { label: strings.counts.notesOpen, count: noteRows.filter((n) => n.lockedAt === null).length },
+    ...noteTypes.map((type) => ({
+      label: strings.note.types[type],
+      count: noteRows.filter((n) => n.type === type).length,
+    })),
+  ]
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [edited, setEdited] = useState<Note | undefined>()
@@ -344,8 +410,9 @@ function ContactNotes({ contactId }: { contactId: string }) {
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => setChainOpen(true)}>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <CountRow summary={strings.counts.notes(noteRows.length)} chips={noteChips} />
+        <Button variant="outline" className="ml-auto" onClick={() => setChainOpen(true)}>
           <ShieldCheck className="size-4" aria-hidden />
           {strings.note.chainCheck}
         </Button>
@@ -356,7 +423,7 @@ function ContactNotes({ contactId }: { contactId: string }) {
       </div>
 
       <NoteList
-        notes={notes.data ?? []}
+        notes={noteRows}
         emptyText={notes.isPending ? strings.status.loading : strings.note.empty}
         onEdit={(note) => open(note)}
         onAddendum={(note) => open(undefined, note)}
@@ -425,5 +492,32 @@ function ContactAppointments({ contactId }: { contactId: string }) {
         ) : null,
       )}
     </ul>
+  )
+}
+
+/**
+ * The count row above a tab's list: a prose summary, then one chip per category
+ * that has something in it (K3).
+ *
+ * Zero-count chips are dropped. With a filter the zero would be an answer worth
+ * showing; these only count, so "Nicht erschienen 0" is a category the contact
+ * has never had — noise beside the ones they do have.
+ */
+function CountRow({
+  summary,
+  chips,
+}: {
+  summary: string
+  chips: { label: string; count: number }[]
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="text-[13.5px] text-muted-foreground">{summary}</p>
+      {chips
+        .filter((chip) => chip.count > 0)
+        .map((chip) => (
+          <CountChip key={chip.label} label={chip.label} count={chip.count} />
+        ))}
+    </div>
   )
 }

@@ -29,6 +29,45 @@ Nachmessbar in `docs/design-abgleich/vergleich/D6-kontaktliste.png`, linke Hälf
 
 ---
 
+## K3 — Zahl hinter dem Wort, auch bei den Chips
+
+**Design:** Auf den Reitern von *Leistungen* steht die Zahl **hinter** dem Namen
+(„Leistungen 9", gedämpft). Auf jedem anderen Chip steht sie **davor** („3 Gesperrt",
+„9 Alle", Zahl in 600).
+
+**Gebaut:** überall hinter dem Wort.
+
+**Warum:** Vereinheitlicht per Entscheidung. Zwei Stellungen für dasselbe Muster heißen,
+dass man bei jedem Chip erst erkennen muss, welche Sorte er ist. Der Reiter behält damit
+seine Leserichtung („Bereich, dann Menge"), und die Zähl-Chips lesen sich genauso.
+
+**Nicht betroffen ist die Prosa-Zeile** daneben: „4 Notizen", „8 Vorgänge · 3 kommend",
+„14 Vorgänge · 5 kommend · 185,50 € noch nicht abgerechnet" bleiben Prosa — „Notizen 4"
+wäre kein Deutsch.
+
+**Falls doch getrennt gewollt:** `components/chip.tsx` ist die einzige Stelle; `CountChip`
+und `filterChipClass` müssten die Reihenfolge als Parameter nehmen.
+
+---
+
+## K3 — Zähl-Chips sind keine Knöpfe
+
+**Design:** Die Zähl-Chips über den Kontakt-Reitern sind `<button>`.
+
+**Gebaut:** `<span>`.
+
+**Warum:** Sie filtern nichts. Geprüft am Prototyp — ein Klick auf „3 Gesperrt" verschiebt
+nur die Auswahl, die Liste bleibt vollständig, und die Zustandsliste des Handoffs nennt für
+diese Reiter keinen Filter. Ein Bedienelement ohne Funktion ist dasselbe Muster wie der
+Briefbogen-Knopf, der 404 antwortete, und wie die Kopfzeilen-Suche, die deshalb draußen
+bleibt.
+
+**Falls sie filtern sollen:** dann werden es echte Knöpfe mit Zustand, und die Null bleibt
+sichtbar — bei einem Filter ist sie eine Aussage, bei einer Zählung nur Rauschen. Heute
+werden Chips mit `0` weggelassen.
+
+---
+
 ## K1 — Kontrollmaß: nicht gebaut, aber angemerkt
 
 Kein Eintrag, nur ein Hinweis für den nächsten Durchgang: der Prototyp gibt für dieselbe Woche

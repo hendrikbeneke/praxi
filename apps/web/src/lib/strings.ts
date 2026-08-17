@@ -102,6 +102,12 @@ export const strings = {
     tabRelations: 'Beziehungen',
     rolesHint: 'bestimmen, in welchen Listen ein Kontakt auftaucht',
     relationsHint: 'verbinden zwei Kontakte und erscheinen in beiden Akten',
+    rolesFooter:
+      'Ein System-Eintrag lässt sich umbenennen, aber nicht löschen — sein Kürzel bleibt, ' +
+      'wie es ist.',
+    relationsFooter:
+      'Der erste Kontakt ist der, in dessen Akte der Sachverhalt eine Eigenschaft dieses ' +
+      'Kontakts ist — das Kind hat einen Sorgeberechtigten. Der zweite Kontakt ist das Gegenüber.',
 
     code: 'Kürzel',
     codeHint:
@@ -151,6 +157,8 @@ export const strings = {
   activityType: {
     title: 'Vorgangsarten',
     hint: 'Farbe im Kalender und Vorbelegung beim Anlegen',
+    footer:
+      'Inaktive Arten erscheinen in keiner Auswahlliste, bleiben aber an bestehenden Vorgängen.',
 
     create: 'Neue Vorgangsart',
     empty: 'Noch keine Vorgangsarten.',
@@ -208,7 +216,12 @@ export const strings = {
     showArchived: 'Archivierte anzeigen',
     empty: 'Keine Kontakte vorhanden.',
     emptyFiltered: 'Kein Kontakt passt zu dieser Suche.',
-    countOf: (shown: number, total: number) => `${shown} von ${total} angezeigt`,
+    /** The page size travels with it: the line only appears when the list is
+     *  truncated, and then "why 50 of 214" is the next question. */
+    countOf: (shown: number, total: number, pageSize?: number) =>
+      pageSize === undefined
+        ? `${shown} von ${total} angezeigt`
+        : `${shown} von ${total} angezeigt · Seitengröße ${pageSize}`,
     archivedBadge: 'Archiviert',
 
     kindLabel: 'Art',
@@ -1179,6 +1192,22 @@ export const strings = {
   },
   /** Shared by every catalogue list — `catalogue-controls.tsx` — rather than
    *  each entity repeating "Aktiv"/"Nach oben" under its own key. */
+  /** The count row above a list (K3). Its chips only count — they are not
+   *  filters, so a zero is left out rather than shown as an empty category. */
+  counts: {
+    notes: (n: number) => `${n} ${n === 1 ? 'Notiz' : 'Notizen'}`,
+    notesLocked: 'Gesperrt',
+    notesOpen: 'Offen',
+    activities: (total: number, upcoming: number) =>
+      `${total} ${total === 1 ? 'Vorgang' : 'Vorgänge'} · ${upcoming} kommend`,
+    activitiesBilled: 'Abgerechnet',
+    activitiesUnbilled: 'Nicht abgerechnet',
+    activitiesNoAppointment: 'Ohne Termin',
+    invoices: (n: number) => `${n} ${n === 1 ? 'Rechnung' : 'Rechnungen'}`,
+    invoicesOpen: 'Offen',
+    invoicesPaid: 'Bezahlt',
+    invoicesOverdue: 'Überfällig',
+  },
   catalogue: {
     active: 'Aktiv',
     inactive: 'Inaktiv',

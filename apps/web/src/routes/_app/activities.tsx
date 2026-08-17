@@ -11,6 +11,7 @@ import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { ActivityList } from '@/components/activity-list'
+import { filterChipClass } from '@/components/chip'
 import { ContentWidth } from '@/components/content-width'
 import { DateField } from '@/components/date-field'
 import { PageHeader } from '@/components/page-header'
@@ -169,18 +170,17 @@ function ActivitiesPage() {
           narrows them, because it sits above the chips. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {chips.map((chip) => (
-          <Button
+          <button
             key={chip.value ?? 'all'}
-            size="sm"
-            className="rounded-full"
-            variant={search.status === chip.value ? 'default' : 'outline'}
+            type="button"
+            className={filterChipClass(search.status === chip.value)}
             onClick={() => setSearch({ status: chip.value })}
           >
+            {chip.label}
             {chip.count !== undefined && (
               <span className="font-semibold tabular-nums">{chip.count}</span>
             )}
-            {chip.label}
-          </Button>
+          </button>
         ))}
       </div>
 

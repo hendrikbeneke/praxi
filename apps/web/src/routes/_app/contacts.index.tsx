@@ -503,9 +503,11 @@ function ContactListPage() {
         </Table>
       </div>
 
+      {/* Only when the list is actually cut short — and then it names the page
+          size, because "why 50 of 214" is the next question (K3). */}
       {total > rows.length && (
         <p className="mt-3 text-muted-foreground text-sm">
-          {strings.contact.countOf(rows.length, total)}
+          {strings.contact.countOf(rows.length, total, PAGE_SIZE)}
         </p>
       )}
     </>

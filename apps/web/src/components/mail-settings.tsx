@@ -17,12 +17,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
-import {
-  ListCard,
-  ListCardHeaderCell,
-  ListCardHeaderRow,
-  ListCardTitleBar,
-} from '@/components/list-card'
+import { ListCard, ListCardTitleBar } from '@/components/list-card'
 import { ReadValue } from '@/components/read-value'
 import {
   AlertDialog,
@@ -45,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ApiError } from '@/lib/api'
 import {
@@ -469,13 +464,6 @@ function EmailTemplates() {
         </p>
       ) : (
         <Table>
-          <TableHeader>
-            <ListCardHeaderRow>
-              <ListCardHeaderCell>{strings.mail.templateName}</ListCardHeaderCell>
-              <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
-              <ListCardHeaderCell className="w-[72px]" />
-            </ListCardHeaderRow>
-          </TableHeader>
           <TableBody>
             {rows.map((template, index) => (
               <Fragment key={template.id}>

@@ -16,13 +16,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
-import {
-  DASH,
-  ListCard,
-  ListCardHeaderCell,
-  ListCardHeaderRow,
-  ListCardTitleBar,
-} from '@/components/list-card'
+import { DASH, ListCard, ListCardTitleBar } from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ApiError } from '@/lib/api'
 import {
@@ -140,13 +134,6 @@ export function TextTemplateSettings() {
                 {strings.invoice.templateKinds[kind]}
               </p>
               <Table>
-                <TableHeader>
-                  <ListCardHeaderRow>
-                    <ListCardHeaderCell>{strings.invoice.templateName}</ListCardHeaderCell>
-                    <ListCardHeaderCell>{strings.catalogue.active}</ListCardHeaderCell>
-                    <ListCardHeaderCell className="w-[72px]" />
-                  </ListCardHeaderRow>
-                </TableHeader>
                 <TableBody>
                   {kindRows.map((template, index) => (
                     <Fragment key={template.id}>
