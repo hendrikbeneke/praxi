@@ -15,6 +15,7 @@ import { Link } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { type ColumnDefinition, ColumnPicker } from '@/components/column-picker'
+import { listHeaderClass } from '@/components/list-card'
 import { NewInvoiceDialog } from '@/components/new-invoice-dialog'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import { Badge } from '@/components/ui/badge'
@@ -169,7 +170,7 @@ export function InvoiceList({
                   {columns.map((key) => (
                     <TableHead
                       key={key}
-                      className={`text-muted-foreground text-xs uppercase tracking-wide ${
+                      className={`h-9 px-4 ${listHeaderClass} ${
                         isNumeric(key) ? 'text-right' : ''
                       }`}
                     >

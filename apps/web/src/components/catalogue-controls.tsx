@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +35,12 @@ import { cn } from '@/lib/utils'
  * This component is presentation only: what `onMove` does — swap two rows'
  * `sort_order` and renumber the list gaplessly, in one transaction — lives in
  * `domain/reorder.ts` on the server, behind each catalogue's `/move` route.
+ *
+ * **Arrows, not chevrons**, and 26 × 26 rather than the `size="icon"` 36 × 36 —
+ * both measured in the prototype, which draws lucide's `arrow-up`/`arrow-down`
+ * at 14px in a 26px box (K1). Rule 6 says "Pfeiltasten"; a chevron is a
+ * disclosure mark and reads as "expand", which is a different promise in a row
+ * that also opens an inline detail on click.
  */
 export function OrderButtons({
   index,
@@ -48,24 +54,26 @@ export function OrderButtons({
   onMove: (index: number, delta: number) => void
 }) {
   return (
-    <span className="flex">
+    <span className="flex gap-3">
       <Button
         variant="ghost"
         size="icon"
+        className="size-[26px] text-muted-foreground"
         aria-label={strings.catalogue.moveUp}
         disabled={index === 0 || pending}
         onClick={() => onMove(index, -1)}
       >
-        <ChevronUp className="size-4" aria-hidden />
+        <ArrowUp className="size-[14px]" aria-hidden />
       </Button>
       <Button
         variant="ghost"
         size="icon"
+        className="size-[26px] text-muted-foreground"
         aria-label={strings.catalogue.moveDown}
         disabled={index === count - 1 || pending}
         onClick={() => onMove(index, 1)}
       >
-        <ChevronDown className="size-4" aria-hidden />
+        <ArrowDown className="size-[14px]" aria-hidden />
       </Button>
     </span>
   )

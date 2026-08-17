@@ -11,6 +11,7 @@ import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { ActivityList } from '@/components/activity-list'
+import { ContentWidth } from '@/components/content-width'
 import { DateField } from '@/components/date-field'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
@@ -193,13 +194,17 @@ function ActivitiesPage() {
         </p>
       )}
 
-      <ActivityList
-        activities={activities.data ?? []}
-        emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
-        creating={creating}
-        onCreated={() => setCreating(false)}
-        onCancelCreate={() => setCreating(false)}
-      />
+      {/* Only the list is capped; the filter band above keeps running to the
+          window edge, which is what carries its full-width rule (K1). */}
+      <ContentWidth max={1180}>
+        <ActivityList
+          activities={activities.data ?? []}
+          emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
+          creating={creating}
+          onCreated={() => setCreating(false)}
+          onCancelCreate={() => setCreating(false)}
+        />
+      </ContentWidth>
     </>
   )
 }

@@ -1,7 +1,8 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect, useMatches } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppTopbar } from '@/components/app-topbar'
 import { currentUserQueryOptions } from '@/lib/auth'
+import { pagePadding } from '@/lib/page-chrome'
 import { practiceSettingsQueryOptions } from '@/lib/settings'
 import { userPreferencesQueryOptions } from '@/lib/user-preferences'
 
@@ -33,13 +34,17 @@ export const Route = createFileRoute('/_app')({
 
 function AppLayout() {
   const { user } = Route.useRouteContext()
+  // The padding belongs to the screen, not to the shell's one guess at it, and
+  // it belongs in exactly one file — `lib/page-chrome.ts` explains why the
+  // width cap deliberately does not travel with it (K1).
+  const padding = pagePadding(useMatches().map((match) => match.routeId))
 
   return (
     <div className="flex min-h-svh">
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar user={user} />
-        <main className="min-w-0 flex-1 overflow-auto px-8 py-8">
+        <main className={`min-w-0 flex-1 overflow-auto ${padding}`}>
           <Outlet />
         </main>
       </div>

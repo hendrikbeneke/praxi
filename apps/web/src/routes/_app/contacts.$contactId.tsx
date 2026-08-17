@@ -18,6 +18,7 @@ import { ActivityList } from '@/components/activity-list'
 import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
+import { ContentWidth } from '@/components/content-width'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteDialog } from '@/components/note-dialog'
 import { NoteList } from '@/components/note-list'
@@ -165,48 +166,52 @@ function ContactDetailPage() {
           <TabsTrigger value="invoices">{strings.contact.tabs.invoices}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="pt-6">
-          <ContactOverview contact={contact} onDocument={setDocumenting} />
-        </TabsContent>
+        {/* The tab row above keeps the full width so its underline spans the
+            whole field; only the content below is capped (K1). */}
+        <ContentWidth max={1100}>
+          <TabsContent value="overview" className="pt-6">
+            <ContactOverview contact={contact} onDocument={setDocumenting} />
+          </TabsContent>
 
-        <TabsContent value="master" className="space-y-6 pt-6">
-          <div className="flex max-w-3xl justify-end">
-            {!editing && (
-              <Button variant="outline" onClick={() => setEditing(true)}>
-                <Pencil className="size-4" aria-hidden />
-                {strings.actions.edit}
-              </Button>
-            )}
-          </div>
+          <TabsContent value="master" className="space-y-6 pt-6">
+            <div className="flex max-w-3xl justify-end">
+              {!editing && (
+                <Button variant="outline" onClick={() => setEditing(true)}>
+                  <Pencil className="size-4" aria-hidden />
+                  {strings.actions.edit}
+                </Button>
+              )}
+            </div>
 
-          {/* `key` remounts the form when the stored version changes or when
-              editing is left, so the fields show what was actually stored —
-              that is also what "Abbrechen" relies on. */}
-          <ContactForm
-            key={`${contact.id}${contact.archivedAt ?? ''}${editing}`}
-            contact={contact}
-            editing={editing}
-            onSubmit={(input) => save.mutate(input)}
-            onCancel={() => setEditing(false)}
-            pending={save.isPending}
-          />
-        </TabsContent>
+            {/* `key` remounts the form when the stored version changes or when
+                editing is left, so the fields show what was actually stored —
+                that is also what "Abbrechen" relies on. */}
+            <ContactForm
+              key={`${contact.id}${contact.archivedAt ?? ''}${editing}`}
+              contact={contact}
+              editing={editing}
+              onSubmit={(input) => save.mutate(input)}
+              onCancel={() => setEditing(false)}
+              pending={save.isPending}
+            />
+          </TabsContent>
 
-        <TabsContent value="activities" className="pt-6">
-          <ContactActivities contactId={contactId} />
-        </TabsContent>
+          <TabsContent value="activities" className="pt-6">
+            <ContactActivities contactId={contactId} />
+          </TabsContent>
 
-        <TabsContent value="appointments" className="pt-6">
-          <ContactAppointments contactId={contactId} />
-        </TabsContent>
+          <TabsContent value="appointments" className="pt-6">
+            <ContactAppointments contactId={contactId} />
+          </TabsContent>
 
-        <TabsContent value="notes" className="pt-6">
-          <ContactNotes contactId={contactId} />
-        </TabsContent>
+          <TabsContent value="notes" className="pt-6">
+            <ContactNotes contactId={contactId} />
+          </TabsContent>
 
-        <TabsContent value="invoices" className="pt-6">
-          <ContactInvoices contactId={contactId} />
-        </TabsContent>
+          <TabsContent value="invoices" className="pt-6">
+            <ContactInvoices contactId={contactId} />
+          </TabsContent>
+        </ContentWidth>
       </Tabs>
 
       {/* Opened from the overview, so it lives here rather than in the notes

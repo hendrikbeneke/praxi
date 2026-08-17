@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { ActivityTypeSettings } from '@/components/activity-type-settings'
 import { RelationTypeSettings, RoleTypeSettings } from '@/components/contact-type-settings'
+import { ContentWidth } from '@/components/content-width'
 import { GoogleSettings } from '@/components/google-settings'
 import { InvoiceSettings } from '@/components/invoice-settings'
 import { MailSettings } from '@/components/mail-settings'
@@ -85,7 +86,9 @@ function SettingsPage() {
   const navigate = useNavigate({ from: Route.fullPath })
 
   return (
-    <>
+    // The whole page is capped here, header included — that is where the
+    // prototype puts it on the three list screens (K1).
+    <ContentWidth max={1180}>
       <PageHeader
         title={strings.settings.pageTitle}
         description={strings.settings.pageDescription}
@@ -128,7 +131,7 @@ function SettingsPage() {
           {section === 'google' && <GoogleSettings />}
         </div>
       </div>
-    </>
+    </ContentWidth>
   )
 }
 

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
+import { ContentWidth } from '@/components/content-width'
 import { PageHeader } from '@/components/page-header'
 import { ServiceGroupList } from '@/components/service-group-list'
 import { ServiceList } from '@/components/service-list'
@@ -27,7 +28,9 @@ function ServicesPage() {
   const activeServices = useQuery(serviceListQueryOptions(false))
 
   return (
-    <>
+    // The whole page is capped, header included — where the prototype
+    // puts it on the three list screens (K1).
+    <ContentWidth max={1180}>
       <PageHeader title={strings.service.title} description={strings.service.description} />
 
       <Tabs
@@ -54,6 +57,6 @@ function ServicesPage() {
           <ServiceGroupList services={activeServices.data ?? []} />
         </TabsContent>
       </Tabs>
-    </>
+    </ContentWidth>
   )
 }

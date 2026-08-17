@@ -42,6 +42,84 @@ Schemaänderungen an einer Stelle, damit D2–D9 reine Oberfläche sind.
 | D9.5 | Freien Termin finden | **done** |
 | D10 | Rich Text für Notizen | **done** |
 
+## Design-Korrektur
+
+Nacharbeit auf Grundlage von `docs/design-abgleich/` — dem Bildvergleich aus Prototyp und
+gebauter Oberfläche, Bildschirm für Bildschirm.
+
+**Grundregel, sie ersetzt den Maßstab der D-Pakete: Das Design ist maßgebend.** Es ist über
+mehrere Tage entstanden und zu 99 % korrekt. Eine Abweichung wird vorher gefragt und begründet
+und nicht selbst entschieden, auch nicht mit Verweis auf eine Repo-Regel. Widerspricht eine
+Regel dem Design konkret, kommen beide auf den Tisch. In den D-Paketen galt das Umgekehrte,
+und die Abweichung wurde dadurch zur Gewohnheit — genau das korrigiert dieser Abschnitt.
+
+**Eine feststehende Ausnahme:** Die globale Suche in der Kopfzeile bleibt weg, bis sie
+tatsächlich gebaut wird. Ein Knopf ohne Funktion ist dasselbe Muster wie der
+Briefbogen-Knopf, der 404 antwortete — siehe „Ein Formular behauptet keinen Zustand" in
+CLAUDE.md.
+
+Vorab entschieden, jeweils zugunsten des Designs: Statusfilter-Chipzeile und Farblegende im
+Kalender entfallen (der Prototyp hat sie nicht) · freie Dauern im Terminfinder 15/30/60 ·
+Kontakt-Stammdaten mit Linien innen **und** Kartenrahmen außen · Lesemodus zeigt Werte als
+Text, nicht als deaktivierte Felder.
+
+| # | Paket | Status |
+|---|---|---|
+| K1 | Fundament | **done** |
+| K2 | Lesemodus | offen |
+| K3 | Zusammenfassungen | offen |
+| K4 | Einstellungen | offen |
+| K5 | Leistungen | offen |
+| K6 | Kontaktbereich | offen |
+| K7 | Kontakt-Reiter | offen |
+| K8 | Zahlungen | offen |
+| K9 | Vorgänge | offen |
+| K10 | Kalender | offen |
+
+## K1 — Fundament
+
+Die vier Stellen, die jeden Bildschirm gleichzeitig heben. Überwiegend numerisch, alle Werte
+am Prototyp gemessen und nicht aus dem Handoff-README übernommen — das README des Abgleichs
+hatte die Inhaltsbreiten falsch, weil sie per `grep` aus den Dateien kamen und `grep` innere
+Blöcke mitzählte. Gemessen gilt:
+
+| Bildschirm | Seiten-Container | Kopfabstand | Kappung liegt auf |
+|---|---|---|---|
+| Einstellungen | 1180 | 22 / unten 48 | Seite selbst |
+| Leistungen | 1180 | 22 / unten 40 | Seite selbst |
+| Zahlungen | 1180 | 20 / unten 28 | Seite selbst |
+| Vorgänge | ungebremst | 22 / unten 14 | nur der Listenbereich, 1180 |
+| Kontaktliste | ungebremst | 26 / unten 24 | — |
+| Kontaktdetail | ungebremst | 20 / unten 0 | nur der Reiterinhalt, 1100 |
+| Kontakt anlegen | ungebremst | 22 / unten 18 | nur die Formularkarte, 1100 |
+| Kalender | ungebremst, kein Polster | 0 | — |
+
+- **Polster und Kappung sind zwei Dinge, und nur eines davon gehört in die Hülle.**
+  `lib/page-chrome.ts` hält die Polsterklasse je Route-ID, `_app.tsx` liest sie über
+  `useMatches`; keine Route setzt eine Zahl. Die Kappung ist `components/content-width.tsx`
+  (`ContentWidth`), weil sie auf vier Bildschirmen **innen** sitzt: Vorgänge kappt die Liste,
+  aber nicht das Filterband, Kontaktdetail den Reiterinhalt, aber nicht Kopf und Reiterzeile.
+  Eine Zahl je Route hätte genau diese vollbreiten Bänder gekostet — und die Trennlinie unter
+  dem Filterband wie die durchgehende Reiter-Unterstreichung sind eigene Befunde im Abgleich.
+  Entschieden: **1000 und 1100 werden zu 1100 vereinheitlicht**, der Kalender bleibt immer
+  vollbreit.
+- **`PageHeader` bekommt einen dritten Slot.** H1 26 px / Zeilenhöhe 1.1 / Laufweite −0.022em
+  (war 24 / 32 px / −0.025em — die Zeilenhöhe war der sichtbarere Fehler). Neu `note`: 13 px,
+  Abstand 10 px. Die **720-px-Kappung liegt auf dem ganzen Textblock**, nicht auf der Notiz
+  allein, so wie im Prototyp. Ohne diesen Slot war der Erläuterungssatz auf mehreren
+  Bildschirmen in die Karte gewandert und hatte den Knopf mitgenommen; das aufzuräumen ist
+  jetzt möglich und gehört in K5 bzw. je Bildschirm.
+- **Die Listenkopfzeile lag eine Stufe zu hoch:** 11 px statt 12, Laufweite 0,22 statt 0,3 px,
+  Höhe 36 statt 40 px. Der Wert steht als `listHeaderClass` in `list-card.tsx` und wird von
+  `ListCardHeaderCell` **und** den drei handgebauten Kopfzeilen gelesen
+  (`service-list`, `service-group-list`, `invoice-list`) — vorher hatte jede ihre eigene
+  Klassenkette, weshalb eine Korrektur an `list-card.tsx` allein die Rasterlisten nie erreicht
+  hätte. Die im Abgleich gemessenen 49 px kamen nicht vom Polster, sondern vom Umbruch von
+  „ZIFFER (GEBÜH)" auf zwei Zeilen; das Label kürzt K5.
+- **Pfeile statt Chevrons** in `catalogue-controls.tsx`: `ArrowUp`/`ArrowDown`, Knopf 26 × 26
+  statt 36 × 36, Icon 14 px, Strichstärke 2 — Muster 6 des Handoffs sagt „Pfeiltasten", und
+  der Prototyp zeichnet sie. Wirkt auf alle sieben Katalog-Listen zugleich.
+
 ## D10 — Rich Text für Notizen
 
 Keine Migration. `note.text` bleibt `text`, das Format ist eine Konvention über dem String.

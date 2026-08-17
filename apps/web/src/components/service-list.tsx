@@ -20,7 +20,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { useInlineDetail } from '@/components/inline-detail-row'
-import { DASH, ListCard, ListCardTitleBar } from '@/components/list-card'
+import { DASH, ListCard, ListCardTitleBar, listHeaderClass } from '@/components/list-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -131,9 +131,7 @@ export function ServiceList() {
         </div>
       )}
 
-      <div
-        className={`${GRID} border-b bg-muted/40 px-4 py-2 text-muted-foreground text-xs uppercase tracking-wide`}
-      >
+      <div className={`${GRID} border-b bg-muted/40 px-4 py-[9px] ${listHeaderClass}`}>
         <span>{strings.service.shortCode}</span>
         <span>{strings.service.serviceDescription}</span>
         <span>{strings.service.feeCode}</span>

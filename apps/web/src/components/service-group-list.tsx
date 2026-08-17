@@ -10,7 +10,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { useInlineDetail } from '@/components/inline-detail-row'
-import { ListCard, ListCardTitleBar } from '@/components/list-card'
+import { ListCard, ListCardTitleBar, listHeaderClass } from '@/components/list-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -121,9 +121,7 @@ export function ServiceGroupList({ services }: { services: Service[] }) {
         </div>
       )}
 
-      <div
-        className={`${GROUP_GRID} border-b bg-muted/40 px-4 py-2 text-muted-foreground text-xs uppercase tracking-wide`}
-      >
+      <div className={`${GROUP_GRID} border-b bg-muted/40 px-4 py-[9px] ${listHeaderClass}`}>
         <span>{strings.service.groupColumnLabel}</span>
         <span>{strings.service.groupColumnContains}</span>
         <span>{strings.service.groupColumnCount}</span>

@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { ContactForm } from '@/components/contact-form'
+import { ContentWidth } from '@/components/content-width'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
@@ -44,10 +45,14 @@ function NewContactPage() {
       />
       {/* Creating is the one place roles travel with the master data: nothing
           else can be editing them yet, so there is nothing to overwrite. */}
-      <ContactForm
-        onSubmit={(input, roles) => mutation.mutate({ ...input, roles })}
-        pending={mutation.isPending}
-      />
+      {/* Only the form is capped, the header above runs full width (K1). The
+          prototype caps this at 1000; 1000 and 1100 were unified to 1100. */}
+      <ContentWidth max={1100}>
+        <ContactForm
+          onSubmit={(input, roles) => mutation.mutate({ ...input, roles })}
+          pending={mutation.isPending}
+        />
+      </ContentWidth>
     </>
   )
 }

@@ -44,6 +44,18 @@ export function ListCardHeaderRow({
   )
 }
 
+/**
+ * The type of a list's column labels — 11px, tracked 0.22px, muted, uppercase
+ * (measured in the prototype; it was 12px/0.3px and one step too loud).
+ *
+ * Exported as a constant rather than living inside `ListCardHeaderCell`, because
+ * three lists build their header row by hand out of a CSS grid instead of a
+ * `<Table>` — `service-list`, `service-group-list`, `invoice-list`. Each carried
+ * its own copy of the class chain, so correcting the component alone would never
+ * have reached them, which is exactly how the two drifted apart (K1).
+ */
+export const listHeaderClass = 'text-[11px] text-muted-foreground uppercase tracking-[0.22px]'
+
 export function ListCardHeaderCell({
   children,
   className,
@@ -51,11 +63,7 @@ export function ListCardHeaderCell({
   children?: React.ReactNode
   className?: string
 }) {
-  return (
-    <TableHead className={cn('text-muted-foreground text-xs uppercase tracking-wide', className)}>
-      {children}
-    </TableHead>
-  )
+  return <TableHead className={cn('h-9 px-4', listHeaderClass, className)}>{children}</TableHead>
 }
 
 /** Missing values are always this character, never an empty cell — the

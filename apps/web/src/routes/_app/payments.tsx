@@ -2,6 +2,7 @@ import { invoiceListFilterSchema } from '@praxi/shared'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { BillableList } from '@/components/billable-list'
+import { ContentWidth } from '@/components/content-width'
 import { InvoiceList } from '@/components/invoice-list'
 import { PageHeader } from '@/components/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -34,7 +35,9 @@ function PaymentsPage() {
   const tab = search.tab ?? 'billable'
 
   return (
-    <>
+    // The whole page is capped, header included — where the prototype
+    // puts it on the three list screens (K1).
+    <ContentWidth max={1180}>
       <PageHeader title={strings.payments.title} description={strings.payments.description} />
 
       <Tabs
@@ -66,6 +69,6 @@ function PaymentsPage() {
           />
         </TabsContent>
       </Tabs>
-    </>
+    </ContentWidth>
   )
 }
