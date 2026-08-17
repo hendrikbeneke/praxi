@@ -66,7 +66,7 @@ Text, nicht als deaktivierte Felder.
 | # | Paket | Status |
 |---|---|---|
 | K1 | Fundament | **done** |
-| K2 | Lesemodus | offen |
+| K2 | Lesemodus | **done** |
 | K3 | Zusammenfassungen | offen |
 | K4 | Einstellungen | offen |
 | K5 | Leistungen | offen |
@@ -119,6 +119,46 @@ Blöcke mitzählte. Gemessen gilt:
 - **Pfeile statt Chevrons** in `catalogue-controls.tsx`: `ArrowUp`/`ArrowDown`, Knopf 26 × 26
   statt 36 × 36, Icon 14 px, Strichstärke 2 — Muster 6 des Handoffs sagt „Pfeiltasten", und
   der Prototyp zeichnet sie. Wirkt auf alle sieben Katalog-Listen zugleich.
+
+## K2 — Lesemodus als Text
+
+Sieben Formulare, ein Baustein, eine gelöschte Komponente. Der Lesemodus rendert kein Feld
+mehr: Label, darunter der Wert als Text, fehlende Werte als `—` wie in jeder Liste
+(`components/read-value.tsx`).
+
+- **Warum überhaupt.** Die Regel sagt, dass Lesen den Datensatz nicht ändern können darf —
+  nicht, dass ein Wert wie ein Eingabefeld aussehen muss. Der Code hatte beides verwechselt und
+  die Felder deaktiviert gerendert; eine wenig gefüllte Akte war dadurch eine Wand aus leeren
+  Rahmen. Das Handoff sagt es für den Rollen-Abschnitt ausdrücklich („keine deaktivierten
+  Checkboxen im Lesemodus, die waren unlesbar"), und für ein Textfeld gilt dasselbe. CLAUDE.md
+  ist entsprechend präzisiert.
+- **Betroffen waren genau die sieben Formulare mit `disabled={!editing}`:** PracticeForm,
+  Kontaktakte, Mailkonto, Nummernkreis und Zahlungsziel, Öffnungszeiten, Notiz-Dialog. Die
+  Inline-Details der Kataloge lasen schon vorher über `DetailField` als Text und blieben
+  unberührt. `activity-form.tsx` übergab `disabled={false}` — es war nie ein
+  Lesemodus-Formular, die Leseansicht ist `ActivityDetail`.
+- **Kein Kontrollkästchen war betroffen.** Die Rollen-Checkboxen rendern nur unter
+  `{creating && …}`, also ausschließlich auf `contacts/new`, wo immer bearbeitet wird. Der
+  fehlende Rollen-Abschnitt der Akte bleibt K6.
+- **Die lesbare Bezeichnung eines Auswahlfelds lebt nur in seiner Optionsliste**, und das war
+  die eigentliche Fallgrube: ohne Zuordnung hätte der Lesemodus `person`, `male`, `starttls`
+  gezeigt. Fünf Stellen mit vorhandener Quelle; die sechste, die Vorgangs-Auswahl im
+  Notiz-Dialog, setzt ihr Label zur Laufzeit zusammen und hätte sonst eine UUID gedruckt —
+  `selectedActivityLabel` komponiert es identisch.
+- **Ein latenter Fehler fiel mit.** `onCancel` der Kontaktakte setzt das Formular nicht zurück,
+  der alte Lesemodus zeigte nach „Abbrechen" also die verworfenen Änderungen weiter an, weil er
+  aus dem Formular las. `readValue` kommt aus dem geladenen Datensatz.
+- **`ReadModeFieldset` ist gelöscht**, samt `useReadOnly`; `ui/select.tsx` ist wieder
+  unverändertes shadcn. Nach der Umstellung hätte die Komponente nie mehr `disabled={true}`
+  bekommen (Konvention über toten Code). Die Radix-Erkenntnis dahinter steht jetzt in
+  CLAUDE.md: `pointerdown` wird auch an deaktivierte Controls geliefert, ein
+  `<fieldset disabled>` fängt nur den Klick — wer je ein Formular *sichtbar, aber unbedienbar*
+  braucht, läuft ohne diesen Satz erneut hinein.
+- Öffnungszeiten lesen als eine Spanne („08:00–12:00") statt als zwei deaktivierte Zeitfelder
+  mit Gedankenstrich dazwischen.
+- Nachweis in `docs/design-korrektur/k2/`, Lese- **und** Bearbeitungsmodus je Bildschirm.
+  Neu ist außerdem `docs/design-korrektur/abweichungen.md` — das Register für bewusste
+  Abweichungen, erster Eintrag die 24-px-H1 der Kontaktliste aus K1.
 
 ## D10 — Rich Text für Notizen
 

@@ -13,10 +13,10 @@ import { cn } from '@/lib/utils'
  * owns the read/edit footer: which footer belongs in edit mode is form
  *-specific (a save button's disabled state depends on the mutation and the
  * validation of whatever is being edited), and every dialog in this app
- * already puts that footer next to `ReadModeFieldset` as a sibling, not
- * inside a component that would have to know about it. `InlineDetailRow`
- * follows the same shape: the caller puts `ReadModeFieldset` and both
- * footers inside `children`.
+ * already puts that footer beside the fields as a sibling, not inside a
+ * component that would have to know about it. `InlineDetailRow` follows the
+ * same shape: the caller puts the read or edit body and both footers inside
+ * `children`.
  */
 
 export function useInlineDetail() {

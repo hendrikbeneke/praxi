@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, X } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { TimeField } from '@/components/time-field'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -88,7 +87,7 @@ export function OpeningHoursSettings() {
       <CardContent>
         <p className="mb-4 text-muted-foreground text-sm">{strings.openingHours.hint}</p>
 
-        <ReadModeFieldset disabled={!editing} className="space-y-1">
+        <div className="space-y-1">
           {WEEKDAYS.map((weekday) => {
             const ofDay = draft.filter((window) => window.weekday === weekday)
 
@@ -108,53 +107,64 @@ export function OpeningHoursSettings() {
                     </p>
                   )}
 
-                  {ofDay.map((window) => (
-                    <div key={window.key} className="flex flex-wrap items-center gap-2">
-                      <TimeField
-                        id={`${fieldId}-${window.key}-from`}
-                        aria-label={strings.openingHours.from}
-                        className="w-24"
-                        value={window.startsAt}
-                        onChange={(value) =>
-                          setDraft((current) =>
-                            current.map((entry) =>
-                              entry.key === window.key ? { ...entry, startsAt: value } : entry,
-                            ),
-                          )
-                        }
-                      />
-                      <span className="text-muted-foreground text-sm">–</span>
-                      <TimeField
-                        id={`${fieldId}-${window.key}-to`}
-                        aria-label={strings.openingHours.to}
-                        className="w-24"
-                        value={window.endsAt}
-                        onChange={(value) =>
-                          setDraft((current) =>
-                            current.map((entry) =>
-                              entry.key === window.key ? { ...entry, endsAt: value } : entry,
-                            ),
-                          )
-                        }
-                      />
-                      {editing && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label={strings.openingHours.removeWindow}
-                          onClick={() =>
+                  {/* Read mode states the window as one span — two disabled
+                      time fields joined by a dash were three boxes saying what
+                      "08:00–12:00" says in nine characters (K2). */}
+                  {!editing &&
+                    ofDay.map((window) => (
+                      <p key={window.key} className="pt-1.5 text-sm tabular-nums">
+                        {window.startsAt}–{window.endsAt}
+                      </p>
+                    ))}
+
+                  {editing &&
+                    ofDay.map((window) => (
+                      <div key={window.key} className="flex flex-wrap items-center gap-2">
+                        <TimeField
+                          id={`${fieldId}-${window.key}-from`}
+                          aria-label={strings.openingHours.from}
+                          className="w-24"
+                          value={window.startsAt}
+                          onChange={(value) =>
                             setDraft((current) =>
-                              current.filter((entry) => entry.key !== window.key),
+                              current.map((entry) =>
+                                entry.key === window.key ? { ...entry, startsAt: value } : entry,
+                              ),
                             )
                           }
-                        >
-                          <X className="size-4" aria-hidden />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                        />
+                        <span className="text-muted-foreground text-sm">–</span>
+                        <TimeField
+                          id={`${fieldId}-${window.key}-to`}
+                          aria-label={strings.openingHours.to}
+                          className="w-24"
+                          value={window.endsAt}
+                          onChange={(value) =>
+                            setDraft((current) =>
+                              current.map((entry) =>
+                                entry.key === window.key ? { ...entry, endsAt: value } : entry,
+                              ),
+                            )
+                          }
+                        />
+                        {editing && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            aria-label={strings.openingHours.removeWindow}
+                            onClick={() =>
+                              setDraft((current) =>
+                                current.filter((entry) => entry.key !== window.key),
+                              )
+                            }
+                          >
+                            <X className="size-4" aria-hidden />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
 
                   {editing && (
                     <Button
@@ -185,7 +195,7 @@ export function OpeningHoursSettings() {
               </div>
             )
           })}
-        </ReadModeFieldset>
+        </div>
 
         {editing && (
           <div className="mt-4 flex justify-end gap-2">

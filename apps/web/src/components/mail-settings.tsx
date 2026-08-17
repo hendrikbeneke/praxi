@@ -23,7 +23,7 @@ import {
   ListCardHeaderRow,
   ListCardTitleBar,
 } from '@/components/list-card'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
+import { ReadValue } from '@/components/read-value'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -187,72 +187,94 @@ function SmtpAccount() {
           <p className="text-muted-foreground text-sm">{strings.mail.notConfigured}</p>
         )}
 
-        <ReadModeFieldset disabled={!editing} className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor={`${formId}-host`}>{strings.mail.host}</Label>
-            <Input
-              id={`${formId}-host`}
-              className="mt-2"
-              value={form.host}
-              onChange={(event) => setForm((f) => ({ ...f, host: event.target.value }))}
-            />
+            {editing ? (
+              <Input
+                id={`${formId}-host`}
+                className="mt-2"
+                value={form.host}
+                onChange={(event) => setForm((f) => ({ ...f, host: event.target.value }))}
+              />
+            ) : (
+              <ReadValue>{stored?.host}</ReadValue>
+            )}
           </div>
           <div>
             <Label htmlFor={`${formId}-port`}>{strings.mail.port}</Label>
-            <Input
-              id={`${formId}-port`}
-              type="number"
-              min={1}
-              max={65535}
-              className="mt-2"
-              value={form.port}
-              onChange={(event) =>
-                setForm((f) => ({ ...f, port: Number(event.target.value) || 0 }))
-              }
-            />
+            {editing ? (
+              <Input
+                id={`${formId}-port`}
+                type="number"
+                min={1}
+                max={65535}
+                className="mt-2"
+                value={form.port}
+                onChange={(event) =>
+                  setForm((f) => ({ ...f, port: Number(event.target.value) || 0 }))
+                }
+              />
+            ) : (
+              <ReadValue>{stored?.port}</ReadValue>
+            )}
           </div>
           <div>
             <Label htmlFor={`${formId}-security`}>{strings.mail.security}</Label>
-            <Select
-              value={form.security}
-              onValueChange={(value) => setForm((f) => ({ ...f, security: value as SmtpSecurity }))}
-            >
-              <SelectTrigger id={`${formId}-security`} className="mt-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {smtpSecurities.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {strings.mail.securities[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {editing ? (
+              <Select
+                value={form.security}
+                onValueChange={(value) =>
+                  setForm((f) => ({ ...f, security: value as SmtpSecurity }))
+                }
+              >
+                <SelectTrigger id={`${formId}-security`} className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {smtpSecurities.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {strings.mail.securities[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <ReadValue>{stored && strings.mail.securities[stored.security]}</ReadValue>
+            )}
           </div>
           <div>
             <Label htmlFor={`${formId}-user`}>{strings.mail.username}</Label>
-            <Input
-              id={`${formId}-user`}
-              className="mt-2"
-              autoComplete="off"
-              value={form.username}
-              onChange={(event) => setForm((f) => ({ ...f, username: event.target.value }))}
-            />
+            {editing ? (
+              <Input
+                id={`${formId}-user`}
+                className="mt-2"
+                autoComplete="off"
+                value={form.username}
+                onChange={(event) => setForm((f) => ({ ...f, username: event.target.value }))}
+              />
+            ) : (
+              <ReadValue>{stored?.username}</ReadValue>
+            )}
           </div>
           <div>
             <Label htmlFor={`${formId}-password`}>{strings.mail.password}</Label>
-            <Input
-              id={`${formId}-password`}
-              type="password"
-              className="mt-2"
-              autoComplete="new-password"
-              placeholder={stored?.passwordSet ? strings.mail.passwordPlaceholder : undefined}
-              // Read mode shows dots for a stored password rather than an
-              // empty field — the API never returns the password itself, so
-              // this is the only place that fact becomes visible.
-              value={!editing && stored?.passwordSet ? '••••••••••' : form.password}
-              onChange={(event) => setForm((f) => ({ ...f, password: event.target.value }))}
-            />
+            {editing ? (
+              <Input
+                id={`${formId}-password`}
+                type="password"
+                className="mt-2"
+                autoComplete="new-password"
+                placeholder={stored?.passwordSet ? strings.mail.passwordPlaceholder : undefined}
+                value={form.password}
+                onChange={(event) => setForm((f) => ({ ...f, password: event.target.value }))}
+              />
+            ) : (
+              /* Dots, not DASH: the API never returns the password, so "stored
+                 but not showable" has to read differently from "not set at all"
+                 — that distinction is the only thing this line carries. */
+              <ReadValue>{stored?.passwordSet ? '••••••••••' : undefined}</ReadValue>
+            )}
             {stored?.passwordSet && editing && (
               <Button
                 type="button"
@@ -278,24 +300,32 @@ function SmtpAccount() {
           </div>
           <div>
             <Label htmlFor={`${formId}-from`}>{strings.mail.fromAddress}</Label>
-            <Input
-              id={`${formId}-from`}
-              type="email"
-              className="mt-2"
-              value={form.fromAddress}
-              onChange={(event) => setForm((f) => ({ ...f, fromAddress: event.target.value }))}
-            />
+            {editing ? (
+              <Input
+                id={`${formId}-from`}
+                type="email"
+                className="mt-2"
+                value={form.fromAddress}
+                onChange={(event) => setForm((f) => ({ ...f, fromAddress: event.target.value }))}
+              />
+            ) : (
+              <ReadValue>{stored?.fromAddress}</ReadValue>
+            )}
           </div>
           <div>
             <Label htmlFor={`${formId}-fromname`}>{strings.mail.fromName}</Label>
-            <Input
-              id={`${formId}-fromname`}
-              className="mt-2"
-              value={form.fromName}
-              onChange={(event) => setForm((f) => ({ ...f, fromName: event.target.value }))}
-            />
+            {editing ? (
+              <Input
+                id={`${formId}-fromname`}
+                className="mt-2"
+                value={form.fromName}
+                onChange={(event) => setForm((f) => ({ ...f, fromName: event.target.value }))}
+              />
+            ) : (
+              <ReadValue>{stored?.fromName}</ReadValue>
+            )}
           </div>
-        </ReadModeFieldset>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {editing ? (

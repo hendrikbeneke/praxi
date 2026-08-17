@@ -2,18 +2,10 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 import { Select as SelectPrimitive } from 'radix-ui'
 import type * as React from 'react'
 
-import { useReadOnly } from '@/components/read-mode-fieldset'
 import { cn } from '@/lib/utils'
 
-function Select({ disabled, ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  /**
-   * A dropdown inside a read-mode fieldset is not operable. This has to be
-   * said here, because Radix opens the list on `pointerdown` and a disabled
-   * fieldset only suppresses the click — see components/read-mode-fieldset.tsx
-   * for why that is a class of bug rather than one missing attribute.
-   */
-  const readOnly = useReadOnly()
-  return <SelectPrimitive.Root data-slot="select" disabled={disabled || readOnly} {...props} />
+function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  return <SelectPrimitive.Root data-slot="select" {...props} />
 }
 
 function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {

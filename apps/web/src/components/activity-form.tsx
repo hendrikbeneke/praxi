@@ -25,7 +25,6 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
 import { DateField } from '@/components/date-field'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { TimeField } from '@/components/time-field'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -501,7 +500,7 @@ export function ActivityForm({
           to answer "how wide is this form", not "how wide is the window". In
           the calendar rail the window is wide and the form is 348 px, and a
           twelve-column grid in 348 px is a pile. */}
-      <ReadModeFieldset disabled={false} className="@container space-y-6">
+      <div className="@container space-y-6">
         <div className="grid gap-4 @xl:grid-cols-12">
           {!contactLocked && (
             <div className="@xl:col-span-12">
@@ -908,7 +907,7 @@ export function ActivityForm({
         {targetContactId === null && (
           <p className="text-muted-foreground text-sm">{strings.activity.contactRequired}</p>
         )}
-      </ReadModeFieldset>
+      </div>
 
       <div className="mt-6 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>

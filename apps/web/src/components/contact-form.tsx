@@ -7,12 +7,13 @@ import {
   contactGenderSchema,
   contactGenders,
   contactKinds,
+  formatBerlinDate,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { DateField } from '@/components/date-field'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
+import { ReadValue } from '@/components/read-value'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -229,28 +230,32 @@ export function ContactForm({
       onSubmit={form.handleSubmit((values) => onSubmit(toContactUpdate(values), values.roles))}
       noValidate
     >
-      <ReadModeFieldset disabled={!editing} className="space-y-0">
+      <div className="space-y-0">
         <Section title={strings.contact.sectionName}>
           <div className="sm:col-span-2">
             <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
             {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
-            <Select
-              value={kind}
-              onValueChange={(value) => form.setValue('kind', value as ContactKind)}
-              disabled={Boolean(contact)}
-            >
-              <SelectTrigger id="kind" className="mt-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {contactKinds.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {strings.contact.kind[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {contact && (
+            {!editing ? (
+              <ReadValue>{strings.contact.kind[kind]}</ReadValue>
+            ) : (
+              <Select
+                value={kind}
+                onValueChange={(value) => form.setValue('kind', value as ContactKind)}
+                disabled={Boolean(contact)}
+              >
+                <SelectTrigger id="kind" className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {contactKinds.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {strings.contact.kind[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {contact && editing && (
               <p className="mt-1 text-muted-foreground text-xs">{strings.contact.kindImmutable}</p>
             )}
           </div>
@@ -260,6 +265,8 @@ export function ContactForm({
               <Field
                 className="sm:col-span-2"
                 id="salutation"
+                editing={editing}
+                readValue={contact?.salutation}
                 label={strings.contact.salutation}
                 list="salutation-options"
                 {...form.register('salutation')}
@@ -272,18 +279,24 @@ export function ContactForm({
               <Field
                 className="sm:col-span-2"
                 id="title"
+                editing={editing}
+                readValue={contact?.title}
                 label={strings.contact.academicTitle}
                 {...form.register('title')}
               />
               <Field
                 className="sm:col-span-3"
                 id="firstName"
+                editing={editing}
+                readValue={contact?.firstName}
                 label={strings.contact.firstName}
                 {...form.register('firstName')}
               />
               <Field
                 className="sm:col-span-3"
                 id="lastName"
+                editing={editing}
+                readValue={contact?.lastName}
                 label={strings.contact.lastName}
                 error={errors.lastName && strings.validation.required}
                 {...form.register('lastName')}
@@ -300,53 +313,71 @@ export function ContactForm({
                   A four-digit year is taken at its word here too.
                 */}
               <div className="sm:col-span-3">
-                <Label htmlFor="dateOfBirth">{strings.contact.dateOfBirth}</Label>
-                <Controller
-                  control={form.control}
-                  name="dateOfBirth"
-                  render={({ field }) => (
-                    <DateField
-                      id="dateOfBirth"
-                      className="mt-2"
-                      twoDigitYear="past"
-                      value={field.value ?? ''}
-                      onChange={field.onChange}
-                    />
-                  )}
-                />
+                <Label htmlFor={editing ? 'dateOfBirth' : undefined}>
+                  {strings.contact.dateOfBirth}
+                </Label>
+                {!editing ? (
+                  <ReadValue>
+                    {contact?.dateOfBirth && formatBerlinDate(`${contact.dateOfBirth}T12:00:00Z`)}
+                  </ReadValue>
+                ) : (
+                  <Controller
+                    control={form.control}
+                    name="dateOfBirth"
+                    render={({ field }) => (
+                      <DateField
+                        id="dateOfBirth"
+                        className="mt-2"
+                        twoDigitYear="past"
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                      />
+                    )}
+                  />
+                )}
               </div>
 
               <div className="sm:col-span-3">
-                <Label htmlFor="gender">{strings.contact.gender}</Label>
-                <Controller
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value === '' ? NO_GENDER : field.value}
-                      onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
-                    >
-                      <SelectTrigger id="gender" className="mt-2 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Not recorded is a value one can pick back, not
+                <Label htmlFor={editing ? 'gender' : undefined}>{strings.contact.gender}</Label>
+                {/* The readable word lives only in the option list — without
+                    this mapping read mode would show `male` (K2). */}
+                {!editing ? (
+                  <ReadValue>
+                    {contact?.gender ? strings.contact.genders[contact.gender] : undefined}
+                  </ReadValue>
+                ) : (
+                  <Controller
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value === '' ? NO_GENDER : field.value}
+                        onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
+                      >
+                        <SelectTrigger id="gender" className="mt-2 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Not recorded is a value one can pick back, not
                               only a state one starts in. */}
-                        <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
-                        {contactGenders.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {strings.contact.genders[value]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
+                          <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
+                          {contactGenders.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {strings.contact.genders[value]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                )}
               </div>
 
               <Field
                 className="sm:col-span-3"
                 id="birthPlace"
+                editing={editing}
+                readValue={contact?.birthPlace}
                 label={strings.contact.birthPlace}
                 {...form.register('birthPlace')}
               />
@@ -356,6 +387,8 @@ export function ContactForm({
               <Field
                 className="sm:col-span-4"
                 id="companyName"
+                editing={editing}
+                readValue={contact?.companyName}
                 label={strings.contact.companyName}
                 error={errors.companyName && strings.validation.required}
                 {...form.register('companyName')}
@@ -363,6 +396,8 @@ export function ContactForm({
               <Field
                 className="sm:col-span-3"
                 id="contactPerson"
+                editing={editing}
+                readValue={contact?.contactPerson}
                 label={strings.contact.contactPerson}
                 {...form.register('contactPerson')}
               />
@@ -373,6 +408,8 @@ export function ContactForm({
           <Field
             className="sm:col-span-3"
             id="vatId"
+            editing={editing}
+            readValue={contact?.vatId}
             label={strings.contact.vatId}
             {...form.register('vatId')}
           />
@@ -418,6 +455,8 @@ export function ContactForm({
           <Field
             className="sm:col-span-4"
             id="street"
+            editing={editing}
+            readValue={contact?.street}
             label={strings.contact.street}
             {...form.register('street')}
           />
@@ -426,24 +465,32 @@ export function ContactForm({
           <Field
             className="sm:col-span-2"
             id="houseNumber"
+            editing={editing}
+            readValue={contact?.houseNumber}
             label={strings.contact.houseNumber}
             {...form.register('houseNumber')}
           />
           <Field
             className="sm:col-span-2"
             id="postalCode"
+            editing={editing}
+            readValue={contact?.postalCode}
             label={strings.contact.postalCode}
             {...form.register('postalCode')}
           />
           <Field
             className="sm:col-span-4"
             id="city"
+            editing={editing}
+            readValue={contact?.city}
             label={strings.contact.city}
             {...form.register('city')}
           />
           <Field
             className="sm:col-span-2"
             id="country"
+            editing={editing}
+            readValue={contact?.country}
             label={strings.contact.country}
             error={errors.country && strings.validation.country}
             {...form.register('country')}
@@ -454,6 +501,8 @@ export function ContactForm({
           <Field
             className="sm:col-span-2"
             id="email"
+            editing={editing}
+            readValue={contact?.email}
             type="email"
             label={strings.contact.email}
             error={errors.email && strings.validation.email}
@@ -462,6 +511,8 @@ export function ContactForm({
           <Field
             className="sm:col-span-2"
             id="phoneMobile"
+            editing={editing}
+            readValue={contact?.phoneMobile}
             type="tel"
             label={strings.contact.phoneMobile}
             {...form.register('phoneMobile')}
@@ -469,6 +520,8 @@ export function ContactForm({
           <Field
             className="sm:col-span-2"
             id="phoneLandline"
+            editing={editing}
+            readValue={contact?.phoneLandline}
             type="tel"
             label={strings.contact.phoneLandline}
             {...form.register('phoneLandline')}
@@ -483,24 +536,41 @@ export function ContactForm({
         {!creating && (
           <Section title={strings.contact.diagnosis} hint={strings.contact.diagnosisHint}>
             <div className="col-span-full">
-              <Label htmlFor="diagnosis">{strings.contact.diagnosis}</Label>
-              <Textarea id="diagnosis" rows={3} className="mt-2" {...form.register('diagnosis')} />
+              <Label htmlFor={editing ? 'diagnosis' : undefined}>{strings.contact.diagnosis}</Label>
+              {editing ? (
+                <Textarea
+                  id="diagnosis"
+                  rows={3}
+                  className="mt-2"
+                  {...form.register('diagnosis')}
+                />
+              ) : (
+                /* `whitespace-pre-line`, because a diagnosis is typed with line
+                   breaks and losing them would change what it says. */
+                <ReadValue className="whitespace-pre-line">{contact?.diagnosis}</ReadValue>
+              )}
             </div>
           </Section>
         )}
 
         <Section title={strings.contact.sectionInternal} hint={strings.contact.internalNoteHint}>
           <div className="col-span-full">
-            <Label htmlFor="internalNote">{strings.contact.internalNote}</Label>
-            <Textarea
-              id="internalNote"
-              rows={4}
-              className="mt-2"
-              {...form.register('internalNote')}
-            />
+            <Label htmlFor={editing ? 'internalNote' : undefined}>
+              {strings.contact.internalNote}
+            </Label>
+            {editing ? (
+              <Textarea
+                id="internalNote"
+                rows={4}
+                className="mt-2"
+                {...form.register('internalNote')}
+              />
+            ) : (
+              <ReadValue className="whitespace-pre-line">{contact?.internalNote}</ReadValue>
+            )}
           </div>
         </Section>
-      </ReadModeFieldset>
+      </div>
 
       {editing && (
         <div className="flex justify-end gap-2">
@@ -522,14 +592,28 @@ type FieldProps = React.ComponentProps<typeof Input> & {
   id: string
   label: string
   error?: string | undefined
+  editing: boolean
+  readValue?: string | null | undefined
 }
 
-function Field({ id, label, error, className, ...input }: FieldProps) {
+/**
+ * In read mode the value stands as text under the label, not in a disabled
+ * input (K2). `readValue` comes from the stored contact rather than from the
+ * form: cancelling an edit does not reset this form, so reading the draft would
+ * show changes that were abandoned — the screen has to say what is stored.
+ */
+function Field({ id, label, error, className, editing, readValue, ...input }: FieldProps) {
   return (
     <div className={className}>
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} className="mt-2" aria-invalid={error ? true : undefined} {...input} />
-      {error && <p className="mt-1 text-destructive text-sm">{error}</p>}
+      <Label htmlFor={editing ? id : undefined}>{label}</Label>
+      {editing ? (
+        <>
+          <Input id={id} className="mt-2" aria-invalid={error ? true : undefined} {...input} />
+          {error && <p className="mt-1 text-destructive text-sm">{error}</p>}
+        </>
+      ) : (
+        <ReadValue>{readValue}</ReadValue>
+      )}
     </div>
   )
 }

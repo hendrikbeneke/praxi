@@ -14,8 +14,8 @@ import { toast } from 'sonner'
 import { DateField } from '@/components/date-field'
 import { NoteEditor } from '@/components/note-editor'
 import { NoteFiles } from '@/components/note-files'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
 import { ReadModeFooter } from '@/components/read-mode-footer'
+import { ReadValue } from '@/components/read-value'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -82,10 +82,25 @@ export function NoteDialog({
   const [selectedActivity, setSelectedActivity] = useState<string>(NO_ACTIVITY)
 
   const isAddendum = correctsNote !== undefined || note?.correctsNoteId != null
+
+  /** What the activity dropdown *shows* for the current selection. Composed
+   *  exactly as its options are, because that label is built at render time
+   *  and stored nowhere — read mode would otherwise print the id (K2). */
+  const selectedActivityLabel =
+    selectedActivity === NO_ACTIVITY
+      ? strings.note.activityNone
+      : (() => {
+          const entry = (activities.data ?? []).find(
+            (candidate: Activity) => candidate.id === selectedActivity,
+          )
+          return entry
+            ? `${formatBerlinDate(entry.occurredAt)} — ${activityLabel(entry, activityTypeLabel(types.data, entry.type))}`
+            : undefined
+        })()
   /** A new note or an addendum has nothing to read yet, so it starts
-   *  editable; an existing one follows the way in. Attachments sit inside the
-   *  same fieldset — uploading or removing one changes the note, and
-   *  downloading a file is a link, which a disabled fieldset leaves alone. */
+   *  editable; an existing one follows the way in. Attachments are their own
+   *  controls below and act immediately — uploading or removing one changes
+   *  the note, downloading is a link, and reading is allowed in read mode. */
   const [editing, setEditing] = useState(true)
   /** Read mode already shows the rendered note, so the preview is only ever
    *  interesting while writing — and it starts off, because one opens the
@@ -155,22 +170,28 @@ export function NoteDialog({
           )}
         </DialogHeader>
 
-        <ReadModeFieldset disabled={!editing} className="space-y-4">
+        <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor={`${formId}-date`}>{strings.note.noteDate}</Label>
-              <DateField
-                id={`${formId}-date`}
-                className="mt-2"
-                value={noteDate}
-                onChange={setNoteDate}
-              />
+              <Label htmlFor={editing ? `${formId}-date` : undefined}>
+                {strings.note.noteDate}
+              </Label>
+              {editing ? (
+                <DateField
+                  id={`${formId}-date`}
+                  className="mt-2"
+                  value={noteDate}
+                  onChange={setNoteDate}
+                />
+              ) : (
+                <ReadValue>{noteDate && formatBerlinDate(`${noteDate}T12:00:00Z`)}</ReadValue>
+              )}
             </div>
 
             <div>
-              <Label htmlFor={`${formId}-type`}>{strings.note.type}</Label>
-              {isAddendum ? (
-                <p className="mt-2 flex h-9 items-center text-sm">{strings.note.types.addendum}</p>
+              <Label htmlFor={editing ? `${formId}-type` : undefined}>{strings.note.type}</Label>
+              {isAddendum || !editing ? (
+                <ReadValue>{strings.note.types[type]}</ReadValue>
               ) : (
                 <Select value={type} onValueChange={(value) => setType(value as NoteType)}>
                   <SelectTrigger id={`${formId}-type`} className="mt-2 w-full">
@@ -189,21 +210,29 @@ export function NoteDialog({
           </div>
 
           <div>
-            <Label htmlFor={`${formId}-activity`}>{strings.note.activity}</Label>
-            <Select value={selectedActivity} onValueChange={setSelectedActivity}>
-              <SelectTrigger id={`${formId}-activity`} className="mt-2 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_ACTIVITY}>{strings.note.activityNone}</SelectItem>
-                {(activities.data ?? []).map((entry: Activity) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {formatBerlinDate(entry.occurredAt)} —{' '}
-                    {activityLabel(entry, activityTypeLabel(types.data, entry.type))}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor={editing ? `${formId}-activity` : undefined}>
+              {strings.note.activity}
+            </Label>
+            {!editing ? (
+              /* The label of this option is composed, not stored — without the
+                 same composition here read mode would print a uuid (K2). */
+              <ReadValue>{selectedActivityLabel}</ReadValue>
+            ) : (
+              <Select value={selectedActivity} onValueChange={setSelectedActivity}>
+                <SelectTrigger id={`${formId}-activity`} className="mt-2 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ACTIVITY}>{strings.note.activityNone}</SelectItem>
+                  {(activities.data ?? []).map((entry: Activity) => (
+                    <SelectItem key={entry.id} value={entry.id}>
+                      {formatBerlinDate(entry.occurredAt)} —{' '}
+                      {activityLabel(entry, activityTypeLabel(types.data, entry.type))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div>
@@ -225,7 +254,7 @@ export function NoteDialog({
           ) : (
             <p className="text-muted-foreground text-sm">{strings.note.filesAfterSave}</p>
           )}
-        </ReadModeFieldset>
+        </div>
 
         {editing ? (
           <DialogFooter>

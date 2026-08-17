@@ -15,7 +15,7 @@ import { InvoiceSettings } from '@/components/invoice-settings'
 import { MailSettings } from '@/components/mail-settings'
 import { OpeningHoursSettings } from '@/components/opening-hours-settings'
 import { PageHeader } from '@/components/page-header'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
+import { ReadValue } from '@/components/read-value'
 import { TextTemplateSettings } from '@/components/text-template-settings'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -206,8 +206,9 @@ function PracticeForm() {
       noValidate
     >
       {/* The practice master data is read far more often than it is changed,
-          so the panel opens read-only (CLAUDE.md, read mode first). */}
-      <ReadModeFieldset disabled={!editing} className="space-y-6">
+          so the panel opens in read mode (CLAUDE.md, read mode first) — which
+          since K2 means the values stand as text, not as disabled fields. */}
+      <div className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
             <CardTitle>{strings.settings.sectionPractice}</CardTitle>
@@ -221,12 +222,16 @@ function PracticeForm() {
           <CardContent className="grid gap-4">
             <Field
               id="practiceName"
+              editing={editing}
+              readValue={settings?.practiceName}
               label={strings.settings.practiceName}
               error={errors.practiceName && strings.validation.required}
               {...form.register('practiceName')}
             />
             <Field
               id="taxNumber"
+              editing={editing}
+              readValue={settings?.taxNumber}
               label={strings.settings.taxNumber}
               error={errors.taxNumber && strings.validation.tooLong}
               {...form.register('taxNumber')}
@@ -242,6 +247,8 @@ function PracticeForm() {
             <Field
               className="sm:col-span-6"
               id="street"
+              editing={editing}
+              readValue={settings?.street}
               label={strings.settings.street}
               error={errors.street && strings.validation.tooLong}
               {...form.register('street')}
@@ -249,6 +256,8 @@ function PracticeForm() {
             <Field
               className="sm:col-span-2"
               id="postalCode"
+              editing={editing}
+              readValue={settings?.postalCode}
               label={strings.settings.postalCode}
               error={errors.postalCode && strings.validation.tooLong}
               {...form.register('postalCode')}
@@ -256,6 +265,8 @@ function PracticeForm() {
             <Field
               className="sm:col-span-4"
               id="city"
+              editing={editing}
+              readValue={settings?.city}
               label={strings.settings.city}
               error={errors.city && strings.validation.tooLong}
               {...form.register('city')}
@@ -263,6 +274,8 @@ function PracticeForm() {
             <Field
               className="sm:col-span-2"
               id="country"
+              editing={editing}
+              readValue={settings?.country}
               label={strings.settings.country}
               error={errors.country && strings.validation.country}
               {...form.register('country')}
@@ -277,6 +290,8 @@ function PracticeForm() {
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <Field
               id="phone"
+              editing={editing}
+              readValue={settings?.phone}
               label={strings.settings.phone}
               type="tel"
               error={errors.phone && strings.validation.tooLong}
@@ -284,6 +299,8 @@ function PracticeForm() {
             />
             <Field
               id="email"
+              editing={editing}
+              readValue={settings?.email}
               label={strings.settings.email}
               type="email"
               error={errors.email && strings.validation.email}
@@ -292,6 +309,8 @@ function PracticeForm() {
             <Field
               className="sm:col-span-2"
               id="website"
+              editing={editing}
+              readValue={settings?.website}
               label={strings.settings.website}
               error={errors.website && strings.validation.tooLong}
               {...form.register('website')}
@@ -307,25 +326,31 @@ function PracticeForm() {
             <Field
               className="sm:col-span-2"
               id="bankName"
+              editing={editing}
+              readValue={settings?.bankName}
               label={strings.settings.bankName}
               error={errors.bankName && strings.validation.tooLong}
               {...form.register('bankName')}
             />
             <Field
               id="iban"
+              editing={editing}
+              readValue={settings?.iban}
               label={strings.settings.iban}
               error={errors.iban && strings.validation.iban}
               {...form.register('iban')}
             />
             <Field
               id="bic"
+              editing={editing}
+              readValue={settings?.bic}
               label={strings.settings.bic}
               error={errors.bic && strings.validation.tooLong}
               {...form.register('bic')}
             />
           </CardContent>
         </Card>
-      </ReadModeFieldset>
+      </div>
 
       {editing && (
         <div className="flex justify-end gap-2">
@@ -354,14 +379,24 @@ type FieldProps = React.ComponentProps<typeof Input> & {
   id: string
   label: string
   error?: string | undefined
+  editing: boolean
+  readValue?: string | null | undefined
 }
 
-function Field({ id, label, error, className, ...input }: FieldProps) {
+/** In read mode the value is text under the label, not a disabled input (K2).
+ *  The `<Label>` is the same in both modes, so switching moves no line. */
+function Field({ id, label, error, className, editing, readValue, ...input }: FieldProps) {
   return (
     <div className={className}>
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} className="mt-2" aria-invalid={error ? true : undefined} {...input} />
-      {error && <p className="mt-1 text-destructive text-sm">{error}</p>}
+      <Label htmlFor={editing ? id : undefined}>{label}</Label>
+      {editing ? (
+        <>
+          <Input id={id} className="mt-2" aria-invalid={error ? true : undefined} {...input} />
+          {error && <p className="mt-1 text-destructive text-sm">{error}</p>}
+        </>
+      ) : (
+        <ReadValue>{readValue}</ReadValue>
+      )}
     </div>
   )
 }

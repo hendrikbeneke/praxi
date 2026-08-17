@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileUp, Pencil } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ReadModeFieldset } from '@/components/read-mode-fieldset'
+import { ReadValue } from '@/components/read-value'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -164,35 +164,47 @@ function NumberRangeForm({
         </p>
       )}
 
-      <ReadModeFieldset disabled={!editing} className="mt-3 grid gap-4 sm:grid-cols-4">
+      <div className="mt-3 grid gap-4 sm:grid-cols-4">
         <div>
           <Label htmlFor={`${formId}-prefix`}>{strings.invoice.prefix}</Label>
-          <Input
-            id={`${formId}-prefix`}
-            className="mt-2"
-            value={prefix}
-            onChange={(event) => setPrefix(event.target.value)}
-          />
+          {editing ? (
+            <Input
+              id={`${formId}-prefix`}
+              className="mt-2"
+              value={prefix}
+              onChange={(event) => setPrefix(event.target.value)}
+            />
+          ) : (
+            <ReadValue>{prefix}</ReadValue>
+          )}
         </div>
         <div>
           <Label htmlFor={`${formId}-padding`}>{strings.invoice.padding}</Label>
-          <Input
-            id={`${formId}-padding`}
-            inputMode="numeric"
-            className="mt-2"
-            value={paddingText}
-            onChange={(event) => setPaddingText(event.target.value)}
-          />
+          {editing ? (
+            <Input
+              id={`${formId}-padding`}
+              inputMode="numeric"
+              className="mt-2"
+              value={paddingText}
+              onChange={(event) => setPaddingText(event.target.value)}
+            />
+          ) : (
+            <ReadValue>{paddingText}</ReadValue>
+          )}
         </div>
         <div>
           <Label htmlFor={`${formId}-next`}>{strings.invoice.nextValue}</Label>
-          <Input
-            id={`${formId}-next`}
-            inputMode="numeric"
-            className="mt-2"
-            value={nextValueText}
-            onChange={(event) => setNextValueText(event.target.value)}
-          />
+          {editing ? (
+            <Input
+              id={`${formId}-next`}
+              inputMode="numeric"
+              className="mt-2"
+              value={nextValueText}
+              onChange={(event) => setNextValueText(event.target.value)}
+            />
+          ) : (
+            <ReadValue>{nextValueText}</ReadValue>
+          )}
         </div>
         <div>
           <span className="font-medium text-sm">{strings.invoice.nextNumberPreview}</span>
@@ -202,7 +214,7 @@ function NumberRangeForm({
             {complete ? formatNumber(prefix, padding, nextValue) : '—'}
           </p>
         </div>
-      </ReadModeFieldset>
+      </div>
 
       {editing ? (
         <div className="mt-4 flex gap-2">
@@ -283,21 +295,25 @@ function PaymentTerm() {
         )}
       </CardHeader>
       <CardContent>
-        <ReadModeFieldset disabled={!editing}>
+        <div>
           <div className="max-w-48">
             <Label htmlFor="payment-term-days">{strings.settings.defaultPaymentTermDays}</Label>
-            <Input
-              id="payment-term-days"
-              className="mt-2"
-              inputMode="numeric"
-              value={daysText}
-              onChange={(event) => setDaysText(event.target.value)}
-            />
+            {editing ? (
+              <Input
+                id="payment-term-days"
+                className="mt-2"
+                inputMode="numeric"
+                value={daysText}
+                onChange={(event) => setDaysText(event.target.value)}
+              />
+            ) : (
+              <ReadValue>{daysText}</ReadValue>
+            )}
             {editing && !complete && (
               <p className="mt-1 text-destructive text-sm">{strings.validation.paymentTerm}</p>
             )}
           </div>
-        </ReadModeFieldset>
+        </div>
 
         {editing && (
           <div className="mt-4 flex gap-2">

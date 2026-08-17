@@ -51,9 +51,9 @@ export function DateField({
   onChange: (iso: string) => void
   /** See `TwoDigitYearMode` — `past` belongs to the date of birth alone. */
   twoDigitYear?: TwoDigitYearMode
-  /** For the screens that gate a single field rather than a whole fieldset.
-   *  Inside a `ReadModeFieldset` nothing needs to be passed: both halves of
-   *  this field are native elements the browser disables on its own. */
+  /** For the screens that gate a single field rather than a whole form.
+   *  Read mode passes nothing, because it renders no field at all (K2) —
+   *  this is for a field that stays visible and must not be operated. */
   disabled?: boolean
   className?: string
 }) {
