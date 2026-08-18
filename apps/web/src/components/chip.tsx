@@ -64,3 +64,23 @@ export function tabChipClass(active: boolean): string {
       : 'border-border bg-card text-muted-foreground',
   )
 }
+
+/**
+ * The filter tabs in the contact list's filter card — a third shape, and the
+ * design means all three: 6×11px, a 6px radius, no border at all, and an
+ * *active* state that is a full primary fill rather than a tint.
+ *
+ * That it differs from `tabChipClass` on Leistungen is the prototype's doing,
+ * not an oversight here. The two sit in different places and answer different
+ * questions: the Leistungen tabs are the page's own navigation and stand alone
+ * above the card, these live inside a filter bar next to a search field and a
+ * checkbox, where a row of bordered pills would read as six more controls.
+ */
+export function listTabClass(active: boolean): string {
+  return cn(
+    'inline-flex items-center gap-1.5 rounded-md px-[11px] py-1.5 text-[13.5px] transition-colors',
+    active
+      ? 'bg-primary font-semibold text-primary-foreground hover:bg-primary/[0.88]'
+      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+  )
+}

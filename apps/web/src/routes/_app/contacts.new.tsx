@@ -32,27 +32,36 @@ function NewContactPage() {
 
   return (
     <>
-      <PageHeader
-        title={strings.contact.createTitle}
-        actions={
-          <Button variant="ghost" asChild>
-            <Link to="/contacts">
-              <ArrowLeft className="size-4" aria-hidden />
-              {strings.actions.back}
-            </Link>
-          </Button>
-        }
-      />
-      {/* Creating is the one place roles travel with the master data: nothing
-          else can be editing them yet, so there is nothing to overwrite. */}
-      {/* Only the form is capped, the header above runs full width (K1). The
-          prototype caps this at 1000; 1000 and 1100 were unified to 1100. */}
-      <ContentWidth max={1100}>
-        <ContactForm
-          onSubmit={(input, roles) => mutation.mutate({ ...input, roles })}
-          pending={mutation.isPending}
+      {/* The same full-bleed strip the record has, and for the same reason:
+          the design separates the title from the form with a rule that runs
+          the whole width. The shell gives this route no padding (K6). */}
+      <div className="border-b bg-card px-8 pt-[22px] pb-[18px]">
+        <PageHeader
+          className="mb-0"
+          title={strings.contact.createTitle}
+          description={strings.contact.createHint}
+          actions={
+            <Button variant="ghost" asChild>
+              <Link to="/contacts">
+                <ArrowLeft className="size-4" aria-hidden />
+                {strings.actions.back}
+              </Link>
+            </Button>
+          }
         />
-      </ContentWidth>
+      </div>
+
+      <div className="px-8 pt-6 pb-11">
+        {/* Creating is the one place roles travel with the master data: nothing
+            else can be editing them yet, so there is nothing to overwrite. */}
+        <ContentWidth max={1100}>
+          <ContactForm
+            onSubmit={(input, roles) => mutation.mutate({ ...input, roles })}
+            onCancel={() => void navigate({ to: '/contacts' })}
+            pending={mutation.isPending}
+          />
+        </ContentWidth>
+      </div>
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 /**
  * A clickable column heading that sorts, with an arrow showing the direction
@@ -15,9 +16,13 @@ export function SortableColumnHeader({
   label,
   active,
   direction,
+  align,
   onClick,
 }: {
   label: string
+  /** A right-aligned column wants its heading over the digits, not beside the
+   *  column before it — the contact list's "Nr." is the one (K6). */
+  align?: 'end'
   /** Whether this column is the one currently sorted by. */
   active: boolean
   direction: 'asc' | 'desc'
@@ -31,7 +36,12 @@ export function SortableColumnHeader({
   return (
     <button
       type="button"
-      className="-mx-2 flex items-center gap-1 rounded px-2 py-1 hover:bg-muted"
+      className={cn(
+        '-mx-2 flex items-center gap-1 rounded px-2 py-1 hover:bg-muted',
+        // The negative margin has to be paid back in the width, or the label
+        // ends 16px short of the digits it is supposed to sit over.
+        align === 'end' && 'w-[calc(100%+1rem)] justify-end',
+      )}
       onClick={onClick}
     >
       {label}

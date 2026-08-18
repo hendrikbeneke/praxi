@@ -16,8 +16,10 @@ import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { DateField } from '@/components/date-field'
 import { ReadValue } from '@/components/read-value'
-import { Section } from '@/components/section-grid'
+import { Section, SectionField } from '@/components/section-grid'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -68,11 +70,13 @@ const contactFormSchema = z
     internalNote: z.string().trim().max(4000),
     diagnosis: z.string().trim().max(4000),
     /**
-     * Only filled while creating. On an existing contact the roles are ticked
-     * in the page header, which saves immediately — see the note on
-     * `contactUpdateSchema` for why they must not travel with this form.
+     * Part of the form on both screens since K6 — the design puts a "Rollen"
+     * section in the master data, in read mode as badges and in edit mode as
+     * checkboxes. They still travel to the API on their own route: see the
+     * note on `contactUpdateSchema` for why they must not be part of the
+     * update payload.
      */
-    roles: z.array(z.object({ roleCode: z.string(), since: z.iso.date() })),
+    roles: z.array(z.object({ roleCode: z.string(), since: z.iso.date().nullable() })),
   })
   .superRefine((values, ctx) => {
     // Mirrors the `contact_kind_fields` check constraint, so the practitioner
@@ -130,7 +134,7 @@ function toContactUpdate(values: ContactFormOutput): ContactUpdate {
       }
 }
 
-/** Today in Europe/Berlin as `YYYY-MM-DD` — suggested when a role is ticked.
+/** Today in Europe/Berlin as `YYYY-MM-DD` — recorded when a role is ticked.
  *  `toISOString()` would be UTC and give yesterday's date late in the evening. */
 function todayInBerlin(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date())
@@ -159,16 +163,18 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     phoneLandline: contact?.phoneLandline ?? '',
     internalNote: contact?.internalNote ?? '',
     diagnosis: contact?.diagnosis ?? '',
-    roles: [],
+    roles: contact?.roles.map((entry) => ({ roleCode: entry.roleCode, since: entry.since })) ?? [],
   }
 }
 
 /**
- * The master data of a contact.
+ * The master data of a contact — one card of titled sections, as the design
+ * lays it out on the record and on the create screen alike.
  *
- * Roles are only part of this form while a contact is being created; on an
- * existing one they live in the page header, next to the name. Relations never
- * belong here — they are on the overview.
+ * Roles are part of it on both, in read mode as badges with a line naming the
+ * ones this contact does *not* hold. Until K6 they lived in a pencil popover in
+ * the page header, which was a second way to the same data and is gone.
+ * Relations never belong here — they are on the overview.
  *
  * `editing` is false by default on an existing contact: the record is read
  * first and changed rarely, and a page full of live inputs invites a stray
@@ -197,20 +203,47 @@ export function ContactForm({
   const errors = form.formState.errors
 
   const creating = contact === undefined
-  const types = useQuery({ ...roleTypeListQueryOptions(false), enabled: creating })
-  const roleTypes = types.data ?? []
+
+  // Inactive types included, then narrowed to the ones still offered plus the
+  // ones this contact holds: without the second half a role whose type was
+  // deactivated afterwards could never be taken off again — it would not be in
+  // the list to untick.
+  const held = new Set(contact?.roles.map((entry) => entry.roleCode))
+  const types = useQuery(roleTypeListQueryOptions(true))
+  const roleTypes = (types.data ?? []).filter((type) => type.active || held.has(type.code))
+
+  const chosen = new Set(roles.map((entry) => entry.roleCode))
+  const unassigned = roleTypes.filter((type) => !chosen.has(type.code))
+
+  const toggleRole = (code: string, checked: boolean) => {
+    // "seit" is recorded but not shown: on the day a role is ticked, today is
+    // the only sensible answer, and a date field per role would turn the
+    // section into a form of its own.
+    form.setValue(
+      'roles',
+      checked
+        ? [...roles, { roleCode: code, since: todayInBerlin() }]
+        : roles.filter((entry) => entry.roleCode !== code),
+      { shouldDirty: true },
+    )
+  }
 
   return (
     <form
-      className="max-w-3xl space-y-6"
       onSubmit={form.handleSubmit((values) => onSubmit(toContactUpdate(values), values.roles))}
       noValidate
     >
-      <div className="space-y-0">
-        <Section titleWidth={200} title={strings.contact.sectionName}>
-          <div className="sm:col-span-4">
-            <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
-            {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
+      <Card className="gap-0 rounded-[10px] px-6 shadow-none">
+        <Section
+          variant="record"
+          title={strings.contact.sectionName}
+          hint={strings.contact.sectionNameHint}
+        >
+          <SectionField span={3} className="sm:col-start-1">
+            <Label htmlFor={editing ? 'kind' : undefined}>{strings.contact.kindLabel}</Label>
+            {/* Structural and immutable once saved (CLAUDE.md rule 4) — which
+                the section's own hint says, so the field needs no second line
+                under it. */}
             {!editing ? (
               <ReadValue>{strings.contact.kind[kind]}</ReadValue>
             ) : (
@@ -231,29 +264,28 @@ export function ContactForm({
                 </SelectContent>
               </Select>
             )}
-            {contact && editing && (
-              <p className="mt-1 text-muted-foreground text-xs">{strings.contact.kindImmutable}</p>
-            )}
-          </div>
+          </SectionField>
+
+          <Field
+            span={3}
+            className="sm:col-start-1"
+            id="salutation"
+            editing={editing}
+            readValue={contact?.salutation}
+            label={strings.contact.salutation}
+            list="salutation-options"
+            {...form.register('salutation')}
+          />
+          <datalist id="salutation-options">
+            {strings.contact.salutationOptions.map((option) => (
+              <option key={option} value={option} />
+            ))}
+          </datalist>
 
           {kind === 'person' ? (
             <>
               <Field
-                className="sm:col-span-4"
-                id="salutation"
-                editing={editing}
-                readValue={contact?.salutation}
-                label={strings.contact.salutation}
-                list="salutation-options"
-                {...form.register('salutation')}
-              />
-              <datalist id="salutation-options">
-                {strings.contact.salutationOptions.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
-              <Field
-                className="sm:col-span-4"
+                span={3}
                 id="title"
                 editing={editing}
                 readValue={contact?.title}
@@ -261,7 +293,8 @@ export function ContactForm({
                 {...form.register('title')}
               />
               <Field
-                className="sm:col-span-6"
+                span={6}
+                className="sm:col-start-1"
                 id="firstName"
                 editing={editing}
                 readValue={contact?.firstName}
@@ -269,7 +302,8 @@ export function ContactForm({
                 {...form.register('firstName')}
               />
               <Field
-                className="sm:col-span-6"
+                span={6}
+                required
                 id="lastName"
                 editing={editing}
                 readValue={contact?.lastName}
@@ -277,91 +311,12 @@ export function ContactForm({
                 error={errors.lastName && strings.validation.required}
                 {...form.register('lastName')}
               />
-              {/*
-                  The one field that asks for `past`, and the reason is a
-                  property of this field alone: it is the only one that reaches
-                  back far enough for "00–69 means the 2000s" to give a wrong
-                  answer instead of a harmless one. `12.3.46` typed for a
-                  patient born in 1946 would otherwise become 2046, and their
-                  age would be wrong from that moment on. A payment, a session
-                  or an invoice never lies that far back, so they keep the
-                  ordinary rule — and nothing about this belongs anywhere else.
-                  A four-digit year is taken at its word here too.
-                */}
-              <div className="sm:col-span-6">
-                <Label htmlFor={editing ? 'dateOfBirth' : undefined}>
-                  {strings.contact.dateOfBirth}
-                </Label>
-                {!editing ? (
-                  <ReadValue>
-                    {contact?.dateOfBirth && formatBerlinDate(`${contact.dateOfBirth}T12:00:00Z`)}
-                  </ReadValue>
-                ) : (
-                  <Controller
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <DateField
-                        id="dateOfBirth"
-                        className="mt-2"
-                        twoDigitYear="past"
-                        value={field.value ?? ''}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                )}
-              </div>
-
-              <div className="sm:col-span-6">
-                <Label htmlFor={editing ? 'gender' : undefined}>{strings.contact.gender}</Label>
-                {/* The readable word lives only in the option list — without
-                    this mapping read mode would show `male` (K2). */}
-                {!editing ? (
-                  <ReadValue>
-                    {contact?.gender ? strings.contact.genders[contact.gender] : undefined}
-                  </ReadValue>
-                ) : (
-                  <Controller
-                    control={form.control}
-                    name="gender"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value === '' ? NO_GENDER : field.value}
-                        onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
-                      >
-                        <SelectTrigger id="gender" className="mt-2 w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {/* Not recorded is a value one can pick back, not
-                              only a state one starts in. */}
-                          <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
-                          {contactGenders.map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {strings.contact.genders[value]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                )}
-              </div>
-
-              <Field
-                className="sm:col-span-6"
-                id="birthPlace"
-                editing={editing}
-                readValue={contact?.birthPlace}
-                label={strings.contact.birthPlace}
-                {...form.register('birthPlace')}
-              />
             </>
           ) : (
             <>
               <Field
-                className="sm:col-span-8"
+                span={6}
+                required
                 id="companyName"
                 editing={editing}
                 readValue={contact?.companyName}
@@ -370,7 +325,7 @@ export function ContactForm({
                 {...form.register('companyName')}
               />
               <Field
-                className="sm:col-span-6"
+                span={3}
                 id="contactPerson"
                 editing={editing}
                 readValue={contact?.contactPerson}
@@ -379,65 +334,162 @@ export function ContactForm({
               />
             </>
           )}
-
-          {/* A sole trader is a person and can still have a VAT id. */}
-          <Field
-            className="sm:col-span-6"
-            id="vatId"
-            editing={editing}
-            readValue={contact?.vatId}
-            label={strings.contact.vatId}
-            {...form.register('vatId')}
-          />
         </Section>
 
-        {creating && (
-          <Section
-            titleWidth={200}
-            title={strings.contact.sectionRoles}
-            hint={strings.contact.sectionRolesHint}
-          >
-            <div className="col-span-12 grid gap-3 sm:grid-cols-2">
-              {roleTypes.length === 0 && (
-                <p className="text-muted-foreground text-sm">{strings.contact.roleHint}</p>
-              )}
-              {roleTypes.map((type) => {
-                const checked = roles.some((entry) => entry.roleCode === type.code)
-                return (
-                  <div key={type.code} className="flex items-center gap-3">
+        <Section
+          variant="record"
+          title={strings.contact.sectionRoles}
+          hint={strings.contact.sectionRolesHint}
+        >
+          <SectionField>
+            {!editing ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  {roleTypes
+                    .filter((type) => chosen.has(type.code))
+                    .map((type) => (
+                      <Badge key={type.code} variant="secondary">
+                        {type.label}
+                      </Badge>
+                    ))}
+                </div>
+                {/* Which roles this contact does not hold is worth a line: it
+                    is the difference between "not a patient" and "nobody has
+                    got round to ticking it". */}
+                <p className="mt-2 text-[13px] text-muted-foreground">
+                  {chosen.size === 0
+                    ? strings.contact.rolesNone
+                    : unassigned.length > 0
+                      ? strings.contact.rolesUnassigned(unassigned.map((type) => type.label))
+                      : ''}
+                </p>
+              </>
+            ) : (
+              /* Three fixed columns, not `auto-fit`: the record prototype sets
+                 them, and at this width `auto-fit` happens to give three too —
+                 two spellings of one picture are one too many (K6). */
+              <div className="grid grid-cols-[repeat(3,minmax(150px,220px))] gap-x-5 gap-y-3">
+                {roleTypes.length === 0 && (
+                  <p className="col-span-3 text-muted-foreground text-sm">
+                    {strings.contact.roleHint}
+                  </p>
+                )}
+                {roleTypes.map((type) => (
+                  <label
+                    key={type.code}
+                    htmlFor={`role-${type.code}`}
+                    className="flex cursor-pointer items-center gap-[9px] text-sm"
+                  >
                     <Checkbox
                       id={`role-${type.code}`}
-                      checked={checked}
-                      onCheckedChange={(value) => {
-                        // "seit" is recorded but not shown: on the day a role is
-                        // ticked, today is the only sensible answer, and a date
-                        // field per role turned the section into a form of its own.
-                        form.setValue(
-                          'roles',
-                          value === true
-                            ? [...roles, { roleCode: type.code, since: todayInBerlin() }]
-                            : roles.filter((entry) => entry.roleCode !== type.code),
-                          { shouldDirty: true },
-                        )
-                      }}
+                      checked={chosen.has(type.code)}
+                      onCheckedChange={(value) => toggleRole(type.code, value === true)}
                     />
-                    <Label htmlFor={`role-${type.code}`} className="font-normal">
-                      {type.label}
-                    </Label>
-                  </div>
-                )
-              })}
-            </div>
+                    {type.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </SectionField>
+        </Section>
+
+        {kind === 'person' && (
+          <Section
+            variant="record"
+            title={strings.contact.sectionPerson}
+            hint={strings.contact.sectionPersonHint}
+          >
+            {/*
+                The one field that asks for `past`, and the reason is a property
+                of this field alone: it is the only one that reaches back far
+                enough for "00–69 means the 2000s" to give a wrong answer
+                instead of a harmless one. `12.3.46` typed for a patient born in
+                1946 would otherwise become 2046, and their age would be wrong
+                from that moment on. A payment, a session or an invoice never
+                lies that far back, so they keep the ordinary rule — and nothing
+                about this belongs anywhere else. A four-digit year is taken at
+                its word here too.
+              */}
+            <SectionField span={4} className="sm:col-start-1">
+              <Label htmlFor={editing ? 'dateOfBirth' : undefined}>
+                {strings.contact.dateOfBirth}
+              </Label>
+              {!editing ? (
+                <ReadValue>
+                  {contact?.dateOfBirth && formatBerlinDate(`${contact.dateOfBirth}T12:00:00Z`)}
+                </ReadValue>
+              ) : (
+                <Controller
+                  control={form.control}
+                  name="dateOfBirth"
+                  render={({ field }) => (
+                    <DateField
+                      id="dateOfBirth"
+                      className="mt-2"
+                      twoDigitYear="past"
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+              )}
+            </SectionField>
+
+            <Field
+              span={4}
+              id="birthPlace"
+              editing={editing}
+              readValue={contact?.birthPlace}
+              label={strings.contact.birthPlace}
+              {...form.register('birthPlace')}
+            />
+
+            <SectionField span={4}>
+              <Label htmlFor={editing ? 'gender' : undefined}>{strings.contact.gender}</Label>
+              {/* The readable word lives only in the option list — without
+                  this mapping read mode would show `male` (K2). */}
+              {!editing ? (
+                <ReadValue>
+                  {contact?.gender ? strings.contact.genders[contact.gender] : undefined}
+                </ReadValue>
+              ) : (
+                <Controller
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value === '' ? NO_GENDER : field.value}
+                      onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
+                    >
+                      <SelectTrigger id="gender" className="mt-2 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Not recorded is a value one can pick back, not only
+                            a state one starts in. */}
+                        <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
+                        {contactGenders.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {strings.contact.genders[value]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              )}
+            </SectionField>
           </Section>
         )}
 
         <Section
-          titleWidth={200}
+          variant="record"
           title={strings.contact.sectionAddress}
           hint={strings.contact.sectionAddressHint}
         >
           <Field
-            className="sm:col-span-8"
+            span={9}
+            className="sm:col-start-1"
             id="street"
             editing={editing}
             readValue={contact?.street}
@@ -445,9 +497,9 @@ export function ContactForm({
             {...form.register('street')}
           />
           {/* Its own field. The two are put back together for display by
-                `formatStreetLine`, on screen and on the invoice alike. */}
+              `formatStreetLine`, on screen and on the invoice alike. */}
           <Field
-            className="sm:col-span-4"
+            span={3}
             id="houseNumber"
             editing={editing}
             readValue={contact?.houseNumber}
@@ -455,7 +507,8 @@ export function ContactForm({
             {...form.register('houseNumber')}
           />
           <Field
-            className="sm:col-span-4"
+            span={3}
+            className="sm:col-start-1"
             id="postalCode"
             editing={editing}
             readValue={contact?.postalCode}
@@ -463,7 +516,7 @@ export function ContactForm({
             {...form.register('postalCode')}
           />
           <Field
-            className="sm:col-span-8"
+            span={9}
             id="city"
             editing={editing}
             readValue={contact?.city}
@@ -472,7 +525,7 @@ export function ContactForm({
           />
           {/* A country is stored as a code and never shown as one — see
               `packages/shared/src/country.ts`. */}
-          <div className="min-w-0 sm:col-span-4">
+          <SectionField span={4} className="sm:col-start-1">
             <Label htmlFor={editing ? 'country' : undefined}>{strings.contact.country}</Label>
             {editing ? (
               <Controller
@@ -496,16 +549,17 @@ export function ContactForm({
             ) : (
               <ReadValue>{contact && countryName(contact.country)}</ReadValue>
             )}
-          </div>
+          </SectionField>
         </Section>
 
         <Section
-          titleWidth={200}
+          variant="record"
           title={strings.contact.sectionContact}
           hint={strings.contact.sectionContactHint}
         >
           <Field
-            className="sm:col-span-4"
+            span={6}
+            className="sm:col-start-1"
             id="email"
             editing={editing}
             readValue={contact?.email}
@@ -515,7 +569,7 @@ export function ContactForm({
             {...form.register('email')}
           />
           <Field
-            className="sm:col-span-4"
+            span={3}
             id="phoneMobile"
             editing={editing}
             readValue={contact?.phoneMobile}
@@ -524,7 +578,7 @@ export function ContactForm({
             {...form.register('phoneMobile')}
           />
           <Field
-            className="sm:col-span-4"
+            span={3}
             id="phoneLandline"
             editing={editing}
             readValue={contact?.phoneLandline}
@@ -534,6 +588,34 @@ export function ContactForm({
           />
         </Section>
 
+        {/*
+            Organizations only, as the design has it — and the schema
+            deliberately says otherwise: a sole trader is a person and may hold
+            a VAT id, the column allows it on both kinds and nothing here
+            changes that. What is weighed here is which mistake is worse. The
+            sole trader is the rare case; an empty tax field in every patient
+            record is the daily one. Recorded in
+            `docs/design-korrektur/abweichungen.md`, including how to show it
+            again.
+          */}
+        {kind === 'organization' && (
+          <Section
+            variant="record"
+            title={strings.contact.sectionTax}
+            hint={strings.contact.sectionTaxHint}
+          >
+            <Field
+              span={4}
+              className="sm:col-start-1"
+              id="vatId"
+              editing={editing}
+              readValue={contact?.vatId}
+              label={strings.contact.vatId}
+              {...form.register('vatId')}
+            />
+          </Section>
+        )}
+
         {/* Its own section, not folded into "Intern" — a health datum under
             Art. 9 GDPR should not be able to disappear between internal
             notes (CLAUDE.md rule 12). Left off `contacts/new`: writing a
@@ -541,11 +623,11 @@ export function ContactForm({
             for. */}
         {!creating && (
           <Section
-            titleWidth={200}
+            variant="record"
             title={strings.contact.diagnosis}
             hint={strings.contact.diagnosisHint}
           >
-            <div className="col-span-12">
+            <SectionField>
               <Label htmlFor={editing ? 'diagnosis' : undefined}>{strings.contact.diagnosis}</Label>
               {editing ? (
                 <Textarea
@@ -559,16 +641,16 @@ export function ContactForm({
                    breaks and losing them would change what it says. */
                 <ReadValue className="whitespace-pre-line">{contact?.diagnosis}</ReadValue>
               )}
-            </div>
+            </SectionField>
           </Section>
         )}
 
         <Section
-          titleWidth={200}
+          variant="record"
           title={strings.contact.sectionInternal}
           hint={strings.contact.internalNoteHint}
         >
-          <div className="col-span-12">
+          <SectionField>
             <Label htmlFor={editing ? 'internalNote' : undefined}>
               {strings.contact.internalNote}
             </Label>
@@ -582,20 +664,33 @@ export function ContactForm({
             ) : (
               <ReadValue className="whitespace-pre-line">{contact?.internalNote}</ReadValue>
             )}
-          </div>
+          </SectionField>
         </Section>
-      </div>
+      </Card>
 
       {editing && (
-        <div className="flex justify-end gap-2">
-          {onCancel && (
-            <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
-              {strings.contact.cancel}
+        <div className="sticky bottom-0 mt-4 flex items-center justify-between gap-4 rounded-[10px] border bg-card px-4 py-3 shadow-[0_-2px_12px_oklch(25%_0.012_62_/_0.05)]">
+          {/* Only when there actually are unsaved changes. The design shows the
+              sentence for as long as the form is open, but a form that claims a
+              state it is not in is the mistake CLAUDE.md names — and it applies
+              to changes as much as to values. */}
+          <span className="text-[13px] text-muted-foreground">
+            {form.formState.isDirty ? strings.contact.unsavedChanges : ''}
+          </span>
+          <span className="flex gap-2">
+            {onCancel && (
+              <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
+                {strings.contact.cancel}
+              </Button>
+            )}
+            <Button type="submit" disabled={pending}>
+              {pending
+                ? strings.contact.saving
+                : creating
+                  ? strings.contact.createTitle
+                  : strings.contact.save}
             </Button>
-          )}
-          <Button type="submit" disabled={pending}>
-            {pending ? strings.contact.saving : strings.contact.save}
-          </Button>
+          </span>
         </div>
       )}
     </form>
@@ -608,6 +703,11 @@ type FieldProps = React.ComponentProps<typeof Input> & {
   error?: string | undefined
   editing: boolean
   readValue?: string | null | undefined
+  span?: 3 | 4 | 5 | 6 | 7 | 9 | 12
+  className?: string
+  /** Draws the asterisk the design puts on the two fields the check
+   *  constraint insists on — never on anything else. */
+  required?: boolean
 }
 
 /**
@@ -616,10 +716,23 @@ type FieldProps = React.ComponentProps<typeof Input> & {
  * form: cancelling an edit does not reset this form, so reading the draft would
  * show changes that were abandoned — the screen has to say what is stored.
  */
-function Field({ id, label, error, className, editing, readValue, ...input }: FieldProps) {
+function Field({
+  id,
+  label,
+  error,
+  span,
+  className,
+  editing,
+  readValue,
+  required,
+  ...input
+}: FieldProps) {
   return (
-    <div className={className}>
-      <Label htmlFor={editing ? id : undefined}>{label}</Label>
+    <SectionField span={span} className={className}>
+      <Label htmlFor={editing ? id : undefined}>
+        {label}
+        {required && <span aria-hidden> *</span>}
+      </Label>
       {editing ? (
         <>
           <Input id={id} className="mt-2" aria-invalid={error ? true : undefined} {...input} />
@@ -628,6 +741,6 @@ function Field({ id, label, error, className, editing, readValue, ...input }: Fi
       ) : (
         <ReadValue>{readValue}</ReadValue>
       )}
-    </div>
+    </SectionField>
   )
 }

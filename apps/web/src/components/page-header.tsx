@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
 /**
  * The page title block. Three text slots, because the design has three: the
@@ -21,14 +22,18 @@ export function PageHeader({
   description,
   note,
   actions,
+  className,
 }: {
   title: string
   description?: string
   note?: string
   actions?: ReactNode
+  /** For a header that sits inside a strip of its own and brings its own
+   *  spacing — `contacts/new` does (K6). */
+  className?: string
 }) {
   return (
-    <header className="mb-5 flex items-start justify-between gap-7">
+    <header className={cn('mb-5 flex items-start justify-between gap-7', className)}>
       <div className="min-w-0 max-w-[720px]">
         <h1 className="font-semibold text-[26px] leading-[1.1] tracking-[-0.022em]">{title}</h1>
         {description && <p className="mt-[5px] text-muted-foreground text-sm">{description}</p>}

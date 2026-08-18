@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   addMinutesToLocal,
   ageInYears,
+  formatBerlinDayTime,
   formatBerlinTime,
   formatRelativeBerlin,
+  formatRelativeDayBerlin,
   fromBerlinDateTimeLocal,
   minutesBetween,
   toBerlinDate,
@@ -129,6 +131,45 @@ describe('formatRelativeBerlin', () => {
 
   it('has a word for right now', () => {
     expect(formatRelativeBerlin('2026-08-24T08:00:20.000Z', now)).toBe('gerade eben')
+  })
+})
+
+/**
+ * The two halves of the contact list's "Termin" cell. They are tested together
+ * because the point is that they say different things: one names the day, the
+ * other says how far off it is, and the cell is only readable while neither
+ * repeats the other.
+ */
+describe('formatBerlinDayTime and formatRelativeDayBerlin', () => {
+  const now = new Date('2026-08-24T08:00:00.000Z')
+
+  it('writes the day and the time without the year', () => {
+    expect(formatBerlinDayTime('2026-08-27T07:00:00.000Z')).toBe('Do., 27.08. · 09:00')
+  })
+
+  it('has a word for the three days that have one', () => {
+    expect(formatRelativeDayBerlin('2026-08-24T15:00:00.000Z', now)).toBe('heute')
+    expect(formatRelativeDayBerlin('2026-08-25T07:00:00.000Z', now)).toBe('morgen')
+    expect(formatRelativeDayBerlin('2026-08-23T07:00:00.000Z', now)).toBe('gestern')
+  })
+
+  it('counts days in both directions beyond that', () => {
+    expect(formatRelativeDayBerlin('2026-08-30T07:00:00.000Z', now)).toBe('in 6 Tagen')
+    expect(formatRelativeDayBerlin('2026-08-19T07:00:00.000Z', now)).toBe('vor 5 Tagen')
+  })
+
+  it('counts calendar days, not 24-hour steps', () => {
+    // 23:30 tonight and 00:30 tomorrow are an hour apart and still two words.
+    expect(formatRelativeDayBerlin('2026-08-24T21:30:00.000Z', now)).toBe('heute')
+    expect(formatRelativeDayBerlin('2026-08-24T22:30:00.000Z', now)).toBe('morgen')
+  })
+
+  it('never falls back to a date, which is what lets it stand beside one', () => {
+    // `formatRelativeBerlin` prints the date itself this far out — that is the
+    // whole reason this second function exists (K6).
+    const far = '2026-09-14T07:00:00.000Z'
+    expect(formatRelativeBerlin(far, now)).toContain('14.09.')
+    expect(formatRelativeDayBerlin(far, now)).toBe('in 21 Tagen')
   })
 })
 

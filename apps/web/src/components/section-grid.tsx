@@ -11,41 +11,55 @@ import { cn } from '@/lib/utils'
  * where the design has one card with sections. Two implementations of the same
  * grid would have drifted the way the list header did before K1.
  *
- * **The title column is 180px in the settings and 200px in the contact record.**
- * Measured in the prototype, which sets both — so the width is a prop and not a
- * constant. Below `sm` the column collapses and title and fields stack, because
+ * **The two screens differ in three measured values, and they always differ
+ * together** — which is why this takes one `variant` and not three numbers
+ * nobody could combine correctly:
+ *
+ * | | `settings` | `record` |
+ * |---|---|---|
+ * | title column | 180px | 200px |
+ * | space at the divider | 22px below it | 24px above **and** below |
+ * | row gap in the field grid | 14px | 16px |
+ *
+ * Below `sm` the title column collapses and title and fields stack, because
  * 180px of label beside a 132px field is not a layout.
  *
  * The field grid is twelve columns so a field can be told how wide it is in the
- * design's own terms: `span-4` is "a third of the row". The gaps (`14px 18px`
- * inside, `24px` to the title column) are the prototype's.
+ * design's own terms: `span-4` is "a third of the row". The gaps are the
+ * prototype's.
  */
+export type SectionVariant = 'settings' | 'record'
+
+const VARIANTS: Record<SectionVariant, string> = {
+  settings: 'sm:grid-cols-[180px_minmax(0,1fr)] border-t pt-[22px] first:border-t-0 first:pt-0',
+  record:
+    'sm:grid-cols-[200px_minmax(0,1fr)] border-t pt-6 pb-6 last:pb-0 first:border-t-0 first:pt-0',
+}
+
+const ROW_GAP: Record<SectionVariant, string> = {
+  settings: 'gap-y-[14px]',
+  record: 'gap-y-4',
+}
+
 export function Section({
   title,
   hint,
-  titleWidth = 180,
+  variant = 'settings',
   children,
 }: {
   title: string
   hint?: string
-  /** 180 in the settings, 200 in the contact record — both from the design. */
-  titleWidth?: 180 | 200
+  /** The settings card or the contact record — see the table above. */
+  variant?: SectionVariant
   children: React.ReactNode
 }) {
   return (
-    <div
-      className={cn(
-        'grid gap-4 border-t pt-[22px] first:border-t-0 first:pt-0 sm:gap-6',
-        titleWidth === 200
-          ? 'sm:grid-cols-[200px_minmax(0,1fr)]'
-          : 'sm:grid-cols-[180px_minmax(0,1fr)]',
-      )}
-    >
+    <div className={cn('grid gap-4 sm:gap-6', VARIANTS[variant])}>
       <div>
         <p className="font-semibold">{title}</p>
         {hint && <p className="mt-1 text-[13px] text-muted-foreground">{hint}</p>}
       </div>
-      <div className="grid grid-cols-12 gap-x-[18px] gap-y-[14px]">{children}</div>
+      <div className={cn('grid grid-cols-12 gap-x-[18px]', ROW_GAP[variant])}>{children}</div>
     </div>
   )
 }
@@ -61,6 +75,7 @@ const SPANS: Record<number, string> = {
   5: 'col-span-12 sm:col-span-5',
   6: 'col-span-12 sm:col-span-6',
   7: 'col-span-12 sm:col-span-7',
+  9: 'col-span-12 sm:col-span-9',
   12: 'col-span-12',
 }
 
@@ -69,7 +84,7 @@ export function SectionField({
   className,
   children,
 }: {
-  span?: 3 | 4 | 5 | 6 | 7 | 12
+  span?: 3 | 4 | 5 | 6 | 7 | 9 | 12
   className?: string
   children: React.ReactNode
 }) {

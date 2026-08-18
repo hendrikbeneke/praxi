@@ -146,6 +146,23 @@ export function formatBerlinDateTime(iso: string): string {
   return `${formatBerlinDate(iso)}, ${formatBerlinTime(iso)}`
 }
 
+/**
+ * A day and a time in one line — "Di., 11.08. · 14:00".
+ *
+ * What a list column shows when the year is not the question: the contact list
+ * asks "when is this person next here", and inside a four-week window the year
+ * is noise. Beside it stands `formatRelativeDayBerlin`, which is the reason
+ * this one may leave the year out at all — the two together always say which
+ * day is meant.
+ *
+ * Deliberately not `formatBerlinDateTime`: that one is the full "11.08.2026,
+ * 14:00" for a record that names a single instant, where nothing else on
+ * screen places it.
+ */
+export function formatBerlinDayTime(iso: string): string {
+  return `${formatBerlinWeekday(iso)} · ${formatBerlinTime(iso)}`
+}
+
 /** Minutes between two instants, for showing how long an appointment runs. */
 export function minutesBetween(startIso: string, endIso: string): number {
   return Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000)
@@ -210,4 +227,28 @@ export function formatRelativeBerlin(iso: string, now: Date): string {
   if (days === 1) return `morgen ${formatBerlinTime(iso)}`
 
   return `${formatBerlinWeekday(iso)} ${formatBerlinTime(iso)}`
+}
+
+/**
+ * How many days away, in words and nothing else: "heute", "morgen", "gestern",
+ * "in 6 Tagen", "vor 5 Tagen".
+ *
+ * The sibling of `formatRelativeBerlin`, and the difference is what it is
+ * allowed to fall back to. That one degrades into an absolute date beyond a
+ * day ("Mo, 24.08. 09:00"), which is right where it stands alone — and wrong
+ * beside an absolute date, where the same instant would then be printed twice.
+ * This one never names a date, so it can stand next to one.
+ *
+ * Counted in Berlin calendar days, not in 24-hour steps: something at 23:00
+ * tonight and something at 01:00 tomorrow are a "heute" and a "morgen", two
+ * hours apart.
+ */
+export function formatRelativeDayBerlin(iso: string, now: Date): string {
+  const days = berlinDayDifference(iso, now)
+
+  if (days === 0) return 'heute'
+  if (days === 1) return 'morgen'
+  if (days === -1) return 'gestern'
+
+  return days > 0 ? `in ${days} Tagen` : `vor ${-days} Tagen`
 }

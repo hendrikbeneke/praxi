@@ -1,136 +1,80 @@
 import { ageInYears, type Contact, formatContactName } from '@praxi/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil } from 'lucide-react'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ApiError } from '@/lib/api'
 import { roleTypeListQueryOptions } from '@/lib/contact-types'
-import { contactQueryOptions, setContactRoles } from '@/lib/contacts'
 import { strings } from '@/lib/strings'
 
 /**
- * Who this record is, on every tab: name, contact number, age and the roles.
+ * Who this record is, on every tab — and the strip the tab row sits in.
  *
- * The roles are edited right here and save on the click — there is no edit
- * mode and no save button, because ticking "Patient" is one decision and not
- * a form. `since` is set to today when a role is ticked and shown nowhere: on
- * the day you tick it, today is the only answer that can be meant.
+ * The design makes this a full-bleed bar in card colour that sticks to the top
+ * of the scroll area, and that is not decoration: the bar's bottom border is
+ * what the tab underline runs along, so the line spans the whole field rather
+ * than ending where the content is capped. The route owns the tabs and passes
+ * them as children, because they are its state; everything above them is here.
+ *
+ * The roles are badges and nothing more. Until K6 this header carried a pencil
+ * and a popover that edited them, which was a second way to the same data next
+ * to the master data form — the design has it in one place, and so does this.
  */
 export function ContactHeader({
   contact,
   actions,
+  children,
 }: {
   contact: Contact
-  actions?: React.ReactNode
+  actions?: ReactNode
+  children?: ReactNode
 }) {
-  const queryClient = useQueryClient()
+  // Inactive types included: a contact may still hold one, and its badge has
+  // to read as a name rather than as a code.
   const types = useQuery(roleTypeListQueryOptions(true))
-
-  const save = useMutation({
-    mutationFn: (roles: Contact['roles']) => setContactRoles(contact.id, roles),
-    onSuccess: async (saved) => {
-      queryClient.setQueryData(contactQueryOptions(contact.id).queryKey, saved)
-      await queryClient.invalidateQueries({ queryKey: ['contacts'] })
-    },
-    onError: (error) =>
-      toast.error(error instanceof ApiError ? error.message : strings.contact.saveFailed),
-  })
-
-  const held = new Map(contact.roles.map((entry) => [entry.roleCode, entry.since]))
-
-  /**
-   * Active types, plus any the contact already holds. Without the second half
-   * a role whose type was deactivated afterwards could never be taken off
-   * again — it would not be in the list to untick.
-   */
-  const roleTypes = (types.data ?? []).filter((type) => type.active || held.has(type.code))
-
-  const toggle = (code: string, checked: boolean) => {
-    const next = checked
-      ? [...contact.roles, { roleCode: code, since: todayInBerlin() }]
-      : contact.roles.filter((entry) => entry.roleCode !== code)
-
-    save.mutate(next)
-  }
+  const label = (code: string) => types.data?.find((type) => type.code === code)?.label ?? code
 
   const age = contact.dateOfBirth ? ageInYears(contact.dateOfBirth, new Date()) : null
 
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="font-semibold text-2xl tracking-tight">{formatContactName(contact)}</h1>
+    <div className="sticky top-0 z-5 border-b bg-card px-8 pt-5">
+      <div className="flex flex-wrap items-start justify-between gap-7">
+        <div className="min-w-0">
+          {/* Number and age stand in the name line, not in a meta line of
+              their own: they identify the person as much as the name does. */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-semibold text-[26px] leading-[1.1] tracking-[-0.022em]">
+              {formatContactName(contact)}
+            </h1>
+            <span className="text-muted-foreground tabular-nums">
+              {strings.contact.numberShort} {contact.contactNumber}
+            </span>
+            {age !== null && (
+              <>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">{strings.contact.ageYears(age)}</span>
+              </>
+            )}
+            {contact.archivedAt && (
+              <Badge variant="secondary">{strings.contact.archivedBadge}</Badge>
+            )}
+          </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-muted-foreground text-sm">
-          <span className="tabular-nums">
-            {strings.contact.contactNumber} {contact.contactNumber}
-          </span>
-          {age !== null && <span>{strings.contact.ageYears(age)}</span>}
-          {contact.archivedAt && <Badge variant="secondary">{strings.contact.archivedBadge}</Badge>}
-
-          <span className="flex flex-wrap items-center gap-1">
+          <div className="mt-[9px] flex flex-wrap items-center gap-1.5">
             {contact.roles.length === 0 ? (
-              <span className="text-xs">{strings.contact.noRoles}</span>
+              <span className="text-muted-foreground text-xs">{strings.contact.noRoles}</span>
             ) : (
               contact.roles.map((entry) => (
                 <Badge key={entry.roleCode} variant="outline">
-                  {label(types.data, entry.roleCode)}
+                  {label(entry.roleCode)}
                 </Badge>
               ))
             )}
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  aria-label={strings.contact.editRoles}
-                  disabled={save.isPending}
-                >
-                  <Pencil className="size-3.5" aria-hidden />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-64">
-                <p className="mb-3 font-medium text-foreground text-sm">
-                  {strings.contact.roleLabel}
-                </p>
-                <div className="space-y-2">
-                  {roleTypes.map((type) => (
-                    <div key={type.code} className="flex items-center gap-3">
-                      <Checkbox
-                        id={`header-role-${type.code}`}
-                        checked={held.has(type.code)}
-                        disabled={save.isPending}
-                        onCheckedChange={(value) => toggle(type.code, value === true)}
-                      />
-                      <Label htmlFor={`header-role-${type.code}`} className="font-normal">
-                        {type.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </span>
+          </div>
         </div>
+
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
 
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      <div className="mt-4 flex gap-0.5">{children}</div>
     </div>
   )
-}
-
-/** A role whose type has vanished should still read as something. */
-function label(types: { code: string; label: string }[] | undefined, code: string): string {
-  return types?.find((type) => type.code === code)?.label ?? code
-}
-
-/** Today in Europe/Berlin as `YYYY-MM-DD`. `toISOString()` would be UTC and
- *  give yesterday's date late in the evening. */
-function todayInBerlin(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date())
 }

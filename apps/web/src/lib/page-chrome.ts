@@ -22,8 +22,11 @@ const DEFAULT = 'px-8 pt-[22px] pb-10'
 const byRouteId: Record<string, string> = {
   '/_app/': DEFAULT,
   '/_app/contacts/': 'px-8 pt-[26px] pb-6',
-  '/_app/contacts/new': 'px-8 pt-[22px] pb-[18px]',
-  '/_app/contacts/$contactId': 'px-8 pt-5 pb-0',
+  // Both contact screens carry a full-bleed header strip in card colour with
+  // a rule under it — the tab underline on the record runs along that rule —
+  // so they set their own inset below it and get none from the shell (K6).
+  '/_app/contacts/new': 'p-0',
+  '/_app/contacts/$contactId': 'p-0',
   '/_app/activities': 'px-8 pt-[22px] pb-[14px]',
   '/_app/payments': 'px-8 pt-5 pb-7',
   '/_app/services': 'px-8 pt-[22px] pb-10',

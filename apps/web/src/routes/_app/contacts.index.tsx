@@ -4,17 +4,18 @@ import {
   contactListOrderSchema,
   contactSortFieldSchema,
   formatBerlinDate,
-  formatBerlinDateTime,
+  formatBerlinDayTime,
   formatContactNameSorted,
-  formatRelativeBerlin,
+  formatRelativeDayBerlin,
   sortDirectionSchema,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createColumnHelper, flexRender, tableFeatures, useTable } from '@tanstack/react-table'
-import { Plus } from 'lucide-react'
+import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { z } from 'zod'
+import { listTabClass } from '@/components/chip'
 import { type ColumnDefinition, ColumnPicker } from '@/components/column-picker'
 import { PageHeader } from '@/components/page-header'
 import { SortableColumnHeader } from '@/components/sortable-column-header'
@@ -23,13 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Table,
   TableBody,
@@ -46,6 +41,7 @@ import {
   userPreferencesQueryKey,
   userPreferencesQueryOptions,
 } from '@/lib/user-preferences'
+import { cn } from '@/lib/utils'
 
 /** `role` absent means the default tab — the first role flagged as one. `all`
  *  is the explicit choice, and the two have to stay distinguishable. */
@@ -65,6 +61,11 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
   { key: 'dateOfBirth', label: strings.contact.columns.dateOfBirth },
 ]
 const DEFAULT_COLUMNS = COLUMN_DEFINITIONS.map((entry) => entry.key)
+
+/** The one column the design gives a fixed width, so the digits stay a block
+ *  of their own however many of them there are. Applied to `th` and `td` alike
+ *  — a width on only one of the two is not a column width. */
+const COLUMN_CLASS: Record<string, string> = { contactNumber: 'w-20' }
 
 /**
  * Role, order and archived live in the URL; the search term deliberately does
@@ -109,7 +110,7 @@ type ColumnOptions = {
   /** Only the `current` order has an appointment to show, and only there does
    *  the column explain anything. */
   showAppointment: boolean
-  sortHeader: (field: ContactSortField, label: string) => React.ReactNode
+  sortHeader: (field: ContactSortField, label: string, align?: 'end') => React.ReactNode
   now: Date
 }
 
@@ -126,8 +127,12 @@ function contactColumns(options: ColumnOptions) {
     {
       key: 'number',
       def: column.accessor('contactNumber', {
-        header: () => options.sortHeader('number', strings.contact.columns.number),
-        cell: (info) => <span className="tabular-nums">{info.getValue()}</span>,
+        header: () => options.sortHeader('number', strings.contact.columns.number, 'end'),
+        cell: (info) => (
+          <span className="block text-right text-muted-foreground tabular-nums">
+            {info.getValue()}
+          </span>
+        ),
       }),
     },
     {
@@ -139,7 +144,7 @@ function contactColumns(options: ColumnOptions) {
           const contact = info.row.original
           return (
             <span className="flex items-center gap-2">
-              <span className="font-medium">{formatContactNameSorted(contact)}</span>
+              <span className="font-semibold">{formatContactNameSorted(contact)}</span>
               {contact.archivedAt && (
                 <Badge variant="secondary">{strings.contact.archivedBadge}</Badge>
               )}
@@ -216,11 +221,16 @@ function contactColumns(options: ColumnOptions) {
             cell: (info) => {
               const at = info.getValue()
               if (!at) return '—'
+              /* One line, and the two halves say different things: the day and
+                 the time, then how far off that is. Until K6 this was
+                 `formatBerlinDateTime` over `formatRelativeBerlin`, and beyond
+                 a day the second one falls back to a date itself — so the cell
+                 printed the same instant twice, absolutely. */
               return (
-                <span className="flex flex-col">
-                  <span className="tabular-nums">{formatBerlinDateTime(at)}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {formatRelativeBerlin(at, options.now)}
+                <span className="flex items-baseline gap-2 whitespace-nowrap">
+                  <span className="tabular-nums">{formatBerlinDayTime(at)}</span>
+                  <span className="text-[12.5px] text-muted-foreground">
+                    {formatRelativeDayBerlin(at, options.now)}
                   </span>
                 </span>
               )
@@ -237,6 +247,7 @@ function ContactListPage() {
   const queryClient = useQueryClient()
 
   const [term, setTerm] = useState('')
+  const [moreOpen, setMoreOpen] = useState(false)
   // Keeps typing responsive without a timer: the list re-queries with the
   // settled value while the input stays immediate.
   const deferredTerm = useDeferredValue(term)
@@ -265,6 +276,7 @@ function ContactListPage() {
   /** No role in the URL means the first tab — "Patienten" after the seed. With
    *  no flagged role at all there is nothing to default to, so it is Alle. */
   const activeRole = search.role ?? tabTypes[0]?.code ?? ALL_ROLES
+  const otherRole = otherTypes.find((type) => type.code === activeRole)
 
   /**
    * The search beats both filters: while something is typed, the whole card
@@ -298,11 +310,12 @@ function ContactListPage() {
 
   /** Clicking a heading sorts — and pulls the view over to A–Z, because in the
    *  `current` order the sort would have nowhere to take effect. */
-  const sortHeader = (field: ContactSortField, label: string) => {
+  const sortHeader = (field: ContactSortField, label: string, align?: 'end') => {
     const activeHere = search.order === 'alpha' && search.sort === field && !searching
     return (
       <SortableColumnHeader
         label={label}
+        align={align}
         active={activeHere}
         direction={search.dir}
         onClick={() =>
@@ -346,99 +359,123 @@ function ContactListPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-end gap-4">
-        <div className="min-w-64 flex-1">
-          <Label htmlFor="contact-search">{strings.contact.search}</Label>
+      {/* One card, one row — search, the role tabs, and on the right what is
+          shown *how*: archived, the order, the columns. The design's own split
+          (K6): picking who is listed happens on the left, everything about the
+          presentation on the right. */}
+      <div className="mb-[18px] flex flex-wrap items-center gap-3 rounded-[10px] border bg-card px-[14px] py-3">
+        <div className="relative min-w-[250px] max-w-[380px] flex-[1_1_300px]">
+          <Search
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-[11px] size-[15px] text-muted-foreground"
+            aria-hidden
+          />
           <Input
             id="contact-search"
-            className="mt-2"
+            aria-label={strings.contact.search}
+            className="pl-9"
             placeholder={strings.contact.searchPlaceholder}
             value={term}
             onChange={(event) => setTerm(event.target.value)}
           />
         </div>
 
-        {otherTypes.length > 0 && (
-          <div className="w-56">
-            <Label htmlFor="role-filter">{strings.contact.moreRoles}</Label>
-            <Select
-              value={otherTypes.some((type) => type.code === activeRole) ? activeRole : ALL_ROLES}
-              onValueChange={(value) => setSearch({ role: value })}
-            >
-              <SelectTrigger id="role-filter" className="mt-2 w-full">
-                <SelectValue placeholder={strings.contact.moreRoles} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_ROLES}>{strings.contact.allRolesTab}</SelectItem>
-                {otherTypes.map((type) => (
-                  <SelectItem key={type.code} value={type.code}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <span className="h-[26px] w-px shrink-0 bg-border" />
 
-        <div className="flex items-center gap-2 pb-2">
-          <Checkbox
-            id="show-archived"
-            checked={search.archived ?? false}
-            onCheckedChange={(checked) =>
-              setSearch({ archived: checked === true ? true : undefined })
-            }
-          />
-          <Label htmlFor="show-archived" className="font-normal">
-            {strings.contact.showArchived}
-          </Label>
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         {/* The tabs are the roles flagged `show_as_tab`; everything else stays
-            reachable through the dropdown above, so no role is unfilterable and
-            the bar stays short. Relations never appear here — they are not a
-            property of a single contact. */}
+            reachable behind "Weitere", so no role is unfilterable and the bar
+            stays short. Relations never appear here — they are not a property
+            of a single contact. */}
         <div className="flex flex-wrap items-center gap-1">
           {tabTypes.map((type) => (
-            <Button
+            <button
               key={type.code}
-              size="sm"
-              className="rounded-full"
-              variant={activeRole === type.code ? 'default' : 'outline'}
+              type="button"
+              className={listTabClass(activeRole === type.code)}
               onClick={() => setSearch({ role: type.code })}
             >
               {type.label}
-            </Button>
+            </button>
           ))}
-          <Button
-            size="sm"
-            className="rounded-full"
-            variant={activeRole === ALL_ROLES ? 'default' : 'outline'}
+          <button
+            type="button"
+            className={listTabClass(activeRole === ALL_ROLES)}
             onClick={() => setSearch({ role: ALL_ROLES })}
           >
             {strings.contact.allRolesTab}
-          </Button>
+          </button>
+
+          {otherTypes.length > 0 && (
+            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+              <PopoverTrigger asChild>
+                {/* Named after what is chosen once something is, so the bar
+                    says which filter is on without a second line. */}
+                <button
+                  type="button"
+                  aria-label={strings.contact.moreRolesMenu}
+                  className={listTabClass(otherRole !== undefined)}
+                >
+                  {otherRole?.label ?? strings.contact.moreRoles}
+                  <ChevronDown className="size-[13px]" aria-hidden />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[246px] p-1.5">
+                <div className="flex flex-col gap-px">
+                  {otherTypes.map((type) => (
+                    <button
+                      key={type.code}
+                      type="button"
+                      className={cn(
+                        'rounded-md px-[9px] py-[7px] text-left text-[13.5px] transition-colors',
+                        activeRole === type.code
+                          ? 'bg-primary font-semibold text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                      )}
+                      onClick={() => {
+                        setMoreOpen(false)
+                        setSearch({ role: type.code })
+                      }}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
+          <Label
+            htmlFor="show-archived"
+            className="cursor-pointer gap-2 whitespace-nowrap font-normal text-[13.5px] text-muted-foreground"
+          >
+            <Checkbox
+              id="show-archived"
+              checked={search.archived ?? false}
+              onCheckedChange={(checked) =>
+                setSearch({ archived: checked === true ? true : undefined })
+              }
+            />
+            {strings.contact.showArchived}
+          </Label>
+
+          <span className="h-[26px] w-px shrink-0 bg-border" />
+
           <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              className="rounded-full"
-              variant={search.order === 'current' ? 'default' : 'outline'}
+            <button
+              type="button"
+              className={listTabClass(search.order === 'current')}
               onClick={() => setSearch({ order: 'current' })}
             >
               {strings.contact.orderCurrent}
-            </Button>
-            <Button
-              size="sm"
-              className="rounded-full"
-              variant={search.order === 'alpha' ? 'default' : 'outline'}
+            </button>
+            <button
+              type="button"
+              className={listTabClass(search.order === 'alpha')}
               onClick={() => setSearch({ order: 'alpha' })}
             >
               {strings.contact.orderAlpha}
-            </Button>
+            </button>
           </div>
 
           <ColumnPicker
@@ -459,7 +496,7 @@ function ContactListPage() {
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} className={COLUMN_CLASS[header.column.id]}>
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
@@ -492,7 +529,7 @@ function ContactListPage() {
                   }
                 >
                   {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className={COLUMN_CLASS[cell.column.id]}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -506,7 +543,7 @@ function ContactListPage() {
       {/* Only when the list is actually cut short — and then it names the page
           size, because "why 50 of 214" is the next question (K3). */}
       {total > rows.length && (
-        <p className="mt-3 text-muted-foreground text-sm">
+        <p className="mt-3 text-[13px] text-muted-foreground tabular-nums">
           {strings.contact.countOf(rows.length, total, PAGE_SIZE)}
         </p>
       )}

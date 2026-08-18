@@ -114,13 +114,17 @@ const organizationFields = {
  * so the shape mirrors the `contact_kind_fields` check constraint exactly: the
  * fields of the other kind cannot even be expressed, let alone sent.
  *
- * **`roles` is deliberately absent, and must stay absent.** They are edited in
- * the page header, which saves the moment a role is ticked, while the master
- * data form is a form with a save button. If a role travelled in this payload
- * too, an open form would carry the roles as they were when it was opened and
- * write them back over anything ticked in the meantime — silently, and only
- * sometimes. Roles go through `PUT /api/contacts/:id/roles`; nothing else may
- * touch them.
+ * **`roles` is deliberately absent, and must stay absent.** They go through
+ * `PUT /api/contacts/:id/roles` and nothing else may touch them, so no request
+ * can rewrite them as a side effect of saving an address.
+ *
+ * The original reason was a race: roles were ticked in the page header and
+ * saved on the click, while the master data was a form with a save button, so
+ * a payload carrying both would have written the roles as they stood when the
+ * form was opened over anything ticked since — silently, and only sometimes.
+ * Since K6 the roles are a section of that same form and there is no second
+ * place to lose the race to. The rule stays anyway, and now for the plainer
+ * reason: one resource, one route. A caller changing roles says so.
  */
 export const contactUpdateSchema = z.discriminatedUnion('kind', [
   z.object({ ...personFields, ...sharedFields }),

@@ -40,11 +40,19 @@ function AppLayout() {
   const padding = pagePadding(useMatches().map((match) => match.routeId))
 
   return (
-    <div className="flex min-h-svh">
+    /* The shell owns the height and `main` owns the scroll — one scroll
+       container, as the design's own markup has it (`height:100vh` and
+       `overflow:hidden` around a `flex:1;overflow:auto`). It was `min-h-svh`
+       until K6, which let `main` grow past the viewport and made the *window*
+       the scroller: `overflow-auto` on an element that never overflows is
+       still a scroll container, so everything sticky inside it — the contact
+       record's header strip, the form footer — sat in a scrollport that never
+       moved and therefore never stuck. */
+    <div className="flex h-svh overflow-hidden">
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar user={user} />
-        <main className={`min-w-0 flex-1 overflow-auto ${padding}`}>
+        <main className={`min-h-0 min-w-0 flex-1 overflow-auto ${padding}`}>
           <Outlet />
         </main>
       </div>

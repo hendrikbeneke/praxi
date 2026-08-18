@@ -1,6 +1,7 @@
 import {
   type Activity,
   activityStatuses,
+  type ContactRoleInput,
   type ContactUpdate,
   formatBerlinDate,
   formatBerlinTime,
@@ -13,7 +14,7 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, ArrowLeft, Pencil, Plus, ShieldCheck } from 'lucide-react'
+import { Pencil, Plus, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -26,6 +27,7 @@ import { ContentWidth } from '@/components/content-width'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteDialog } from '@/components/note-dialog'
 import { NoteList } from '@/components/note-list'
+import { RecordTab, RecordTabsList } from '@/components/record-tabs'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,10 +41,15 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { activityListQueryOptions } from '@/lib/activities'
 import { ApiError } from '@/lib/api'
-import { contactQueryOptions, setContactArchived, updateContact } from '@/lib/contacts'
+import {
+  contactQueryOptions,
+  setContactArchived,
+  setContactRoles,
+  updateContact,
+} from '@/lib/contacts'
 import { createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
@@ -80,11 +87,32 @@ function ContactDetailPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['contacts'] })
 
+  /**
+   * Two requests, in this order and never the other way round: the roles are
+   * their own resource and deliberately cannot travel in the update payload
+   * (see `contactUpdateSchema`).
+   *
+   * If the second one fails the first has already been written, and the screen
+   * says exactly that — the master data is saved, the roles are not — and
+   * **stays in edit mode** with the ticks as they were typed, so trying again
+   * is pressing "Speichern" again. Silently reporting success would leave the
+   * record disagreeing with the screen; dropping back to read mode would throw
+   * away the only copy of what was meant.
+   */
   const save = useMutation({
-    mutationFn: (input: ContactUpdate) => updateContact(contactId, input),
-    onSuccess: async (saved) => {
+    mutationFn: async ({ input, roles }: { input: ContactUpdate; roles: ContactRoleInput[] }) => {
+      const saved = await updateContact(contactId, input)
+      return await setContactRoles(contactId, roles)
+        .then((withRoles) => ({ contact: withRoles, rolesFailed: false }))
+        .catch(() => ({ contact: saved, rolesFailed: true }))
+    },
+    onSuccess: async ({ contact: saved, rolesFailed }) => {
       queryClient.setQueryData(contactQueryOptions(contactId).queryKey, saved)
       await invalidate()
+      if (rolesFailed) {
+        toast.error(strings.contact.rolesSaveFailed)
+        return
+      }
       setEditing(false)
       toast.success(strings.contact.saved)
     },
@@ -110,82 +138,81 @@ function ContactDetailPage() {
   const isArchived = Boolean(contact.archivedAt)
 
   return (
-    <>
+    <Tabs
+      value={tab}
+      onValueChange={(next) => void navigate({ search: { tab: next as (typeof tabs)[number] } })}
+    >
+      {/* The header strip runs the full width and carries the tab row, so the
+          rule under the tabs spans the whole field. The page itself therefore
+          gets no padding from the shell — see `lib/page-chrome.ts`. */}
       <ContactHeader
         contact={contact}
         actions={
-          <>
-            {isArchived ? (
-              <Button
-                variant="outline"
-                onClick={() => archive.mutate(false)}
-                disabled={archive.isPending}
-              >
-                <ArchiveRestore className="size-4" aria-hidden />
-                {strings.contact.unarchive}
-              </Button>
-            ) : (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" disabled={archive.isPending}>
-                    <Archive className="size-4" aria-hidden />
-                    {strings.contact.archive}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{strings.contact.archiveTitle}</AlertDialogTitle>
-                    <AlertDialogDescription>{strings.contact.archiveBody}</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{strings.contact.cancel}</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => archive.mutate(true)}>
-                      {strings.contact.archive}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-
-            <Button variant="ghost" asChild>
-              <Link to="/contacts">
-                <ArrowLeft className="size-4" aria-hidden />
-                {strings.actions.back}
-              </Link>
+          isArchived ? (
+            <Button
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => archive.mutate(false)}
+              disabled={archive.isPending}
+            >
+              {strings.contact.unarchive}
             </Button>
-          </>
+          ) : (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  disabled={archive.isPending}
+                >
+                  {strings.contact.archive}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{strings.contact.archiveTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>{strings.contact.archiveBody}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{strings.contact.cancel}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => archive.mutate(true)}>
+                    {strings.contact.archive}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )
         }
-      />
-
-      <Tabs
-        value={tab}
-        onValueChange={(next) => void navigate({ search: { tab: next as (typeof tabs)[number] } })}
       >
-        <TabsList>
-          <TabsTrigger value="overview">{strings.contact.tabs.overview}</TabsTrigger>
-          <TabsTrigger value="master">{strings.contact.tabs.master}</TabsTrigger>
-          <TabsTrigger value="notes">{strings.contact.tabs.notes}</TabsTrigger>
-          <TabsTrigger value="activities">{strings.contact.tabs.activities}</TabsTrigger>
-          <TabsTrigger value="appointments">{strings.contact.tabs.appointments}</TabsTrigger>
-          <TabsTrigger value="invoices">{strings.contact.tabs.invoices}</TabsTrigger>
-        </TabsList>
+        <RecordTabsList>
+          <RecordTab value="overview">{strings.contact.tabs.overview}</RecordTab>
+          <RecordTab value="master">{strings.contact.tabs.master}</RecordTab>
+          <RecordTab value="notes">{strings.contact.tabs.notes}</RecordTab>
+          <RecordTab value="activities">{strings.contact.tabs.activities}</RecordTab>
+          <RecordTab value="appointments">{strings.contact.tabs.appointments}</RecordTab>
+          <RecordTab value="invoices">{strings.contact.tabs.invoices}</RecordTab>
+        </RecordTabsList>
+      </ContactHeader>
 
-        {/* The tab row above keeps the full width so its underline spans the
-            whole field; only the content below is capped (K1). */}
+      <div className="px-8 pt-6 pb-11">
+        {/* Only the tab content is capped; the strip above runs to the edge. */}
         <ContentWidth max={1100}>
-          <TabsContent value="overview" className="pt-6">
+          <TabsContent value="overview">
             <ContactOverview contact={contact} onDocument={setDocumenting} />
           </TabsContent>
 
-          <TabsContent value="master" className="space-y-6 pt-6">
-            <div className="flex max-w-3xl justify-end">
-              {!editing && (
-                <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Pencil className="size-4" aria-hidden />
+          <TabsContent value="master">
+            {!editing && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
+                <p className="text-[13.5px] text-muted-foreground">
+                  {strings.contact.masterReadHint}
+                </p>
+                <Button size="sm" onClick={() => setEditing(true)}>
+                  <Pencil className="size-3.5" aria-hidden />
                   {strings.actions.edit}
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* `key` remounts the form when the stored version changes or when
                 editing is left, so the fields show what was actually stored —
@@ -194,29 +221,29 @@ function ContactDetailPage() {
               key={`${contact.id}${contact.archivedAt ?? ''}${editing}`}
               contact={contact}
               editing={editing}
-              onSubmit={(input) => save.mutate(input)}
+              onSubmit={(input, roles) => save.mutate({ input, roles })}
               onCancel={() => setEditing(false)}
               pending={save.isPending}
             />
           </TabsContent>
 
-          <TabsContent value="activities" className="pt-6">
+          <TabsContent value="activities">
             <ContactActivities contactId={contactId} />
           </TabsContent>
 
-          <TabsContent value="appointments" className="pt-6">
+          <TabsContent value="appointments">
             <ContactAppointments contactId={contactId} />
           </TabsContent>
 
-          <TabsContent value="notes" className="pt-6">
+          <TabsContent value="notes">
             <ContactNotes contactId={contactId} />
           </TabsContent>
 
-          <TabsContent value="invoices" className="pt-6">
+          <TabsContent value="invoices">
             <ContactInvoices contactId={contactId} />
           </TabsContent>
         </ContentWidth>
-      </Tabs>
+      </div>
 
       {/* Opened from the overview, so it lives here rather than in the notes
           tab — the point is to document without going looking for the tab. */}
@@ -228,7 +255,7 @@ function ContactDetailPage() {
           onOpenChange={(next) => !next && setDocumenting(undefined)}
         />
       )}
-    </>
+    </Tabs>
   )
 }
 

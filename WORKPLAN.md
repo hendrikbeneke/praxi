@@ -70,7 +70,7 @@ Text, nicht als deaktivierte Felder.
 | K3 | Zusammenfassungen | **done** |
 | K4 | Einstellungen | **done** |
 | K5 | Leistungen | **done** |
-| K6 | Kontaktbereich | offen |
+| K6 | Kontaktbereich | **done** |
 | K7 | Kontakt-Reiter | offen |
 | K8 | Zahlungen | offen |
 | K9 | Vorgänge | offen |
@@ -147,6 +147,43 @@ Klein, und mit einer Korrektur an der eigenen Vorgabe.
 - **Nachgetragen:** ein Typfehler, den K4 mitcommittet hatte — das Spreaden des nullable
   `recipientSnapshot` im PDF-Test machte jeden Schlüssel optional. In K4 lief die Typprüfung vor
   dem Hinzufügen des Tests, und `vitest` prüft keine Typen.
+
+## K6 — Kontaktbereich
+
+Kontaktliste, Kopf und Stammdaten der Akte, Kontakt anlegen. Nachweis und Messtabelle in
+`docs/design-korrektur/k6/`.
+
+- **Filterzeile der Kontaktliste wieder eine Karte und eine Zeile**: Suchfeld mit Lupe ohne
+  sichtbares Label, Trennstrich, die Rollenreiter, „Weitere" als Reiter mit Chevron statt eines
+  Selects — und rechts, was *wie* angezeigt wird: Archivierte, Aktuell/A–Z, Spalten. Die Reiter
+  sind eine dritte Chip-Form (`listTabClass`), weil der Prototyp sie hier ohne Rahmen und mit
+  voller Primärfläche zeichnet.
+- **Termin-Spalte einzeilig.** Sie zeigte denselben Zeitpunkt zweimal absolut, weil
+  `formatRelativeBerlin` jenseits von ±1 Tag bewusst auf ein Datum zurückfällt. Neu daneben:
+  `formatBerlinDayTime` („Do., 27.08. · 09:00") und `formatRelativeDayBerlin` („in 6 Tagen"),
+  das nie ein Datum nennt — genau deshalb darf es neben einem stehen.
+- **Kopf der Akte ist eine vollbreite, klebende Leiste in Kartenfarbe**, mit den Reitern darin.
+  Das ist die Voraussetzung für die durchgehende Linie: die 2-px-Unterkante des aktiven Reiters
+  sitzt auf der Trennlinie der Leiste. Nr. und Alter stehen in der Namenszeile, die Rollen als
+  Badges darunter, „Archivieren" ist ein schlichter Textknopf, „Zurück" ist weg — den Weg zurück
+  hat die Seitenleiste.
+- **Stammdaten:** Hinweissatz und „Bearbeiten" als Primärknopf über der Karte, Kartenrahmen um
+  die Abschnitte, eigener Abschnitt „Person" (Geburtsdatum → Geburtsort → Geschlecht, je 4/12),
+  Pflichtstern an Nachname und Firmenname, klebende Fußzeile im Bearbeiten-Modus.
+- **Der Rollen-Abschnitt, der ganz gefehlt hat**: Lesemodus Badges plus „Nicht zugeordnet: …",
+  Bearbeiten drei feste Spalten. Damit fällt das Stiftsymbol im Kopf weg — zwei Wege zu
+  denselben Daten sind einer zu viel. Gespeichert wird in zwei Aufrufen, Stammdaten zuerst;
+  scheitert der zweite, sagt der Bildschirm genau das und **bleibt im Bearbeiten-Modus**, damit
+  die getippten Haken nicht verloren gehen.
+- **`Section` nimmt jetzt ein `variant`** statt `titleWidth`: Titelspalte 180/200, Abstand am
+  Trennstrich 22 unten gegen 24 beidseitig, Zeilenabstand 14 gegen 16. Drei Werte, die immer
+  gemeinsam auftreten, unter einem Namen.
+- **Drei Funde außerhalb der Liste**, alle im k6-Nachweis begründet: `ContentWidth` war auf
+  beiden Kontaktbildschirmen 64 px zu schmal (die Kappung sitzt dort *innerhalb* des Polsters,
+  anders als auf den vier 1180er-Bildschirmen — jetzt eine Tabelle statt einer Formel); `main`
+  war ein Scroll-Container, der nie scrollte, weshalb nichts Klebendes klebte; und der Kalender
+  stand seit K1 32 px daneben, weil sein `-m-8` aus D9 stammt, als die Hülle diese Route noch
+  polsterte.
 
 ## K4 — Einstellungen
 

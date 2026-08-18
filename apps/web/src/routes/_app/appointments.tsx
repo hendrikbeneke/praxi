@@ -189,7 +189,15 @@ function CalendarPage() {
       : `${shortDate(firstDay)} – ${shortDate(addDays(firstDay, dayCount - 1))} ${monthLabel(firstDay).slice(-4)}`
 
   return (
-    <div className="-m-8 flex h-[calc(100svh-3.5rem)] min-w-0">
+    /* `h-full`, not a viewport calculation, and no negative margin: the shell
+       gives this route no padding (`lib/page-chrome.ts`) and `main` is now a
+       bounded flex child, so the calendar simply fills it. The `-m-8` dated
+       from before K1 took the padding away and had been pulling the toolbar
+       32px off the top-left corner ever since; the `100svh − 3.5rem` was the
+       same sum written out by hand, and it had to be wrong the moment anything
+       above it changed height. Found in K6, when the shell started owning the
+       scroll. */
+    <div className="flex h-full min-w-0">
       <section className="flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b bg-card px-5 py-3">
           <Button variant="outline" size="sm" onClick={() => setSearch({ date: undefined })}>

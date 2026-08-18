@@ -243,6 +243,9 @@ export const strings = {
     createTitle: 'Kontakt anlegen',
     search: 'Suchen',
     searchPlaceholder: 'Name, Firma oder Kontaktnummer',
+    /** The filter bar shows no labels (K6), so these two are the accessible
+     *  names of the search field and the role menu and nothing else. */
+    moreRolesMenu: 'Weitere Rollen',
     showArchived: 'Archivierte anzeigen',
     empty: 'Keine Kontakte vorhanden.',
     emptyFiltered: 'Kein Kontakt passt zu dieser Suche.',
@@ -259,13 +262,12 @@ export const strings = {
       person: 'Person',
       organization: 'Organisation',
     },
-    kindImmutable: 'Die Art kann nachträglich nicht geändert werden.',
 
     roleLabel: 'Rollen',
     /** The labels themselves come from `contact_role_type` — the practitioner
      *  maintains them in the settings, so there is nothing to translate here. */
     roleHint: 'Die Rollen selbst pflegen Sie in den Einstellungen.',
-    moreRoles: 'Weitere Rollen',
+    moreRoles: 'Weitere',
     orderCurrent: 'Aktuell',
     orderAlpha: 'A–Z',
     searchAll: 'Die Suche geht über alle Kontakte — unabhängig von Rolle und Zeitfenster.',
@@ -302,11 +304,27 @@ export const strings = {
     },
 
     sectionName: 'Name',
+    sectionNameHint: 'Art ist strukturell und nach dem Anlegen nicht mehr änderbar.',
     sectionRoles: 'Rollen',
-    sectionRolesHint: 'Nur beim Anlegen hier wählbar, später über den Kopfbereich.',
+    /** One sentence for both screens: since K6 the roles are edited in the
+     *  master data on an existing contact too, so "later in the header" —
+     *  which the create prototype still says — is no longer true anywhere. */
+    sectionRolesHint: 'Bestimmen, in welchen Listen der Kontakt auftaucht.',
+    sectionPerson: 'Person',
+    sectionPersonHint: 'Geburtsdatum und Geschlecht stehen auf Rezept und Abrechnung.',
+    sectionTax: 'Steuer',
+    sectionTaxHint: 'Erscheint auf Rechnungen an diesen Kontakt.',
+    /** Read mode of the roles section: which ones this contact does *not*
+     *  hold. Empty when it holds all of them — there is nothing to name. */
+    rolesUnassigned: (labels: string[]) => `Nicht zugeordnet: ${labels.join(', ')}`,
+    rolesNone: 'Keine Rolle zugeordnet.',
+    masterReadHint: 'Stammdaten werden erst nach „Bearbeiten" änderbar.',
+    unsavedChanges: 'Ungespeicherte Änderungen',
+    rolesSaveFailed:
+      'Die Stammdaten sind gespeichert, die Rollen nicht. Bitte noch einmal versuchen.',
+    createHint: 'Die Kontaktnummer wird beim Speichern vergeben.',
     sectionAddress: 'Anschrift',
-    sectionAddressHint:
-      'Hausnummer ihr eigenes Feld, für Anzeige und Rechnung wieder zusammengesetzt.',
+    sectionAddressHint: 'Hausnummer separat, für Rechnung und Anzeige wieder zusammengesetzt.',
     sectionContact: 'Kontakt',
     sectionContactHint:
       'Mobil und Festnetz getrennt — die Art entscheidet, ob man anruft oder schreibt.',
@@ -343,6 +361,8 @@ export const strings = {
     diagnosis: 'Diagnose',
     diagnosisHint: 'Vertraulich — erscheint nur hier, im Rechnungsentwurf und auf der Rechnung.',
     contactNumber: 'Kontaktnummer',
+    /** In the record header, where the word would only pad the line. */
+    numberShort: 'Nr.',
 
     save: 'Speichern',
     saving: 'Wird gespeichert …',

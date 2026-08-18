@@ -17,15 +17,25 @@ import { cn } from '@/lib/utils'
  * tab underline keeps spanning the full field, and the calendar wraps nothing.
  * The page padding around all of this comes from `lib/page-chrome.ts`.
  *
- * **The number is the outer width, and the shell's inset is subtracted here.**
- * In the prototype the cap sits on the same element as the 32px page padding,
- * so 1180 is a border-box width holding 1116px of content. This component sits
- * *inside* `main`'s `px-8`, so capping its content at a bare 1180 would make the
- * screen 64px wider than the design — invisible at 1440, where neither cap
- * bites, and wrong on every larger monitor. `PAGE_INSET` names that relationship
- * instead of leaving 1116 as a magic number nobody can trace back.
+ * **Where the cap sits differs between the two, so the number means two
+ * different things and there is no formula covering both.** On the four
+ * screens capped at 1180 the prototype puts the cap on the same element as the
+ * 32px page padding, so the inset is part of the number and 1180 holds 1116px
+ * of content. On the two contact screens the cap sits on a block *inside* an
+ * already padded area, so 1100 is the content width itself. This component
+ * always sits inside `main`'s `px-8`, so each value needs its own answer —
+ * hence a table and not a subtraction. Getting it wrong is invisible at 1440,
+ * where neither cap bites, and 64px off on every larger monitor (found in K6,
+ * where 1100 was rendering as 1036).
  */
 const PAGE_INSET = '4rem' // `px-8` on both sides, from `lib/page-chrome.ts`
+
+const OUTER_WIDTH: Record<1180 | 1100, string> = {
+  // Einstellungen, Leistungen, Zahlungen and the list area of Vorgänge.
+  1180: `calc(1180px - ${PAGE_INSET})`,
+  // Kontaktdetail and Kontakt anlegen.
+  1100: '1100px',
+}
 
 export function ContentWidth({
   max,
@@ -37,7 +47,7 @@ export function ContentWidth({
   className?: string
 }) {
   return (
-    <div className={cn('w-full', className)} style={{ maxWidth: `calc(${max}px - ${PAGE_INSET})` }}>
+    <div className={cn('w-full', className)} style={{ maxWidth: OUTER_WIDTH[max] }}>
       {children}
     </div>
   )

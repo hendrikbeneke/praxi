@@ -1445,6 +1445,14 @@ For every slice:
 2. **If the slice creates or alters a table, show me the concrete DDL first** — every column with its type, nullability, defaults, enum values, indexes and constraints — and wait for my approval before writing the migration. Do not treat the sketch above as settled. Where you think it is wrong, incomplete or badly named, say so at this point; that is what this step is for.
 3. Implement it. Migrations are additive — never edit an existing migration file, always add a new one.
 4. Run `pnpm typecheck`, `pnpm test`, `pnpm lint` yourself and fix what fails. Do not hand me failing output.
+
+   **All three run against the last state of the code, and again if anything
+   changed after they ran.** A green run proves the tree it saw, not the tree
+   being committed. The three do not cover for each other: `vitest` does not
+   typecheck, so a test file added after `tsc` has passed can be green in the
+   suite and broken for the compiler — which is exactly what happened in K4,
+   where the PDF test was written after the typecheck and a type error went out
+   with the commit. When in doubt, run them again; they cost a minute.
 5. **For a UI-facing slice, verify it against the running server in a browser** before calling it done. Typecheck and the test suite prove the logic; they do not prove a screen renders, aligns, or behaves the way the plan said — a CSS grid lining up header and rows, an error message naming the right reasons, that kind of thing is only visible there. Start and stop the dev server(s) yourself as needed, without asking each time; if one of mine is already running, stop it and start your own — I will start mine again when I need it. Clean up any test data the pass created afterward, the same way earlier slices did.
 6. Replace that table's block in the data model above with the schema as actually built and mark it `-- as built`. The sketch converges into documentation as we go.
 7. **Commit**, Conventional Commits format, in English. This happens before step 8, not after — a report describing an uncommitted working tree is not a finished slice.
