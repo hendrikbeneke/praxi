@@ -53,7 +53,6 @@ export function NoteEditor({
   previewing,
   onTogglePreview,
   rows = 10,
-  disabled = false,
 }: {
   id: string
   value: string
@@ -61,23 +60,8 @@ export function NoteEditor({
   previewing: boolean
   onTogglePreview: () => void
   rows?: number
-  disabled?: boolean
 }) {
   const field = useRef<HTMLTextAreaElement>(null)
-
-  /**
-   * Read mode shows the note, not its source. A disabled textarea full of
-   * asterisks would be the worst of both: unreadable *and* unusable, and it
-   * would make "read mode first" look like a limitation rather than the point.
-   * The toolbar and the toggle only exist while writing.
-   */
-  if (disabled) {
-    return value.trim() === '' ? (
-      <p className="text-muted-foreground text-sm">{strings.note.previewEmpty}</p>
-    ) : (
-      <NoteText text={value} />
-    )
-  }
 
   /** Writes through the browser so the edit joins the undo history. Falls
    *  back to the controlled value where `execCommand` is refused, because a
@@ -153,27 +137,24 @@ export function NoteEditor({
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-1">
-        <ToolButton label={strings.note.formatBold} onClick={toggleBold} disabled={disabled}>
+        <ToolButton label={strings.note.formatBold} onClick={toggleBold}>
           <Bold className="size-4" aria-hidden />
         </ToolButton>
         <ToolButton
           label={strings.note.formatHeading}
           onClick={() => toggleBlock(NOTE_MARKERS.heading)}
-          disabled={disabled}
         >
           <Heading className="size-4" aria-hidden />
         </ToolButton>
         <ToolButton
           label={strings.note.formatBullets}
           onClick={() => toggleBlock(NOTE_MARKERS.bullet)}
-          disabled={disabled}
         >
           <List className="size-4" aria-hidden />
         </ToolButton>
         <ToolButton
           label={strings.note.formatNumbered}
           onClick={() => toggleBlock(NOTE_MARKERS.numbered)}
-          disabled={disabled}
         >
           <ListOrdered className="size-4" aria-hidden />
         </ToolButton>
@@ -211,7 +192,6 @@ export function NoteEditor({
           ref={field}
           rows={rows}
           value={value}
-          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
@@ -225,12 +205,10 @@ export function NoteEditor({
 function ToolButton({
   label,
   onClick,
-  disabled,
   children,
 }: {
   label: string
   onClick: () => void
-  disabled: boolean
   children: React.ReactNode
 }) {
   return (
@@ -241,7 +219,6 @@ function ToolButton({
       className="size-8"
       aria-label={label}
       title={label}
-      disabled={disabled}
       onClick={onClick}
     >
       {children}

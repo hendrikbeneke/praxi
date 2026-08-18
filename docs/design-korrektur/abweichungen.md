@@ -73,21 +73,31 @@ und `filterChipClass` müssten die Reihenfolge als Parameter nehmen.
 
 ---
 
-## K3 — Zähl-Chips sind keine Knöpfe
+## ~~K3 — Zähl-Chips sind keine Knöpfe~~ → in K7 zurückgenommen
 
-**Design:** Die Zähl-Chips über den Kontakt-Reitern sind `<button>`.
+**Der Eintrag war falsch, und zwar in der Beobachtung, nicht in der Schlussfolgerung.**
 
-**Gebaut:** `<span>`.
+K3 hatte notiert: „Sie filtern nichts. Geprüft am Prototyp — ein Klick auf ‚3 Gesperrt' verschiebt
+nur die Auswahl, die Liste bleibt vollständig." Verschoben wird die Auswahl tatsächlich, das war
+richtig gesehen. Gefiltert wird aber auch:
 
-**Warum:** Sie filtern nichts. Geprüft am Prototyp — ein Klick auf „3 Gesperrt" verschiebt
-nur die Auswahl, die Liste bleibt vollständig, und die Zustandsliste des Handoffs nennt für
-diese Reiter keinen Filter. Ein Bedienelement ohne Funktion ist dasselbe Muster wie der
-Briefbogen-Knopf, der 404 antwortete, und wie die Kopfzeilen-Suche, die deshalb draußen
-bleibt.
+```js
+const notizTrifft = n => { const f = st.nzFilter; if (!f) return true; … }
+const sichtbareNotizen = NOTIZEN.filter(notizTrifft)
+```
 
-**Falls sie filtern sollen:** dann werden es echte Knöpfe mit Zustand, und die Null bleibt
-sichtbar — bei einem Filter ist sie eine Aussage, bei einer Zählung nur Rauschen. Heute
-werden Chips mit `0` weggelassen.
+Dasselbe gilt für `vgFilter` (Vorgänge) und `reFilter` (Rechnungen). Ich habe die eine Wirkung
+gesehen und daraus geschlossen, dass es die andere nicht gibt.
+
+**Gebaut ist seit K7 das, was der Prototyp macht:** die drei Chip-Zeilen sind echte Filter
+(`filterChipClass`, dieselbe Form wie auf Zahlungen und der Vorgänge-Seite), sie schalten sich
+durch erneutes Klicken wieder ab, und **die Null bleibt stehen** — bei einem Filter ist
+„Überfällig 0" eine Antwort, bei einer bloßen Zählung wäre sie Rauschen. `CountChip` hatte damit
+keinen Aufrufer mehr und ist gelöscht.
+
+**Was von K3 bleibt:** die Zahl steht weiter *hinter* dem Wort. Der Prototyp setzt sie auf diesen
+Chips davor und auf den Leistungen-Reitern dahinter; eine Reihenfolge für eine Form ist mehr wert
+als beide.
 
 ---
 
@@ -184,3 +194,37 @@ Kein Abweichen, sondern die konsequente Anwendung der Regel „a form never clai
 does not exist": der Prototyp zeigt den Satz in der klebenden Fußzeile, solange bearbeitet
 wird. Gebaut hängt er an `isDirty`. Ein Formular, das Änderungen behauptet, die niemand
 gemacht hat, ist derselbe Fehler wie eine erfundene Rechnungsnummer — nur kleiner.
+
+---
+
+## K7 — Die Lesespalte der Notizen liest, geschrieben wird im Dialog
+
+**Design:** Die rechte Spalte des Notizen-Reiters ist zugleich der Editor — ein
+`contentEditable` mit Formatleiste, in dem eine Notiz angelegt und bearbeitet wird.
+
+**Gebaut:** Die Lesespalte liest. „Neue Notiz", „Bearbeiten" und „Nachtrag" öffnen den Dialog —
+den der Prototyp **selbst danebenstellt**, mit denselben Feldern (Datum, Art, Zum Vorgang, Text).
+Wir bauen also die zweite Hälfte des Prototyps, nicht etwas Drittes.
+
+**Warum:** CLAUDE.md verbietet `contentEditable` für Notiztext ausdrücklich, und das ist hier
+keine Formalie. Ein `contentEditable` erzeugt Markup, das niemand geschrieben hat — je nach
+Browser anderes —, und **genau dieser Text wird gehasht und gesperrt**: § 630f BGB verlangt, dass
+die ursprüngliche Fassung erkennbar bleibt, und die Hash-Kette in `note.content_hash` steht dafür
+ein. Was in einem gesperrten Feld liegt, muss das sein, was die Behandlerin geschrieben hat.
+
+**Falls doch:** dann nicht mit `contentEditable`, sondern mit der Textarea aus
+`components/note-editor.tsx` an der Stelle der Lesespalte. Die Regel bliebe gewahrt, es wäre nur
+mehr Arbeit als ein Dialog, den es schon gibt.
+
+---
+
+## K7 — „noch nicht abgerechnet" statt „seit der letzten Rechnung"
+
+**Design:** Die Karte über der Rechnungsliste sagt „3 Vorgänge seit der letzten Rechnung".
+
+**Gebaut:** „3 Vorgänge, noch nicht abgerechnet".
+
+**Warum:** Der Satz des Prototyps behauptet etwas, das aus den Daten nicht folgt. Abrechenbar ist,
+was auf keiner aktiven Rechnung steht — und das kann älter sein als die letzte Rechnung, etwa
+wenn ein Vorgang beim Sammeln übersehen wurde oder eine Rechnung storniert worden ist. Der Satz
+passte zu den Beispieldaten, nicht zur Regel.

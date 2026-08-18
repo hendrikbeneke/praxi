@@ -122,6 +122,20 @@ describe('recording a payment', () => {
     expect((await getInvoice(db(), tenantId, entry.id))?.paidCents).toBe(8500)
   })
 
+  /** So a list can print "bezahlt 28.07.2026" rather than only "bezahlt". */
+  it('reports the newest payment date and nothing before the first one', async () => {
+    const entry = await finalized()
+    expect((await getInvoice(db(), tenantId, entry.id))?.lastPaidOn).toBeNull()
+
+    await pay(entry.id, 5000, '2026-09-05')
+    await pay(entry.id, 3500, '2026-09-10')
+    // Entered last, dated in between: what is asked is when the money arrived,
+    // not in which order it was typed in.
+    await pay(entry.id, 1000, '2026-09-07')
+
+    expect((await getInvoice(db(), tenantId, entry.id))?.lastPaidOn).toBe('2026-09-10')
+  })
+
   it('turns a part payment into partially_paid', async () => {
     const entry = await finalized()
     await pay(entry.id, 5000)

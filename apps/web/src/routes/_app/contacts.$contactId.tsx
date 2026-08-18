@@ -3,13 +3,17 @@ import {
   activityStatuses,
   type ContactRoleInput,
   type ContactUpdate,
+  dueDate,
   formatBerlinDate,
+  formatBerlinMonth,
   formatBerlinTime,
   formatEuro,
+  type Invoice,
   invoicePaymentState,
   type Note,
   noteTypes,
   occupiesSlot,
+  type PaymentState,
   toBerlinDate,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -19,14 +23,15 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { ActivityList } from '@/components/activity-list'
-import { CountChip } from '@/components/chip'
+import { filterChipClass } from '@/components/chip'
 import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
 import { ContentWidth } from '@/components/content-width'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteDialog } from '@/components/note-dialog'
-import { NoteList } from '@/components/note-list'
+import { NotePanel } from '@/components/note-panel'
+import { PaymentStatusBadge } from '@/components/payment-status'
 import { RecordTab, RecordTabsList } from '@/components/record-tabs'
 import {
   AlertDialog,
@@ -50,7 +55,7 @@ import {
   setContactRoles,
   updateContact,
 } from '@/lib/contacts'
-import { createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
+import { billableQueryOptions, createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
@@ -268,37 +273,54 @@ function ContactDetailPage() {
 function ContactActivities({ contactId }: { contactId: string }) {
   const activities = useQuery(activityListQueryOptions({ contactId }))
   const [creating, setCreating] = useState(false)
+  const [filter, setFilter] = useState<string | undefined>()
 
   const rows = activities.data ?? []
   const now = new Date().toISOString()
+
+  /** Each chip carries the test it filters by, so the count and the narrowing
+   *  cannot say different things. */
   const activityChips = [
     ...activityStatuses.map((status) => ({
+      id: `status:${status}`,
       label: strings.activity.statuses[status],
-      count: rows.filter((entry) => entry.status === status).length,
+      matches: (entry: Activity) => entry.status === status,
     })),
     {
+      id: 'billed',
       label: strings.counts.activitiesBilled,
-      count: rows.filter((entry) => entry.billingState === 'billed').length,
+      matches: (entry: Activity) => entry.billingState === 'billed',
     },
     {
+      id: 'unbilled',
       label: strings.counts.activitiesUnbilled,
-      count: rows.filter((entry) => entry.billingState === 'open').length,
+      matches: (entry: Activity) => entry.billingState === 'open',
     },
     {
+      id: 'no-appointment',
       label: strings.counts.activitiesNoAppointment,
-      count: rows.filter((entry) => entry.appointment === null).length,
+      matches: (entry: Activity) => entry.appointment === null,
     },
   ]
+
+  const active = activityChips.find((chip) => chip.id === filter)
+  const shown = active ? rows.filter(active.matches) : rows
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <CountRow
+        <FilterRow
           summary={strings.counts.activities(
             rows.length,
             rows.filter((entry) => entry.occurredAt > now).length,
           )}
-          chips={activityChips}
+          chips={activityChips.map((chip) => ({
+            id: chip.id,
+            label: chip.label,
+            count: rows.filter(chip.matches).length,
+          }))}
+          active={filter}
+          onChange={setFilter}
         />
         <Button className="ml-auto" onClick={() => setCreating(true)}>
           <Plus className="size-4" aria-hidden />
@@ -307,7 +329,7 @@ function ContactActivities({ contactId }: { contactId: string }) {
       </div>
 
       <ActivityList
-        activities={rows}
+        activities={shown}
         emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
         showContact={false}
         contactId={contactId}
@@ -327,6 +349,7 @@ function ContactActivities({ contactId }: { contactId: string }) {
 function ContactInvoices({ contactId }: { contactId: string }) {
   const navigate = useNavigate()
   const invoices = useQuery(invoiceListQueryOptions({ contactId }))
+  const [filter, setFilter] = useState<string | undefined>()
 
   const create = useMutation({
     mutationFn: () =>
@@ -346,57 +369,89 @@ function ContactInvoices({ contactId }: { contactId: string }) {
 
   const rows = invoices.data ?? []
   const today = toBerlinDate(new Date().toISOString())
-  const states = rows.map((invoice) => invoicePaymentState(invoice, invoice.paidCents, today))
+  const withState = rows.map((invoice) => ({
+    invoice,
+    state: invoicePaymentState(invoice, invoice.paidCents, today),
+  }))
+
+  type Row = (typeof withState)[number]
   const invoiceChips = [
+    { id: 'open', label: strings.counts.invoicesOpen, matches: (r: Row) => r.state.openCents > 0 },
     {
-      label: strings.counts.invoicesOpen,
-      count: states.filter((state) => state.status === 'open').length,
-    },
-    {
+      id: 'paid',
       label: strings.counts.invoicesPaid,
-      count: states.filter((state) => state.status === 'paid').length,
+      matches: (r: Row) => r.state.status === 'paid',
     },
     {
       /* Overdue is a second axis, not a status (CLAUDE.md rule 9) — an invoice
-         can be partly paid and overdue at once, so this counts the axis. */
+         can be partly paid and overdue at once, so this filters the axis. */
+      id: 'overdue',
       label: strings.counts.invoicesOverdue,
-      count: states.filter((state) => state.daysOverdue !== null).length,
+      matches: (r: Row) => r.state.daysOverdue !== null,
     },
   ]
+
+  const active = invoiceChips.find((chip) => chip.id === filter)
+  const shown = active ? withState.filter(active.matches) : withState
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <CountRow summary={strings.counts.invoices(rows.length)} chips={invoiceChips} />
+        <FilterRow
+          summary={strings.counts.invoices(rows.length)}
+          chips={invoiceChips.map((chip) => ({
+            id: chip.id,
+            label: chip.label,
+            count: withState.filter(chip.matches).length,
+          }))}
+          active={filter}
+          onChange={setFilter}
+        />
         <Button className="ml-auto" onClick={() => create.mutate()} disabled={create.isPending}>
           <Plus className="size-4" aria-hidden />
-          {strings.invoice.create}
+          {strings.invoice.createAction}
         </Button>
       </div>
 
-      {rows.length === 0 ? (
+      <BillableCard contactId={contactId} onCreate={() => create.mutate()} />
+
+      {shown.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          {invoices.isPending ? strings.status.loading : strings.invoice.empty}
+          {invoices.isPending
+            ? strings.status.loading
+            : rows.length === 0
+              ? strings.invoice.empty
+              : strings.invoice.emptyFiltered}
         </p>
       ) : (
-        <ul className="space-y-2">
-          {rows.map((entry) => (
-            <li key={entry.id}>
+        <ul className="overflow-hidden rounded-[10px] border bg-card">
+          {shown.map(({ invoice: entry, state }) => (
+            <li key={entry.id} className="border-t first:border-t-0">
               <Link
                 to="/invoices/$invoiceId"
                 params={{ invoiceId: entry.id }}
-                className="flex flex-wrap items-baseline gap-x-3 rounded-md border px-4 py-3 hover:bg-accent/50"
+                className="flex items-center gap-3.5 px-4 py-3 hover:bg-accent"
               >
-                <span className="font-medium">
+                <span className="w-[84px] shrink-0 font-semibold tabular-nums">
                   {entry.number ?? strings.invoice.statuses.draft}
                 </span>
-                <span className="text-muted-foreground text-sm tabular-nums">
+                <span className="w-[84px] shrink-0 text-[13.5px] text-muted-foreground tabular-nums">
                   {formatBerlinDate(`${entry.invoiceDate}T12:00:00Z`)}
                 </span>
-                <Badge variant={entry.status === 'draft' ? 'outline' : 'secondary'}>
-                  {strings.invoice.statuses[entry.status]}
-                </Badge>
-                <span className="ml-auto tabular-nums">{formatEuro(entry.totalCents)}</span>
+                <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground">
+                  {invoiceScope(entry)}
+                </span>
+                <span className="w-[84px] shrink-0 text-right tabular-nums">
+                  {formatEuro(entry.totalCents)}
+                </span>
+                {entry.status === 'draft' ? (
+                  <Badge variant="outline">{strings.invoice.statuses.draft}</Badge>
+                ) : (
+                  <PaymentStatusBadge state={state} withDays={false} />
+                )}
+                <span className="shrink-0 whitespace-nowrap text-right text-[12.5px] text-muted-foreground tabular-nums">
+                  {invoiceHint(entry, state)}
+                </span>
               </Link>
             </li>
           ))}
@@ -406,23 +461,120 @@ function ContactInvoices({ contactId }: { contactId: string }) {
   )
 }
 
+/**
+ * What an invoice covers — "2 Vorgänge · Juli" — for the middle of a row.
+ *
+ * Activities, not lines: several lines routinely come out of one session, so
+ * counting lines would answer a different question. `line.activityId` is
+ * derived on read and null on a free line typed by hand (K7); an invoice made
+ * only of those falls back to counting its lines, because "0 Vorgänge" would
+ * be a strange way to describe something that plainly has content.
+ */
+function invoiceScope(entry: Invoice): string {
+  const activities = new Set(
+    entry.lines.map((line) => line.activityId).filter((id): id is string => id !== null),
+  )
+  const count =
+    activities.size > 0
+      ? strings.invoice.scopeActivities(activities.size)
+      : strings.invoice.scopeLines(entry.lines.length)
+
+  const months = [
+    ...new Set(
+      entry.lines
+        .map((line) => line.dateOfService)
+        .filter((date): date is string => date !== null)
+        .map((date) => formatBerlinMonth(`${date}T12:00:00Z`)),
+    ),
+  ]
+  if (months.length === 0) return count
+
+  const span = months.length === 1 ? months[0] : `${months[0]} – ${months[months.length - 1]}`
+  return `${count} · ${span}`
+}
+
+/** When it is due, since when it was due, or when it was paid — the last thing
+ *  a row says. A draft says nothing: it is not a claim yet. */
+function invoiceHint(entry: Invoice, state: PaymentState): string {
+  if (entry.status === 'draft') return ''
+
+  if (state.status === 'paid' || state.status === 'overpaid') {
+    return entry.lastPaidOn
+      ? strings.invoice.paidOn(formatBerlinDate(`${entry.lastPaidOn}T12:00:00Z`))
+      : strings.payment.statuses[state.status]
+  }
+  if (state.status === 'cancelled' || state.status === 'cancellation') return ''
+
+  const due = formatBerlinDate(`${dueDate(entry.invoiceDate, entry.paymentTermDays)}T12:00:00Z`)
+  return state.daysOverdue === null ? strings.invoice.dueOn(due) : strings.invoice.overdueSince(due)
+}
+
+/**
+ * What is billable but on no invoice, over the list — the card the design puts
+ * there, with the way into a draft on it.
+ *
+ * It reads the same query the overview's own summary does, so standing on this
+ * tab costs no extra request. It appears only when there is something: a card
+ * saying "0,00 €" would be a claim that something is waiting.
+ */
+function BillableCard({ contactId, onCreate }: { contactId: string; onCreate: () => void }) {
+  const billable = useQuery(billableQueryOptions(contactId))
+  const items = billable.data ?? []
+
+  if (items.length === 0) return null
+
+  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPriceCents, 0)
+  const activities = new Set(items.map((item) => item.activityId))
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[10px] border bg-muted/45 px-4 py-3.5">
+      <div>
+        <p className="font-semibold">{strings.billable.cardTitle}</p>
+        <p className="mt-[3px] text-[13px] text-muted-foreground">
+          {strings.billable.cardLine(activities.size)}
+        </p>
+      </div>
+      <span className="flex items-center gap-3.5">
+        <span className="font-semibold text-[19px] tabular-nums">{formatEuro(total)}</span>
+        <Button size="sm" variant="outline" onClick={onCreate}>
+          {strings.invoice.createAction}
+        </Button>
+      </span>
+    </div>
+  )
+}
+
 function ContactNotes({ contactId }: { contactId: string }) {
   const notes = useQuery(noteListQueryOptions({ contactId }))
   const noteRows = notes.data ?? []
-  /* Locked state first, then one chip per type that actually occurs — a type
-     with no note is left out rather than shown as a zero, because these count
-     and do not filter (K3). */
+  const [filter, setFilter] = useState<string | undefined>()
+
+  /* Locked state first, then one chip per type that actually occurs — the
+     prototype builds the type chips from the types present, so no chip stands
+     for a category this contact has never had. The two that always exist keep
+     their zero: at a filter a zero is an answer (K7). */
   const noteChips = [
     {
+      id: 'locked',
       label: strings.counts.notesLocked,
-      count: noteRows.filter((n) => n.lockedAt !== null).length,
+      matches: (note: Note) => note.lockedAt !== null,
     },
-    { label: strings.counts.notesOpen, count: noteRows.filter((n) => n.lockedAt === null).length },
-    ...noteTypes.map((type) => ({
-      label: strings.note.types[type],
-      count: noteRows.filter((n) => n.type === type).length,
-    })),
+    {
+      id: 'open',
+      label: strings.counts.notesOpen,
+      matches: (note: Note) => note.lockedAt === null,
+    },
+    ...noteTypes
+      .filter((type) => noteRows.some((note) => note.type === type))
+      .map((type) => ({
+        id: `type:${type}`,
+        label: strings.note.types[type],
+        matches: (note: Note) => note.type === type,
+      })),
   ]
+
+  const active = noteChips.find((chip) => chip.id === filter)
+  const shown = active ? noteRows.filter(active.matches) : noteRows
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [edited, setEdited] = useState<Note | undefined>()
@@ -438,7 +590,16 @@ function ContactNotes({ contactId }: { contactId: string }) {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <CountRow summary={strings.counts.notes(noteRows.length)} chips={noteChips} />
+        <FilterRow
+          summary={strings.counts.notes(noteRows.length)}
+          chips={noteChips.map((chip) => ({
+            id: chip.id,
+            label: chip.label,
+            count: noteRows.filter(chip.matches).length,
+          }))}
+          active={filter}
+          onChange={setFilter}
+        />
         <Button variant="outline" className="ml-auto" onClick={() => setChainOpen(true)}>
           <ShieldCheck className="size-4" aria-hidden />
           {strings.note.chainCheck}
@@ -449,8 +610,8 @@ function ContactNotes({ contactId }: { contactId: string }) {
         </Button>
       </div>
 
-      <NoteList
-        notes={noteRows}
+      <NotePanel
+        notes={shown}
         emptyText={notes.isPending ? strings.status.loading : strings.note.empty}
         onEdit={(note) => open(note)}
         onAddendum={(note) => open(undefined, note)}
@@ -460,9 +621,6 @@ function ContactNotes({ contactId }: { contactId: string }) {
         contactId={contactId}
         note={edited}
         correctsNote={corrects}
-        // The pencil on a note is already the "edit" step, so it goes straight
-        // in — this is the dialog that gets used every day.
-        startEditing
         open={dialogOpen}
         onOpenChange={(next) => {
           setDialogOpen(next)
@@ -523,28 +681,45 @@ function ContactAppointments({ contactId }: { contactId: string }) {
 }
 
 /**
- * The count row above a tab's list: a prose summary, then one chip per category
- * that has something in it (K3).
+ * The filter row above a tab's list: a prose summary, then one chip per
+ * category — and clicking one narrows the list (K3, corrected in K7).
  *
- * Zero-count chips are dropped. With a filter the zero would be an answer worth
- * showing; these only count, so "Nicht erschienen 0" is a category the contact
- * has never had — noise beside the ones they do have.
+ * K3 built these as plain counts, on the reading that the prototype's chips
+ * were controls without a function. That was a misreading: `nzFilter`,
+ * `vgFilter` and `reFilter` narrow the three lists there. So they filter here
+ * too — and **a zero stays visible**, because at a filter it is an answer
+ * ("Überfällig 0") rather than the noise it would be at a bare count.
+ *
+ * The active chip is toggled off by clicking it again, as in the prototype.
+ * The count still stands *after* the label, which is K3's other decision and
+ * unaffected by this one: the prototype puts it first here and last on the
+ * Leistungen tabs, and one order for one shape is worth more than either.
  */
-function CountRow({
+function FilterRow<Id extends string>({
   summary,
   chips,
+  active,
+  onChange,
 }: {
   summary: string
-  chips: { label: string; count: number }[]
+  chips: { id: Id; label: string; count: number }[]
+  active: Id | undefined
+  onChange: (next: Id | undefined) => void
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <p className="text-[13.5px] text-muted-foreground">{summary}</p>
-      {chips
-        .filter((chip) => chip.count > 0)
-        .map((chip) => (
-          <CountChip key={chip.label} label={chip.label} count={chip.count} />
-        ))}
+      {chips.map((chip) => (
+        <button
+          key={chip.id}
+          type="button"
+          className={filterChipClass(active === chip.id)}
+          onClick={() => onChange(active === chip.id ? undefined : chip.id)}
+        >
+          {chip.label}
+          <span className="font-semibold tabular-nums">{chip.count}</span>
+        </button>
+      ))}
     </div>
   )
 }

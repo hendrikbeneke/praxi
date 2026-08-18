@@ -397,11 +397,15 @@ export const strings = {
     billableCount: (count: number) =>
       count === 1 ? '1 offene Position' : `${count} offene Positionen`,
     openDraft: 'Zum Rechnungsentwurf',
-    invoicesFinalized: (count: number) =>
-      count === 1 ? '1 festgeschriebene Rechnung' : `${count} festgeschriebene Rechnungen`,
-    invoicesOpen: (count: number) => (count === 1 ? '1 offene Rechnung' : `${count} offen`),
+    /** On the card the number is set large on its own line, so this counts
+     *  without repeating the word "Rechnung" that heads the card (K7). */
+    invoicesFinalized: (count: number) => `${count} festgeschrieben`,
+    invoicesOpenAmount: 'offen',
+    invoicesOverdueAmount: 'davon überfällig',
+    invoicesBilledInYear: (year: number) => `abgerechnet ${year}`,
     invoicesSettled: 'Nichts offen.',
     invoicesOverdue: (count: number) => (count === 1 ? '1 überfällig' : `${count} überfällig`),
+    toInvoices: 'Zu den Rechnungen',
     guardianMissing:
       'Dieser Kontakt ist noch nicht volljährig, und es ist niemand als sorgeberechtigt ' +
       'hinterlegt. Sie können das unter „Verknüpfte Kontakte" ergänzen.',
@@ -568,6 +572,12 @@ export const strings = {
     section: 'Vorgang',
     appointmentSection: 'Termin',
     noAppointment: 'Kein Kalendertermin',
+    /** In a list row, where the sentence has to be short and sits among
+     *  badges — the detail below says it in full. */
+    noAppointmentShort: 'ohne Termin',
+    /** "Termin Bestätigt" — the word is part of the badge, so the slot's
+     *  status cannot be mistaken for the activity's own (K7). */
+    appointmentBadge: (status: string) => `Termin ${status}`,
     openInCalendar: 'Im Kalender öffnen',
 
     withAppointment: 'Termin im Kalender anlegen',
@@ -942,7 +952,11 @@ export const strings = {
   },
   invoice: {
     title: 'Rechnungen',
+    /** The title of the dialog that asks which contact — not a button label.
+     *  The button that starts one says `createAction`; keeping them apart is
+     *  the lesson of the one-string-two-purposes bugs in K4 and K5. */
     create: 'Neue Rechnung',
+    createAction: 'Rechnung erstellen',
     createHint: 'Für welchen Kontakt? Die Positionen kommen danach im Entwurf dazu.',
     createConfirm: 'Entwurf anlegen',
     empty: 'Noch keine Rechnungen.',
@@ -970,6 +984,15 @@ export const strings = {
       cancelled: 'Storniert',
     },
     emptyFiltered: 'Keine Rechnung passt zu diesem Filter.',
+    /** The hint at the end of a row in the contact's invoice list (K7): when
+     *  it is due, since when it was due, or when it was paid. */
+    dueOn: (date: string) => `fällig ${date}`,
+    overdueSince: (date: string) => `fällig seit ${date}`,
+    paidOn: (date: string) => `bezahlt ${date}`,
+    /** What an invoice covers — how many activities its lines came out of,
+     *  and in which month or months those fell. */
+    scopeActivities: (n: number) => `${n} ${n === 1 ? 'Vorgang' : 'Vorgänge'}`,
+    scopeLines: (n: number) => `${n} ${n === 1 ? 'Position' : 'Positionen'}`,
     openTotal: (amount: string) => `Offen insgesamt: ${amount}`,
 
     number: 'Nummer',
@@ -1218,6 +1241,14 @@ export const strings = {
       'vergangener Vorgang, der noch auf „geplant“ steht, soll auffallen.',
     empty: 'Nichts offen — alles Erbrachte steht auf einer Rechnung.',
     collect: 'Rechnungen erstellen',
+
+    /** The card above the contact's invoice list (K7). */
+    cardTitle: 'Abrechenbar, noch nicht in Rechnung',
+    /** The design writes "seit der letzten Rechnung" here, which the data does
+     *  not support: an item that was never billed can be older than the last
+     *  invoice. See `docs/design-korrektur/abweichungen.md`. */
+    cardLine: (activities: number) =>
+      `${activities} ${activities === 1 ? 'Vorgang' : 'Vorgänge'}, noch nicht abgerechnet`,
     draftExists: 'Entwurf vorhanden',
     total: 'Summe:',
 

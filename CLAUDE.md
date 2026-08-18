@@ -1494,13 +1494,15 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 
 *Why: opening a record is the common case, and reading it must not risk changing it. It also makes a stray keystroke harmless.*
 
-A control that explicitly means *edit* — the pencil on a note — may lead straight into edit mode; every other way into a record opens it in read mode. That is a property of the way in, not of the dialog: the dialog can do both and takes it as a parameter, defaulting to read mode.
+A control that explicitly means *edit* may lead straight into edit mode; every other way into a record opens it in read mode. That is a property of the way in, not of the dialog.
+
+**A dialog every way into which means "edit" therefore has no read mode at all, and must not keep one.** The note dialog was the example above until K7 — it took a `startEditing` parameter and defaulted to read mode, and no caller ever used that default. Once the Notizen tab gained the design's reading pane, reading moved there for good and the dialog became what its three entry points always meant: write, edit, supplement. The parameter, the read branches and `ReadModeFooter` are gone. Reading and writing in two places is the shape here; a second read mode inside the writing dialog is a copy, and a copy of a record's read view is a way for two screens to say different things about it.
 
 The invoice draft is not an exception. It was one until slice 10 — "a draft is not a record to read" — and the exception cost more than it was worth in daily use. It also carried a second problem: the preview renders what is *stored*, so on an unsaved draft it came out empty, and finalizing needed a save-then-finalize detour because the screen could differ from the database. In read mode neither can happen, so both went away. The preview button lives in read mode only.
 
 **Read mode renders no fields.** The rule is that reading must not be able to change the record. It is *not* that a value has to look like an input — and for a while the code confused the two: read mode rendered the fields themselves, disabled, so every screen showed bordered grey boxes nobody could type in, and a contact with few details filled in was a wall of empty ones. The design handoff says it plainly about the role section — "keine deaktivierten Checkboxen im Lesemodus, die waren unlesbar" — and a disabled text field is the same mistake wearing a longer label: a border and a grey fill promise an entry that cannot be made.
 
-So in read mode the value stands as **text under the label**, via `ReadValue` (`components/read-value.tsx`), and a missing value is the same `—` every list uses. The `<Label>` is identical in both modes, so switching to edit moves no line; only the box appears. `editing` is initialised to "this is a new record, or the caller asked for edit mode" and reset whenever a dialog opens. Dialogs use `ReadModeFooter` so every record looks the same once open, regardless of which button opened it.
+So in read mode the value stands as **text under the label**, via `ReadValue` (`components/read-value.tsx`), and a missing value is the same `—` every list uses. The `<Label>` is identical in both modes, so switching to edit moves no line; only the box appears. `editing` is initialised to "this is a new record, or the caller asked for edit mode" and reset whenever a dialog opens.
 
 Two things this shifts, both worth knowing:
 

@@ -14,11 +14,18 @@ import { formatContactName, sumLines } from '@praxi/shared'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database, DbReader, Transaction } from '../db/client.js'
-import { contact, invoice, invoiceLine, practiceSettings, textTemplate } from '../db/schema.js'
+import {
+  activityItem,
+  contact,
+  invoice,
+  invoiceLine,
+  practiceSettings,
+  textTemplate,
+} from '../db/schema.js'
 import { newId } from '../id.js'
 import { listBillableItems } from './billable.js'
 import { lastSendByInvoice } from './invoice-send.js'
-import { paidCentsByInvoice } from './payment.js'
+import { type PaymentSummary, paymentSummaryByInvoice } from './payment.js'
 
 /**
  * Invoice drafts: creating, editing, discarding. Finalization lives next door
@@ -80,6 +87,14 @@ const lineColumns = {
   id: invoiceLine.id,
   position: invoiceLine.position,
   activityItemId: invoiceLine.activityItemId,
+  /**
+   * The activity the line's item belongs to, joined in and stored nowhere —
+   * the same shape as `paidCents` and `contactName` (K7). It is what lets a
+   * row say "2 Vorgänge" instead of "3 Positionen": several lines routinely
+   * come from one activity, so counting lines answers a different question.
+   * Null on a free line typed by hand, which belongs to no activity.
+   */
+  activityId: activityItem.activityId,
   description: invoiceLine.description,
   feeCode: invoiceLine.feeCode,
   dateOfService: invoiceLine.dateOfService,
@@ -95,6 +110,7 @@ type InvoiceRow = Omit<
   | 'contactName'
   | 'contactNumber'
   | 'paidCents'
+  | 'lastPaidOn'
   | 'lastSentAt'
   | 'lastSentTo'
 > & {
@@ -126,6 +142,9 @@ async function loadLines(reader: DbReader, invoiceIds: readonly string[]) {
   const rows = await reader
     .select({ ...lineColumns, invoiceId: invoiceLine.invoiceId })
     .from(invoiceLine)
+    // Left, not inner: a free line carries no `activity_item_id` at all and
+    // must not fall out of the invoice it is on.
+    .leftJoin(activityItem, eq(activityItem.id, invoiceLine.activityItemId))
     .where(inArray(invoiceLine.invoiceId, [...invoiceIds]))
     .orderBy(asc(invoiceLine.position))
 
@@ -141,7 +160,7 @@ async function loadLines(reader: DbReader, invoiceIds: readonly string[]) {
 function toInvoice(
   row: InvoiceRow & { contactName: string; contactNumber: number },
   lines: InvoiceLine[],
-  paidCents: number,
+  payments: PaymentSummary | undefined,
   lastSend: LastSend,
 ): Invoice {
   return {
@@ -149,7 +168,11 @@ function toInvoice(
     finalizedAt: row.finalizedAt?.toISOString() ?? null,
     // Derived, never stored (rule 9). What the number *means* is decided by
     // `invoicePaymentState()` in packages/shared and nowhere else.
-    paidCents,
+    paidCents: payments?.paidCents ?? 0,
+    // The day the last payment arrived, so a list can date "bezahlt". Same
+    // reasoning as the sum above: no column, because a second place saying
+    // when the money came in would eventually say something else.
+    lastPaidOn: payments?.lastPaidOn ?? null,
     // Same reasoning one slice later: the send log knows when it last went out
     // and to whom, so there is no column here saying it a second time.
     lastSentAt: lastSend?.sentAt.toISOString() ?? null,
@@ -213,7 +236,7 @@ export async function listInvoices(
   const ids = rows.map((row) => row.id)
   const [lines, paid, sent] = await Promise.all([
     loadLines(database, ids),
-    paidCentsByInvoice(database, tenantId, ids),
+    paymentSummaryByInvoice(database, tenantId, ids),
     lastSendByInvoice(database, tenantId, ids),
   ])
 
@@ -221,7 +244,7 @@ export async function listInvoices(
     toInvoice(
       { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
       lines.get(row.id) ?? [],
-      paid.get(row.id) ?? 0,
+      paid.get(row.id),
       sent.get(row.id),
     ),
   )
@@ -243,12 +266,12 @@ export async function getInvoice(
 
   if (!row) return null
   const lines = await loadLines(reader, [row.id])
-  const paid = await paidCentsByInvoice(reader, tenantId, [row.id])
+  const paid = await paymentSummaryByInvoice(reader, tenantId, [row.id])
   const sent = await lastSendByInvoice(reader, tenantId, [row.id])
   return toInvoice(
     { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
     lines.get(row.id) ?? [],
-    paid.get(row.id) ?? 0,
+    paid.get(row.id),
     sent.get(row.id),
   )
 }

@@ -1,5 +1,6 @@
 import {
   type Activity,
+  type AppointmentStatus,
   activityTypeColor,
   activityTypeLabel,
   formatBerlinDateLong,
@@ -17,6 +18,13 @@ import { Badge } from '@/components/ui/badge'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { strings } from '@/lib/strings'
 import { cn } from '@/lib/utils'
+
+/** Red where the slot was given up late, quiet where it is settled, plain
+ *  otherwise — the design's three variants. */
+function appointmentVariant(status: AppointmentStatus): 'destructive' | 'secondary' | 'outline' {
+  if (!occupiesSlot(status)) return 'destructive'
+  return status === 'confirmed' ? 'secondary' : 'outline'
+}
 
 /**
  * The chronological list of what happened, on the Vorgänge page and on the
@@ -128,18 +136,27 @@ export function ActivityList({
                       {typeLabel}
                     </span>
 
-                    {/* Only the badges that say something. A planned activity
-                        in a planned slot is the normal case and gets none. */}
+                    {/*
+                        What became of the slot, always — "Termin Bestätigt" is
+                        as much worth reading as "Termin Kurzfristig abgesagt",
+                        and until K7 only the cancelled ones showed at all, so
+                        a row of sessions carried nothing but its type. The
+                        word "Termin" is part of the badge because `Geplant`
+                        alone would be indistinguishable from the activity
+                        status beside it, which is a different statement (rule
+                        6). A cancellation is red; a confirmed slot is settled
+                        and reads quietly.
+                      */}
                     {activity.appointment === null ? (
                       <span className="text-muted-foreground text-xs">
-                        {strings.activity.noAppointment}
+                        {strings.activity.noAppointmentShort}
                       </span>
                     ) : (
-                      !occupiesSlot(activity.appointment.status) && (
-                        <Badge variant="secondary">
-                          {strings.appointment.status[activity.appointment.status]}
-                        </Badge>
-                      )
+                      <Badge variant={appointmentVariant(activity.appointment.status)}>
+                        {strings.activity.appointmentBadge(
+                          strings.appointment.status[activity.appointment.status],
+                        )}
+                      </Badge>
                     )}
                     {activity.status !== 'planned' && (
                       <Badge variant={activity.status === 'no_show' ? 'secondary' : 'outline'}>

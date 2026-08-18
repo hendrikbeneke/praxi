@@ -126,6 +126,11 @@ const weekdayDateFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   year: 'numeric',
 })
 
+const monthFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+  timeZone: PRACTICE_TIME_ZONE,
+  month: 'long',
+})
+
 export function formatBerlinDate(iso: string): string {
   return dateFormat.format(new Date(iso))
 }
@@ -136,6 +141,12 @@ export function formatBerlinTime(iso: string): string {
 
 export function formatBerlinWeekday(iso: string): string {
   return weekdayFormat.format(new Date(iso))
+}
+
+/** Just the month, written out — "Juli", "August". What a list says when the
+ *  question is which period an invoice covers rather than which day (K7). */
+export function formatBerlinMonth(iso: string): string {
+  return monthFormat.format(new Date(iso))
 }
 
 export function formatBerlinDateLong(iso: string): string {

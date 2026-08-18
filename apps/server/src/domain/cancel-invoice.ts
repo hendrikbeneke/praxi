@@ -188,6 +188,7 @@ export async function cancelInvoice(
         // cancellation invoice has no payment state at all (see
         // `invoicePaymentState`).
         paidCents: 0,
+        lastPaidOn: null,
         // And it has never been sent. Derived from `invoice_send` on every
         // read (slice 10); on a document being created it is simply empty.
         lastSentAt: null,
@@ -202,6 +203,9 @@ export async function cancelInvoice(
           id: line.id,
           position: line.position,
           activityItemId: line.activityItemId,
+          // A cancellation document's lines are copies of the original's and
+          // point at no activity of their own — nothing was rendered twice.
+          activityId: null,
           description: line.description,
           feeCode: line.feeCode,
           dateOfService: line.dateOfService,

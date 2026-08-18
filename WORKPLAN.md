@@ -71,7 +71,7 @@ Text, nicht als deaktivierte Felder.
 | K4 | Einstellungen | **done** |
 | K5 | Leistungen | **done** |
 | K6 | Kontaktbereich | **done** |
-| K7 | Kontakt-Reiter | offen |
+| K7 | Kontakt-Reiter | **done** |
 | K8 | Zahlungen | offen |
 | K9 | Vorgänge | offen |
 | K10 | Kalender | offen |
@@ -184,6 +184,41 @@ Kontaktliste, Kopf und Stammdaten der Akte, Kontakt anlegen. Nachweis und Messta
   war ein Scroll-Container, der nie scrollte, weshalb nichts Klebendes klebte; und der Kalender
   stand seit K1 32 px daneben, weil sein `-m-8` aus D9 stammt, als die Hülle diese Route noch
   polsterte.
+
+## K7 — Kontakt-Reiter
+
+Notizen, Vorgänge, Rechnungen, Übersicht. Nachweis in `docs/design-korrektur/k7/`.
+
+- **Notizen sind eine Liste plus Lesespalte** (`components/note-panel.tsx`, ersetzt
+  `note-list.tsx`): links 300 px mit Datum, Schloss, Büroklammer samt Zahl, Art und einzeiliger
+  Vorschau, rechts die gewählte Notiz breit gesetzt mit klebender Aktionszeile. Vorher stand jede
+  Notiz vollständig aufgeklappt untereinander, sodass ein Jahr Dokumentation eine einzige Spalte
+  war. Nachträge sind eigene, eingerückte Zeilen statt Verschachtelungen — sie haben ein eigenes
+  Datum, und der Prototyp listet sie so.
+- **Die Lesespalte liest, der Dialog schreibt.** Der Prototyp bearbeitet dort in einem
+  `contentEditable`; das ist für Notiztext ausdrücklich verboten, weil genau dieser Text gehasht
+  und gesperrt wird. Der Prototyp stellt den Dialog selbst daneben — wir bauen seine zweite
+  Hälfte. Im Register begründet.
+- **Der Notiz-Dialog hat keinen Lesemodus mehr**, und `ReadModeFooter` ist gelöscht: alle drei
+  Wege hinein heißen schreiben. Der CLAUDE.md-Satz, der den Mechanismus für alle Dialoge nannte,
+  ist durch den Grundsatz ersetzt.
+- **K3-Korrektur:** die Chip-Zeilen der drei Reiter **filtern** im Prototyp. K3 hatte das Gegenteil
+  notiert, weil ein Klick sichtbar die Auswahl verschiebt — er filtert aber auch. Jetzt echte
+  Filter, die Null bleibt stehen, `CountChip` gelöscht.
+- **Vorgangszeilen tragen den Terminstatus wieder**, immer und als „Termin Bestätigt" / „Termin
+  Kurzfristig abgesagt" (rot). Vorgangsstatus und Abrechnungsstand waren schon da und auf den alten
+  Testdaten nur nie erfüllt. Wirkt auf die praxisweite Vorgänge-Seite mit, deren Prototyp dieselbe
+  Zeile hat.
+- **Rechnungen:** die Karte „Abrechenbar, noch nicht in Rechnung" über der Liste, Zeilen mit
+  Leistungsumfang („2 Vorgänge · Juli") und Fälligkeit („fällig 21.08.2026", „bezahlt 04.08.2026"),
+  Knopf „Rechnung erstellen" — als eigener String neben dem Dialogtitel „Neue Rechnung", damit sich
+  der Fehler aus K4 und K5 nicht wiederholt.
+- **Zwei abgeleitete Felder** machen das möglich: `invoiceLine.activityId` (Left Join, weil eine
+  freie Position zu keinem Vorgang gehört) und `invoice.lastPaidOn`. Abgeleitet wie `paidCents`,
+  keine Migration, je ein Test.
+- **Übersicht:** die großen Zahlen des Designs (28 px für Beträge, 19 px für den nächsten Termin)
+  und seine Anordnung — drei Karten nebeneinander, darunter Kontakt neben Letzte Vorgänge im
+  Verhältnis 1 : 1,35, darunter die Beziehungen über die volle Breite.
 
 ## K4 — Einstellungen
 

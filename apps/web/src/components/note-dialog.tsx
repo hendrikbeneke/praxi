@@ -14,7 +14,6 @@ import { toast } from 'sonner'
 import { DateField } from '@/components/date-field'
 import { NoteEditor } from '@/components/note-editor'
 import { NoteFiles } from '@/components/note-files'
-import { ReadModeFooter } from '@/components/read-mode-footer'
 import { ReadValue } from '@/components/read-value'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,7 +49,6 @@ export function NoteDialog({
   note,
   correctsNote,
   activityId,
-  startEditing = false,
   open,
   onOpenChange,
 }: {
@@ -61,12 +59,6 @@ export function NoteDialog({
   correctsNote?: Note | undefined
   /** Pre-selected when the dialog is opened from an activity. */
   activityId?: string | undefined
-  /**
-   * Set by a control that already means "edit" — the pencil on a note. Every
-   * other way into a record opens it in read mode (CLAUDE.md, read mode
-   * first), which is what the default gives.
-   */
-  startEditing?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -83,33 +75,12 @@ export function NoteDialog({
 
   const isAddendum = correctsNote !== undefined || note?.correctsNoteId != null
 
-  /** What the activity dropdown *shows* for the current selection. Composed
-   *  exactly as its options are, because that label is built at render time
-   *  and stored nowhere — read mode would otherwise print the id (K2). */
-  const selectedActivityLabel =
-    selectedActivity === NO_ACTIVITY
-      ? strings.note.activityNone
-      : (() => {
-          const entry = (activities.data ?? []).find(
-            (candidate: Activity) => candidate.id === selectedActivity,
-          )
-          return entry
-            ? `${formatBerlinDate(entry.occurredAt)} — ${activityLabel(entry, activityTypeLabel(types.data, entry.type))}`
-            : undefined
-        })()
-  /** A new note or an addendum has nothing to read yet, so it starts
-   *  editable; an existing one follows the way in. Attachments are their own
-   *  controls below and act immediately — uploading or removing one changes
-   *  the note, downloading is a link, and reading is allowed in read mode. */
-  const [editing, setEditing] = useState(true)
-  /** Read mode already shows the rendered note, so the preview is only ever
-   *  interesting while writing — and it starts off, because one opens the
-   *  dialog to write, not to look. */
+  /** One opens this dialog to write, not to look — reading happens in the
+   *  panel behind it (K7) — so the preview starts off. */
   const [previewing, setPreviewing] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setEditing(note === undefined || startEditing)
     setPreviewing(false)
 
     if (note) {
@@ -124,7 +95,7 @@ export function NoteDialog({
     setType(correctsNote ? 'addendum' : 'session')
     setText('')
     setSelectedActivity(activityId ?? correctsNote?.activityId ?? NO_ACTIVITY)
-  }, [open, note, correctsNote, activityId, startEditing])
+  }, [open, note, correctsNote, activityId])
 
   const mutation = useMutation({
     mutationFn: async (): Promise<Note> => {
@@ -173,24 +144,20 @@ export function NoteDialog({
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor={editing ? `${formId}-date` : undefined}>
-                {strings.note.noteDate}
-              </Label>
-              {editing ? (
-                <DateField
-                  id={`${formId}-date`}
-                  className="mt-2"
-                  value={noteDate}
-                  onChange={setNoteDate}
-                />
-              ) : (
-                <ReadValue>{noteDate && formatBerlinDate(`${noteDate}T12:00:00Z`)}</ReadValue>
-              )}
+              <Label htmlFor={`${formId}-date`}>{strings.note.noteDate}</Label>
+              <DateField
+                id={`${formId}-date`}
+                className="mt-2"
+                value={noteDate}
+                onChange={setNoteDate}
+              />
             </div>
 
             <div>
-              <Label htmlFor={editing ? `${formId}-type` : undefined}>{strings.note.type}</Label>
-              {isAddendum || !editing ? (
+              <Label htmlFor={isAddendum ? undefined : `${formId}-type`}>{strings.note.type}</Label>
+              {/* Whether a note is an addendum is decided by how it was
+                  started and never changes, so there is nothing to pick. */}
+              {isAddendum ? (
                 <ReadValue>{strings.note.types[type]}</ReadValue>
               ) : (
                 <Select value={type} onValueChange={(value) => setType(value as NoteType)}>
@@ -210,29 +177,21 @@ export function NoteDialog({
           </div>
 
           <div>
-            <Label htmlFor={editing ? `${formId}-activity` : undefined}>
-              {strings.note.activity}
-            </Label>
-            {!editing ? (
-              /* The label of this option is composed, not stored — without the
-                 same composition here read mode would print a uuid (K2). */
-              <ReadValue>{selectedActivityLabel}</ReadValue>
-            ) : (
-              <Select value={selectedActivity} onValueChange={setSelectedActivity}>
-                <SelectTrigger id={`${formId}-activity`} className="mt-2 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_ACTIVITY}>{strings.note.activityNone}</SelectItem>
-                  {(activities.data ?? []).map((entry: Activity) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      {formatBerlinDate(entry.occurredAt)} —{' '}
-                      {activityLabel(entry, activityTypeLabel(types.data, entry.type))}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Label htmlFor={`${formId}-activity`}>{strings.note.activity}</Label>
+            <Select value={selectedActivity} onValueChange={setSelectedActivity}>
+              <SelectTrigger id={`${formId}-activity`} className="mt-2 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_ACTIVITY}>{strings.note.activityNone}</SelectItem>
+                {(activities.data ?? []).map((entry: Activity) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {formatBerlinDate(entry.occurredAt)} —{' '}
+                    {activityLabel(entry, activityTypeLabel(types.data, entry.type))}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -244,7 +203,6 @@ export function NoteDialog({
                 onChange={setText}
                 previewing={previewing}
                 onTogglePreview={() => setPreviewing((current) => !current)}
-                disabled={!editing}
               />
             </div>
           </div>
@@ -256,22 +214,18 @@ export function NoteDialog({
           )}
         </div>
 
-        {editing ? (
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              {strings.note.cancel}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => mutation.mutate()}
-              disabled={mutation.isPending || noteDate === '' || text.trim() === ''}
-            >
-              {mutation.isPending ? strings.note.saving : strings.note.save}
-            </Button>
-          </DialogFooter>
-        ) : (
-          <ReadModeFooter onClose={() => onOpenChange(false)} onEdit={() => setEditing(true)} />
-        )}
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            {strings.note.cancel}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || noteDate === '' || text.trim() === ''}
+          >
+            {mutation.isPending ? strings.note.saving : strings.note.save}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

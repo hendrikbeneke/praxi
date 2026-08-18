@@ -49,30 +49,40 @@ export async function listPayments(
     .orderBy(asc(payment.paidOn), asc(payment.createdAt))
 }
 
+/** What one invoice's payments add up to, and when the last of them arrived. */
+export type PaymentSummary = { paidCents: number; lastPaidOn: string | null }
+
 /**
  * What has been received per invoice, for a set of invoices.
  *
  * One grouped query rather than one per invoice: the invoice list and the
  * receivables view both need this for every row they show, and the n+1 version
  * would be the reason someone later caches a total on the invoice.
+ *
+ * `lastPaidOn` is the newest `paid_on` among them, so a list can say "bezahlt
+ * 28.07.2026" rather than only "bezahlt" (K7). Derived on read like the sum
+ * beside it — a column would be a second place saying when the money came in.
  */
-export async function paidCentsByInvoice(
+export async function paymentSummaryByInvoice(
   reader: DbReader,
   tenantId: string,
   invoiceIds: readonly string[],
-): Promise<Map<string, number>> {
+): Promise<Map<string, PaymentSummary>> {
   if (invoiceIds.length === 0) return new Map()
 
   const rows = await reader
     .select({
       invoiceId: payment.invoiceId,
       paidCents: sql<number>`sum(${payment.amountCents})::int`,
+      lastPaidOn: sql<string | null>`max(${payment.paidOn})`,
     })
     .from(payment)
     .where(and(eq(payment.tenantId, tenantId), inArray(payment.invoiceId, [...invoiceIds])))
     .groupBy(payment.invoiceId)
 
-  return new Map(rows.map((row) => [row.invoiceId, row.paidCents]))
+  return new Map(
+    rows.map((row) => [row.invoiceId, { paidCents: row.paidCents, lastPaidOn: row.lastPaidOn }]),
+  )
 }
 
 /** Refuses a draft before the trigger does, so the client gets a sentence. */

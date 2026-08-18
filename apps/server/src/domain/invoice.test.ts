@@ -274,6 +274,44 @@ describe('drafts', () => {
     expect(updated?.lines[1]?.amountCents).toBe(-1_500)
   })
 
+  /**
+   * The line points at its activity as well as at its item, joined in on read
+   * and stored nowhere (K7). A screen needs it to say how many *activities* an
+   * invoice covers — several lines routinely come out of one session, so the
+   * number of lines answers a different question.
+   */
+  it('names the activity a line came from, and nothing for a free one', async () => {
+    const activity = await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    const line = draft.lines[0]
+    if (!line) throw new Error('no line')
+
+    expect(line.activityId).toBe(activity.id)
+
+    const updated = await updateInvoice(db(), tenantId, draft.id, {
+      invoiceDate: INVOICE_DATE,
+      paymentTermDays: 14,
+      introText: null,
+      outroText: null,
+      diagnosis: null,
+      lines: [
+        { ...line, feeCode: null },
+        {
+          activityItemId: null,
+          description: 'Freie Position',
+          feeCode: null,
+          dateOfService: null,
+          quantity: 1,
+          unitPriceCents: 2_000,
+        },
+      ],
+    })
+
+    // A free line belongs to no activity, and the left join has to leave it on
+    // the invoice rather than drop it.
+    expect(updated?.lines.map((entry) => entry.activityId)).toEqual([activity.id, null])
+  })
+
   /** Rule 8: a discarded draft never held a number, so no gap arises. */
   it('discarding one does not move the counter', async () => {
     await makeActivityWithItem()

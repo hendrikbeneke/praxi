@@ -72,6 +72,13 @@ export const invoiceLineSchema = z.object({
   id: z.uuid(),
   position: z.number().int(),
   activityItemId: z.uuid().nullable(),
+  /**
+   * The activity that item belongs to — derived on read, stored nowhere, and
+   * null on a free line typed by hand (K7). It exists so a list can say how
+   * many *activities* an invoice covers: several lines routinely come out of
+   * one session, and counting lines answers a different question.
+   */
+  activityId: z.uuid().nullable(),
   description: z.string(),
   feeCode: z.string().nullable(),
   dateOfService: z.iso.date().nullable(),
@@ -138,6 +145,13 @@ export const invoiceSchema = z.object({
    * `payment.ts`, which is the only place the status is decided.
    */
   paidCents: z.number().int(),
+  /**
+   * The day the newest of those payments arrived (K7), so a row can date
+   * "bezahlt" instead of only asserting it. Derived exactly like `paidCents`
+   * one line up, and for the same reason there is no column: a second place
+   * saying when the money came in would eventually say something else.
+   */
+  lastPaidOn: z.iso.date().nullable(),
   /**
    * The last *successful* send (slice 10). Derived from `invoice_send`, never
    * stored — the same reasoning as `paidCents` one line up, and the reason
