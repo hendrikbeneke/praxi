@@ -975,10 +975,11 @@ export const strings = {
     all: 'Alle',
     /** The one chip band of the merged list (D7) — `invoiceListFilters` in
      *  `packages/shared` decides what each of them matches. */
+    /** The chip band names the *state* a document is in, not the set of them:
+     *  "Entwurf", not "Entwürfe" (K8). */
     filters: {
-      draft: 'Entwürfe',
+      draft: 'Entwurf',
       open: 'Offen',
-      partially_paid: 'Teilweise bezahlt',
       overdue: 'Überfällig',
       paid: 'Bezahlt',
       cancelled: 'Storniert',
@@ -993,7 +994,16 @@ export const strings = {
      *  and in which month or months those fell. */
     scopeActivities: (n: number) => `${n} ${n === 1 ? 'Vorgang' : 'Vorgänge'}`,
     scopeLines: (n: number) => `${n} ${n === 1 ? 'Position' : 'Positionen'}`,
-    openTotal: (amount: string) => `Offen insgesamt: ${amount}`,
+    /** The summary left of the chips: what the list is made of, and what it
+     *  comes to. */
+    listSummary: (drafts: number, open: number, amount: string) =>
+      `${drafts} ${drafts === 1 ? 'Entwurf' : 'Entwürfe'} · ${open} offen · ${amount} ausstehend`,
+    /** In the status cell, beside the badge. */
+    partPaid: (amount: string) => `${amount} bezahlt`,
+    paidOnDay: (date: string) => `bezahlt am ${date}`,
+    settledOnDay: (date: string) => `am ${date}`,
+    /** Beside the due date, in red, once it has passed. */
+    overdueSinceDays: (days: number) => (days === 1 ? 'seit 1 Tag' : `seit ${days} Tagen`),
 
     number: 'Nummer',
     contact: 'Empfänger',
@@ -1195,12 +1205,42 @@ export const strings = {
   payments: {
     title: 'Zahlungen',
     description: 'Was erbracht und noch nicht abgerechnet ist, und was daraus geworden ist.',
+    /** The design puts a different sentence here — this one is the app's own
+     *  and older; the prototype's H1 line reads "Vom erbrachten Vorgang bis
+     *  zum Geldeingang." */
     tabBillable: 'Offene Vorgänge',
     tabInvoices: 'Rechnungen',
+
+    /* The two tiles that are the tab switch (K8). Each says what it is, what
+       it is worth, and what makes up that worth. */
+    tileBillableValue: 'abrechenbar',
+    tileInvoicesValue: 'offen',
+    tileBillableParts: (activities: number, items: number) =>
+      `${activities} ${activities === 1 ? 'Vorgang' : 'Vorgänge'} · ${items} ${
+        items === 1 ? 'Position' : 'Positionen'
+      }`,
+    tileInvoiceParts: (drafts: number, open: number) =>
+      `${drafts} ${drafts === 1 ? 'Entwurf' : 'Entwürfe'} · ${open} offen`,
+    tileOverdue: (count: number) =>
+      count === 1 ? '1 Rechnung überfällig' : `${count} Rechnungen überfällig`,
+
     /** The sticky footer of the first tab. */
     selection: (count: number) =>
       count === 1 ? '1 Position ausgewählt' : `${count} Positionen ausgewählt`,
     selectionEmpty: 'Nichts ausgewählt',
+    /** Above the list, where the prototype explains what this tab is before
+     *  anything is picked, and reports the selection once something is. */
+    billableHint:
+      'Vergangene Vorgänge, deren Positionen auf keiner Rechnung stehen. ' +
+      'Abgerechnet wird je Kontakt.',
+    billableSelection: (items: number, amount: string, contacts: number) =>
+      `${items} ${items === 1 ? 'Position' : 'Positionen'} gewählt · ${amount} · bei ${contacts} ${
+        contacts === 1 ? 'Kontakt' : 'Kontakten'
+      }`,
+    /** In a group header, once something in it is ticked. */
+    groupSelection: (items: number, amount: string) =>
+      `${items} ${items === 1 ? 'Position' : 'Positionen'} · ${amount}`,
+    groupActivities: (count: number) => `${count} ${count === 1 ? 'Vorgang' : 'Vorgänge'}`,
   },
   /** Everything the date and time fields say. The *format* they follow is not
    *  here — that is `dateFormat` in packages/shared, one descriptor for the
@@ -1241,6 +1281,9 @@ export const strings = {
       'vergangener Vorgang, der noch auf „geplant“ steht, soll auffallen.',
     empty: 'Nichts offen — alles Erbrachte steht auf einer Rechnung.',
     collect: 'Rechnungen erstellen',
+    /** In an activity row of the Zahlungen list, where the contact's name is
+     *  already in the group header above. */
+    openContact: 'Zur Akte',
 
     /** The card above the contact's invoice list (K7). */
     cardTitle: 'Abrechenbar, noch nicht in Rechnung',

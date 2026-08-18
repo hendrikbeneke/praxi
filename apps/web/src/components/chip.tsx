@@ -1,13 +1,20 @@
 import { cn } from '@/lib/utils'
 
 /**
- * The pill shapes the design uses above a list (K3, corrected in K7).
+ * The pill shapes the design uses above a list (K3, corrected in K7 and K8).
  *
- * **The count goes after the label**, everywhere — `Gesperrt 3`, `Leistungen 9`.
- * The prototype does that on the Leistungen tabs and puts the number first on
- * every other chip; the two were unified this way by decision, so a reader never
- * has to work out which kind of pill they are looking at. Noted in
- * `docs/design-korrektur/abweichungen.md`.
+ * **Where the count goes depends on what the pill is**, and the design is
+ * consistent about it once one reads it properly:
+ *
+ * - a **filter chip** puts the number first — `3 Offen`. There the number *is*
+ *   the statement: how many rows to expect if this is pressed.
+ * - a **tab** puts it last — `Leistungen 9`. There the name is the statement
+ *   and the number an aside about the place it leads to.
+ *
+ * K3 flattened the two to "always last", on a feeling rather than on a careful
+ * reading of the prototype. K8 took that back. The position lives at each call
+ * site rather than in these classes, because it is a property of what the pill
+ * means and not of how it looks.
  *
  * A prose summary line beside them keeps prose word order — "4 Notizen",
  * "8 Vorgänge · 3 kommend" — because "Notizen 4" is not a sentence.
@@ -17,7 +24,6 @@ import { cn } from '@/lib/utils'
  * wrong — the chips over the contact's tabs *do* filter — so every chip in
  * this file is a control again.
  */
-
 /**
  * A chip that *does* filter, so it stays a button — the classes only.
  *
@@ -27,7 +33,7 @@ import { cn } from '@/lib/utils'
  */
 export function filterChipClass(active: boolean): string {
   return cn(
-    'inline-flex h-7 items-center gap-1.5 rounded-full border px-[11px] text-[13px] transition-colors',
+    'inline-flex h-7 items-center gap-1.5 rounded-full border px-[11px] text-[12.5px] transition-colors',
     active
       ? 'border-primary bg-primary/12 font-semibold text-foreground'
       : 'border-border bg-card text-muted-foreground hover:bg-accent',

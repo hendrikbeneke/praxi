@@ -176,10 +176,13 @@ function ActivitiesPage() {
             className={filterChipClass(search.status === chip.value)}
             onClick={() => setSearch({ status: chip.value })}
           >
-            {chip.label}
+            {/* The number first: on a filter chip it is the statement — how
+                many rows to expect — while a tab's number is an aside to its
+                name. Two roles, two positions (K8). */}
             {chip.count !== undefined && (
               <span className="font-semibold tabular-nums">{chip.count}</span>
             )}
+            {chip.label}
           </button>
         ))}
       </div>

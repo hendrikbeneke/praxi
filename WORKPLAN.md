@@ -72,7 +72,7 @@ Text, nicht als deaktivierte Felder.
 | K5 | Leistungen | **done** |
 | K6 | Kontaktbereich | **done** |
 | K7 | Kontakt-Reiter | **done** |
-| K8 | Zahlungen | offen |
+| K8 | Zahlungen | **done** |
 | K9 | Vorgänge | offen |
 | K10 | Kalender | offen |
 
@@ -219,6 +219,35 @@ Notizen, Vorgänge, Rechnungen, Übersicht. Nachweis in `docs/design-korrektur/k
 - **Übersicht:** die großen Zahlen des Designs (28 px für Beträge, 19 px für den nächsten Termin)
   und seine Anordnung — drei Karten nebeneinander, darunter Kontakt neben Letzte Vorgänge im
   Verhältnis 1 : 1,35, darunter die Beziehungen über die volle Breite.
+
+## K8 — Zahlungen
+
+Beide Reiter. Nachweis und Messtabelle in `docs/design-korrektur/k8/`.
+
+- **Die beiden Kacheln sind der Reiterumschalter** (`components/payment-tiles.tsx`), 551 × 104,
+  je mit Betrag, zwei Infozeilen und — rechts — dem roten „1 Rechnung überfällig". Vorher ein
+  Segmentcontrol ohne jede Zahl. Die Frage dieser Seite ist eine Geldfrage; die Kacheln
+  beantworten sie vor dem Klick.
+- **Eine Statusspalte statt zweier.** „Status" und „Zahlungsstand" mussten zusammen gelesen
+  werden — dieselbe Doppelung, die D7 beim Chipband schon aufgelöst hatte und in den Spalten
+  stehen ließ. Der Badge kommt aus `invoicePaymentState()`, daneben steht „45,00 € bezahlt" bzw.
+  „bezahlt am 04.08.2026".
+- **Sechs Chips**, Zahl vorn. „Teilweise bezahlt" entfällt als Chip, weil „Offen" ihn enthält —
+  `matchesInvoiceListFilter` nimmt ihn jetzt mit; ein eigener Chip hätte die Summe der Chips über
+  die Zahl der Rechnungen getrieben. Der Zustand steht weiterhin als Badge in der Zeile.
+- **Zahlenstellung getrennt** (Korrektur an K3): Filter-Chip die Zahl vorn, Reiter die Zahl
+  hinten. Zwei Rollen — bei einem Filter ist die Zahl die Aussage, bei einem Reiter eine
+  Nebenangabe zum Namen. Umgestellt: Zahlungen und die Vorgänge-Seite.
+- **Summenzeile links der Chips** („4 Entwürfe · 3 offen · 575,00 € ausstehend"), Betrag vor
+  Offen, Überfälligkeit als „seit 3 Tagen" neben dem Fälligkeitsdatum, Tabellenkopf 14 px in
+  gemischter Schreibung.
+- **Offene Vorgänge in drei Ebenen**: Kontakt → Vorgang → Position, mit Art-Chip und Summe je
+  Vorgang und einem „Rechnung erstellen" in der Gruppenkopfzeile, sobald dort etwas angehakt ist.
+  Flach unter dem Kontakt wiederholte eine Sitzung mit drei Positionen dreimal ihr Datum. Die
+  klebende Fußzeile bleibt daneben — im Register begründet.
+- **Zwei Funde nebenbei:** eine gespeicherte Spaltenauswahl hielt die alte Reihenfolge am Leben
+  (wird jetzt verworfen, sobald sie eine Spalte nennt, die es nicht mehr gibt), und „Offen
+  insgesamt" unter der Tabelle zählte Entwürfe als offen mit — 995 € Unterschied zur Kachel.
 
 ## K4 — Einstellungen
 

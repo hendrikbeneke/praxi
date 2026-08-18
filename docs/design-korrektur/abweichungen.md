@@ -52,24 +52,30 @@ Nachmessbar in `docs/design-abgleich/vergleich/D6-kontaktliste.png`, linke Hälf
 
 ---
 
-## K3 — Zahl hinter dem Wort, auch bei den Chips
+## ~~K3 — Zahl hinter dem Wort, auch bei den Chips~~ → in K8 zurückgenommen
 
-**Design:** Auf den Reitern von *Leistungen* steht die Zahl **hinter** dem Namen
-(„Leistungen 9", gedämpft). Auf jedem anderen Chip steht sie **davor** („3 Gesperrt",
-„9 Alle", Zahl in 600).
+**Auch dieser Eintrag war ein Fehler, und es war meine Entscheidung, nicht seine Umsetzung.**
+Ich hatte in K3 aus einem Gefühl heraus vereinheitlicht — überall die Zahl hinter dem Wort —,
+ohne den Prototyp konsequent zu lesen. Genau das, was seither die Grundregel dieser Pakete
+verbietet.
 
-**Gebaut:** überall hinter dem Wort.
+**Die Trennung des Designs trägt inhaltlich**, und deshalb gilt sie wieder:
 
-**Warum:** Vereinheitlicht per Entscheidung. Zwei Stellungen für dasselbe Muster heißen,
-dass man bei jedem Chip erst erkennen muss, welche Sorte er ist. Der Reiter behält damit
-seine Leserichtung („Bereich, dann Menge"), und die Zähl-Chips lesen sich genauso.
+- **Filter-Chip: Zahl vorn** — „3 Offen". Dort *ist* die Zahl die Aussage: wie viele Zeilen
+  mich erwarten, wenn ich das drücke.
+- **Reiter: Zahl hinten** — „Leistungen 9". Dort ist der Name die Aussage und die Zahl eine
+  Nebenangabe zu dem Ort, an den er führt.
 
-**Nicht betroffen ist die Prosa-Zeile** daneben: „4 Notizen", „8 Vorgänge · 3 kommend",
-„14 Vorgänge · 5 kommend · 185,50 € noch nicht abgerechnet" bleiben Prosa — „Notizen 4"
-wäre kein Deutsch.
+Zwei Rollen, zwei Stellungen. Das ist kein Versehen im Entwurf, sondern eine Unterscheidung.
 
-**Falls doch getrennt gewollt:** `components/chip.tsx` ist die einzige Stelle; `CountChip`
-und `filterChipClass` müssten die Reihenfolge als Parameter nehmen.
+**Umgestellt in K8:** Zahlungen und die praxisweite Vorgänge-Seite. **Nicht umgestellt:** die
+Reiter von Leistungen (K5) und die Chip-Zeilen der Kontakt-Reiter (K7) — die bleiben hinten.
+
+**Ein offener Punkt dazu:** die Chips der Kontakt-Reiter *sind* seit K7 Filter, und der
+Prototyp setzt die Zahl dort vorn („3 Gesperrt", `Kontaktdetail.dc.html`). Nach der Regel
+oben gehörten sie also nach vorn; die Entscheidung war ausdrücklich, sie hinten zu lassen. Wer
+das zurückdrehen will, ändert drei Zeilen in `FilterRow` in
+`routes/_app/contacts.$contactId.tsx`.
 
 ---
 
@@ -228,3 +234,23 @@ mehr Arbeit als ein Dialog, den es schon gibt.
 was auf keiner aktiven Rechnung steht — und das kann älter sein als die letzte Rechnung, etwa
 wenn ein Vorgang beim Sammeln übersehen wurde oder eine Rechnung storniert worden ist. Der Satz
 passte zu den Beispieldaten, nicht zur Regel.
+
+---
+
+## K8 — Die klebende Fußzeile über den offenen Vorgängen bleibt
+
+**Design:** Abgerechnet wird ausschließlich je Kontakt, über einen Knopf in der Kopfzeile der
+Kontaktgruppe. Eine Fußzeile über alle Kontakte gibt es nicht.
+
+**Gebaut:** beides. Der Gruppenknopf kam in K8 dazu, die klebende Fußzeile bleibt daneben.
+
+**Warum:** Beide Wege haben ihren Fall — ein Kontakt sofort abgerechnet, oder mehrere in einem
+Zug gesammelt. Der zweite ist außerdem eine Zusage aus Regel 6: „All contacts in one
+transaction: a half-finished collect would leave the practitioner guessing which ones still
+need doing." Dahinter steht dieselbe Funktion, `collectBillableItems()`; die beiden Knöpfe
+unterscheiden sich nur in der Zahl der ids, die sie mitgeben. Dass die Fußzeile klebt und nicht
+im Seitenkopf steht, ist eine D7-Entscheidung: mit vielen Kontakten scrollte der Knopf genau
+dann weg, wenn die Auswahl interessant wurde.
+
+**Falls doch nur der Gruppenknopf:** die Fußzeile in `components/billable-list.tsx` entfernen;
+`confirming` kennt dann nur noch eine Kontakt-id und nie `'all'`.

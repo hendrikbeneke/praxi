@@ -182,14 +182,15 @@ export function invoicePaymentState(
  * the two travel on separate axes. Here — as a filter, where they cannot
  * collide — it may sit in the same list.
  */
-export const invoiceListFilters = [
-  'draft',
-  'open',
-  'partially_paid',
-  'overdue',
-  'paid',
-  'cancelled',
-] as const
+/**
+ * The six the design's chip band offers. **`partially_paid` is deliberately
+ * not among them** (K8): an invoice on which something has been paid is still
+ * open, so "Offen" already contains it, and a chip of its own beside it would
+ * have pushed the sum of the chips past the number of invoices. The state
+ * itself does not disappear — it is what the row's status badge says, with
+ * "45,00 € bezahlt" beside it.
+ */
+export const invoiceListFilters = ['draft', 'open', 'overdue', 'paid', 'cancelled'] as const
 export const invoiceListFilterSchema = z.enum(invoiceListFilters)
 export type InvoiceListFilter = z.infer<typeof invoiceListFilterSchema>
 
@@ -203,6 +204,8 @@ export type InvoiceListFilter = z.infer<typeof invoiceListFilterSchema>
  * - **`draft`** — `invoicePaymentState()` answers `open` for a draft, since
  *   nothing has been paid on it. That is right for the state and wrong for
  *   the filter: a draft is not a claim, so it must not turn up under "Offen".
+ * - **`open`** — takes `partially_paid` with it. Something still being owed is
+ *   what the word means, and the amount that did arrive is written in the row.
  * - **`cancelled`** — this catches both a cancelled invoice (`cancelled`) and
  *   a cancellation document (`cancellation`). The predecessor of this
  *   function compared against the filter name directly and therefore missed
@@ -220,5 +223,7 @@ export function matchesInvoiceListFilter(
   if (filter === 'cancelled') return state.status === 'cancelled' || state.status === 'cancellation'
   // An overpayment is settled — it belongs under "bezahlt", not under "offen".
   if (filter === 'paid') return state.status === 'paid' || state.status === 'overpaid'
-  return state.status === filter
+  // "Offen" is everything still owed, so it takes the partly paid with it:
+  // half a payment does not settle a claim, and the row says how much arrived.
+  return state.status === 'open' || state.status === 'partially_paid'
 }

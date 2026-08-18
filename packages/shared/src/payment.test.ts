@@ -140,7 +140,7 @@ describe('matchesInvoiceListFilter', () => {
    */
   it('keeps a draft out of every filter but its own', () => {
     expect(matches('draft', { status: 'draft' })).toBe(true)
-    for (const filter of ['open', 'partially_paid', 'overdue', 'paid', 'cancelled'] as const) {
+    for (const filter of ['open', 'overdue', 'paid', 'cancelled'] as const) {
       expect(matches(filter, { status: 'draft' })).toBe(false)
     }
   })
@@ -160,9 +160,15 @@ describe('matchesInvoiceListFilter', () => {
     expect(matches('open', {}, 12_000)).toBe(false)
   })
 
-  /** Overdue is the second axis: partly paid *and* late is both at once. */
-  it('reports a partly paid invoice as both partially_paid and overdue', () => {
-    expect(matches('partially_paid', {}, 4000)).toBe(true)
+  /**
+   * A partly paid invoice is still owed, so it belongs under "Offen" — the
+   * design has no chip of its own for it (K8), and a second chip would have
+   * made the chips add up to more than there are invoices. Overdue is the
+   * second axis, so it is both at once.
+   */
+  it('counts a partly paid invoice as open, and as overdue beside it', () => {
+    expect(matches('open', {}, 4000)).toBe(true)
     expect(matches('overdue', {}, 4000)).toBe(true)
+    expect(matches('paid', {}, 4000)).toBe(false)
   })
 })

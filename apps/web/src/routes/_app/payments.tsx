@@ -1,11 +1,14 @@
-import { invoiceListFilterSchema } from '@praxi/shared'
+import { invoiceListFilterSchema, invoicePaymentState, toBerlinDate } from '@praxi/shared'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { BillableList } from '@/components/billable-list'
 import { ContentWidth } from '@/components/content-width'
 import { InvoiceList } from '@/components/invoice-list'
 import { PageHeader } from '@/components/page-header'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PaymentTiles } from '@/components/payment-tiles'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
 import { strings } from '@/lib/strings'
 
 /**
@@ -34,12 +37,17 @@ function PaymentsPage() {
   const navigate = useNavigate({ from: Route.fullPath })
   const tab = search.tab ?? 'billable'
 
+  /* The tiles say what each tab is worth, so they read the same two queries
+     the tabs themselves do — the cache serves both, so this costs no request
+     of its own. */
+  const billable = useQuery(billableQueryOptions())
+  const invoices = useQuery(invoiceListQueryOptions({ limit: 200 }))
+  const today = toBerlinDate(new Date().toISOString())
+
   return (
     // The whole page is capped, header included — where the prototype
     // puts it on the three list screens (K1).
     <ContentWidth max={1180}>
-      <PageHeader title={strings.payments.title} description={strings.payments.description} />
-
       <Tabs
         value={tab}
         onValueChange={(value) =>
@@ -51,16 +59,31 @@ function PaymentsPage() {
           })
         }
       >
-        <TabsList>
-          <TabsTrigger value="billable">{strings.payments.tabBillable}</TabsTrigger>
-          <TabsTrigger value="invoices">{strings.payments.tabInvoices}</TabsTrigger>
-        </TabsList>
+        {/* Title and tiles stay put while the list scrolls under them: on this
+            screen the two numbers up here are what one keeps glancing back at
+            (design). */}
+        <div className="sticky top-0 z-5 bg-background pb-4">
+          <PageHeader
+            className="mb-0"
+            title={strings.payments.title}
+            description={strings.payments.description}
+          />
+          <PaymentTiles
+            active={tab}
+            onSelect={(next) =>
+              void navigate({ search: next === 'invoices' ? { tab: 'invoices' } : {} })
+            }
+            billable={billable.data ?? []}
+            invoices={invoices.data ?? []}
+            stateOf={(invoice) => invoicePaymentState(invoice, invoice.paidCents, today)}
+          />
+        </div>
 
-        <TabsContent value="billable" className="pt-6">
+        <TabsContent value="billable">
           <BillableList />
         </TabsContent>
 
-        <TabsContent value="invoices" className="pt-6">
+        <TabsContent value="invoices">
           <InvoiceList
             filter={search.filter}
             onFilterChange={(next) =>
