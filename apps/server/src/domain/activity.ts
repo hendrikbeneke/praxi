@@ -9,7 +9,7 @@ import type {
   Appointment,
   AppointmentDraft,
 } from '@praxi/shared'
-import { formatContactName } from '@praxi/shared'
+import { formatContactNameSorted } from '@praxi/shared'
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import {
@@ -362,9 +362,9 @@ async function loadActivity(
   return {
     id: row.id,
     contactId: row.contactId,
-    // The same function the contact list, the billable list and the recipient
-    // snapshot use, so one contact reads the same wherever they appear.
-    contactName: formatContactName({
+    // Surname first, because this list is sorted by date and read by name —
+    // see the rule on `formatContactNameSorted` in packages/shared.
+    contactName: formatContactNameSorted({
       kind: row.contactKind,
       title: row.contactTitle,
       firstName: row.contactFirstName,

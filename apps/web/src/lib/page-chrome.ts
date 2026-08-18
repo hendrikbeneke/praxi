@@ -27,7 +27,9 @@ const byRouteId: Record<string, string> = {
   // so they set their own inset below it and get none from the shell (K6).
   '/_app/contacts/new': 'p-0',
   '/_app/contacts/$contactId': 'p-0',
-  '/_app/activities': 'px-8 pt-[22px] pb-[14px]',
+  // Its filter band is full-bleed with a rule under it, like the contact
+  // record's header strip — so the page sets its own inset below it (K9).
+  '/_app/activities': 'p-0',
   '/_app/payments': 'px-8 pt-5 pb-7',
   '/_app/services': 'px-8 pt-[22px] pb-10',
   '/_app/settings': 'px-8 pt-[22px] pb-12',

@@ -71,11 +71,10 @@ Zwei Rollen, zwei Stellungen. Das ist kein Versehen im Entwurf, sondern eine Unt
 **Umgestellt in K8:** Zahlungen und die praxisweite Vorgänge-Seite. **Nicht umgestellt:** die
 Reiter von Leistungen (K5) und die Chip-Zeilen der Kontakt-Reiter (K7) — die bleiben hinten.
 
-**Ein offener Punkt dazu:** die Chips der Kontakt-Reiter *sind* seit K7 Filter, und der
-Prototyp setzt die Zahl dort vorn („3 Gesperrt", `Kontaktdetail.dc.html`). Nach der Regel
-oben gehörten sie also nach vorn; die Entscheidung war ausdrücklich, sie hinten zu lassen. Wer
-das zurückdrehen will, ändert drei Zeilen in `FilterRow` in
-`routes/_app/contacts.$contactId.tsx`.
+**Aufgelöst in K9:** die Chips der Kontakt-Reiter sind seit K7 Filter, der Prototyp setzt die
+Zahl dort ebenfalls vorn („3 Gesperrt", `Kontaktdetail.dc.html`) — also greift die Regel und
+sie stehen jetzt vorn. Der erste Beschluss hatte sie noch als Reiter geführt. Damit ist die
+Stellung überall aus der Rolle abgeleitet und nirgends aus der Gewohnheit.
 
 ---
 
@@ -254,3 +253,41 @@ dann weg, wenn die Auswahl interessant wurde.
 
 **Falls doch nur der Gruppenknopf:** die Fußzeile in `components/billable-list.tsx` entfernen;
 `confirming` kennt dann nur noch eine Kontakt-id und nie `'all'`.
+
+---
+
+## K9 — Die Empfängerspalte der Rechnungsliste bleibt „Vorname Nachname"
+
+**Design:** Auch dort „Dohrmann, Til", wie in jeder anderen Liste.
+
+**Gebaut:** die natürliche Form.
+
+**Warum:** Die Spalte heißt „Empfänger" und meint **das Dokument**, nicht den Kontakt. Bei einer
+festgeschriebenen Rechnung ist der Wert der eingefrorene `recipient_snapshot` — dieselbe
+Zeichenkette, die als Anschrift auf dem PDF steht. Schriebe die Liste sie anders, widersprächen
+sich Liste und Dokument; das ist die Sorte Widerspruch, die bei einer Betriebsprüfung erklärt
+werden muss. Der Snapshot speichert außerdem nur den fertigen Namen, keine Namensteile: sortiert
+zeigen hieße ihn zerlegen oder aus dem *lebenden* Kontakt neu bilden — und dann stünde in der
+Liste ein Name, den die Rechnung nicht trägt.
+
+**Alle anderen Listen sind umgestellt** — Vorgänge und beide Reiter von Zahlungen. Die Regel,
+nach der entschieden wird, steht als Kommentar an `formatContactNameSorted` in
+`packages/shared`: nicht „Liste oder Fließtext", sondern ob die Sortierung nach dem Namen geht.
+Der Kalendereintrag ist das Gegenbeispiel — auch eine Liste, aber nach der Zeit geordnet, und
+deshalb „Mara Lentz".
+
+---
+
+## K9 — Kein Abweichen: der Wochentagspunkt war ein Fehlbefund
+
+Kein Eintrag über den Code, sondern über den Abgleich. `docs/design-abgleich/` führt unter D8
+„Wochentag mit Punkt („Mi., 26.08.2026") statt „Mi, 12.08.2026"". **Gebaut stand der Punkt
+längst**: `formatBerlinDateLong` geht über `Intl` mit `weekday: 'short'`, und das deutsche
+Kurzformat hat ihn — nachgemessen am laufenden Bildschirm.
+
+Ohne Punkt gibt es genau eine Stelle, und sie steht woanders: die Titelzeile des Kalenders
+(`routes/_app/appointments.tsx`) setzt den Wochentag aus `strings.date.weekdays` selbst
+zusammen. Der Abgleich führt sie unter D9 getrennt auf; korrigiert wird sie in K10.
+
+Vierter Fall, in dem Prosa und Wirklichkeit auseinandergingen — diesmal in meiner eigenen
+Liste, nicht in der des Handoffs.

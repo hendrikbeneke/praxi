@@ -718,7 +718,8 @@ describe('the billable list across contacts', () => {
     await makeActivityWithItem()
     const [item] = await listBillableItems(db(), tenantId)
 
-    expect(item?.contactName).toBe('Erika Testperson')
+    // Surname first, like every list that is scanned by name (K9).
+    expect(item?.contactName).toBe('Testperson, Erika')
     expect(item?.contactNumber).toBe(1)
     // Shown, never filtered on: a past activity still standing on "planned" is
     // the row worth noticing, and `billableQuerySchema` has no status field to

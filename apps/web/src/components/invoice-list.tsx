@@ -97,10 +97,15 @@ export function InvoiceList({
   const preferences = useQuery(userPreferencesQueryOptions)
   /**
    * A stored choice that names a column this list no longer has predates the
-   * change and is dropped whole (K8 removed two and reordered the rest).
-   * Keeping the known part of it would have silently preserved the *old*
-   * order — which is exactly what happened on the first pass: `Betrag` and
-   * `Offen` stayed the wrong way round because the preference still said so.
+   * change and is **dropped whole**, not filtered down to its known part.
+   *
+   * Discarding looks generous until one sees what keeping it does: the array
+   * carries the *order* as well as the selection, so the surviving keys would
+   * go on standing in an order nobody chose any more. That is not theory — on
+   * the first pass of K8 `Betrag` and `Offen` stayed the wrong way round for
+   * exactly this reason, with the definitions long since swapped. A preference
+   * that mentions something gone is a preference from before the change, and
+   * the honest answer to it is the current default.
    */
   const stored = preferences.data?.invoiceListColumns
   const visibleColumns =

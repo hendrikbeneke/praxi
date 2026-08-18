@@ -691,9 +691,9 @@ function ContactAppointments({ contactId }: { contactId: string }) {
  * ("Überfällig 0") rather than the noise it would be at a bare count.
  *
  * The active chip is toggled off by clicking it again, as in the prototype.
- * The count still stands *after* the label, which is K3's other decision and
- * unaffected by this one: the prototype puts it first here and last on the
- * Leistungen tabs, and one order for one shape is worth more than either.
+ * **The count comes first**, as on every filter chip: there the number is the
+ * statement — how many rows to expect — while a tab's number is an aside to
+ * its name (K8, `components/chip.tsx`).
  */
 function FilterRow<Id extends string>({
   summary,
@@ -716,8 +716,8 @@ function FilterRow<Id extends string>({
           className={filterChipClass(active === chip.id)}
           onClick={() => onChange(active === chip.id ? undefined : chip.id)}
         >
-          {chip.label}
           <span className="font-semibold tabular-nums">{chip.count}</span>
+          {chip.label}
         </button>
       ))}
     </div>

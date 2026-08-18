@@ -795,12 +795,14 @@ describe('listing', () => {
    *  by contact, so the name travels with the row rather than in a second
    *  request — and it comes out of `formatContactName`, the way it does on the
    *  invoice, so one contact reads the same in both. */
-  it('carries the contact name and number', async () => {
+  /** Surname first: this list is read by name in a column of names, and the
+   *  rule for which form goes where lives on `formatContactNameSorted` (K9). */
+  it('carries the contact name, surname first, and the number', async () => {
     const created = await createActivity(db(), tenantId, activityInput())
 
-    expect(created).toMatchObject({ contactName: 'Erika Musterfrau', contactNumber: 1 })
+    expect(created).toMatchObject({ contactName: 'Musterfrau, Erika', contactNumber: 1 })
     const [listed] = await listActivities(db(), tenantId, { contactId, limit: 50, offset: 0 })
-    expect(listed?.contactName).toBe('Erika Musterfrau')
+    expect(listed?.contactName).toBe('Musterfrau, Erika')
   })
 
   it('shows only its own tenant', async () => {

@@ -1,5 +1,5 @@
 import type { ActivityBillingState, BillableItem } from '@praxi/shared'
-import { formatContactName } from '@praxi/shared'
+import { formatContactNameSorted } from '@praxi/shared'
 import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
 import type { DbReader } from '../db/client.js'
 import { activity, activityItem, contact, invoice, invoiceLine } from '../db/schema.js'
@@ -98,9 +98,9 @@ export async function listBillableItems(
     }) => ({
       ...row,
       occurredAt: row.occurredAt.toISOString(),
-      // The same function the list and the recipient snapshot use, so one
-      // contact reads the same wherever they appear.
-      contactName: formatContactName({
+      // Surname first: this list is grouped by contact and scanned by name —
+      // see the rule on `formatContactNameSorted` in packages/shared.
+      contactName: formatContactNameSorted({
         kind: contactKind,
         title: contactTitle,
         firstName: contactFirstName,

@@ -107,107 +107,126 @@ function ActivitiesPage() {
 
   return (
     <>
-      <PageHeader
-        title={strings.activity.title}
-        description={strings.activity.description}
-        actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="size-4" aria-hidden />
-            {strings.activity.create}
-          </Button>
-        }
-      />
-
-      <div className="mb-4 flex flex-wrap items-end gap-4">
-        <div>
-          <Label htmlFor="from">{strings.activity.rangeFrom}</Label>
-          <DateField
-            id="from"
-            className="mt-2 w-40"
-            value={from}
-            onChange={(value: string) => setSearch({ from: value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="to">{strings.activity.rangeTo}</Label>
-          <DateField
-            id="to"
-            className="mt-2 w-40"
-            value={to}
-            onChange={(value: string) => setSearch({ to: value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="type">{strings.activity.type}</Label>
-          <Select
-            value={search.type ?? ALL_TYPES}
-            onValueChange={(value) => setSearch({ type: value === ALL_TYPES ? undefined : value })}
-          >
-            <SelectTrigger id="type" className="mt-2 w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_TYPES}>{strings.activity.allTypes}</SelectItem>
-              {(types.data ?? [])
-                .filter((entry) => entry.active || entry.code === search.type)
-                .map((entry) => (
-                  <SelectItem key={entry.code} value={entry.code}>
-                    <span
-                      aria-hidden
-                      className="inline-block size-2.5 rounded-full"
-                      style={{ backgroundColor: entry.color }}
-                    />
-                    {entry.label}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* The counts describe the window, not the selection — picking a chip
-          must not change the number written on it. Only the type filter above
-          narrows them, because it sits above the chips. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {chips.map((chip) => (
-          <button
-            key={chip.value ?? 'all'}
-            type="button"
-            className={filterChipClass(search.status === chip.value)}
-            onClick={() => setSearch({ status: chip.value })}
-          >
-            {/* The number first: on a filter chip it is the statement — how
-                many rows to expect — while a tab's number is an aside to its
-                name. Two roles, two positions (K8). */}
-            {chip.count !== undefined && (
-              <span className="font-semibold tabular-nums">{chip.count}</span>
-            )}
-            {chip.label}
-          </button>
-        ))}
-      </div>
-
-      {counts && (
-        <p className="mb-6 text-muted-foreground text-sm">
-          {strings.activity.summary(
-            counts.total,
-            counts.upcoming,
-            formatEuro(counts.unbilledCents),
-          )}
-        </p>
-      )}
-
-      {/* Only the list is capped; the filter band above keeps running to the
-          window edge, which is what carries its full-width rule (K1). */}
-      <ContentWidth max={1180}>
-        <ActivityList
-          activities={activities.data ?? []}
-          emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
-          creating={creating}
-          onCreated={() => setCreating(false)}
-          onCancelCreate={() => setCreating(false)}
+      {/*
+          Title, filters, chips and the summary are one full-bleed sticky band
+          in card colour, and its bottom border is the rule the design runs
+          across the whole width — the same shape as the contact record's
+          header strip (K6). The rule is why the band exists: drawn under a
+          capped block it would stop where the list stops, which is not a
+          division of the screen but a line in the middle of it. The shell
+          gives this route no padding (`lib/page-chrome.ts`).
+        */}
+      <div className="sticky top-0 z-5 border-b bg-card px-8 pt-[22px] pb-3.5">
+        <PageHeader
+          className="mb-0"
+          title={strings.activity.title}
+          description={strings.activity.description}
+          actions={
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="size-4" aria-hidden />
+              {strings.activity.create}
+            </Button>
+          }
         />
-      </ContentWidth>
+
+        {/* One wrapping row, bottom-aligned: the two date fields, the type
+            filter, the chips and the summary sentence all sit on the same
+            baseline (design). */}
+        <div className="mt-4 flex flex-wrap items-end gap-[18px]">
+          <div>
+            <Label htmlFor="from">{strings.activity.rangeFrom}</Label>
+            <DateField
+              id="from"
+              className="mt-1.5 w-40"
+              value={from}
+              onChange={(value: string) => setSearch({ from: value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="to">{strings.activity.rangeTo}</Label>
+            <DateField
+              id="to"
+              className="mt-1.5 w-40"
+              value={to}
+              onChange={(value: string) => setSearch({ to: value })}
+            />
+          </div>
+          <div>
+            <Label htmlFor="type">{strings.activity.type}</Label>
+            <Select
+              value={search.type ?? ALL_TYPES}
+              onValueChange={(value) =>
+                setSearch({ type: value === ALL_TYPES ? undefined : value })
+              }
+            >
+              <SelectTrigger id="type" className="mt-1.5 w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TYPES}>{strings.activity.allTypes}</SelectItem>
+                {(types.data ?? [])
+                  .filter((entry) => entry.active || entry.code === search.type)
+                  .map((entry) => (
+                    <SelectItem key={entry.code} value={entry.code}>
+                      <span
+                        aria-hidden
+                        className="inline-block size-2.5 rounded-full"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      {entry.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* The counts describe the window, not the selection — picking a
+              chip must not change the number written on it. Only the type
+              filter beside them narrows them. */}
+          <div className="flex flex-wrap items-center gap-2 pb-[7px]">
+            {chips.map((chip) => (
+              <button
+                key={chip.value ?? 'all'}
+                type="button"
+                className={filterChipClass(search.status === chip.value)}
+                onClick={() => setSearch({ status: chip.value })}
+              >
+                {/* The number first: on a filter chip it is the statement — how
+                    many rows to expect — while a tab's number is an aside to
+                    its name. Two roles, two positions (K8). */}
+                {chip.count !== undefined && (
+                  <span className="font-semibold tabular-nums">{chip.count}</span>
+                )}
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          {counts && (
+            <p className="pb-[9px] text-[13px] text-muted-foreground">
+              {strings.activity.summary(
+                counts.total,
+                counts.upcoming,
+                formatEuro(counts.unbilledCents),
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="px-8 pt-[18px] pb-12">
+        {/* Only the list is capped; the band above runs to the window edge,
+            which is what carries its full-width rule (K1). */}
+        <ContentWidth max={1180}>
+          <ActivityList
+            activities={activities.data ?? []}
+            emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
+            creating={creating}
+            onCreated={() => setCreating(false)}
+            onCancelCreate={() => setCreating(false)}
+          />
+        </ContentWidth>
+      </div>
     </>
   )
 }

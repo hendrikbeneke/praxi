@@ -73,7 +73,7 @@ Text, nicht als deaktivierte Felder.
 | K6 | Kontaktbereich | **done** |
 | K7 | Kontakt-Reiter | **done** |
 | K8 | Zahlungen | **done** |
-| K9 | Vorgänge | offen |
+| K9 | Vorgänge | **done** |
 | K10 | Kalender | offen |
 
 ## K1 — Fundament
@@ -248,6 +248,30 @@ Beide Reiter. Nachweis und Messtabelle in `docs/design-korrektur/k8/`.
 - **Zwei Funde nebenbei:** eine gespeicherte Spaltenauswahl hielt die alte Reihenfolge am Leben
   (wird jetzt verworfen, sobald sie eine Spalte nennt, die es nicht mehr gibt), und „Offen
   insgesamt" unter der Tabelle zählte Entwürfe als offen mit — 995 € Unterschied zur Kachel.
+
+## K9 — Vorgänge
+
+Klein. Nachweis in `docs/design-korrektur/k9/`.
+
+- **Kontaktnamen als „Nachname, Vorname"** in der Vorgangsliste und in beiden Reitern von
+  Zahlungen — serverseitig, `formatContactNameSorted` statt `formatContactName` in
+  `domain/activity.ts` und `domain/billable.ts`. Die Regel dahinter steht jetzt als Kommentar
+  an der Funktion: nicht „Liste oder Fließtext", sondern **ob die Sortierung nach dem Namen
+  geht**. Der Kalendereintrag ist das Gegenbeispiel — auch eine Liste, aber nach der Zeit
+  geordnet, und deshalb „Mara Lentz".
+- **Die Empfängerspalte der Rechnungsliste bleibt natürlich**: sie zeigt den eingefrorenen
+  `recipient_snapshot`, also das, was auf dem PDF steht. Eine Liste, die den Empfänger anders
+  schreibt als das Dokument, wäre ein Widerspruch, den eine Betriebsprüfung erklärt haben will.
+  Im Register.
+- **Die Trennlinie unter dem Filterblock** ist der Rand einer vollbreiten, klebenden Leiste in
+  Kartenfarbe — dasselbe Muster wie der Kopf der Kontaktakte aus K6. Unter einem gekappten Block
+  wäre sie ein Strich in der Mitte des Bildschirms statt einer Teilung.
+- **Der Wochentagspunkt war ein Fehlbefund meines Abgleichs.** Gebaut steht er längst, aus
+  `Intl` über `formatBerlinDateLong`. Ohne Punkt schreibt allein die Titelzeile des Kalenders,
+  die ihn aus `strings.date.weekdays` selbst zusammensetzt — das ist K10.
+- **Nachträge aus K8:** die Chip-Zeilen der Kontakt-Reiter bekommen die Zahl nach vorn (sie sind
+  seit K7 Filter, damit greift die Regel), und das Verwerfen einer veralteten Spaltenauswahl ist
+  kommentiert.
 
 ## K4 — Einstellungen
 
