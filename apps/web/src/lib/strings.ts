@@ -120,6 +120,10 @@ export const strings = {
   contactType: {
     tabRoles: 'Rollen',
     tabRelations: 'Beziehungen',
+    /** The card manages the *types*, the section is about relations — the
+     *  design uses two words and D4 had made them one string, the same trap as
+     *  the section hints (K5). */
+    relationCardTitle: 'Beziehungsarten',
     rolesHint: 'bestimmen, in welchen Listen ein Kontakt auftaucht',
     relationsHint: 'verbinden zwei Kontakte und erscheinen in beiden Akten',
     /** The direction in words, in the design's wording (K4). */
@@ -412,6 +416,9 @@ export const strings = {
     shortCodeHint: 'Optional, für die Schnellauswahl. Muss eindeutig sein.',
     serviceDescription: 'Bezeichnung',
     feeCode: 'Ziffer (GebüH)',
+    /** The column heading only. The form and the detail field keep the long
+     *  form — that is how the design labels each of the three (K5). */
+    feeCodeColumn: 'Ziffer',
     price: 'Preis',
     priceHint: 'In Euro, zum Beispiel 90,00',
     duration: 'Dauer',
@@ -1241,6 +1248,9 @@ export const strings = {
   },
   catalogue: {
     active: 'Aktiv',
+    /** The column heading. "Aktiv" is what a row *says*; the column is about
+     *  the status, which is what the design heads it with (K5). */
+    statusColumn: 'Status',
     inactive: 'Inaktiv',
     moveUp: 'Nach oben',
     moveDown: 'Nach unten',

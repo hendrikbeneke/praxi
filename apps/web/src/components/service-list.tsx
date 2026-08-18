@@ -7,8 +7,7 @@ import {
   type ServiceInput,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Fragment } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -20,7 +19,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { useInlineDetail } from '@/components/inline-detail-row'
-import { DASH, ListCard, ListCardTitleBar, listHeaderClass } from '@/components/list-card'
+import { DASH, ListCard, listHeaderClass } from '@/components/list-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,13 +49,20 @@ import { strings } from '@/lib/strings'
  */
 const GRID = 'grid grid-cols-[58px_minmax(0,1fr)_48px_76px_80px] items-baseline gap-2.5'
 
-export function ServiceList() {
+export function ServiceList({
+  creating,
+  onCreatingChange,
+}: {
+  /** Owned by the page, because the button that starts it lives in the page
+   *  header now — one "Neu" for both tabs, its label following the tab (K5). */
+  creating: boolean
+  onCreatingChange: (creating: boolean) => void
+}) {
   const queryClient = useQueryClient()
   // Point 3 (D5): inactive entries stay in the list, the status is in the
   // row — no "show inactive" filter to maintain.
   const services = useQuery(serviceListQueryOptions(true))
   const detail = useInlineDetail()
-  const [creating, setCreating] = useState(false)
 
   const invalidate = () =>
     Promise.all([
@@ -73,7 +79,7 @@ export function ServiceList() {
     onSuccess: async (_result, input) => {
       await invalidate()
       detail.close()
-      setCreating(false)
+      onCreatingChange(false)
       toast.success(input.id ? strings.service.saved : strings.service.created)
     },
     onError,
@@ -100,23 +106,6 @@ export function ServiceList() {
 
   return (
     <ListCard>
-      <ListCardTitleBar
-        title={strings.service.tabServices}
-        hint={strings.service.templateHint}
-        action={
-          <Button
-            size="sm"
-            onClick={() => {
-              detail.close()
-              setCreating((current) => !current)
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            {strings.service.create}
-          </Button>
-        }
-      />
-
       {creating && (
         <div className="border-b bg-muted/20 p-4">
           <p className="mb-4 flex items-baseline gap-2">
@@ -125,18 +114,27 @@ export function ServiceList() {
           </p>
           <ServiceForm
             pending={save.isPending}
-            onCancel={() => setCreating(false)}
+            onCancel={() => onCreatingChange(false)}
             onSubmit={(values) => save.mutate({ values })}
           />
         </div>
       )}
 
-      <div className={`${GRID} border-b bg-muted/40 px-4 py-[9px] ${listHeaderClass}`}>
-        <span>{strings.service.shortCode}</span>
-        <span>{strings.service.serviceDescription}</span>
-        <span>{strings.service.feeCode}</span>
-        <span className="text-right">{strings.service.price}</span>
-        <span>{strings.service.duration}</span>
+      <div
+        className={`flex items-center gap-3 border-b bg-muted/40 px-4 py-[9px] ${listHeaderClass}`}
+      >
+        <span className={`${GRID} min-w-0 flex-1`}>
+          <span>{strings.service.shortCode}</span>
+          <span>{strings.service.serviceDescription}</span>
+          <span>{strings.service.feeCodeColumn}</span>
+          <span className="text-right">{strings.service.price}</span>
+          <span>{strings.service.duration}</span>
+        </span>
+        <span className="w-[66px] shrink-0">{strings.catalogue.statusColumn}</span>
+        {/* Empty, over the two arrows — the row's own layout, mirrored so each
+            heading sits above the column it names (K5). */}
+        <span className="w-[26px] shrink-0" />
+        <span className="w-[26px] shrink-0" />
       </div>
 
       {rows.length === 0 ? (
@@ -146,19 +144,19 @@ export function ServiceList() {
       ) : (
         rows.map((entry, index) => (
           <Fragment key={entry.id}>
-            <div className="flex items-center gap-3 border-b px-4 last:border-b-0">
+            <div className="flex items-center gap-3 border-b px-4 text-sm last:border-b-0">
               <button
                 type="button"
                 className={`${GRID} min-w-0 flex-1 py-2.5 text-left`}
                 onClick={() => {
-                  setCreating(false)
+                  onCreatingChange(false)
                   detail.toggle(entry.id)
                 }}
               >
                 <span className="truncate text-muted-foreground text-xs tabular-nums">
                   {entry.shortCode ?? DASH}
                 </span>
-                <span className="truncate font-medium">{entry.description}</span>
+                <span className="truncate font-semibold">{entry.description}</span>
                 <span className="truncate text-muted-foreground text-xs">
                   {entry.feeCode ?? DASH}
                 </span>

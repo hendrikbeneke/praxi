@@ -69,7 +69,7 @@ Text, nicht als deaktivierte Felder.
 | K2 | Lesemodus | **done** |
 | K3 | Zusammenfassungen | **done** |
 | K4 | Einstellungen | **done** |
-| K5 | Leistungen | offen |
+| K5 | Leistungen | **done** |
 | K6 | Kontaktbereich | offen |
 | K7 | Kontakt-Reiter | offen |
 | K8 | Zahlungen | offen |
@@ -119,6 +119,34 @@ Blöcke mitzählte. Gemessen gilt:
 - **Pfeile statt Chevrons** in `catalogue-controls.tsx`: `ArrowUp`/`ArrowDown`, Knopf 26 × 26
   statt 36 × 36, Icon 14 px, Strichstärke 2 — Muster 6 des Handoffs sagt „Pfeiltasten", und
   der Prototyp zeichnet sie. Wirkt auf alle sieben Katalog-Listen zugleich.
+
+## K5 — Leistungen
+
+Klein, und mit einer Korrektur an der eigenen Vorgabe.
+
+- **Die sieben Rasterspalten stehen nur in der README-Prosa.** Der Prototyp benutzt dasselbe
+  fünfspaltige Grid wie der Build und hängt Status (66 px) und die beiden Pfeile (je 26 px)
+  daneben in dieselbe Flex-Zeile. Die gebauten Zeilen entsprachen dem exakt; gefehlt haben nur
+  diese drei Zellen in der **Kopfzeile**, weshalb „Status" ohne Überschrift stand. Dritte Stelle
+  nach K1 und K4, an der Prosa und Markup auseinandergehen — ab hier gilt das Markup.
+- **Kopfzeile jetzt 35,5 px**, der offene Punkt aus K1. Sie kam nicht vom Polster, sondern vom
+  Umbruch von „ZIFFER (GEBÜH)"; die Spaltenüberschrift heißt jetzt „Ziffer", während Formular
+  und Detailfeld die lange Form behalten — so beschriftet der Prototyp die drei Stellen.
+- **Erläuterungssatz und Knopf im Seitenkopf** (dritter Slot aus K1). Damit entfällt der
+  Titelbalken der Karte, den der Prototyp dort nicht hat, und die Karte beginnt mit der
+  Kopfzeile. **Ein** Knopf, dessen Label dem Reiter folgt, wie `neuLabel` im Prototyp; der
+  Gruppen-Reiter behält seinen eigenen Satz als 13-px-Zeile über der Karte.
+- **Reiter als runde Chips** (`tabChipClass` neben `filterChipClass` in `components/chip.tsx`):
+  32 px, Zähler gedämpft dahinter. Eigene Form, weil ein Filter-Chip die Zahl als Aussage trägt
+  und ein Reiter sie als Beiwerk zum Namen.
+- **Zeilentext 14 px** statt der von `body` geerbten 16, und die Bezeichnung in 600 statt 500.
+- Nebenbei zwei Ein-String-für-zwei-Zwecke-Fehler behoben: „Aktiv" ist kein Spaltenkopf (der
+  heißt „Status"), und `tabRelations` trug Navigationslabel und Kartentitel zugleich — die
+  Bereichsspalte sagt „Beziehungen", die Karte „Beziehungsarten", weil dort Typen gepflegt
+  werden.
+- **Nachgetragen:** ein Typfehler, den K4 mitcommittet hatte — das Spreaden des nullable
+  `recipientSnapshot` im PDF-Test machte jeden Schlüssel optional. In K4 lief die Typprüfung vor
+  dem Hinzufügen des Tests, und `vitest` prüft keine Typen.
 
 ## K4 — Einstellungen
 

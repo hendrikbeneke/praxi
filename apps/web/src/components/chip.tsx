@@ -46,3 +46,21 @@ export function filterChipClass(active: boolean): string {
       : 'border-border bg-card text-muted-foreground hover:bg-accent',
   )
 }
+
+/**
+ * A tab that names a section and says how many are in it — 32px, and the count
+ * muted rather than bold.
+ *
+ * Its own shape beside `filterChipClass`, because it answers a different
+ * question: a filter chip's number *is* the statement ("Überfällig 2"), so it
+ * carries the weight, while a tab's number is an aside to the name of the place
+ * it leads to. Both are the design's, measured.
+ */
+export function tabChipClass(active: boolean): string {
+  return cn(
+    'inline-flex h-8 items-center gap-[7px] rounded-full border px-[13px] text-[13.5px] transition-colors hover:border-primary',
+    active
+      ? 'border-primary bg-primary/12 font-semibold text-foreground'
+      : 'border-border bg-card text-muted-foreground',
+  )
+}

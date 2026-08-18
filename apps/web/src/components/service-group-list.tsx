@@ -1,6 +1,6 @@
 import { formatEuro, type Service, type ServiceGroup, type ServiceGroupInput } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -10,7 +10,7 @@ import {
   OrderButtons,
 } from '@/components/catalogue-controls'
 import { useInlineDetail } from '@/components/inline-detail-row'
-import { ListCard, ListCardTitleBar, listHeaderClass } from '@/components/list-card'
+import { ListCard, listHeaderClass } from '@/components/list-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,12 +45,19 @@ function groupSum(group: ServiceGroup): number {
   return group.items.reduce((sum, item) => sum + item.defaultPriceCents * item.quantity, 0)
 }
 
-export function ServiceGroupList({ services }: { services: Service[] }) {
+export function ServiceGroupList({
+  services,
+  creating,
+  onCreatingChange,
+}: {
+  services: Service[]
+  creating: boolean
+  onCreatingChange: (creating: boolean) => void
+}) {
   const queryClient = useQueryClient()
   // Point 3 (D5): inactive groups stay in the list, the status is in the row.
   const groups = useQuery(serviceGroupListQueryOptions(true))
   const detail = useInlineDetail()
-  const [creating, setCreating] = useState(false)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['service-groups'] })
   const onError = (error: unknown) =>
@@ -62,7 +69,7 @@ export function ServiceGroupList({ services }: { services: Service[] }) {
     onSuccess: async (_result, input) => {
       await invalidate()
       detail.close()
-      setCreating(false)
+      onCreatingChange(false)
       toast.success(input.id ? strings.service.groupSaved : strings.service.groupCreated)
     },
     onError,
@@ -89,23 +96,6 @@ export function ServiceGroupList({ services }: { services: Service[] }) {
 
   return (
     <ListCard>
-      <ListCardTitleBar
-        title={strings.service.tabGroups}
-        hint={strings.service.groupHint}
-        action={
-          <Button
-            size="sm"
-            onClick={() => {
-              detail.close()
-              setCreating((current) => !current)
-            }}
-          >
-            <Plus className="size-4" aria-hidden />
-            {strings.service.groupCreate}
-          </Button>
-        }
-      />
-
       {creating && (
         <div className="border-b bg-muted/20 p-4">
           <p className="mb-4 flex items-baseline gap-2">
@@ -115,17 +105,26 @@ export function ServiceGroupList({ services }: { services: Service[] }) {
           <ServiceGroupForm
             services={services}
             pending={save.isPending}
-            onCancel={() => setCreating(false)}
+            onCancel={() => onCreatingChange(false)}
             onSubmit={(values) => save.mutate({ values })}
           />
         </div>
       )}
 
-      <div className={`${GROUP_GRID} border-b bg-muted/40 px-4 py-[9px] ${listHeaderClass}`}>
-        <span>{strings.service.groupColumnLabel}</span>
-        <span>{strings.service.groupColumnContains}</span>
-        <span>{strings.service.groupColumnCount}</span>
-        <span className="text-right">{strings.service.groupSum}</span>
+      <div
+        className={`flex items-center gap-3 border-b bg-muted/40 px-4 py-[9px] ${listHeaderClass}`}
+      >
+        <span className={`${GROUP_GRID} min-w-0 flex-1`}>
+          <span>{strings.service.groupColumnLabel}</span>
+          <span>{strings.service.groupColumnContains}</span>
+          <span>{strings.service.groupColumnCount}</span>
+          <span className="text-right">{strings.service.groupSum}</span>
+        </span>
+        <span className="w-[66px] shrink-0">{strings.catalogue.statusColumn}</span>
+        {/* Empty, over the two arrows — the row's own layout, mirrored so each
+            heading sits above the column it names (K5). */}
+        <span className="w-[26px] shrink-0" />
+        <span className="w-[26px] shrink-0" />
       </div>
 
       {rows.length === 0 ? (
@@ -135,16 +134,16 @@ export function ServiceGroupList({ services }: { services: Service[] }) {
       ) : (
         rows.map((group, index) => (
           <Fragment key={group.id}>
-            <div className="flex items-center gap-3 border-b px-4 last:border-b-0">
+            <div className="flex items-center gap-3 border-b px-4 text-sm last:border-b-0">
               <button
                 type="button"
                 className={`${GROUP_GRID} min-w-0 flex-1 py-2.5 text-left`}
                 onClick={() => {
-                  setCreating(false)
+                  onCreatingChange(false)
                   detail.toggle(group.id)
                 }}
               >
-                <span className="truncate font-medium">{group.name}</span>
+                <span className="truncate font-semibold">{group.name}</span>
                 <span className="truncate text-muted-foreground text-xs">
                   {group.items.map((item) => `${item.quantity}× ${item.description}`).join(', ') ||
                     strings.service.groupItemsEmpty}

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { Invoice } from '@praxi/shared'
+import type { Invoice, RecipientSnapshot } from '@praxi/shared'
 import { PDFDocument } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { LOAD_OPTIONS } from './overlay.js'
@@ -15,6 +15,18 @@ import { renderInvoicePdf } from './render.js'
  * them would have hidden any *other* source of variance, which is exactly what
  * a determinism test is supposed to find.
  */
+
+const RECIPIENT: RecipientSnapshot = {
+  contactNumber: 1,
+  name: 'Erika Testperson',
+  contactPerson: null,
+  street: 'Teststraße',
+  houseNumber: '1',
+  postalCode: '12345',
+  city: 'Teststadt',
+  country: 'DE',
+  vatId: null,
+}
 
 const invoice: Invoice = {
   id: '019fe362-73c4-77e4-af42-33388a5b6c5d',
@@ -32,17 +44,7 @@ const invoice: Invoice = {
   cancelsInvoiceNumber: null,
   cancelledByInvoiceId: null,
   cancelledByInvoiceNumber: null,
-  recipientSnapshot: {
-    contactNumber: 1,
-    name: 'Erika Testperson',
-    contactPerson: null,
-    street: 'Teststraße',
-    houseNumber: '1',
-    postalCode: '12345',
-    city: 'Teststadt',
-    country: 'DE',
-    vatId: null,
-  },
+  recipientSnapshot: RECIPIENT,
   introText: 'für die erbrachten Leistungen erlaube ich mir zu berechnen:',
   outroText: 'Umsatzsteuerfrei nach § 4 Nr. 14 lit. a UStG.',
   diagnosis: null,
@@ -173,11 +175,11 @@ describe('renderInvoicePdf', () => {
   it('prints the country name, not its code', async () => {
     const at: Invoice = {
       ...invoice,
-      recipientSnapshot: { ...invoice.recipientSnapshot, country: 'AT' },
+      recipientSnapshot: { ...RECIPIENT, country: 'AT' },
     }
     const spelledOut: Invoice = {
       ...invoice,
-      recipientSnapshot: { ...invoice.recipientSnapshot, country: 'Österreich' },
+      recipientSnapshot: { ...RECIPIENT, country: 'Österreich' },
     }
 
     expect(sha256(await renderInvoicePdf(at, null))).toBe(

@@ -358,7 +358,7 @@ export function RelationTypeSettings() {
     <>
       <ListCard>
         <ListCardTitleBar
-          title={strings.contactType.tabRelations}
+          title={strings.contactType.relationCardTitle}
           hint={strings.contactType.relationsHint}
           action={
             <Button

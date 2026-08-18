@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Plus } from 'lucide-react'
+import { useState } from 'react'
 import { z } from 'zod'
+import { tabChipClass } from '@/components/chip'
 import { ContentWidth } from '@/components/content-width'
 import { PageHeader } from '@/components/page-header'
 import { ServiceGroupList } from '@/components/service-group-list'
 import { ServiceList } from '@/components/service-list'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/services'
 import { strings } from '@/lib/strings'
 
@@ -31,51 +34,77 @@ function ServicesPage() {
      the inactive entries, because the lists show them too (K3). */
   const allServices = useQuery(serviceListQueryOptions(true))
   const allGroups = useQuery(serviceGroupListQueryOptions(true))
+  /* Owned here because the button that starts it lives in the page header now. */
+  const [creating, setCreating] = useState(false)
 
   return (
     // The whole page is capped, header included — where the prototype
     // puts it on the three list screens (K1).
     <ContentWidth max={1180}>
-      <PageHeader title={strings.service.title} description={strings.service.description} />
-
-      <Tabs
-        value={tab}
-        onValueChange={(value) =>
-          void navigate({
-            search: (previous) => ({
-              ...previous,
-              tab: value === 'services' ? undefined : 'groups',
-            }),
-          })
+      {/* The explanation and the "Neu" button live in the page header, where the
+          design puts them — the third slot came with K1. Before that they had
+          moved into the list card, which gave that card a title bar the design
+          does not have there (K5). One button, its label following the tab, as
+          the prototype switches `neuLabel`. */}
+      <PageHeader
+        title={strings.service.title}
+        description={strings.service.description}
+        note={strings.service.templateHint}
+        actions={
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="size-4" aria-hidden />
+            {tab === 'groups' ? strings.service.groupCreate : strings.service.create}
+          </Button>
         }
-      >
-        <TabsList>
-          <TabsTrigger value="services">
-            {strings.service.tabServices}
-            <TabCount count={allServices.data?.length} />
-          </TabsTrigger>
-          <TabsTrigger value="groups">
-            {strings.service.tabGroups}
-            <TabCount count={allGroups.data?.length} />
-          </TabsTrigger>
-        </TabsList>
+      />
 
-        <TabsContent value="services" className="pt-6">
-          <ServiceList />
-        </TabsContent>
+      <div className="mt-5 flex flex-wrap items-center gap-2.5">
+        {(
+          [
+            ['services', strings.service.tabServices, allServices.data?.length],
+            ['groups', strings.service.tabGroups, allGroups.data?.length],
+          ] as const
+        ).map(([value, label, count]) => (
+          <button
+            key={value}
+            type="button"
+            className={tabChipClass(tab === value)}
+            onClick={() =>
+              void navigate({
+                search: (previous) => ({
+                  ...previous,
+                  tab: value === 'services' ? undefined : 'groups',
+                }),
+              })
+            }
+          >
+            {label}
+            {/* Nothing while it loads: a tab reading "0" and then "9" claims an
+                empty catalogue for a moment. */}
+            {count !== undefined && (
+              <span className="text-muted-foreground tabular-nums">{count}</span>
+            )}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="groups" className="pt-6">
-          <ServiceGroupList services={activeServices.data ?? []} />
-        </TabsContent>
-      </Tabs>
+      <div className="mt-4">
+        {tab === 'groups' ? (
+          <>
+            {/* The groups tab carries its own sentence above the card — rule 5
+                in one line, and the design puts it here rather than in a title
+                bar (K5). */}
+            <p className="mb-2.5 text-[13px] text-muted-foreground">{strings.service.groupHint}</p>
+            <ServiceGroupList
+              services={activeServices.data ?? []}
+              creating={creating}
+              onCreatingChange={setCreating}
+            />
+          </>
+        ) : (
+          <ServiceList creating={creating} onCreatingChange={setCreating} />
+        )}
+      </div>
     </ContentWidth>
   )
-}
-
-/** The number beside a tab's name — muted and after the label, the way the
- *  design sets it. Nothing while the count is still loading: a tab that says
- *  "0" and then "9" claims an empty catalogue for a moment. */
-function TabCount({ count }: { count: number | undefined }) {
-  if (count === undefined) return null
-  return <span className="text-muted-foreground tabular-nums">{count}</span>
 }
