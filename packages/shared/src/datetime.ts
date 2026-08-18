@@ -130,6 +130,17 @@ const monthFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
   timeZone: PRACTICE_TIME_ZONE,
   month: 'long',
 })
+const dayMonthFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+  timeZone: PRACTICE_TIME_ZONE,
+  day: 'numeric',
+  month: 'long',
+})
+const weekdayLongFormat = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+  timeZone: PRACTICE_TIME_ZONE,
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+})
 
 export function formatBerlinDate(iso: string): string {
   return dateFormat.format(new Date(iso))
@@ -147,6 +158,28 @@ export function formatBerlinWeekday(iso: string): string {
  *  question is which period an invoice covers rather than which day (K7). */
 export function formatBerlinMonth(iso: string): string {
   return monthFormat.format(new Date(iso))
+}
+
+/**
+ * `14. August` — a day named the way one says it out loud, without the year.
+ *
+ * The calendar's header, where the year stands beside the title rather than
+ * inside it, and where "14.08." would be a form nobody speaks (K10).
+ */
+export function formatBerlinDayMonth(iso: string): string {
+  return dayMonthFormat.format(new Date(iso))
+}
+
+/**
+ * `Mittwoch, 12. August` — the same, with the weekday written out.
+ *
+ * The **long** weekday, deliberately: `strings.date.weekdays` in the client
+ * holds two-letter forms for column headings and the date picker, and reading
+ * that list as prose is what produced "Mi, 12.08.2026" in the calendar title
+ * (found in K9, corrected in K10). A heading is a sentence, not a column head.
+ */
+export function formatBerlinWeekdayLong(iso: string): string {
+  return weekdayLongFormat.format(new Date(iso))
 }
 
 export function formatBerlinDateLong(iso: string): string {

@@ -29,8 +29,18 @@ Dreimal ist das inzwischen aufgefallen, jedes Mal in eine andere Richtung:
   benutzt dasselbe fünfspaltige Raster wie die gebauten Zeilen und hängt Status und die
   beiden Pfeile daneben in dieselbe Flex-Zeile.
 
-Wo ein Paket sich auf die README stützt, wird am Markup gegengeprüft, und wenn beide
-auseinandergehen, steht das im Nachweis des Pakets.
+Dazu kommen zwei Fälle, in denen **meine eigene Abgleichliste** irrte, nicht das Handoff:
+
+- **K9 — der Wochentagspunkt.** Der Abgleich führte „Mi., 26.08.2026 statt Mi, 12.08.2026"; der
+  Punkt stand längst, aus `Intl`. Nachgemessen am Bildschirm.
+- **K10 — die Kennzahl-Beschriftungen.** Der Abgleich schrieb „belegt → Stunden", also die
+  Pfeilrichtung verkehrt: der Prototyp sagt „belegt" und „Absagen", gebaut stand „Stunden" und
+  „Abgesagt". **Der Fehler ist dabei einmal durch den Prompt gelaufen** — die Anweisung für K10
+  übernahm die Abgleichzeile ungeprüft. Auch eine Anweisung ist eine Behauptung über das
+  Design, solange sie aus einer Liste stammt und nicht aus dem Markup.
+
+Wo ein Paket sich auf die README oder auf den Abgleich stützt, wird am Markup gegengeprüft, und
+wenn beide auseinandergehen, steht das im Nachweis des Pakets.
 
 ---
 
@@ -291,3 +301,31 @@ zusammen. Der Abgleich führt sie unter D9 getrennt auf; korrigiert wird sie in 
 
 Vierter Fall, in dem Prosa und Wirklichkeit auseinandergingen — diesmal in meiner eigenen
 Liste, nicht in der des Handoffs.
+
+---
+
+## K10 — Die Leisteninhalte stehen rechts statt links
+
+**Design:** eine **linke** Leiste (238 px) mit „Neuer Termin" ganz oben, darunter der Minimonat,
+darunter „Freien Termin finden" — und rechts eine zweite Leiste mit dem Tagesüberblick. Drei
+Spalten.
+
+**Gebaut:** zwei Spalten. Alles davon steht in der **einen rechten** Leiste, in derselben
+Reihenfolge: Knopf, Minimonat, Terminfinder, Tagesüberblick.
+
+**Warum:** „Zwei Spalten statt drei" ist eine D9-Entscheidung und steht im Abgleich als Absicht.
+Die *Zusammensetzung* folgt dem Prototyp, nur spiegelverkehrt — und sie ist der Grund, warum die
+Kopfzeile jetzt die des Designs sein kann: „Neuer Termin" und „Freien Termin finden" standen
+dort und ließen sie in eine zweite Zeile umbrechen.
+
+**Falls doch drei Spalten:** die Leiste in `components/calendar-rail.tsx` aufteilen — der obere
+Block (Knopf, Minimonat, Finder) nach links, der Tagesüberblick bleibt rechts.
+
+---
+
+## K10 — Kein Abweichen: der Auswahl-Ton war ein Fehlbefund
+
+Der Abgleich führte unter D9 „Kein Auswahl-Ton auf der Spalte des gewählten Tags". Der Prototyp
+hat keinen: `spalteBg` tönt allein `heuteIso` (`primary 3 %`), die Kopfzelle `primary 8 %`,
+geschlossene Tage `muted 55 %`. Gebaut steht genau das — `bg-primary/5` in der Kopfzelle,
+`bg-primary/3` in der Spalte. Nichts zu tun; der Befund war meiner.

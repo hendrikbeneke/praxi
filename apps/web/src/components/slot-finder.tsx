@@ -24,7 +24,10 @@ import { cn } from '@/lib/utils'
 
 /** Offered when no activity type carries a duration of its own, and beside
  *  them when some do. */
-const FREE_DURATIONS = [15, 30, 45, 60, 90] as const
+/** Three offers, as the design has them. Five turned the row into a keypad and
+ *  made the choice look more consequential than it is — the length is a search
+ *  parameter, not a decision about the appointment (K10). */
+const FREE_DURATIONS = [15, 30, 60] as const
 
 export type SlotSearch = { durationMin: number; typeCode: string | null }
 

@@ -1,15 +1,15 @@
 import {
-  activityTypeLabel,
-  appointmentStatuses,
   type CalendarEntry,
   type FreeSlot,
+  formatBerlinDayMonth,
+  formatBerlinWeekdayLong,
   fromBerlinDateTimeLocal,
   occupiesSlot,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -21,14 +21,7 @@ import { Button } from '@/components/ui/button'
 import { calendarQueryOptions, freeSlotsQueryOptions, moveAppointment } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
-import {
-  addDays,
-  isoWeek,
-  monthLabel,
-  shortDate,
-  startOfWeek,
-  todayInBerlin,
-} from '@/lib/calendar-dates'
+import { addDays, isoWeek, startOfWeek, todayInBerlin } from '@/lib/calendar-dates'
 import { busyQueryOptions, googleConflictsQueryOptions } from '@/lib/google'
 import { strings } from '@/lib/strings'
 
@@ -47,7 +40,6 @@ const searchSchema = z.object({
   view: z.enum(['day', 'workweek', 'week']).optional(),
   /** The slot's status. What became of the treatment is the activity's status
    *  and is filtered on the Vorgänge page, where the list is the record. */
-  status: z.enum(appointmentStatuses).optional(),
 })
 
 export const Route = createFileRoute('/_app/appointments')({
@@ -64,6 +56,10 @@ export const Route = createFileRoute('/_app/appointments')({
  * more width, and width is the scarce thing: a block has to hold a time, a
  * name and a type.
  */
+/** What the rail's "next free time" asks for before the finder has been given
+ *  a length of its own — the middle of the design's three offers. */
+const DEFAULT_FREE_MINUTES = 60
+
 const DAY_COUNT: Record<CalendarView, number> = { day: 1, workweek: 5, week: 7 }
 
 function CalendarPage() {
@@ -100,14 +96,24 @@ function CalendarPage() {
   const conflicts = useQuery(googleConflictsQueryOptions)
   const conflicted = new Set((conflicts.data ?? []).map((entry) => entry.appointmentId))
 
+  /* Everything in the window. The status chip row that used to narrow this is
+     gone with K10 — the design has none, and a calendar hiding half its
+     entries behind a filter is a calendar one cannot trust at a glance. */
+  const shown = entries.data ?? []
   /**
-   * Filtered here rather than on the server: a week is fetched whole, so this
-   * is instant and costs no round trip. The Vorgänge page does it the other
-   * way round, because that list is paged.
+   * Which day the rail describes: the one that was picked, if it is in view;
+   * otherwise today, if *that* is in view; otherwise the first day of the
+   * range (design). Without the last two steps the overview described a day
+   * nobody was looking at — paging a week forward left it on the anchor, which
+   * is no longer on screen.
    */
-  const shown = (entries.data ?? []).filter(
-    (entry) => search.status === undefined || entry.status === search.status,
-  )
+  const overviewDay =
+    view === 'day' || days.includes(anchor)
+      ? anchor
+      : days.includes(todayInBerlin())
+        ? todayInBerlin()
+        : (days[0] ?? anchor)
+
   const occupied = new Set(
     (entries.data ?? [])
       .filter((entry) => occupiesSlot(entry.status))
@@ -124,6 +130,22 @@ function CalendarPage() {
   const [slotSearch, setSlotSearch] = useState<SlotSearch | null>(null)
   const freeSlots = useQuery(
     freeSlotsQueryOptions(slotSearch ? { from, to, durationMin: slotSearch.durationMin } : null),
+  )
+
+  /**
+   * The first gap on the overview day long enough for what the finder is set
+   * to — the card in the rail. Asked of the server like every other question
+   * about free time: `findFreeSlots` in the domain knows the opening hours and
+   * the private busy intervals, and a second answer computed in the browser
+   * would eventually disagree with the suggestions in the grid.
+   */
+  const nextFreeDuration = slotSearch?.durationMin ?? DEFAULT_FREE_MINUTES
+  const nextFree = useQuery(
+    freeSlotsQueryOptions({
+      from: fromBerlinDateTimeLocal(`${overviewDay}T00:00`),
+      to: fromBerlinDateTimeLocal(`${addDays(overviewDay, 1)}T00:00`),
+      durationMin: nextFreeDuration,
+    }),
   )
 
   /**
@@ -183,10 +205,23 @@ function CalendarPage() {
   const setSearch = (change: Partial<z.infer<typeof searchSchema>>) =>
     void navigate({ search: (previous) => ({ ...previous, ...change }) })
 
+  /**
+   * What the header says about the range, in the design's three forms:
+   * `Mittwoch, 12. August` with `2026` beside it for a day, and
+   * `10. – 14. August 2026` with `KW 33` for a week. The long weekday, not the
+   * two-letter one from `strings.date.weekdays` — that list belongs to column
+   * headings and the date picker, and reading it as prose is what produced
+   * "Mi, 12.08.2026" (K9/K10).
+   */
+  const lastDayInView = addDays(firstDay, dayCount - 1)
   const title =
     view === 'day'
-      ? `${strings.date.weekdays[(new Date(`${anchor}T12:00:00Z`).getUTCDay() + 6) % 7]}, ${shortDate(anchor)}${anchor.slice(0, 4)}`
-      : `${shortDate(firstDay)} – ${shortDate(addDays(firstDay, dayCount - 1))} ${monthLabel(firstDay).slice(-4)}`
+      ? formatBerlinWeekdayLong(`${anchor}T12:00:00Z`)
+      : `${Number(firstDay.slice(8, 10))}. – ${formatBerlinDayMonth(
+          `${lastDayInView}T12:00:00Z`,
+        )} ${lastDayInView.slice(0, 4)}`
+  const subtitle =
+    view === 'day' ? anchor.slice(0, 4) : strings.appointment.calendarWeek(isoWeek(anchor))
 
   return (
     /* `h-full`, not a viewport calculation, and no negative margin: the shell
@@ -223,9 +258,11 @@ function CalendarPage() {
               <ChevronRight className="size-4" aria-hidden />
             </Button>
           </div>
-          <h1 className="whitespace-nowrap font-semibold text-lg">{title}</h1>
-          <span className="text-muted-foreground text-sm tabular-nums">
-            {strings.appointment.calendarWeek(isoWeek(anchor))}
+          <h1 className="whitespace-nowrap font-semibold text-[19px] tracking-[-0.015em]">
+            {title}
+          </h1>
+          <span className="whitespace-nowrap text-[13px] text-muted-foreground tabular-nums">
+            {subtitle}
           </span>
 
           <div className="ml-auto flex items-center gap-0.5 rounded-lg border p-0.5">
@@ -240,67 +277,6 @@ function CalendarPage() {
                 {strings.appointment.views[value]}
               </Button>
             ))}
-          </div>
-
-          <Button
-            size="sm"
-            variant={slotSearch ? 'default' : 'outline'}
-            onClick={() => {
-              setSelection(null)
-              setSlotSearch((current) => (current ? null : { durationMin: 60, typeCode: null }))
-            }}
-          >
-            <Search className="size-4" aria-hidden />
-            {strings.slotFinder.open}
-          </Button>
-
-          <Button size="sm" onClick={() => setSelection({ kind: 'new' })}>
-            <Plus className="size-4" aria-hidden />
-            {strings.appointment.newAppointment}
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-5 py-2">
-          <div className="flex flex-wrap gap-1">
-            {[undefined, ...appointmentStatuses].map((value) => (
-              <Button
-                key={value ?? 'all'}
-                size="sm"
-                variant={search.status === value ? 'default' : 'outline'}
-                className="h-7 rounded-full"
-                onClick={() => setSearch({ status: value })}
-              >
-                {value === undefined
-                  ? strings.appointment.allStatuses
-                  : strings.appointment.status[value]}
-              </Button>
-            ))}
-          </div>
-
-          {/* The legend, so a colour in the grid can be read without opening an
-              entry. Only the active types — the rest are history. */}
-          <div className="ml-auto flex flex-wrap items-center gap-3">
-            {(types.data ?? [])
-              .filter((entry) => entry.active)
-              .map((entry) => (
-                <span key={entry.code} className="flex items-center gap-1.5 text-xs">
-                  <span
-                    aria-hidden
-                    className="inline-block size-2.5 rounded-full"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  {activityTypeLabel(types.data, entry.code)}
-                </span>
-              ))}
-            {(busy.data ?? []).length > 0 && (
-              <span className="flex items-center gap-1.5 text-xs">
-                <span
-                  aria-hidden
-                  className="inline-block size-2.5 rounded-full bg-muted-foreground/30"
-                />
-                {strings.google.busyLegend}
-              </span>
-            )}
           </div>
         </div>
 
@@ -339,7 +315,28 @@ function CalendarPage() {
       </section>
 
       <CalendarRail
-        anchor={anchor}
+        anchor={overviewDay}
+        onNew={() => {
+          setSlotSearch(null)
+          setSelection({ kind: 'new' })
+        }}
+        finderOpen={slotSearch !== null}
+        nextFree={(nextFree.data?.slots ?? [])[0] ?? null}
+        nextFreeDuration={nextFreeDuration}
+        onUseNextFree={(slot) => {
+          setSlotSearch(null)
+          setSelection({
+            kind: 'new',
+            startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
+            durationMin: nextFreeDuration,
+          })
+        }}
+        onToggleFinder={() => {
+          setSelection(null)
+          setSlotSearch((current) =>
+            current ? null : { durationMin: DEFAULT_FREE_MINUTES, typeCode: null },
+          )
+        }}
         entries={shown}
         occupied={occupied}
         selection={selection}

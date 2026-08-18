@@ -9,7 +9,6 @@ import {
   fromBerlinDateTimeLocal,
   minutesBetween,
   occupiesSlot,
-  readableTextOn,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useEffect, useRef, useState } from 'react'
@@ -305,20 +304,36 @@ export function CalendarGrid({
                   .map((entry) => {
                     const length = minutesBetween(entry.startsAt, entry.endsAt)
                     const released = !occupiesSlot(entry.status)
+                    const requested = entry.status === 'requested'
                     /**
-                     * The colour of the activity's type, with the label in
-                     * whichever of black and white reads on it. A released slot
-                     * keeps the muted look: it is struck through, and painting
-                     * it in the type's colour would make it as loud as a live
-                     * entry.
+                     * **A tint of the type's colour over the card, with the
+                     * colour itself as a stripe down the left edge** — the
+                     * design's shape, and until K10 this was the full colour
+                     * across the whole block, which made a week of sessions a
+                     * wall of paint.
+                     *
+                     * The tint is what makes the text a *token* rather than a
+                     * calculation: mixed with `--card` the surface is light in
+                     * every light theme and dark in the dark one, so
+                     * `--foreground` reads on all five. See the note on
+                     * `readableTextOn` for why measuring the type colour would
+                     * be worse than useless here.
+                     *
+                     * A released slot keeps the muted look: it is struck
+                     * through, and painting it at all would make it as loud as
+                     * a live entry. A requested one is dashed all round — the
+                     * slot is asked for, not held.
                      */
                     const color = activityTypeColor(types, entry.activityType)
                     const paint = released
                       ? undefined
                       : {
-                          backgroundColor: color,
-                          color: readableTextOn(color),
-                          borderColor: color,
+                          backgroundColor: `color-mix(in oklab, ${color} ${
+                            requested ? '9%' : '20%'
+                          }, var(--card))`,
+                          borderColor: requested ? color : 'transparent',
+                          borderLeftColor: color,
+                          borderLeftWidth: requested ? 1 : 3,
                         }
 
                     return (
@@ -357,6 +372,7 @@ export function CalendarGrid({
                         className={cn(
                           'absolute inset-x-0.5 z-[2] overflow-hidden rounded border px-1.5 py-0.5 text-left text-xs leading-tight',
                           released && 'border-dashed bg-muted text-muted-foreground line-through',
+                          requested && 'border-dashed',
                           drag?.entry.id === entry.id && 'opacity-40',
                           selectedId === entry.id && 'ring-2 ring-ring',
                           // Changed here and in Google at the same time. The
@@ -364,12 +380,12 @@ export function CalendarGrid({
                           conflicted.has(entry.id) && 'ring-2 ring-warning ring-offset-1',
                         )}
                       >
-                        <span className="block truncate tabular-nums opacity-80">
+                        <span className="block truncate text-muted-foreground tabular-nums">
                           {formatBerlinTime(entry.startsAt)}–{formatBerlinTime(entry.endsAt)}
                         </span>
                         <span className="block truncate font-semibold">{entry.contactName}</span>
                         {length * perMinute >= 58 && (
-                          <span className="block truncate opacity-80">
+                          <span className="block truncate text-muted-foreground">
                             {entry.activityStatus && entry.activityStatus !== 'planned'
                               ? strings.activity.statuses[entry.activityStatus]
                               : entry.activityType

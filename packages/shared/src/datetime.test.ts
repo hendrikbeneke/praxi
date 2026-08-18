@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   addMinutesToLocal,
   ageInYears,
+  formatBerlinDayMonth,
   formatBerlinDayTime,
   formatBerlinTime,
+  formatBerlinWeekdayLong,
   formatRelativeBerlin,
   formatRelativeDayBerlin,
   fromBerlinDateTimeLocal,
@@ -170,6 +172,19 @@ describe('formatBerlinDayTime and formatRelativeDayBerlin', () => {
     const far = '2026-09-14T07:00:00.000Z'
     expect(formatRelativeBerlin(far, now)).toContain('14.09.')
     expect(formatRelativeDayBerlin(far, now)).toBe('in 21 Tagen')
+  })
+})
+
+/** The calendar's header (K10): a day one could read out loud. */
+describe('the calendar header formats', () => {
+  it('names the day without the year', () => {
+    expect(formatBerlinDayMonth('2026-08-14T10:00:00.000Z')).toBe('14. August')
+  })
+
+  it('writes the weekday out in full', () => {
+    // Not "Mi." — the short list belongs to column headings, and reading it as
+    // prose is what produced "Mi, 12.08.2026".
+    expect(formatBerlinWeekdayLong('2026-08-12T10:00:00.000Z')).toBe('Mittwoch, 12. August')
   })
 })
 

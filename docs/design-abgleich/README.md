@@ -1,5 +1,10 @@
 # Design-Abgleich D3 – D9.5
 
+> **Abgeschlossen.** Was aus jeder Zeile geworden ist — behoben in welchem Paket, bewusst offen,
+> oder als Fehlbefund zurückgenommen — steht in [`ABSCHLUSS.md`](ABSCHLUSS.md). Diese Datei
+> bleibt der Befundstand vom Abgleichdurchgang und wird nicht nachgeführt.
+
+
 Ein reiner Vergleichsdurchgang: Prototyp gegen gebaute Oberfläche, Bildschirm für
 Bildschirm. Nichts an der Anwendung wurde geändert. Maßstab ist ausdrücklich
 umgekehrt zu den Bau-Paketen: **der Prototyp gilt, bis eine Regel ihm konkret

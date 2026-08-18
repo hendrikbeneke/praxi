@@ -2,14 +2,15 @@ import {
   activityTypeColor,
   activityTypeLabel,
   type CalendarEntry,
-  formatBerlinDateLong,
+  type FreeSlot,
   formatBerlinTime,
+  formatBerlinWeekdayLong,
   minutesBetween,
   occupiesSlot,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
-import { X } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { ActivityDetail } from '@/components/activity-detail'
 import { ActivityForm } from '@/components/activity-form'
@@ -46,6 +47,12 @@ export function CalendarRail({
   occupied,
   selection,
   finder,
+  finderOpen,
+  nextFree,
+  nextFreeDuration,
+  onNew,
+  onToggleFinder,
+  onUseNextFree,
   onPickDay,
   onSelectEntry,
   onClose,
@@ -58,22 +65,58 @@ export function CalendarRail({
   /** The slot finder's third state (D9.5), rendered by the page so the search
    *  parameters and the grid's overlay stay one piece of state. */
   finder: React.ReactNode | null
+  finderOpen: boolean
+  /** The first gap on the overview day, or null when there is none. */
+  nextFree: FreeSlot | null
+  nextFreeDuration: number
+  onNew: () => void
+  onToggleFinder: () => void
+  onUseNextFree: (slot: FreeSlot) => void
   onPickDay: (date: string) => void
   onSelectEntry: (entry: CalendarEntry) => void
   onClose: () => void
 }) {
   return (
-    <aside className="hidden w-[380px] shrink-0 overflow-auto border-l bg-card p-4 lg:block">
+    /* The design puts "Neuer Termin", the mini month and the slot finder in a
+       rail of their own and leaves the header with the range and the views;
+       ours is the same composition mirrored into the one rail this calendar
+       has. Until K10 the two buttons sat in the header, which is why it broke
+       into a second line as soon as "Freien Termin finden" joined them.
+       Recorded in `docs/design-korrektur/abweichungen.md`. */
+    <aside className="hidden w-[380px] shrink-0 flex-col gap-5 overflow-auto border-l bg-card p-4 lg:flex">
+      <Button className="w-full" size="sm" onClick={onNew}>
+        <Plus className="size-4" aria-hidden />
+        {strings.appointment.newAppointment}
+      </Button>
+
       <MiniMonth anchor={anchor} occupied={occupied} onPick={onPickDay} />
 
-      <div className="mt-6">
-        {finder ??
-          (selection === null ? (
-            <DayOverview anchor={anchor} entries={entries} onSelectEntry={onSelectEntry} />
+      {finder ?? (
+        <>
+          <Button
+            variant={finderOpen ? 'default' : 'outline'}
+            size="sm"
+            className="w-full"
+            onClick={onToggleFinder}
+          >
+            <Search className="size-4" aria-hidden />
+            {strings.slotFinder.open}
+          </Button>
+
+          {selection === null ? (
+            <DayOverview
+              anchor={anchor}
+              entries={entries}
+              nextFree={nextFree}
+              nextFreeDuration={nextFreeDuration}
+              onUseNextFree={onUseNextFree}
+              onSelectEntry={onSelectEntry}
+            />
           ) : (
             <Selected selection={selection} onClose={onClose} />
-          ))}
-      </div>
+          )}
+        </>
+      )}
     </aside>
   )
 }
@@ -149,10 +192,16 @@ function Selected({
 function DayOverview({
   anchor,
   entries,
+  nextFree,
+  nextFreeDuration,
+  onUseNextFree,
   onSelectEntry,
 }: {
   anchor: string
   entries: readonly CalendarEntry[]
+  nextFree: FreeSlot | null
+  nextFreeDuration: number
+  onUseNextFree: (slot: FreeSlot) => void
   onSelectEntry: (entry: CalendarEntry) => void
 }) {
   const types = useQuery(activityTypeListQueryOptions(true))
@@ -174,7 +223,11 @@ function DayOverview({
       <p className="text-muted-foreground text-xs uppercase tracking-wide">
         {strings.appointment.dayOverview}
       </p>
-      <p className="mt-1 font-semibold text-lg">{formatBerlinDateLong(`${anchor}T12:00:00Z`)}</p>
+      {/* "Mittwoch, 12. August" — written out, and without the year: the year
+          stands in the calendar's own header (K10). */}
+      <p className="mt-[3px] font-semibold text-[17px] tracking-[-0.015em]">
+        {formatBerlinWeekdayLong(`${anchor}T12:00:00Z`)}
+      </p>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         <Figure value={String(holding.length)} label={strings.appointment.countAppointments} />
@@ -186,6 +239,31 @@ function DayOverview({
           value={String(ofDay.length - holding.length)}
           label={strings.appointment.countCancelled}
         />
+      </div>
+
+      {/* Where the next treatment would still fit, and the way straight into
+          it. Appears with the gap, not without: a card saying "no free time"
+          with a dead button under it would be a control that leads nowhere. */}
+      <div className="mt-4 rounded-lg border border-primary/30 bg-primary/6 px-3 py-2.5">
+        <p className="text-[12px] text-muted-foreground">{strings.appointment.nextFree}</p>
+        <p className="mt-0.5 font-semibold tabular-nums">
+          {nextFree
+            ? strings.appointment.nextFreeSpan(
+                formatBerlinTime(nextFree.startsAt),
+                formatBerlinTime(nextFree.endsAt),
+                minutesBetween(nextFree.startsAt, nextFree.endsAt),
+              )
+            : strings.appointment.nextFreeNone(nextFreeDuration)}
+        </p>
+        {nextFree && (
+          <button
+            type="button"
+            className="mt-1.5 font-semibold text-[13px] text-primary hover:text-foreground"
+            onClick={() => onUseNextFree(nextFree)}
+          >
+            {strings.appointment.nextFreeAction}
+          </button>
+        )}
       </div>
 
       <p className="mt-6 mb-1 font-semibold text-sm">{strings.appointment.daySchedule}</p>

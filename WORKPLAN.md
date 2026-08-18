@@ -74,7 +74,7 @@ Text, nicht als deaktivierte Felder.
 | K7 | Kontakt-Reiter | **done** |
 | K8 | Zahlungen | **done** |
 | K9 | Vorgänge | **done** |
-| K10 | Kalender | offen |
+| K10 | Kalender | **done** |
 
 ## K1 — Fundament
 
@@ -272,6 +272,35 @@ Klein. Nachweis in `docs/design-korrektur/k9/`.
 - **Nachträge aus K8:** die Chip-Zeilen der Kontakt-Reiter bekommen die Zahl nach vorn (sie sind
   seit K7 Filter, damit greift die Regel), und das Verwerfen einer veralteten Spaltenauswahl ist
   kommentiert.
+
+## K10 — Kalender
+
+Der letzte Korrekturdurchgang. Nachweis in `docs/design-korrektur/k10/`.
+
+- **Terminblöcke getönt statt vollflächig**: `color-mix(in oklab, <Artfarbe> 20 %, var(--card))`
+  mit 3-px-Strich links in der Artfarbe, angefragte Termine gestrichelt bei 9 %. **Damit fällt
+  `readableTextOn` auf dem Block weg**, und zwar weil sie dort falsch liegen muss: sie misst die
+  Artfarbe, während die Fläche zu vier Fünfteln die Karte ist — für ein dunkles Violett sagt sie
+  „Weiß" auf fast weißem Grund. Die Tönung mit einem Themen-Token macht den Text zu
+  `--foreground` und ist in allen fünf Schemata richtig; nachgemessen, Tabelle im Nachweis. Die
+  Begründung steht als Kommentar an der Funktion.
+- **Statusfilter und Farblegende raus** (Zutaten aus D9), der `status`-Parameter der Route damit
+  ebenfalls.
+- **„Neuer Termin" und „Freien Termin finden" in die rechte Leiste**, oben der Knopf, darunter
+  Minimonat und Finder. Der Prototyp legt sie in eine linke Leiste; wir bleiben bei zwei Spalten
+  und spiegeln die Zusammensetzung. Die Kopfzeile ist damit die des Designs und bricht nicht mehr
+  um.
+- **Formate**: „17. – 21. August 2026 · KW 34", „Mittwoch, 12. August · 2026", Tagesüberblick
+  „Mittwoch, 19. August". Zwei neue Formatierer in `packages/shared` mit Tests; die
+  Zweibuchstabenliste bleibt für Spaltenköpfe und Datumsauswahl.
+- **Kennzahlen „belegt" und „Absagen"** — das Design. Meine Abgleichzeile hatte die
+  Pfeilrichtung verkehrt und war so in die Anweisung gelaufen; im Register vermerkt.
+- **Überblickstag** nach der Regel des Prototyps: gewählter Tag, sonst heute, sonst erster Tag
+  des Zeitraums. Vorher stand dort ein Tag, der nach einem Wochenwechsel nicht mehr sichtbar war.
+- **Karte „Nächste freie Zeit"** mit „Termin dort anlegen", die den Server fragt statt selbst zu
+  rechnen. Freie Dauern 15/30/60.
+- **Fehlbefund:** „Kein Auswahl-Ton auf der Spalte des gewählten Tags" — der Prototyp tönt allein
+  heute, und das war gebaut. Nichts zu tun.
 
 ## K4 — Einstellungen
 

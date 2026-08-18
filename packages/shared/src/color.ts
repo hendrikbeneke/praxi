@@ -65,6 +65,26 @@ export const WHITE = '#ffffff'
  * that crossover, where both choices give √21 ≈ 4.58:1 — still above the 4.5:1
  * WCAG AA asks of small text. So this holds for every colour, not only for the
  * ones seeded today.
+ *
+ * **Only call this where the background really is this colour.** The argument
+ * is a paint, not a hint: a chip filled with `#3b82f6` is one, a surface tinted
+ * *towards* `#3b82f6` is not.
+ *
+ * The calendar is the case that shows why, and it got this wrong until K10.
+ * The design paints an entry as `color-mix(in oklab, <type colour> 20%,
+ * var(--card))` — a fifth of the colour over the card. Measure the *type*
+ * colour there and the answer is not merely imprecise, it is systematically
+ * inverted: a dark type colour reports "use white", and white on a surface that
+ * is four fifths card — nearly white in every light theme — is unreadable;
+ * a light type colour reports "use black" on the same near-white surface and
+ * happens to be right. The function would be wrong exactly where it is needed
+ * and right where it does not matter.
+ *
+ * Mixing with a theme token is the better answer anyway, and it needs no
+ * measurement: the surface follows `--card` through all five colour schemes,
+ * so the text can simply be `--foreground` and is correct in every one. Where
+ * a fill *is* the colour — the type chip in the activity list, in Zahlungen and
+ * in the activity-type settings — this function stays exactly right.
  */
 export function readableTextOn(background: string): string {
   return contrastRatio(background, BLACK) >= contrastRatio(background, WHITE) ? BLACK : WHITE

@@ -655,8 +655,16 @@ export const strings = {
     daySchedule: 'Ablauf',
     dayEmpty: 'Keine Termine an diesem Tag.',
     countAppointments: 'Termine',
-    countHours: 'Stunden',
-    countCancelled: 'Abgesagt',
+    /** "belegt" and not "Stunden": the number already carries the unit
+     *  ("4,5 h"), so the label may say what the hours *are* (K10). */
+    countHours: 'belegt',
+    countCancelled: 'Absagen',
+    /** The card under the three figures: the first gap long enough for the
+     *  length the finder is set to, and the way straight into it. */
+    nextFree: 'Nächste freie Zeit',
+    nextFreeNone: (minutes: number) => `Keine freie Zeit ab ${minutes} Min`,
+    nextFreeAction: 'Termin dort anlegen',
+    nextFreeSpan: (from: string, to: string, minutes: number) => `${from}–${to} · ${minutes} Min`,
     previousMonth: 'Vorheriger Monat',
     nextMonth: 'Nächster Monat',
     /** Dragging. The block springs back on refusal, so the message explains a
