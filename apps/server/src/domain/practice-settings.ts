@@ -15,6 +15,7 @@ const columns = {
   email: practiceSettings.email,
   website: practiceSettings.website,
   taxNumber: practiceSettings.taxNumber,
+  vatId: practiceSettings.vatId,
   bankName: practiceSettings.bankName,
   iban: practiceSettings.iban,
   bic: practiceSettings.bic,

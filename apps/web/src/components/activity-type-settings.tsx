@@ -3,7 +3,6 @@ import {
   type ActivityTypeCreate,
   DEFAULT_COLOR,
   formatEuro,
-  readableTextOn,
   type Service,
   type ServiceGroup,
 } from '@praxi/shared'
@@ -97,6 +96,7 @@ export function ActivityTypeSettings() {
   const rows = types.data ?? []
   const serviceRows = services.data ?? []
   const groupRows = groups.data ?? []
+  const byServiceId = new Map(serviceRows.map((service) => [service.id, service]))
 
   return (
     <>
@@ -147,21 +147,24 @@ export function ActivityTypeSettings() {
                     }}
                   >
                     <TableCell>
-                      <ColorSwatch color={type.color} label={type.label} />
+                      <ColorSwatch color={type.color} />
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{type.label}</span>
                       <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
-                      {type.defaultDurationMin !== null && (
-                        <span className="ml-2 text-muted-foreground text-xs tabular-nums">
-                          {type.defaultDurationMin} {strings.service.durationMinutes}
-                        </span>
-                      )}
                       {type.isDefault && (
                         <Badge variant="outline" className="ml-2">
                           {strings.activityType.defaultBadge}
                         </Badge>
                       )}
+                      {/* Duration and preset in one muted line, as the design
+                          writes it: the duration (or "ohne übliche Dauer")
+                          followed by the services, joined by "·" (K4). Without
+                          it the row said what the type is called and nothing
+                          about what applying it would do. */}
+                      <span className="ml-2 text-muted-foreground text-xs">
+                        {presetSummary(type, byServiceId)}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <ActiveStatus active={type.active} />
@@ -214,16 +217,23 @@ export function ActivityTypeSettings() {
   )
 }
 
-/** The colour as the calendar will show it, with a label on top in whichever
- *  of black and white reads better — so the choice is visible while making it. */
-export function ColorSwatch({ color, label }: { color: string; label: string }) {
+/**
+ * The colour as the calendar will show it — a dot, as the design draws it (K4).
+ *
+ * It used to be a filled rectangle carrying the first three letters of the
+ * label, which made it the loudest thing on the settings screen and put a
+ * truncated word ("Ers", "Fol") where the full one already stands beside it.
+ * Handoff pattern 7: colour carries meaning or belongs to a primary surface, it
+ * is not a decorative area. `readableTextOn` went with the fill — nothing is
+ * written on the colour anymore.
+ */
+export function ColorSwatch({ color }: { color: string }) {
   return (
     <span
-      className="inline-flex h-6 min-w-14 items-center justify-center rounded px-2 text-xs"
-      style={{ backgroundColor: color, color: readableTextOn(color) }}
-    >
-      {label.slice(0, 3)}
-    </span>
+      aria-hidden
+      className="inline-block size-2.5 shrink-0 rounded-full"
+      style={{ backgroundColor: color }}
+    />
   )
 }
 
@@ -390,7 +400,7 @@ function ActivityTypeForm({
               value={values.color}
               onChange={(event) => setValues({ ...values, color: event.target.value })}
             />
-            <ColorSwatch color={values.color} label={values.label || strings.activityType.label} />
+            <ColorSwatch color={values.color} />
           </div>
           <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.colorHint}</p>
         </div>
@@ -576,4 +586,27 @@ function PresetItemsEditor({
       </Select>
     </div>
   )
+}
+
+/**
+ * What applying this type would do, in one muted line: the usual duration — or
+ * that there is none — followed by the services it prefills, joined by "·".
+ *
+ * The format is the design's, including "ohne übliche Dauer" for a type without
+ * one: `—` would say "no value" where the point is that this kind of activity
+ * has no usual length, which is a statement and not a gap (K4).
+ *
+ * A preset service the catalogue no longer offers is skipped rather than shown
+ * as a blank: `presetItems` holds references, and the row is a summary, not the
+ * place to report a stale one.
+ */
+function presetSummary(type: ActivityType, byServiceId: Map<string, Service>): string {
+  const duration =
+    type.defaultDurationMin === null
+      ? strings.activityType.noUsualDuration
+      : `${type.defaultDurationMin} ${strings.service.durationMinutes}`
+  const services = type.presetItems
+    .map((item) => byServiceId.get(item.serviceId)?.description)
+    .filter((description): description is string => description !== undefined)
+  return [duration, ...services].join(' · ')
 }

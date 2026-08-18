@@ -1,8 +1,9 @@
-import { formatBerlinDateTime } from '@praxi/shared'
+import { formatBerlinDateTime, formatRelativeBerlin } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Link2, Link2Off, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { DASH } from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,8 +34,18 @@ import { strings } from '@/lib/strings'
  * It says what the connection is doing — nothing more. A sync conflict is a
  * scheduling question and lives in the calendar, where scheduling happens.
  */
+/** The status strip's three columns and its small caps labels — 11.5px with
+ *  .04em, as the prototype sets them. Its own scale, not `listHeaderClass`:
+ *  that one belongs to a list's column labels. */
+const STRIP = 'grid sm:grid-cols-3'
+const STRIP_LABEL = 'text-[11.5px] text-muted-foreground uppercase tracking-[0.04em]'
+
 export function GoogleSettings() {
   const queryClient = useQueryClient()
+  /* Relative, not absolute: "vor 2 Std." answers "is the projection current"
+     without arithmetic, which is what the line is for. Held as a value so the
+     render stays a pure function of its input, like every other caller. */
+  const now = new Date()
   const status = useQuery(googleStatusQueryOptions)
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['google'] })
@@ -66,8 +77,16 @@ export function GoogleSettings() {
 
   return (
     <Card>
-      <CardHeader>
+      {/* Which account is connected belongs beside the card's name, as the
+          design puts it — it says what this card is about, where the buttons
+          below say what can be done with it (K4). */}
+      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
         <CardTitle>{strings.google.title}</CardTitle>
+        {data.connected && (
+          <Badge variant="secondary">
+            {strings.google.connectedAs} {data.accountEmail ?? DASH}
+          </Badge>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         <p className="text-muted-foreground text-sm">{strings.google.description}</p>
@@ -88,9 +107,6 @@ export function GoogleSettings() {
         <div className="flex flex-wrap items-center gap-3">
           {data.connected ? (
             <>
-              <Badge variant="secondary">
-                {strings.google.connectedAs} {data.accountEmail ?? '—'}
-              </Badge>
               <Button
                 variant="outline"
                 size="sm"
@@ -119,22 +135,24 @@ export function GoogleSettings() {
 
         {data.connected && (
           <>
-            <CalendarPickers
-              calendarId={data.calendarId}
-              freebusyCalendarIds={data.freebusyCalendarIds}
-              onSaved={invalidate}
-            />
-
-            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            {/* The status strip sits above the pickers, as the design puts it,
+                with all three fields — and "Letzter Fehler" is always one of
+                them. It used to appear only when there was an error, which is
+                the wrong way round: rule 13 asks that a stuck row be nameable,
+                and a field that is absent while things are fine cannot be read
+                as "nothing has gone wrong" (K4). */}
+            <dl className={`${STRIP} gap-x-6 gap-y-3`}>
               <div>
-                <dt className="text-muted-foreground">{strings.google.lastSync}</dt>
-                <dd>
-                  {data.lastSyncAt ? formatBerlinDateTime(data.lastSyncAt) : strings.google.never}
+                <dt className={STRIP_LABEL}>{strings.google.lastSync}</dt>
+                <dd className="mt-1 text-sm">
+                  {data.lastSyncAt
+                    ? formatRelativeBerlin(data.lastSyncAt, now)
+                    : strings.google.never}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">{strings.google.queue}</dt>
-                <dd className="flex flex-wrap gap-2">
+                <dt className={STRIP_LABEL}>{strings.google.queue}</dt>
+                <dd className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                   {data.queuePending === 0 ? (
                     strings.google.queueEmpty
                   ) : (
@@ -149,13 +167,19 @@ export function GoogleSettings() {
                   )}
                 </dd>
               </div>
-              {data.lastError && (
-                <div className="sm:col-span-2">
-                  <dt className="text-muted-foreground">{strings.google.lastError}</dt>
-                  <dd className="text-destructive">{data.lastError}</dd>
-                </div>
-              )}
+              <div>
+                <dt className={STRIP_LABEL}>{strings.google.lastError}</dt>
+                <dd className={`mt-1 text-sm ${data.lastError ? 'text-destructive' : ''}`}>
+                  {data.lastError ?? DASH}
+                </dd>
+              </div>
             </dl>
+
+            <CalendarPickers
+              calendarId={data.calendarId}
+              freebusyCalendarIds={data.freebusyCalendarIds}
+              onSaved={invalidate}
+            />
           </>
         )}
       </CardContent>

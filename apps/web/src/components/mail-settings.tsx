@@ -166,8 +166,17 @@ function SmtpAccount() {
 
   return (
     <Card>
-      <CardHeader>
+      {/* "Bearbeiten" sits in the card header, where the design puts it — not at
+          the foot beside "Testmail senden" and "Mailkonto entfernen", which are
+          actions on the account rather than a way into the form (K4). */}
+      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle>{strings.mail.accountTitle}</CardTitle>
+        {!editing && stored && (
+          <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Pencil className="size-4" aria-hidden />
+            {strings.actions.edit}
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         <p className="text-muted-foreground text-sm">{strings.mail.description}</p>
@@ -334,12 +343,7 @@ function SmtpAccount() {
                 </Button>
               )}
             </>
-          ) : (
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-              <Pencil className="size-4" aria-hidden />
-              {strings.actions.edit}
-            </Button>
-          )}
+          ) : null}
 
           {stored && (
             <>

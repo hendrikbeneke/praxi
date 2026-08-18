@@ -1,10 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { type PracticeSettings, practiceSettingsInputSchema } from '@praxi/shared'
+import {
+  countries,
+  countryName,
+  type PracticeSettings,
+  practiceSettingsInputSchema,
+} from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Pencil } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { ActivityTypeSettings } from '@/components/activity-type-settings'
@@ -16,11 +21,19 @@ import { MailSettings } from '@/components/mail-settings'
 import { OpeningHoursSettings } from '@/components/opening-hours-settings'
 import { PageHeader } from '@/components/page-header'
 import { ReadValue } from '@/components/read-value'
+import { Section, SectionField } from '@/components/section-grid'
 import { TextTemplateSettings } from '@/components/text-template-settings'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ApiError } from '@/lib/api'
 import { practiceSettingsQueryOptions, updatePracticeSettings } from '@/lib/settings'
 import { strings } from '@/lib/strings'
@@ -65,17 +78,21 @@ const SECTIONS: { key: SectionKey; label: string; hint: string }[] = [
     label: strings.settings.sectionInvoicing,
     hint: strings.settingsNav.invoicingHint,
   },
-  { key: 'roles', label: strings.contactType.tabRoles, hint: strings.contactType.rolesHint },
+  { key: 'roles', label: strings.contactType.tabRoles, hint: strings.settingsNav.rolesHint },
   {
     key: 'relations',
     label: strings.contactType.tabRelations,
-    hint: strings.contactType.relationsHint,
+    hint: strings.settingsNav.relationsHint,
   },
-  { key: 'activityTypes', label: strings.activityType.title, hint: strings.activityType.hint },
+  {
+    key: 'activityTypes',
+    label: strings.activityType.title,
+    hint: strings.settingsNav.activityTypesHint,
+  },
   {
     key: 'textTemplates',
     label: strings.invoice.templates,
-    hint: strings.invoice.templatesHint,
+    hint: strings.settingsNav.textTemplatesHint,
   },
   { key: 'mail', label: strings.mail.title, hint: strings.settingsNav.mailHint },
   { key: 'google', label: strings.google.title, hint: strings.settingsNav.googleHint },
@@ -101,9 +118,15 @@ function SettingsPage() {
               key={entry.key}
               type="button"
               onClick={() => void navigate({ search: { section: entry.key } })}
-              className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 text-left hover:bg-accent ${
-                section === entry.key ? 'bg-primary/10' : ''
-              }`}
+              /* The tint is mixed against `--card`, as the prototype sets it;
+                 Tailwind's `bg-primary/10` is alpha over the page background,
+                 which lands a hair darker (K4). */
+              className="flex flex-col gap-0.5 rounded-lg px-3 py-[9px] text-left hover:bg-accent"
+              style={
+                section === entry.key
+                  ? { background: 'color-mix(in oklab, var(--primary) 10%, var(--card))' }
+                  : undefined
+              }
             >
               <span className={section === entry.key ? 'font-semibold' : 'font-normal'}>
                 {entry.label}
@@ -135,12 +158,13 @@ function SettingsPage() {
   )
 }
 
-/** Everything on `practice_settings` except the payment term, which moved to
- *  "Rechnungsstellung" (D4). A `PATCH`, not the old `PUT`: this form sends
- *  only the fields it renders, so saving it can never touch the payment term
- *  even if that panel has unsaved changes open at the same time — see
- *  `updatePracticeSettings` on the server for why that matters. */
-const formSchema = practiceSettingsInputSchema.omit({ defaultPaymentTermDays: true })
+/** Everything on `practice_settings`, the payment term included: the design puts
+ *  it in this card's last section, and K4 moved it back from the
+ *  "Rechnungsstellung" panel where D4 had put it. Still a `PATCH` and not the
+ *  old `PUT` — the reason that matters has not changed, it has only stopped
+ *  being about this one field: a panel's save must touch nothing it does not
+ *  render. See `updatePracticeSettings` on the server. */
+const formSchema = practiceSettingsInputSchema
 
 type FormInput = z.input<typeof formSchema>
 type FormOutput = z.output<typeof formSchema>
@@ -161,9 +185,11 @@ function toFormValues(settings: PracticeSettings): FormInput {
     email: settings.email ?? '',
     website: settings.website ?? '',
     taxNumber: settings.taxNumber ?? '',
+    vatId: settings.vatId ?? '',
     bankName: settings.bankName ?? '',
     iban: settings.iban ?? '',
     bic: settings.bic ?? '',
+    defaultPaymentTermDays: settings.defaultPaymentTermDays,
   }
 }
 
@@ -205,152 +231,222 @@ function PracticeForm() {
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       noValidate
     >
-      {/* The practice master data is read far more often than it is changed,
-          so the panel opens in read mode (CLAUDE.md, read mode first) — which
-          since K2 means the values stand as text, not as disabled fields. */}
-      <div className="space-y-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-            <CardTitle>{strings.settings.sectionPractice}</CardTitle>
-            {!editing && (
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
-                <Pencil className="size-4" aria-hidden />
-                {strings.actions.edit}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <Field
-              id="practiceName"
-              editing={editing}
-              readValue={settings?.practiceName}
-              label={strings.settings.practiceName}
-              error={errors.practiceName && strings.validation.required}
-              {...form.register('practiceName')}
-            />
-            <Field
-              id="taxNumber"
-              editing={editing}
-              readValue={settings?.taxNumber}
-              label={strings.settings.taxNumber}
-              error={errors.taxNumber && strings.validation.tooLong}
-              {...form.register('taxNumber')}
-            />
-          </CardContent>
-        </Card>
+      {/* One card with six sections, separated by a line — not six cards. Each
+          section's explanation stands in its title column, which is where the
+          design puts it and why `Section` carries a `hint` at all (K4). The panel
+          is read far more often than changed, so it opens in read mode; since K2
+          that means values as text, not disabled fields. */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle>{strings.settings.cardTitle}</CardTitle>
+          {!editing && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="size-4" aria-hidden />
+              {strings.actions.edit}
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Section
+            title={strings.settings.sectionPractice}
+            hint={strings.settings.practiceHintSection}
+          >
+            <SectionField span={12}>
+              <Field
+                id="practiceName"
+                editing={editing}
+                readValue={settings?.practiceName}
+                label={strings.settings.practiceName}
+                error={errors.practiceName && strings.validation.required}
+                {...form.register('practiceName')}
+              />
+            </SectionField>
+          </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionAddress}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-6">
-            <Field
-              className="sm:col-span-6"
-              id="street"
-              editing={editing}
-              readValue={settings?.street}
-              label={strings.settings.street}
-              error={errors.street && strings.validation.tooLong}
-              {...form.register('street')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="postalCode"
-              editing={editing}
-              readValue={settings?.postalCode}
-              label={strings.settings.postalCode}
-              error={errors.postalCode && strings.validation.tooLong}
-              {...form.register('postalCode')}
-            />
-            <Field
-              className="sm:col-span-4"
-              id="city"
-              editing={editing}
-              readValue={settings?.city}
-              label={strings.settings.city}
-              error={errors.city && strings.validation.tooLong}
-              {...form.register('city')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="country"
-              editing={editing}
-              readValue={settings?.country}
-              label={strings.settings.country}
-              error={errors.country && strings.validation.country}
-              {...form.register('country')}
-            />
-          </CardContent>
-        </Card>
+          <Section
+            title={strings.settings.sectionAddress}
+            hint={strings.settings.addressHintSection}
+          >
+            <SectionField span={12}>
+              <Field
+                id="street"
+                editing={editing}
+                readValue={settings?.street}
+                label={strings.settings.street}
+                error={errors.street && strings.validation.tooLong}
+                {...form.register('street')}
+              />
+            </SectionField>
+            <SectionField span={3}>
+              <Field
+                id="postalCode"
+                editing={editing}
+                readValue={settings?.postalCode}
+                label={strings.settings.postalCode}
+                error={errors.postalCode && strings.validation.tooLong}
+                {...form.register('postalCode')}
+              />
+            </SectionField>
+            <SectionField span={5}>
+              <Field
+                id="city"
+                editing={editing}
+                readValue={settings?.city}
+                label={strings.settings.city}
+                error={errors.city && strings.validation.tooLong}
+                {...form.register('city')}
+              />
+            </SectionField>
+            <SectionField span={4}>
+              {/* A country is stored as a code and never shown as one — see
+                  `packages/shared/src/country.ts`. */}
+              <Label htmlFor={editing ? 'country' : undefined}>{strings.settings.country}</Label>
+              {editing ? (
+                <Controller
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="country" className="mt-2 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countries.map((entry) => (
+                          <SelectItem key={entry.code} value={entry.code}>
+                            {entry.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              ) : (
+                <ReadValue>{settings && countryName(settings.country)}</ReadValue>
+              )}
+            </SectionField>
+          </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionContact}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field
-              id="phone"
-              editing={editing}
-              readValue={settings?.phone}
-              label={strings.settings.phone}
-              type="tel"
-              error={errors.phone && strings.validation.tooLong}
-              {...form.register('phone')}
-            />
-            <Field
-              id="email"
-              editing={editing}
-              readValue={settings?.email}
-              label={strings.settings.email}
-              type="email"
-              error={errors.email && strings.validation.email}
-              {...form.register('email')}
-            />
-            <Field
-              className="sm:col-span-2"
-              id="website"
-              editing={editing}
-              readValue={settings?.website}
-              label={strings.settings.website}
-              error={errors.website && strings.validation.tooLong}
-              {...form.register('website')}
-            />
-          </CardContent>
-        </Card>
+          <Section
+            title={strings.settings.sectionContact}
+            hint={strings.settings.contactHintSection}
+          >
+            <SectionField span={6}>
+              <Field
+                id="phone"
+                editing={editing}
+                readValue={settings?.phone}
+                label={strings.settings.phone}
+                type="tel"
+                error={errors.phone && strings.validation.tooLong}
+                {...form.register('phone')}
+              />
+            </SectionField>
+            <SectionField span={6}>
+              <Field
+                id="email"
+                editing={editing}
+                readValue={settings?.email}
+                label={strings.settings.email}
+                type="email"
+                error={errors.email && strings.validation.email}
+                {...form.register('email')}
+              />
+            </SectionField>
+            <SectionField span={12}>
+              <Field
+                id="website"
+                editing={editing}
+                readValue={settings?.website}
+                label={strings.settings.website}
+                error={errors.website && strings.validation.tooLong}
+                {...form.register('website')}
+              />
+            </SectionField>
+          </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{strings.settings.sectionBanking}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field
-              className="sm:col-span-2"
-              id="bankName"
-              editing={editing}
-              readValue={settings?.bankName}
-              label={strings.settings.bankName}
-              error={errors.bankName && strings.validation.tooLong}
-              {...form.register('bankName')}
-            />
-            <Field
-              id="iban"
-              editing={editing}
-              readValue={settings?.iban}
-              label={strings.settings.iban}
-              error={errors.iban && strings.validation.iban}
-              {...form.register('iban')}
-            />
-            <Field
-              id="bic"
-              editing={editing}
-              readValue={settings?.bic}
-              label={strings.settings.bic}
-              error={errors.bic && strings.validation.tooLong}
-              {...form.register('bic')}
-            />
-          </CardContent>
-        </Card>
-      </div>
+          <Section
+            title={strings.settings.sectionBanking}
+            hint={strings.settings.bankingHintSection}
+          >
+            <SectionField span={12}>
+              <Field
+                id="bankName"
+                editing={editing}
+                readValue={settings?.bankName}
+                label={strings.settings.bankName}
+                error={errors.bankName && strings.validation.tooLong}
+                {...form.register('bankName')}
+              />
+            </SectionField>
+            <SectionField span={7}>
+              <Field
+                id="iban"
+                editing={editing}
+                readValue={settings?.iban}
+                label={strings.settings.iban}
+                error={errors.iban && strings.validation.iban}
+                {...form.register('iban')}
+              />
+            </SectionField>
+            <SectionField span={5}>
+              <Field
+                id="bic"
+                editing={editing}
+                readValue={settings?.bic}
+                label={strings.settings.bic}
+                error={errors.bic && strings.validation.tooLong}
+                {...form.register('bic')}
+              />
+            </SectionField>
+          </Section>
+
+          <Section title={strings.settings.sectionTaxes} hint={strings.settings.taxesHintSection}>
+            <SectionField span={6}>
+              <Field
+                id="taxNumber"
+                editing={editing}
+                readValue={settings?.taxNumber}
+                label={strings.settings.taxNumber}
+                error={errors.taxNumber && strings.validation.tooLong}
+                {...form.register('taxNumber')}
+              />
+            </SectionField>
+            <SectionField span={6}>
+              <Field
+                id="vatId"
+                editing={editing}
+                readValue={settings?.vatId}
+                label={strings.settings.vatId}
+                error={errors.vatId && strings.validation.tooLong}
+                {...form.register('vatId')}
+              />
+            </SectionField>
+          </Section>
+
+          {/* The payment term lives here, as the design puts it — not in the
+              "Rechnungsstellung" panel where D4 had moved it. Safe since D4: the
+              route is a PATCH and this form sends only the fields it renders, so
+              saving it cannot touch a column it does not show. */}
+          <Section
+            title={strings.settings.sectionInvoicingPreset}
+            hint={strings.settings.invoicingPresetHintSection}
+          >
+            <SectionField span={3}>
+              <Field
+                id="defaultPaymentTermDays"
+                editing={editing}
+                readValue={
+                  settings === undefined ? undefined : String(settings.defaultPaymentTermDays)
+                }
+                label={strings.settings.defaultPaymentTermDays}
+                inputMode="numeric"
+                error={errors.defaultPaymentTermDays && strings.validation.paymentTerm}
+                {...form.register('defaultPaymentTermDays')}
+              />
+            </SectionField>
+          </Section>
+        </CardContent>
+      </Card>
 
       {editing && (
         <div className="flex justify-end gap-2">

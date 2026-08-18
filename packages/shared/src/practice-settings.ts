@@ -41,6 +41,9 @@ export const practiceSettingsInputSchema = z.object({
   email: emailCore.nullable().default(null),
   website: optionalText(200),
   taxNumber: optionalText(40),
+  /** The practice's own, beside the tax number — the design's "Steuern" section
+   *  shows both. Same shape as `contact.vatId`. */
+  vatId: optionalText(40),
   bankName: optionalText(120),
   iban,
   bic: optionalText(16),
@@ -70,6 +73,7 @@ export const practiceSettingsPatchSchema = z.object({
   email: emailCore.nullable().optional(),
   website: optionalTextPatch(200),
   taxNumber: optionalTextPatch(40),
+  vatId: optionalTextPatch(40),
   bankName: optionalTextPatch(120),
   iban: ibanPatch,
   bic: optionalTextPatch(16),

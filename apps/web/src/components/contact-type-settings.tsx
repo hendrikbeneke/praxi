@@ -402,9 +402,6 @@ export function RelationTypeSettings() {
                   >
                     <TableCell>
                       <span className="font-medium">{type.labelForward}</span>
-                      {type.labelInverse && (
-                        <span className="text-muted-foreground"> ↔ {type.labelInverse}</span>
-                      )}
                       <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
                       {type.isExclusive && (
                         <Badge variant="outline" className="ml-2">
@@ -425,6 +422,12 @@ export function RelationTypeSettings() {
                           {strings.contactType.systemBadge}
                         </Badge>
                       )}
+                      {/* The direction in words, as the design writes it — not
+                          "A ↔ B", which states the two labels and leaves the
+                          reader to work out which end owns the fact (K4). */}
+                      <span className="ml-2 text-muted-foreground text-xs">
+                        {relationSummary(type)}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <ActiveStatus active={type.active} />
@@ -635,4 +638,22 @@ function RelationTypeForm({
       </div>
     </div>
   )
+}
+
+/**
+ * What the direction of a relation type means, in a sentence.
+ *
+ * Three cases, and they are the design's own: a symmetric type reads the same
+ * from both sides, an exclusive one says how many there may be, and a directed
+ * one names the counterpart's label — which is the only one of the three that a
+ * reader cannot infer from the badges beside it.
+ *
+ * Symmetric wins over exclusive where a type is both, because "gilt in beide
+ * Richtungen" changes what the exclusivity means and has to be read first. No
+ * type is both today; the order is stated so the answer is not accidental.
+ */
+function relationSummary(type: ContactRelationType): string {
+  if (type.isSymmetric) return strings.contactType.symmetricSummary
+  if (type.isExclusive) return strings.contactType.exclusiveSummary
+  return type.labelInverse === null ? '' : strings.contactType.counterpartSummary(type.labelInverse)
 }

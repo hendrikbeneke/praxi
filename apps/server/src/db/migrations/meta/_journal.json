@@ -232,6 +232,13 @@
       "when": 1786877536204,
       "tag": "0032_opening_hours",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786877536205,
+      "tag": "0033_practice_vat_id",
+      "breakpoints": true
     }
   ]
 }

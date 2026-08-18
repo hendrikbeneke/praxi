@@ -68,7 +68,7 @@ Text, nicht als deaktivierte Felder.
 | K1 | Fundament | **done** |
 | K2 | Lesemodus | **done** |
 | K3 | Zusammenfassungen | **done** |
-| K4 | Einstellungen | offen |
+| K4 | Einstellungen | **done** |
 | K5 | Leistungen | offen |
 | K6 | Kontaktbereich | offen |
 | K7 | Kontakt-Reiter | offen |
@@ -119,6 +119,55 @@ Blöcke mitzählte. Gemessen gilt:
 - **Pfeile statt Chevrons** in `catalogue-controls.tsx`: `ArrowUp`/`ArrowDown`, Knopf 26 × 26
   statt 36 × 36, Icon 14 px, Strichstärke 2 — Muster 6 des Handoffs sagt „Pfeiltasten", und
   der Prototyp zeichnet sie. Wirkt auf alle sieben Katalog-Listen zugleich.
+
+## K4 — Einstellungen
+
+Das größte Korrekturpaket, und das erste mit einer Migration: `0033_practice_vat_id`.
+
+- **Praxis ist eine Karte mit sechs Abschnitten**, nicht fünf gleichrangige Karten. Das Raster
+  liegt in `components/section-grid.tsx` und wird von der Kontaktakte mitbenutzt — die hatte
+  eine eigene Kopie, und zwei Umsetzungen desselben Rasters wären genau die Drift, die K1 bei
+  der Listenkopfzeile aufgeräumt hat. **Die Titelspalte ist 180 px in den Einstellungen und
+  200 px in der Akte**; beides steht so im Prototyp, deshalb ist die Breite ein Prop. Die Akte
+  ist dabei von einem 6- auf das 12-Spalten-Raster des Designs umgestellt — dieselben Breiten,
+  aber in den Begriffen, die das Design benutzt.
+- **Der Abgleich hatte hier zwei Fehler, beide meine.** Der aktive Bereichseintrag war kein
+  Befund: der Prototyp setzt `color-mix(in oklab, var(--primary) 10%, var(--card))`, also genau
+  `bg-primary/10`, das der Build schon hatte — es wirkt neutralgrau, weil `--primary` mit
+  Chroma 0.028 blass ist. Geblieben ist, dass Tailwind gegen die Seite statt gegen `--card`
+  mischt; das ist jetzt exakt. Und die Titelspalte ist 180 px, nicht die 200 aus dem README.
+- **`practice_settings.vat_id`** (Migration 0033), gespiegelt an `contact.vat_id`: nullable,
+  ohne Default und ohne Check, die Länge steckt in Zod. D4 hatte die Spalte zurückgestellt; das
+  Design zeigt das Feld im Abschnitt „Steuern".
+- **Das Zahlungsziel steht wieder in der Praxis-Karte**, als sechster Abschnitt, und ist aus
+  „Rechnungsstellung" verschwunden. Gefahrlos seit D4: die Route ist ein `PATCH` und jedes
+  Formular sendet nur, was es zeigt — die damalige Race Condition kann nicht wiederkehren.
+- **Ein Land ist nie ein ISO-Code auf dem Bildschirm.** `packages/shared/src/country.ts` hält
+  die acht Länder des Designs und `countryName`; Praxis und Kontaktakte bieten ein Auswahlfeld,
+  der Lesemodus zeigt den Namen. **Das PDF war die eigentliche Fundstelle**: sein Adressblock
+  druckte den rohen Code für Empfänger außerhalb Deutschlands, was in einem Brief so falsch ist
+  wie auf dem Schirm — und ein festgeschriebenes Dokument lässt sich nie korrigieren. Für
+  Deutschland wird gar keine Landeszeile gedruckt, weshalb es unbemerkt blieb. Der Test dafür
+  vergleicht `AT` gegen das ausgeschriebene `Österreich`: gleiche Bytes heißt, der Name wird
+  gedruckt, ohne dass Text aus dem PDF gelesen werden muss.
+- **Nummernkreise sind eine Tabelle** mit `KREIS · PRÄFIX · STELLEN · NÄCHSTE NUMMER ·
+  VORSCHAU` — aber mit Lesemodus je Zeile, gegen das Design und mit Eintrag im Register: ein
+  Vertippen in „nächste Nummer" vergibt eine schon gedruckte Rechnungsnummer erneut. Der
+  ehrliche Zustand bleibt: leere Werte `—`, und die Vorschau `—`, solange die drei Werte nicht
+  zusammen gültig sind.
+- **Vorgangsarten:** Farbpunkt statt Farbklotz mit drei Buchstaben (`readableTextOn` fiel dort
+  weg, weil nichts mehr auf der Farbe steht), und die Zeile sagt wieder, was das Anwenden täte —
+  „60 Minuten · Erstgespräch mit Anamnese", bei fehlender Dauer „ohne übliche Dauer" und nicht
+  `—`, weil das eine Aussage ist und keine Lücke.
+- **Beziehungen** erklären die Richtung in Worten — „Gegenstück: Kind von", „Gilt in beide
+  Richtungen gleich", „Höchstens einmal pro Kontakt" —, nicht als `A ↔ B`.
+- **Mailkonto und Google** tragen „Bearbeiten" bzw. die Verbunden-Marke im Kartenkopf.
+  Googles Statusstreifen steht wieder oben, mit **allen drei** Feldern: `LETZTER FEHLER` fehlte
+  im fehlerfreien Zustand ganz, was nach Regel 13 falsch herum ist — ein Feld, das bei gutem
+  Zustand verschwindet, kann „nichts ist passiert" nicht sagen. Die Zeit ist relativ.
+- **Die Bereichsspalte** benutzt die kurzen Navigationstexte des Prototyps. D4 hatte einen
+  String für Navigation und Kartenkopf benutzt; im Design sind es zwei, und deshalb brachen
+  drei Einträge auf drei Zeilen um.
 
 ## K3 — Zusammenfassungen
 

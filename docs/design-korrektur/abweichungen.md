@@ -68,6 +68,33 @@ werden Chips mit `0` weggelassen.
 
 ---
 
+## K4 — Nummernkreise haben einen Lesemodus
+
+**Design:** Alle Zellen der Nummernkreis-Tabelle sind dauerhaft Eingabefelder; die Karte hat
+kein „Bearbeiten".
+
+**Gebaut:** Tabellenform wie im Design, aber jede Zeile zeigt Text, bis ihr eigenes
+„Bearbeiten" gedrückt wird.
+
+**Warum:** Es ist das gefährlichste Feld der Anwendung. Ein Vertippen in „nächste Nummer"
+vergibt eine Rechnungsnummer erneut, die schon gedruckt ist — und eine festgeschriebene
+Rechnung lässt sich nicht korrigieren. „Read mode first" existiert genau für diesen Fall, und
+der Kommentar an `NumberRangeRow` sagt es seit D6.
+
+**Falls doch:** `editing` in `NumberRangeRow` auf `true` festnageln und die Aktionsspalte
+entfernen.
+
+---
+
+## K4 — Der Hinweis im Abschnitt „Steuern"
+
+Kein Abweichen, sondern ein Vermerk: der Satz „Eines von beiden steht auf jeder Rechnung."
+stammt aus dem Design und ist fachlich bestritten — beide Felder können gleichzeitig auf einer
+Rechnung stehen, und die Praxis führt heute nur eine Steuernummer. Er ist trotzdem im Wortlaut
+des Designs übernommen worden. Wer ihn ändert, ändert keine Struktur.
+
+---
+
 ## K1 — Kontrollmaß: nicht gebaut, aber angemerkt
 
 Kein Eintrag, nur ein Hinweis für den nächsten Durchgang: der Prototyp gibt für dieselbe Woche

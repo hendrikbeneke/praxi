@@ -1,4 +1,5 @@
 import {
+  countryName,
   dueDate,
   formatEuro,
   formatStreetLine,
@@ -119,7 +120,10 @@ function AddressBlock({ recipient }: { recipient: RecipientSnapshot }) {
     // and comes out exactly as it did then.
     formatStreetLine(recipient),
     [recipient.postalCode, recipient.city].filter(Boolean).join(' ') || null,
-    recipient.country === 'DE' ? null : recipient.country,
+    /* The name, not the code: "AT" in an address block is as wrong in a letter
+       as it is on a screen, and a finalized document can never be corrected.
+       No line at all for Germany, which is how the code sat here unnoticed. */
+    recipient.country === 'DE' ? null : countryName(recipient.country),
   ].filter((line): line is string => Boolean(line?.trim()))
 
   return (

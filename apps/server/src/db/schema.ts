@@ -90,6 +90,7 @@ export const practiceSettings = pgTable(
     email: text(),
     website: text(),
     taxNumber: text(),
+    vatId: text(),
     bankName: text(),
     iban: text(),
     bic: text(),

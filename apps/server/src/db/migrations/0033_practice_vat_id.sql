@@ -1,0 +1,12 @@
+-- The practice's own VAT id, alongside its tax number (K4).
+--
+-- Nullable, no default and no check, mirroring `contact.vat_id` exactly: the
+-- length cap (40) lives in Zod, and a practice that has no VAT id says so with
+-- NULL rather than with an empty string. The design's "Steuern" section shows
+-- both fields side by side; D4 deliberately deferred this column, and the
+-- design package is what brings it back.
+--
+-- No backfill: there is no VAT id to write, and NULL is the correct statement.
+-- `updated_at` keeps being maintained by the existing set_updated_at trigger,
+-- and the table's RLS policy is already created and disabled.
+ALTER TABLE "practice_settings" ADD COLUMN "vat_id" text;

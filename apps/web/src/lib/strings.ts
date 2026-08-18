@@ -64,9 +64,17 @@ export const strings = {
    *  hint where that panel has one. Rollen, Beziehungen and Vorgangsarten
    *  reuse `contactType`/`activityType`'s own hint instead of repeating it
    *  here; Textbausteine reuses `invoice.templatesHint`. */
+  /** The hint under each entry of the section column. Deliberately not the same
+   *  string as the panel's own title-bar hint: the design writes two texts, a
+   *  short one here and a longer one on the card, and D4 reused one for both —
+   *  which is why three entries wrapped to three lines (K4). */
   settingsNav: {
     practiceHint: 'Stammdaten, Anschrift, Bank',
-    invoicingHint: 'Nummernkreis, Vorlage, Zahlungsziel',
+    invoicingHint: 'Nummernkreise, Texte, Vorlage',
+    rolesHint: 'Wer in welcher Liste auftaucht',
+    relationsHint: 'Verbindungen zwischen Kontakten',
+    activityTypesHint: 'Farbe, Dauer, Vorbelegung',
+    textTemplatesHint: 'Einleitung und Schluss',
     mailHint: 'Konto und Vorlagen',
     googleHint: 'Projektion der Termine',
   },
@@ -77,13 +85,25 @@ export const strings = {
     sectionAddress: 'Anschrift',
     sectionContact: 'Kontakt',
     sectionBanking: 'Bankverbindung',
+    sectionTaxes: 'Steuern',
+    sectionInvoicingPreset: 'Rechnungsstellung',
+    /** One card, six sections — the explanation of each stands in its title
+     *  column, in the design's wording (K4). */
+    cardTitle: 'Praxisstammdaten',
+    practiceHintSection: 'Der Name steht auf jeder Rechnung.',
+    addressHintSection: 'Erscheint im Briefkopf, wenn keine Vorlage hinterlegt ist.',
+    contactHintSection: 'Für Rückfragen der Empfänger.',
+    bankingHintSection: 'Steht unter dem Schlusstext der Rechnung.',
+    taxesHintSection: 'Eines von beiden steht auf jeder Rechnung.',
+    invoicingPresetHintSection: 'Vorbelegung für neue Rechnungen.',
+    vatId: 'Umsatzsteuer-ID',
     sectionInvoicing: 'Rechnungsstellung',
     sectionOpeningHours: 'Öffnungszeiten',
     practiceName: 'Praxisname',
     street: 'Straße und Hausnummer',
     postalCode: 'PLZ',
     city: 'Ort',
-    country: 'Land (ISO-Code, z. B. DE)',
+    country: 'Land',
     phone: 'Telefon',
     email: 'E-Mail-Adresse',
     website: 'Website',
@@ -102,6 +122,10 @@ export const strings = {
     tabRelations: 'Beziehungen',
     rolesHint: 'bestimmen, in welchen Listen ein Kontakt auftaucht',
     relationsHint: 'verbinden zwei Kontakte und erscheinen in beiden Akten',
+    /** The direction in words, in the design's wording (K4). */
+    symmetricSummary: 'Gilt in beide Richtungen gleich',
+    exclusiveSummary: 'Höchstens einmal pro Kontakt',
+    counterpartSummary: (inverse: string) => `Gegenstück: ${inverse}`,
     rolesFooter:
       'Ein System-Eintrag lässt sich umbenennen, aber nicht löschen — sein Kürzel bleibt, ' +
       'wie es ist.',
@@ -159,6 +183,9 @@ export const strings = {
     hint: 'Farbe im Kalender und Vorbelegung beim Anlegen',
     footer:
       'Inaktive Arten erscheinen in keiner Auswahlliste, bleiben aber an bestehenden Vorgängen.',
+    /** Not `—`: the point is that this kind of activity has no usual length,
+     *  which is a statement, where a dash would read as a missing value. */
+    noUsualDuration: 'ohne übliche Dauer',
 
     create: 'Neue Vorgangsart',
     empty: 'Noch keine Vorgangsarten.',
@@ -200,7 +227,6 @@ export const strings = {
     required: 'Dieses Feld ist erforderlich.',
     email: 'Bitte eine gültige E-Mail-Adresse eingeben.',
     iban: 'Diese IBAN ist ungültig.',
-    country: 'Bitte einen zweistelligen Länder-Code eingeben, zum Beispiel DE.',
     paymentTerm: 'Bitte eine Zahl zwischen 0 und 365 eingeben.',
     tooLong: 'Diese Eingabe ist zu lang.',
     amount: 'Bitte einen Betrag eingeben, zum Beispiel 90,00.',
@@ -304,7 +330,7 @@ export const strings = {
     houseNumber: 'Hausnummer',
     postalCode: 'PLZ',
     city: 'Ort',
-    country: 'Land (ISO-Code, z. B. DE)',
+    country: 'Land',
     email: 'E-Mail-Adresse',
     phoneMobile: 'Mobil',
     phoneLandline: 'Festnetz',
@@ -1016,6 +1042,11 @@ export const strings = {
     padding: 'Stellen',
     nextValue: 'Nächste Nummer',
     nextNumberPreview: 'Nächste Nummer wäre',
+    /** Column headings of the number-range table (K4). The preview column is
+     *  headed by the short form; the long one still names the value in prose
+     *  where a single range is described. */
+    rangeColumnCode: 'Kreis',
+    rangeColumnPreview: 'Vorschau',
     numberRangeSaved: 'Nummernkreis gespeichert.',
     numberRangeMissing:
       'Für Rechnungen ist noch kein Nummernkreis eingerichtet. Ohne ihn lässt sich keine ' +

@@ -161,6 +161,35 @@ describe('renderInvoicePdf', () => {
     )
   })
 
+  /**
+   * The address block prints the country's **name**, never its ISO code (K4).
+   *
+   * Proved without reading the text out of the PDF: a recipient stored as `AT`
+   * and one stored as the literal `Österreich` must render to the same bytes,
+   * because `countryName` resolves the first and leaves the second alone. If
+   * the renderer printed the raw column, the two would differ — which is
+   * exactly what it did before.
+   */
+  it('prints the country name, not its code', async () => {
+    const at: Invoice = {
+      ...invoice,
+      recipientSnapshot: { ...invoice.recipientSnapshot, country: 'AT' },
+    }
+    const spelledOut: Invoice = {
+      ...invoice,
+      recipientSnapshot: { ...invoice.recipientSnapshot, country: 'Österreich' },
+    }
+
+    expect(sha256(await renderInvoicePdf(at, null))).toBe(
+      sha256(await renderInvoicePdf(spelledOut, null)),
+    )
+    // And a foreign recipient is not the same document as a German one, which
+    // is what makes the equality above worth anything.
+    expect(sha256(await renderInvoicePdf(at, null))).not.toBe(
+      sha256(await renderInvoicePdf(invoice, null)),
+    )
+  })
+
   /** Rule 11: one template page backs every page; two pages mean page 1 backs
    *  the first sheet and page 2 all following ones. */
   it('keeps the page count of the content, whatever the template has', async () => {

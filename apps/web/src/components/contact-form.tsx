@@ -7,6 +7,8 @@ import {
   contactGenderSchema,
   contactGenders,
   contactKinds,
+  countries,
+  countryName,
   formatBerlinDate,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
@@ -14,6 +16,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { DateField } from '@/components/date-field'
 import { ReadValue } from '@/components/read-value'
+import { Section } from '@/components/section-grid'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -28,33 +31,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { roleTypeListQueryOptions } from '@/lib/contact-types'
 import { strings } from '@/lib/strings'
-
-/**
- * One section of the master-data grid (design handoff, "Abschnittsraster") —
- * a 200px label-and-hint column beside a field grid, sections separated by a
- * rule rather than each living in its own `Card`. Local to this file: both
- * `ContactForm` call sites (the "Stammdaten" tab and `contacts/new`) go
- * through the one component, so there is nowhere else this would be reused.
- */
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string
-  hint?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="grid gap-4 border-t pt-6 first:border-t-0 first:pt-0 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-6">
-      <div>
-        <p className="font-semibold">{title}</p>
-        {hint && <p className="mt-1 text-muted-foreground text-sm">{hint}</p>}
-      </div>
-      <div className="grid gap-4 sm:grid-cols-6">{children}</div>
-    </div>
-  )
-}
 
 /**
  * The API models a contact as a discriminated union, which is right for the
@@ -231,8 +207,8 @@ export function ContactForm({
       noValidate
     >
       <div className="space-y-0">
-        <Section title={strings.contact.sectionName}>
-          <div className="sm:col-span-2">
+        <Section titleWidth={200} title={strings.contact.sectionName}>
+          <div className="sm:col-span-4">
             <Label htmlFor="kind">{strings.contact.kindLabel}</Label>
             {/* Structural and immutable once saved (CLAUDE.md rule 4). */}
             {!editing ? (
@@ -263,7 +239,7 @@ export function ContactForm({
           {kind === 'person' ? (
             <>
               <Field
-                className="sm:col-span-2"
+                className="sm:col-span-4"
                 id="salutation"
                 editing={editing}
                 readValue={contact?.salutation}
@@ -277,7 +253,7 @@ export function ContactForm({
                 ))}
               </datalist>
               <Field
-                className="sm:col-span-2"
+                className="sm:col-span-4"
                 id="title"
                 editing={editing}
                 readValue={contact?.title}
@@ -285,7 +261,7 @@ export function ContactForm({
                 {...form.register('title')}
               />
               <Field
-                className="sm:col-span-3"
+                className="sm:col-span-6"
                 id="firstName"
                 editing={editing}
                 readValue={contact?.firstName}
@@ -293,7 +269,7 @@ export function ContactForm({
                 {...form.register('firstName')}
               />
               <Field
-                className="sm:col-span-3"
+                className="sm:col-span-6"
                 id="lastName"
                 editing={editing}
                 readValue={contact?.lastName}
@@ -312,7 +288,7 @@ export function ContactForm({
                   ordinary rule — and nothing about this belongs anywhere else.
                   A four-digit year is taken at its word here too.
                 */}
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-6">
                 <Label htmlFor={editing ? 'dateOfBirth' : undefined}>
                   {strings.contact.dateOfBirth}
                 </Label>
@@ -337,7 +313,7 @@ export function ContactForm({
                 )}
               </div>
 
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-6">
                 <Label htmlFor={editing ? 'gender' : undefined}>{strings.contact.gender}</Label>
                 {/* The readable word lives only in the option list — without
                     this mapping read mode would show `male` (K2). */}
@@ -374,7 +350,7 @@ export function ContactForm({
               </div>
 
               <Field
-                className="sm:col-span-3"
+                className="sm:col-span-6"
                 id="birthPlace"
                 editing={editing}
                 readValue={contact?.birthPlace}
@@ -385,7 +361,7 @@ export function ContactForm({
           ) : (
             <>
               <Field
-                className="sm:col-span-4"
+                className="sm:col-span-8"
                 id="companyName"
                 editing={editing}
                 readValue={contact?.companyName}
@@ -394,7 +370,7 @@ export function ContactForm({
                 {...form.register('companyName')}
               />
               <Field
-                className="sm:col-span-3"
+                className="sm:col-span-6"
                 id="contactPerson"
                 editing={editing}
                 readValue={contact?.contactPerson}
@@ -406,7 +382,7 @@ export function ContactForm({
 
           {/* A sole trader is a person and can still have a VAT id. */}
           <Field
-            className="sm:col-span-3"
+            className="sm:col-span-6"
             id="vatId"
             editing={editing}
             readValue={contact?.vatId}
@@ -416,8 +392,12 @@ export function ContactForm({
         </Section>
 
         {creating && (
-          <Section title={strings.contact.sectionRoles} hint={strings.contact.sectionRolesHint}>
-            <div className="col-span-full grid gap-3 sm:grid-cols-2">
+          <Section
+            titleWidth={200}
+            title={strings.contact.sectionRoles}
+            hint={strings.contact.sectionRolesHint}
+          >
+            <div className="col-span-12 grid gap-3 sm:grid-cols-2">
               {roleTypes.length === 0 && (
                 <p className="text-muted-foreground text-sm">{strings.contact.roleHint}</p>
               )}
@@ -451,9 +431,13 @@ export function ContactForm({
           </Section>
         )}
 
-        <Section title={strings.contact.sectionAddress} hint={strings.contact.sectionAddressHint}>
+        <Section
+          titleWidth={200}
+          title={strings.contact.sectionAddress}
+          hint={strings.contact.sectionAddressHint}
+        >
           <Field
-            className="sm:col-span-4"
+            className="sm:col-span-8"
             id="street"
             editing={editing}
             readValue={contact?.street}
@@ -463,7 +447,7 @@ export function ContactForm({
           {/* Its own field. The two are put back together for display by
                 `formatStreetLine`, on screen and on the invoice alike. */}
           <Field
-            className="sm:col-span-2"
+            className="sm:col-span-4"
             id="houseNumber"
             editing={editing}
             readValue={contact?.houseNumber}
@@ -471,7 +455,7 @@ export function ContactForm({
             {...form.register('houseNumber')}
           />
           <Field
-            className="sm:col-span-2"
+            className="sm:col-span-4"
             id="postalCode"
             editing={editing}
             readValue={contact?.postalCode}
@@ -479,27 +463,49 @@ export function ContactForm({
             {...form.register('postalCode')}
           />
           <Field
-            className="sm:col-span-4"
+            className="sm:col-span-8"
             id="city"
             editing={editing}
             readValue={contact?.city}
             label={strings.contact.city}
             {...form.register('city')}
           />
-          <Field
-            className="sm:col-span-2"
-            id="country"
-            editing={editing}
-            readValue={contact?.country}
-            label={strings.contact.country}
-            error={errors.country && strings.validation.country}
-            {...form.register('country')}
-          />
+          {/* A country is stored as a code and never shown as one — see
+              `packages/shared/src/country.ts`. */}
+          <div className="min-w-0 sm:col-span-4">
+            <Label htmlFor={editing ? 'country' : undefined}>{strings.contact.country}</Label>
+            {editing ? (
+              <Controller
+                control={form.control}
+                name="country"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="country" className="mt-2 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.map((entry) => (
+                        <SelectItem key={entry.code} value={entry.code}>
+                          {entry.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            ) : (
+              <ReadValue>{contact && countryName(contact.country)}</ReadValue>
+            )}
+          </div>
         </Section>
 
-        <Section title={strings.contact.sectionContact} hint={strings.contact.sectionContactHint}>
+        <Section
+          titleWidth={200}
+          title={strings.contact.sectionContact}
+          hint={strings.contact.sectionContactHint}
+        >
           <Field
-            className="sm:col-span-2"
+            className="sm:col-span-4"
             id="email"
             editing={editing}
             readValue={contact?.email}
@@ -509,7 +515,7 @@ export function ContactForm({
             {...form.register('email')}
           />
           <Field
-            className="sm:col-span-2"
+            className="sm:col-span-4"
             id="phoneMobile"
             editing={editing}
             readValue={contact?.phoneMobile}
@@ -518,7 +524,7 @@ export function ContactForm({
             {...form.register('phoneMobile')}
           />
           <Field
-            className="sm:col-span-2"
+            className="sm:col-span-4"
             id="phoneLandline"
             editing={editing}
             readValue={contact?.phoneLandline}
@@ -534,8 +540,12 @@ export function ContactForm({
             diagnosis before the contact exists is not what this field is
             for. */}
         {!creating && (
-          <Section title={strings.contact.diagnosis} hint={strings.contact.diagnosisHint}>
-            <div className="col-span-full">
+          <Section
+            titleWidth={200}
+            title={strings.contact.diagnosis}
+            hint={strings.contact.diagnosisHint}
+          >
+            <div className="col-span-12">
               <Label htmlFor={editing ? 'diagnosis' : undefined}>{strings.contact.diagnosis}</Label>
               {editing ? (
                 <Textarea
@@ -553,8 +563,12 @@ export function ContactForm({
           </Section>
         )}
 
-        <Section title={strings.contact.sectionInternal} hint={strings.contact.internalNoteHint}>
-          <div className="col-span-full">
+        <Section
+          titleWidth={200}
+          title={strings.contact.sectionInternal}
+          hint={strings.contact.internalNoteHint}
+        >
+          <div className="col-span-12">
             <Label htmlFor={editing ? 'internalNote' : undefined}>
               {strings.contact.internalNote}
             </Label>

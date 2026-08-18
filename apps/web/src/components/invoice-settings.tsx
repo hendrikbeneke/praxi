@@ -8,12 +8,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileUp, Pencil } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ReadValue } from '@/components/read-value'
+import { DASH } from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { ApiError } from '@/lib/api'
 import {
   invoiceTemplatePagesQueryOptions,
@@ -22,14 +21,14 @@ import {
   saveNumberRange,
   uploadInvoiceTemplate,
 } from '@/lib/invoices'
-import { practiceSettingsQueryOptions, updatePracticeSettings } from '@/lib/settings'
+import { practiceSettingsQueryOptions } from '@/lib/settings'
 import { strings } from '@/lib/strings'
 
 /**
  * Everything about invoicing that is configuration rather than wording: the
- * number range, the payment term default, and the letterhead. Text blocks
- * moved to their own settings section, "Textbausteine" (D4) — this is about
- * numbering and paper, not what the invoice says.
+ * number ranges and the letterhead. Text blocks have their own section,
+ * "Textbausteine" (D4), and the payment term went back to the Praxis card where
+ * the design puts it (K4) — this is about numbering and paper.
  *
  * The number range is here and not created automatically on purpose — it may
  * continue a numbering that began in the previous system, so it is set up by
@@ -39,12 +38,27 @@ export function InvoiceSettings() {
   return (
     <div className="space-y-6">
       <NumberRanges />
-      <PaymentTerm />
       <Letterhead />
     </div>
   )
 }
 
+/** The prototype's column widths: the name takes the rest, the four values are
+ *  fixed, and the action column is as wide as its button (K4). Header and rows
+ *  share it so they cannot drift. */
+const RANGE_GRID =
+  'grid grid-cols-[minmax(150px,1fr)_108px_88px_128px_132px_auto] items-center gap-x-4'
+
+/**
+ * The number ranges as one table — a row per range, not a stacked form per range
+ * that repeats all four labels (K4).
+ *
+ * **Read mode survives the change to a table**, and here it matters more than
+ * anywhere: a stray keystroke in "nächste Nummer" reissues a number that has
+ * already been printed. The design draws every cell as an input; the rule wins
+ * on this one field, so a row shows text until its own "Bearbeiten" is pressed.
+ * Recorded in `docs/design-korrektur/abweichungen.md`.
+ */
 function NumberRanges() {
   const queryClient = useQueryClient()
   const ranges = useQuery(numberRangeListQueryOptions)
@@ -56,7 +70,7 @@ function NumberRanges() {
       <CardHeader>
         <CardTitle>{strings.invoice.numberRanges}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         <p className="text-muted-foreground text-sm">{strings.invoice.numberRangeHint}</p>
 
         {!invoiceRange && !ranges.isPending && (
@@ -65,14 +79,27 @@ function NumberRanges() {
           </p>
         )}
 
-        {numberRangeCodes.map((code) => (
-          <NumberRangeForm
-            key={code}
-            code={code}
-            range={(ranges.data ?? []).find((entry) => entry.code === code)}
-            onSaved={() => queryClient.invalidateQueries({ queryKey: ['number-ranges'] })}
-          />
-        ))}
+        <div>
+          <div
+            className={`${RANGE_GRID} pb-2 text-[11.5px] text-muted-foreground uppercase tracking-[0.04em]`}
+          >
+            <span>{strings.invoice.rangeColumnCode}</span>
+            <span>{strings.invoice.prefix}</span>
+            <span>{strings.invoice.padding}</span>
+            <span>{strings.invoice.nextValue}</span>
+            <span>{strings.invoice.rangeColumnPreview}</span>
+            <span />
+          </div>
+
+          {numberRangeCodes.map((code) => (
+            <NumberRangeRow
+              key={code}
+              code={code}
+              range={(ranges.data ?? []).find((entry) => entry.code === code)}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ['number-ranges'] })}
+            />
+          ))}
+        </div>
       </CardContent>
     </Card>
   )
@@ -87,15 +114,16 @@ function toNumber(text: string): number | null {
 }
 
 /**
- * One number range, existing or not.
+ * One row of the table, for a range that exists or one that does not.
  *
- * The two numbers are held as text rather than as numbers, and that is the
- * whole point of this form: a `type="number"` input cannot be empty without
- * falling back to something, and anything it falls back to is a value the
- * range does not have. A range that has not been created must show empty
- * fields and no preview, because there is no next number to preview.
+ * The two numbers are held as text rather than as numbers, and that is the whole
+ * point: a `type="number"` input cannot be empty without falling back to
+ * something, and anything it falls back to is a value the range does not have.
+ * A range that has not been created shows `—` in every cell **including the
+ * preview**, because there is no next number to preview — an invented number
+ * under that heading is exactly the claim this screen must not make.
  */
-function NumberRangeForm({
+function NumberRangeRow({
   code,
   range,
   onSaved,
@@ -140,6 +168,7 @@ function NumberRangeForm({
     },
     onSuccess: () => {
       onSaved()
+      setEditing(false)
       toast.success(exists ? strings.invoice.numberRangeSaved : strings.invoice.numberRangeCreated)
     },
     onError: (error) => {
@@ -148,76 +177,61 @@ function NumberRangeForm({
   })
 
   return (
-    <div className="rounded-md border p-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={`${RANGE_GRID} border-t py-2.5`}>
+      <div className="min-w-0">
         <p className="font-medium text-sm">{strings.invoice.numberRangeCodes[code]}</p>
-        {!exists && <Badge variant="outline">{strings.invoice.numberRangeNotCreated}</Badge>}
-      </div>
-
-      {/* The contact range creates itself at the first contact and starts at 1
-          — said here, because otherwise "noch nicht angelegt" reads as a task,
-          and creating it by hand is exactly what the whitelist in
-          domain/counter.ts exists to make unnecessary. */}
-      {!exists && code === 'contact' && (
-        <p className="mt-2 text-muted-foreground text-sm">
-          {strings.invoice.numberRangeSelfCreating}
-        </p>
-      )}
-
-      <div className="mt-3 grid gap-4 sm:grid-cols-4">
-        <div>
-          <Label htmlFor={`${formId}-prefix`}>{strings.invoice.prefix}</Label>
-          {editing ? (
-            <Input
-              id={`${formId}-prefix`}
-              className="mt-2"
-              value={prefix}
-              onChange={(event) => setPrefix(event.target.value)}
-            />
-          ) : (
-            <ReadValue>{prefix}</ReadValue>
-          )}
-        </div>
-        <div>
-          <Label htmlFor={`${formId}-padding`}>{strings.invoice.padding}</Label>
-          {editing ? (
-            <Input
-              id={`${formId}-padding`}
-              inputMode="numeric"
-              className="mt-2"
-              value={paddingText}
-              onChange={(event) => setPaddingText(event.target.value)}
-            />
-          ) : (
-            <ReadValue>{paddingText}</ReadValue>
-          )}
-        </div>
-        <div>
-          <Label htmlFor={`${formId}-next`}>{strings.invoice.nextValue}</Label>
-          {editing ? (
-            <Input
-              id={`${formId}-next`}
-              inputMode="numeric"
-              className="mt-2"
-              value={nextValueText}
-              onChange={(event) => setNextValueText(event.target.value)}
-            />
-          ) : (
-            <ReadValue>{nextValueText}</ReadValue>
-          )}
-        </div>
-        <div>
-          <span className="font-medium text-sm">{strings.invoice.nextNumberPreview}</span>
-          {/* Only once there is something to preview. An invented number under
-              this label is exactly the claim this form must not make. */}
-          <p className="mt-3 font-mono text-sm">
-            {complete ? formatNumber(prefix, padding, nextValue) : '—'}
+        {!exists && (
+          <p className="mt-1 text-muted-foreground text-xs">
+            {strings.invoice.numberRangeNotCreated}
+            {/* The contact range creates itself at the first contact and starts
+                at 1 — said here, because otherwise "noch nicht angelegt" reads
+                as a task, and creating it by hand is exactly what the whitelist
+                in domain/counter.ts exists to make unnecessary. */}
+            {code === 'contact' && ` · ${strings.invoice.numberRangeSelfCreating}`}
           </p>
-        </div>
+        )}
       </div>
 
       {editing ? (
-        <div className="mt-4 flex gap-2">
+        <>
+          <Input
+            id={`${formId}-prefix`}
+            aria-label={strings.invoice.prefix}
+            className="h-8"
+            value={prefix}
+            onChange={(event) => setPrefix(event.target.value)}
+          />
+          <Input
+            id={`${formId}-padding`}
+            aria-label={strings.invoice.padding}
+            inputMode="numeric"
+            className="h-8"
+            value={paddingText}
+            onChange={(event) => setPaddingText(event.target.value)}
+          />
+          <Input
+            id={`${formId}-next`}
+            aria-label={strings.invoice.nextValue}
+            inputMode="numeric"
+            className="h-8"
+            value={nextValueText}
+            onChange={(event) => setNextValueText(event.target.value)}
+          />
+        </>
+      ) : (
+        <>
+          <span className="text-sm">{prefix || DASH}</span>
+          <span className="text-sm tabular-nums">{paddingText || DASH}</span>
+          <span className="text-sm tabular-nums">{nextValueText || DASH}</span>
+        </>
+      )}
+
+      <span className="font-mono text-sm">
+        {complete ? formatNumber(prefix, padding, nextValue) : DASH}
+      </span>
+
+      {editing ? (
+        <span className="flex gap-1">
           {exists && (
             <Button
               size="sm"
@@ -238,107 +252,14 @@ function NumberRangeForm({
                 ? strings.invoice.save
                 : strings.invoice.numberRangeCreate}
           </Button>
-        </div>
+        </span>
       ) : (
-        <Button className="mt-4" size="sm" variant="outline" onClick={() => setEditing(true)}>
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
           <Pencil className="size-4" aria-hidden />
           {strings.actions.edit}
         </Button>
       )}
     </div>
-  )
-}
-
-/**
- * The one field left in `practice_settings` that belongs under
- * "Rechnungsstellung" rather than "Praxis" — a default for new invoices, not
- * master data about the practice. Its own card with its own "Bearbeiten",
- * saved through the same `PATCH /api/settings` as the Praxis panel: each
- * sends only the field it owns, so the two can never clobber each other (see
- * `updatePracticeSettings` on the server).
- */
-function PaymentTerm() {
-  const queryClient = useQueryClient()
-  const settings = useQuery(practiceSettingsQueryOptions)
-  const [editing, setEditing] = useState(false)
-  const [daysText, setDaysText] = useState('')
-
-  useEffect(() => {
-    if (settings.data) setDaysText(String(settings.data.defaultPaymentTermDays))
-  }, [settings.data])
-
-  const save = useMutation({
-    mutationFn: (defaultPaymentTermDays: number) =>
-      updatePracticeSettings({ defaultPaymentTermDays }),
-    onSuccess: (saved) => {
-      queryClient.setQueryData(practiceSettingsQueryOptions.queryKey, saved)
-      setEditing(false)
-      toast.success(strings.invoice.paymentTermSaved)
-    },
-    onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : strings.invoice.paymentTermSaveFailed)
-    },
-  })
-
-  const parsed = toNumber(daysText)
-  const complete = parsed !== null && parsed >= 0 && parsed <= 365
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-        <CardTitle>{strings.invoice.paymentTermTitle}</CardTitle>
-        {!editing && (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            <Pencil className="size-4" aria-hidden />
-            {strings.actions.edit}
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div>
-          <div className="max-w-48">
-            <Label htmlFor="payment-term-days">{strings.settings.defaultPaymentTermDays}</Label>
-            {editing ? (
-              <Input
-                id="payment-term-days"
-                className="mt-2"
-                inputMode="numeric"
-                value={daysText}
-                onChange={(event) => setDaysText(event.target.value)}
-              />
-            ) : (
-              <ReadValue>{daysText}</ReadValue>
-            )}
-            {editing && !complete && (
-              <p className="mt-1 text-destructive text-sm">{strings.validation.paymentTerm}</p>
-            )}
-          </div>
-        </div>
-
-        {editing && (
-          <div className="mt-4 flex gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={save.isPending}
-              onClick={() => {
-                if (settings.data) setDaysText(String(settings.data.defaultPaymentTermDays))
-                setEditing(false)
-              }}
-            >
-              {strings.actions.cancel}
-            </Button>
-            <Button
-              size="sm"
-              disabled={save.isPending || !complete}
-              onClick={() => parsed !== null && save.mutate(parsed)}
-            >
-              {save.isPending ? strings.settings.saving : strings.settings.save}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   )
 }
 
