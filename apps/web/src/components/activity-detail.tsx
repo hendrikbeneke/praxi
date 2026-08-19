@@ -76,8 +76,10 @@ export function ActivityDetail({
     /*
      * A **container** query, not a viewport one (D9). This was `lg:` until the
      * calendar rail became the third container: `lg:` asks how wide the window
-     * is, and in a 380 px rail on a 1512 px screen it answered "wide", so the
-     * two columns were forced into the rail and printed on top of each other.
+     * is, and in a rail of a few hundred pixels on a 1512 px screen it answered
+     * "wide", so the two columns were forced into the rail and printed on top
+     * of each other. (The rail was 380 px then and is 320 since D-K2, which is
+     * exactly the kind of number a viewport query cannot see.)
      * The component has to measure the space it was actually given — which is
      * also the honest reading of "one component, three containers".
      */

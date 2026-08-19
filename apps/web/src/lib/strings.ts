@@ -597,7 +597,8 @@ export const strings = {
     saved: 'Vorgang gespeichert.',
     saveFailed: 'Der Vorgang konnte nicht gespeichert werden.',
   },
-  /** "Freien Termin finden" (D9.5) — the calendar rail's third state. */
+  /** "Freien Termin finden" (D9.5) — a fixture of the calendar's left rail
+   *  since D-K2, where it used to be a third state of the single rail. */
   slotFinder: {
     title: 'Freien Termin finden',
     clear: 'Auswahl aufheben',
@@ -689,7 +690,10 @@ export const strings = {
       cancelled_late: 'Kurzfristig abgesagt',
     },
     allStatuses: 'Alle',
-    /** The distinction the exclusion constraint makes. */
+    /** The distinction the slot finder makes — it was the exclusion
+     *  constraint's until migration 0034 dropped it, and the sentence is the
+     *  same one because to the practitioner it means the same thing: whether
+     *  this time will be offered again. */
     releasesSlot: 'Der Zeitraum wird dadurch wieder frei.',
     holdsSlot: 'Der Zeitraum bleibt belegt.',
   },

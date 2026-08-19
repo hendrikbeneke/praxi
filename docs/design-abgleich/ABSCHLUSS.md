@@ -50,10 +50,21 @@ und der zusammengeführten Statusspalte.
 
 **D8 — Vorgänge.** Kontaktnamen und Trennlinie in K9. Der dritte Befund war falsch — siehe unten.
 
-**D9 / D9.5 — Kalender.** Alles behoben in K10: getönte Blöcke, Chipzeile und Legende raus, Karte
+**D9 / D9.5 — Kalender.** Behoben in K10: getönte Blöcke, Chipzeile und Legende raus, Karte
 „Nächste freie Zeit", Regel für den Überblickstag, Kennzahl-Beschriftungen, beide Titelformate,
 freie Dauern, „Neuer Termin" ohne Umbruch. Der Auswahl-Ton war ein Fehlbefund. Die Anmerkung zur
-Kalenderwoche bleibt, was sie war: dort irrt der Prototyp, gebaut ist die richtige Zahl.
+Kalenderwoche bleibt, was sie war: dort irrt der Prototyp, gebaut ist die richtige Zahl — die
+Bilder der zweiten Runde zeigen denselben Fehler (KW 32 für den 10.08.2026, KW 33 für den
+17.08.), womit er zweimal unabhängig bestätigt ist.
+
+**Nachtrag: der Kalender ist in der zweiten Runde neu entschieden worden** und ist der einzige
+Bildschirm, für den diese Datei nicht der letzte Stand ist. Vier der unter „A" als *bewusst
+abweichend* geführten Zeilen sind seit D-K2 zurückgedreht — zwei Spalten sind jetzt drei, das
+Raster öffnet auf 08:00 statt 07:00, der Terminfinder ist kein dritter Zustand der Leiste mehr
+sondern steht dauerhaft links, und die fehlende Monats- und Listenansicht ist kein „drei statt
+fünf" mehr, sondern beauftragt (K4). Maßgebend sind dafür nicht mehr Prototyp und Abgleich,
+sondern `docs/design-korrektur-2/01 - Kalender/Desired Screens/`; der Stand steht in
+`WORKPLAN.md` unter „Design-Korrektur 2".
 
 ---
 

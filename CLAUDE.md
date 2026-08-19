@@ -211,7 +211,9 @@ Consequences, all of them intended:
 
 An activity type may carry **presets**: a default duration, and a list of service references (`activity_type_preset_item`) with a quantity and an order — picking a service group when setting the preset resolves it into that list immediately, so the type never names a group itself. They prefill a *new* activity and are read exactly once, when the type is applied. This is rule 5 one level up — changing a preset reaches nothing that already exists, and there is no re-apply mechanism anywhere in `domain/`. Changing the type of an activity that already carries a duration or positions therefore changes nothing else; the UI says so in a line and offers taking the presets over as an action with a name, rather than overwriting silently.
 
-`activity.title` is optional. Where it is missing, every screen shows the label of the activity type instead — one implementation, `activityLabel()` in `packages/shared`, so list, calendar, contact overview and note dialog cannot drift.
+`activity.title` is optional. Where it is missing, every screen shows the label of the activity type instead — one implementation, `activityLabel()` in `packages/shared`, so list, contact overview and note dialog cannot drift.
+
+**The calendar asks a slightly different question and has its own pair for it** (D-K2): a block's bold line is `title ?? contactName`, and the grey line under it is the *type* — displaced only when something became of the slot, by "Abgesagt" or by "Angefragt · Erstgespräch". `entryName()` and `entrySubline()` in `apps/web/src/lib/calendar-entry.ts`, used by the grid and the day's schedule and by the month and list views when they arrive. They live in the client rather than in `packages/shared` because they read `strings`, and they are two functions rather than one because the two lines fall back differently: a name where there is one, a status where the slot has one. What deliberately does *not* appear in either is `activity.status` — a rendered session used to print "Stattgefunden" in the line the column is read for.
 
 `appointment` is the calendar entry. It is separate and optional: `activity.appointment_id` is nullable and unique. In practice both are created together, but an activity can be documented afterwards without ever producing a calendar entry. The foreign key sits on the activity — the appointment knows nothing about business logic, because it is ultimately just a projection towards a calendar.
 
@@ -773,7 +775,8 @@ activity              tenant_id uuid not null -> tenant(id),
                       title, internal_note                    (text, nullable)
                         -- title optional: where it is missing every screen
                         -- shows the label of the activity type instead
-                        -- (activityLabel() in packages/shared)
+                        -- (activityLabel() in packages/shared; the calendar
+                        -- has its own pair, see rule 6)
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id)
                       foreign key (type, tenant_id)

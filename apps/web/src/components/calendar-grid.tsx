@@ -37,18 +37,19 @@ import { cn } from '@/lib/utils'
  * **Dragging moves an entry**, and unlike a sort order that is not a
  * convenience: a calendar is the spatial representation of time, so the
  * position *is* the datum and dropping is the shortest true statement of "half
- * an hour later". Three things guard it, and only the last one decides:
+ * an hour later".
  *
- * 1. Here, while dragging — the target is checked against the entries this
- *    week has loaded and painted red when it collides. Advice, not
- *    enforcement: the browser only knows what it fetched.
- * 2. `moveAppointment` in the domain, which lets the constraint fire.
- * 3. `appointment_no_overlap` in the database, which is the answer.
+ * **Nothing refuses the drop.** It used to: `appointment_no_overlap` in the
+ * database was the answer, `moveAppointment` let it fire, and the red preview
+ * here was advice ahead of it. Migration 0034 dropped that constraint, because
+ * a double booking is a decision and a constraint cannot be overruled at the
+ * moment it matters. So the red preview is all that is left — it says the time
+ * is taken, and letting go books it anyway.
  *
- * **A Google busy block never refuses a drop.** It is painted, never stored
- * (rule 13), and the constraint knows nothing about it — so a rule that
- * blocked here would permit, whenever the line is down, exactly what it forbids
- * when the line is up. That is the worst kind of rule, so there is none.
+ * It is still only *advice*, and for the same reason as before: the browser
+ * knows the entries this week has loaded and nothing else. A Google busy block
+ * is not among them at all — it is painted and never stored (rule 13), so it
+ * never coloured a drop even when refusals existed.
  */
 
 /**

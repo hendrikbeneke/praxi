@@ -51,13 +51,14 @@ export const Route = createFileRoute('/_app/appointments')({
 })
 
 /**
- * Five days by default (D9).
+ * Five days by default (D9): the seven-day view is there for the Saturdays a
+ * course falls on, and the working week is what one looks at.
  *
- * The seven-day view stays for the Saturdays a course falls on, but it is not
- * what a week looks like here — the design gives Saturday and Sunday 62 % of a
- * column and thereby says so itself. Five columns give each working day 40 %
- * more width, and width is the scarce thing: a block has to hold a time, a
- * name and a type.
+ * **All columns are the same width**, including the weekend. The design draws
+ * Saturday and Sunday at about two thirds, and this used to cite that as the
+ * design agreeing with the five-day default — the narrowing is a mistake in the
+ * design and was struck from the correction list on instruction (D-K2). The
+ * same holds for a day outside the opening hours: it is greyed, never narrowed.
  */
 /** What the rail's "next free time" asks for before the finder has been given
  *  a length of its own — the middle of the design's three offers. */

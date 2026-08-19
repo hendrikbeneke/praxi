@@ -10,6 +10,13 @@ Nicht hierher gehören die Abweichungen, die schon in `WORKPLAN.md` unter D1–D
 stehen, und nicht die noch offenen Befunde aus `docs/design-abgleich/` — das sind Rückstände,
 keine Entscheidungen.
 
+**Seit der zweiten Design-Korrektur gilt eine andere Rangfolge, und sie schlägt dieses
+Register.** Die Bilder in `docs/design-korrektur-2/<Bildschirm>/Desired Screens/` sind die
+Vorgabe; sie stehen über dem Handoff-Prototyp, über `docs/design-abgleich/` und über allem, was
+hier steht. Für einen Bildschirm, den diese Runde abgedeckt hat, ist ein Eintrag hier also nur
+noch dann gültig, wenn die Bilder ihm nicht widersprechen — und wo sie es tun, wird der Eintrag
+zurückgedreht statt verteidigt. Der Kalender ist der erste Fall; siehe unten.
+
 ---
 
 ## Grundsätzlich — das Markup ist die Quelle, nicht die Prosa der README
@@ -304,22 +311,21 @@ Liste, nicht in der des Handoffs.
 
 ---
 
-## K10 — Die Leisteninhalte stehen rechts statt links
+## K10 — Die Leisteninhalte standen rechts statt links — **zurückgedreht in D-K2**
 
-**Design:** eine **linke** Leiste (238 px) mit „Neuer Termin" ganz oben, darunter der Minimonat,
-darunter „Freien Termin finden" — und rechts eine zweite Leiste mit dem Tagesüberblick. Drei
-Spalten.
+**Der Eintrag lautete:** Das Design hat eine linke Leiste (238 px) mit „Neuer Termin", darunter
+den Minimonat, darunter „Freien Termin finden" — und rechts eine zweite mit dem Tagesüberblick.
+Gebaut waren zwei Spalten: alles davon in der **einen rechten** Leiste, in derselben
+Reihenfolge. Begründet mit einer D9-Entscheidung („zwei Spalten statt drei") und damit, dass die
+Kopfzeile dadurch die des Designs sein konnte.
 
-**Gebaut:** zwei Spalten. Alles davon steht in der **einen rechten** Leiste, in derselben
-Reihenfolge: Knopf, Minimonat, Terminfinder, Tagesüberblick.
+**Gilt nicht mehr.** Die Bilder der zweiten Runde zeigen drei Spalten, und die Vorgabe steht
+über der früheren Entscheidung. Gebaut ist seit D-K2 genau das: links `calendar-sidebar.tsx`
+(238 px), in der Mitte das Raster, rechts `calendar-rail.tsx` (320 px) mit dem Tagesüberblick.
+Die Kopfzeile bleibt trotzdem die des Designs — die beiden Knöpfe, die sie einst umbrechen
+ließen, stehen jetzt links statt rechts, nicht wieder in ihr.
 
-**Warum:** „Zwei Spalten statt drei" ist eine D9-Entscheidung und steht im Abgleich als Absicht.
-Die *Zusammensetzung* folgt dem Prototyp, nur spiegelverkehrt — und sie ist der Grund, warum die
-Kopfzeile jetzt die des Designs sein kann: „Neuer Termin" und „Freien Termin finden" standen
-dort und ließen sie in eine zweite Zeile umbrechen.
-
-**Falls doch drei Spalten:** die Leiste in `components/calendar-rail.tsx` aufteilen — der obere
-Block (Knopf, Minimonat, Finder) nach links, der Tagesüberblick bleibt rechts.
+Der Eintrag bleibt als Protokoll stehen, damit die Entscheidung nicht zweimal getroffen wird.
 
 ---
 
@@ -327,5 +333,10 @@ Block (Knopf, Minimonat, Finder) nach links, der Tagesüberblick bleibt rechts.
 
 Der Abgleich führte unter D9 „Kein Auswahl-Ton auf der Spalte des gewählten Tags". Der Prototyp
 hat keinen: `spalteBg` tönt allein `heuteIso` (`primary 3 %`), die Kopfzelle `primary 8 %`,
-geschlossene Tage `muted 55 %`. Gebaut steht genau das — `bg-primary/5` in der Kopfzelle,
-`bg-primary/3` in der Spalte. Nichts zu tun; der Befund war meiner.
+geschlossene Tage `muted 55 %`. Gebaut stand genau das. Nichts zu tun; der Befund war meiner.
+
+*Nachtrag D-K2:* Die Werte sind dieselben geblieben, nur nicht mehr als Tailwind-Alpha
+geschrieben, sondern als `color-mix` gegen die Token — `primary 8 %` in der Kopfzelle,
+`primary 3 %` in der Spalte, `muted 55 %` außerhalb der Öffnungszeiten. Der Grund ist das
+dunkle Thema: eine Deckkraft auf einem hellen Grund ergibt dort einen hellen Fleck, eine
+Mischung mit `--card` nicht.

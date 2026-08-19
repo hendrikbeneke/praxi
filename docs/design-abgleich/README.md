@@ -335,6 +335,12 @@ Dazu, in den Einstellungen, dieselbe Bewegung in zwei Richtungen:
 
 ### D9 / D9.5 — Kalender
 
+> **Überholt.** Dieser Abschnitt ist der Befundstand von damals. Der Kalender ist in der
+> zweiten Design-Korrektur neu vorgegeben worden — maßgebend sind die Bilder in
+> `docs/design-korrektur-2/01 - Kalender/Desired Screens/`, und mehrere der unten als bewusst
+> abweichend geführten Punkte sind seither zurückgedreht. Siehe `ABSCHLUSS.md` und
+> `WORKPLAN.md` unter „Design-Korrektur 2".
+
 - **V** **Terminblöcke vollflächig gefüllt statt getönt.** Der Prototyp zeichnet
   eine sehr helle Tönung der Artfarbe mit kräftigem Farbstrich links und dunklem
   Text; gebaut volle Sättigung über die ganze Fläche. Optisch der lauteste
