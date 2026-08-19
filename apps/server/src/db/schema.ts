@@ -729,10 +729,18 @@ export const activityTypePresetItem = pgTable(
  * sits on `activity`, because the appointment knows nothing about business
  * logic (CLAUDE.md rule 6).
  *
- * `contact_id` is `not null`, unlike the original sketch. Every appointment
- * here belongs to an activity for a contact, and the private blockers of
- * slice 9 arrive from Google as read-only intervals that are never stored — a
- * nullable column nothing can fill would just be a dead one.
+ * **An appointment is a calendar entry in its own right** (D-K1), and that is
+ * the reversal this table went through: until migration 0034 `contact_id` was
+ * `not null` because every appointment belonged to an activity for a contact.
+ * A blocker, documentation time, a team meeting are appointments that belong
+ * to nobody, and they could not be entered at all. Now the direction is the
+ * other way round — the appointment stands alone, and it is the *activity*
+ * that optionally has one.
+ *
+ * What did not change: an activity always has a contact. The composite key
+ * from `activity` carries `contact_id` through, so an appointment without one
+ * can never be picked up by an activity — see the note on the unique key
+ * below.
  */
 export const appointment = pgTable(
   'appointment',
@@ -741,13 +749,16 @@ export const appointment = pgTable(
     tenantId: uuid()
       .notNull()
       .references(() => tenant.id),
-    contactId: uuid().notNull(),
+    /** Null on an appointment that belongs to nobody (0034). */
+    contactId: uuid(),
     startsAt: timestamp({ withTimezone: true }).notNull(),
     endsAt: timestamp({ withTimezone: true }).notNull(),
     /**
      * What became of the **slot**, and nothing else. It does not gate billing
-     * (rule 6); what it does decide is whether the slot stays occupied — see
-     * the exclusion constraint in migration 0009.
+     * (rule 6), and since migration 0034 it gates nothing whatsoever: it used
+     * to decide whether the slot stayed occupied, through the exclusion
+     * constraint of migration 0009, and that constraint is gone. Overlapping
+     * appointments are allowed; the screen warns and the practitioner decides.
      *
      * `attended` and `no_show` moved to `activity.status` in slice 7.5: a
      * no-show is an activity that did not happen in a slot that stayed
@@ -780,6 +791,15 @@ export const appointment = pgTable(
      * Target of the composite foreign key on `activity`. Carrying `contact_id`
      * through makes it impossible for an activity of one contact to hold the
      * appointment of another.
+     *
+     * Since 0034 it says a second thing, and that one is a consequence rather
+     * than a design: a foreign key never matches a row whose referenced column
+     * is NULL, and `activity.contact_id` is `not null` — so **an appointment
+     * without a contact can never be picked up by an activity.** Turning a
+     * blocker into a Vorgang after the fact is therefore not possible, which
+     * is where this package decided to leave it: one database guarantee was
+     * given up here (the overlap), and giving up a second one to buy a path
+     * nobody has asked for would be a poor trade.
      */
     unique('appointment_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
     /** Target of the composite foreign keys from the two slice-9 tables. The
@@ -1564,10 +1584,14 @@ export const appointmentSyncConflict = pgTable(
      *  proposal rather than queueing a second decision about the same slot. */
     unique('appointment_sync_conflict_appointment_key').on(t.appointmentId),
     index('appointment_sync_conflict_tenant_idx').on(t.tenantId, t.detectedAt),
-    check(
-      'appointment_sync_conflict_reason_check',
-      sql`${t.reason} in ('both_changed', 'overlap')`,
-    ),
+    /**
+     * One value since 0034. `overlap` meant "Google moved it to a time another
+     * appointment holds, so the change cannot be applied at all" — and with
+     * the exclusion constraint gone it can always be applied. The column stays
+     * rather than the value being folded away: a conflict has a reason, and
+     * the next kind will want to say a different one.
+     */
+    check('appointment_sync_conflict_reason_check', sql`${t.reason} in ('both_changed')`),
     check(
       'appointment_sync_conflict_ends_after_starts',
       sql`${t.remoteEndsAt} > ${t.remoteStartsAt}`,

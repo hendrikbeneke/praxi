@@ -4,7 +4,9 @@ import type {
   ActivityListQuery,
   ActivitySummary,
   ActivitySummaryQuery,
-  AppointmentMove,
+  Appointment,
+  AppointmentCreate,
+  AppointmentPatch,
   CalendarEntry,
   FreeSlotQuery,
   FreeSlotsResponse,
@@ -60,8 +62,7 @@ export const activityQueryOptions = (activityId: string) =>
     },
   })
 
-/** `from` inclusive, `to` exclusive — the same half-open window the exclusion
- *  constraint works with. */
+/** `from` inclusive, `to` exclusive. */
 export const calendarQueryOptions = (from: string, to: string) =>
   queryOptions({
     queryKey: ['appointments', 'range', { from, to }],
@@ -92,13 +93,37 @@ export async function deleteActivity(activityId: string): Promise<void> {
   if (!res.ok) throw await apiError(res)
 }
 
-/** Dragging an entry to another time. Moves the activity with it — see
- *  `moveAppointment` in the domain, which is why this is not a plain update. */
-export async function moveAppointment(appointmentId: string, move: AppointmentMove): Promise<void> {
-  const res = await api.api.appointments[':appointmentId'].move.$post({
+/**
+ * A calendar entry of its own — the "Nur Termin" tab. A Vorgang with a Termin
+ * is still created through `createActivity`.
+ */
+export async function createAppointment(input: AppointmentCreate): Promise<Appointment> {
+  const res = await api.api.appointments.$post({ json: input })
+  if (!res.ok) throw await apiError(res)
+  return await res.json()
+}
+
+/**
+ * Editing one: dragging it, renaming it, cancelling it. Dragging sends nothing
+ * but the two instants and moves the activity with it — see `updateAppointment`
+ * in the domain, which is why this is not a plain update of one row.
+ */
+export async function updateAppointment(
+  appointmentId: string,
+  patch: AppointmentPatch,
+): Promise<Appointment> {
+  const res = await api.api.appointments[':appointmentId'].$patch({
     param: { appointmentId },
-    json: move,
+    json: patch,
   })
+  if (!res.ok) throw await apiError(res)
+  return await res.json()
+}
+
+/** Only an appointment without a Vorgang; the server refuses the rest with a
+ *  sentence about cancelling instead. */
+export async function deleteAppointment(appointmentId: string): Promise<void> {
+  const res = await api.api.appointments[':appointmentId'].$delete({ param: { appointmentId } })
   if (!res.ok) throw await apiError(res)
 }
 

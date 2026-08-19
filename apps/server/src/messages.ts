@@ -145,9 +145,15 @@ export const messages = {
   },
   appointment: {
     notFound: 'Dieser Termin existiert nicht.',
-    overlap:
-      'In diesem Zeitraum liegt bereits ein Termin. Bitte wählen Sie eine andere Zeit — ' +
-      'oder sagen Sie den bestehenden Termin ab, dann wird der Platz frei.',
+    unknownContact: 'Dieser Kontakt existiert nicht.',
+    hasActivity:
+      'Zu diesem Termin gehört ein Vorgang. Sagen Sie den Termin ab, statt ihn zu löschen — ' +
+      'der Vorgang bleibt dann dokumentiert.',
+    /** What Google sees of an appointment that belongs to nobody. Rule 13
+     *  allows the contact number and nothing else, and there is none here — so
+     *  a constant, never the appointment's own title, which the practitioner
+     *  types and could well contain a name. */
+    googleBusy: 'Belegt',
   },
   invoice: {
     notFound: 'Diese Rechnung existiert nicht.',
@@ -264,9 +270,6 @@ export const messages = {
       'Die Anmeldung bei Google ist abgelaufen oder wurde nicht von hier gestartet. ' +
       'Bitte erneut versuchen.',
     conflictNotFound: 'Für diesen Termin gibt es keinen offenen Konflikt.',
-    conflictOverlap:
-      'Die Zeiten aus Google lassen sich nicht übernehmen: ' +
-      'in diesem Zeitraum liegt bereits ein anderer Termin.',
     /** The page the loopback redirect lands on. `127.0.0.1` is a different
      *  origin than `localhost`, so this cannot be the SPA — it is a plain page
      *  that says the flow is done. */

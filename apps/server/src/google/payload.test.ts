@@ -49,6 +49,32 @@ describe('buildEvent', () => {
     ])
   })
 
+  /**
+   * An appointment that belongs to nobody has no contact number, and what goes
+   * out instead is a constant — never its own title. "Teambesprechung" is
+   * harmless, "Rückruf Frau K." is not, and the difference is typed by hand at
+   * 200 characters, so the payload must not be able to tell them apart.
+   */
+  it('sends a constant for an appointment that belongs to nobody', () => {
+    const event = buildEvent({
+      ...source,
+      contactNumber: null,
+    })
+
+    expect(event.summary).toBe('Belegt')
+    expect(JSON.stringify(event)).not.toContain('Teambesprechung')
+    expect(Object.keys(event).sort()).toEqual([
+      'end',
+      'id',
+      'reminders',
+      'start',
+      'status',
+      'summary',
+      'transparency',
+      'visibility',
+    ])
+  })
+
   it('contains no name, no service and no activity type', () => {
     const serialized = JSON.stringify(buildEvent(source))
 

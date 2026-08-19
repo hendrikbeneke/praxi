@@ -7,7 +7,6 @@ import type {
 import { occupiesSlot } from '@praxi/shared'
 import { and, asc, eq, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database, Transaction } from '../db/client.js'
-import { isOverlapViolation } from '../db/errors.js'
 import {
   activity,
   appointment,
@@ -229,7 +228,9 @@ async function pushUpsert(
       contactNumber: contact.contactNumber,
     })
     .from(appointment)
-    .innerJoin(contact, eq(contact.id, appointment.contactId))
+    // Left, not inner: an appointment without a contact is projected like any
+    // other — as a busy interval called "Belegt", see buildEvent.
+    .leftJoin(contact, eq(contact.id, appointment.contactId))
     .where(and(eq(appointment.tenantId, tenantId), eq(appointment.id, row.appointmentId)))
     .limit(1)
 
@@ -462,16 +463,11 @@ export async function pullRemote(
       continue
     }
 
-    try {
-      await applyRemote(database, tenantId, row, remote)
-      pulled += 1
-    } catch (error) {
-      if (!isOverlapViolation(error)) throw error
-      // The times cannot be applied at all: another appointment holds them.
-      // That refusal is a fact to show, not an error to swallow.
-      await recordConflict(database, tenantId, row.id, remote, 'overlap', now)
-      conflicts += 1
-    }
+    // Always applicable since migration 0034: the exclusion constraint that
+    // could refuse these times is gone, so there is no second kind of conflict
+    // left to record here.
+    await applyRemote(database, tenantId, row, remote)
+    pulled += 1
   }
 
   await database
@@ -530,7 +526,9 @@ export async function listConflicts(database: Database, tenantId: string): Promi
     })
     .from(appointmentSyncConflict)
     .innerJoin(appointment, eq(appointment.id, appointmentSyncConflict.appointmentId))
-    .innerJoin(contact, eq(contact.id, appointment.contactId))
+    // Left, for the same reason as everywhere else since 0034: a conflict over
+    // an appointment that belongs to nobody is still a conflict to resolve.
+    .leftJoin(contact, eq(contact.id, appointment.contactId))
     .leftJoin(activity, eq(activity.appointmentId, appointment.id))
     .where(eq(appointmentSyncConflict.tenantId, tenantId))
     .orderBy(asc(appointment.startsAt))

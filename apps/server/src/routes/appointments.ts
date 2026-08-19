@@ -1,5 +1,6 @@
 import {
-  appointmentMoveSchema,
+  appointmentCreateSchema,
+  appointmentPatchSchema,
   appointmentRangeQuerySchema,
   freeSlotQuerySchema,
 } from '@praxi/shared'
@@ -8,8 +9,14 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
-import { isOverlapViolation } from '../db/errors.js'
-import { listCalendarEntries, moveAppointment } from '../domain/appointment.js'
+import { foreignKeyViolationConstraint } from '../db/errors.js'
+import {
+  AppointmentHasActivityError,
+  createAppointment,
+  deleteAppointment,
+  listCalendarEntries,
+  updateAppointment,
+} from '../domain/appointment.js'
 import { type BusyLookup, findFreeSlots } from '../domain/free-slots.js'
 import { busyIntervals } from '../domain/google-connection.js'
 import { openGoogleApi } from '../google/api.js'
@@ -21,14 +28,18 @@ import { validate } from '../middleware/validate.js'
 const appointmentParam = z.object({ appointmentId: z.uuid() })
 
 /**
- * Reading and moving only. Appointments come into being with their activity
- * (`POST /api/activities`), because every one of them belongs to one —
- * see the note on `appointment.contact_id` in the schema.
+ * The calendar entry as a resource of its own (D-K1).
  *
- * `/move` rather than a general `PUT` (D9): dragging says *when*, and status,
- * title and note are edited through the activity. A route that accepted them
- * here would be a second way to change them, and the general PUT this replaces
- * had no caller in the client at all.
+ * A Vorgang with a Termin is still one act and is created through
+ * `POST /api/activities`; what is created here is the other kind — a blocker,
+ * documentation time, a team meeting, which belongs to no activity and
+ * possibly to no contact.
+ *
+ * **One PATCH**, where D9 had `/move`. That route was deliberately narrow
+ * because status, title and note were edited through the activity, and a
+ * second door here would have been a second way to change them. An appointment
+ * without an activity has no such door, so this is it; a drag sends nothing
+ * but the two instants and is the same call.
  */
 export const appointmentsRoute = new Hono<AppEnv>()
   .use('*', requireAuth, withTenant)
@@ -61,27 +72,55 @@ export const appointmentsRoute = new Hono<AppEnv>()
     return c.json(await findFreeSlots(db(), tenant, c.req.valid('query'), lookup, new Date()))
   })
 
-  .post(
-    '/:appointmentId/move',
+  .post('/', validate('json', appointmentCreateSchema), async (c) => {
+    const created = await createAppointment(db(), tenantId(c), c.req.valid('json')).catch(
+      (error: unknown) => {
+        // A contact that was archived away or never belonged to this tenant.
+        if (foreignKeyViolationConstraint(error) === 'appointment_contact_tenant_fk') {
+          throw new HTTPException(409, { message: messages.appointment.unknownContact })
+        }
+        throw error
+      },
+    )
+
+    return c.json(created, 201)
+  })
+
+  .patch(
+    '/:appointmentId',
     validate('param', appointmentParam),
-    validate('json', appointmentMoveSchema),
+    validate('json', appointmentPatchSchema),
     async (c) => {
-      const moved = await moveAppointment(
+      const updated = await updateAppointment(
         db(),
         tenantId(c),
         c.req.valid('param').appointmentId,
         c.req.valid('json'),
       ).catch((error: unknown) => {
-        // SQLSTATE 23P01 from `appointment_no_overlap`. The screen puts the
-        // block back where it was and shows this; without the sentence the
-        // move would just fail silently.
-        if (isOverlapViolation(error)) {
-          throw new HTTPException(409, { message: messages.appointment.overlap })
+        if (foreignKeyViolationConstraint(error) === 'appointment_contact_tenant_fk') {
+          throw new HTTPException(409, { message: messages.appointment.unknownContact })
         }
         throw error
       })
 
-      if (!moved) throw new HTTPException(404, { message: messages.appointment.notFound })
-      return c.body(null, 204)
+      if (!updated) throw new HTTPException(404, { message: messages.appointment.notFound })
+      return c.json(updated)
     },
   )
+
+  /** Only an appointment without a Vorgang; the domain says why. */
+  .delete('/:appointmentId', validate('param', appointmentParam), async (c) => {
+    const deleted = await deleteAppointment(
+      db(),
+      tenantId(c),
+      c.req.valid('param').appointmentId,
+    ).catch((error: unknown) => {
+      if (error instanceof AppointmentHasActivityError) {
+        throw new HTTPException(409, { message: messages.appointment.hasActivity })
+      }
+      throw error
+    })
+
+    if (!deleted) throw new HTTPException(404, { message: messages.appointment.notFound })
+    return c.body(null, 204)
+  })

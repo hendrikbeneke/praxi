@@ -215,7 +215,17 @@ An activity type may carry **presets**: a default duration, and a list of servic
 
 `appointment` is the calendar entry. It is separate and optional: `activity.appointment_id` is nullable and unique. In practice both are created together, but an activity can be documented afterwards without ever producing a calendar entry. The foreign key sits on the activity — the appointment knows nothing about business logic, because it is ultimately just a projection towards a calendar.
 
-**The two statuses say different things, and that is why there are two.** `appointment.status` (`requested`, `planned`, `confirmed`, `cancelled`, `cancelled_late`) says what became of the *slot*; `activity.status` (`planned`, `rendered`, `no_show`) says what became of the *treatment*. A no-show is an activity that did not happen in a slot that stayed occupied — one column could not say both, and the slot has to stay blocked, because the time really was. Only a cancellation releases it; the exclusion constraint names those two values and nothing else.
+**And it stands on its own.** An appointment needs no activity and no contact: a blocker, documentation time, a team meeting are calendar entries and nothing more. Until migration 0034 `appointment.contact_id` was `not null` and every appointment belonged to an activity, which meant a practice could not write down the two hours it is not available. The direction is now the other way round — **the appointment is the free-standing thing, and it is the activity that optionally has one.** A Vorgang, on the other hand, always has a contact; `activity.contact_id` stays `not null`.
+
+One consequence is worth knowing before it surprises somebody: the composite key `activity (appointment_id, contact_id, tenant_id) -> appointment` carries the contact through, and a foreign key never matches a row whose referenced column is NULL. **An appointment created without a contact can therefore never be picked up by an activity afterwards.** That is deliberate rather than merely accepted: the same package gave up the overlap guarantee below, and giving up a second database guarantee to buy a path nobody has asked for would be the wrong trade. A bare appointment carries a title, a note and optionally a contact — no type and no colour of its own, because colours come from the activity type and it has none; the grid paints it in the neutral default.
+
+**The two statuses say different things, and that is why there are two.** `appointment.status` (`requested`, `planned`, `confirmed`, `cancelled`, `cancelled_late`) says what became of the *slot*; `activity.status` (`planned`, `rendered`, `no_show`) says what became of the *treatment*. A no-show is an activity that did not happen in a slot that stayed occupied — one column could not say both.
+
+**Overlapping appointments are allowed, and no constraint says otherwise.** `appointment_no_overlap` refused a second entry in an occupied slot from slice 4 until migration 0034 dropped it. It went not because double bookings are harmless but because they are a *decision*, and the practitioner is the one who makes it: a constraint cannot be overruled at the moment it matters, and an emergency at 14:00 on a full day ended in a refusal with no way forward except cancelling somebody else first. What replaces it is a warning — the form says the time is taken and paints the entry in the destructive tone, and saving it anyway is one click. What did *not* change is that nothing ever **proposes** an overlap: `findFreeSlots` still skips a time an appointment holds, which is the one place a clash would be suggested rather than chosen.
+
+`appointment.status` therefore gates nothing whatsoever now. `SLOT_RELEASING_STATUSES` in `packages/shared` used to be mirrored in the constraint's SQL; it is read by the finder and by the display alone — cancellation counts, the hours a day holds, the strike-through on a released entry.
+
+**Cancelling and deleting are different gestures.** An appointment with a Vorgang is cancelled: what happened, or did not, stays documented, and the entry stays on the calendar. An appointment without one is deleted, because a blocker entered by mistake must actually go — cancelling would leave it standing and counted among the day's cancellations. `deleteAppointment` refuses the first case with a sentence rather than reaching through to the activity.
 
 Both are **descriptive only**. Neither gates billing: anything in the past can be billed whatever they say, and `domain/billable.ts` reads neither. `activity.status` is the one that invites the mistake — it has a value that reads like a reason not to invoice — so the column carries a `COMMENT` saying so in the database, and there is a test asserting that a no-show stays billable.
 
@@ -325,7 +335,7 @@ Health data falls under Art. 9 GDPR and professional confidentiality under § 20
 
 The local database is the system of record. Google Calendar holds *when* the practitioner is occupied and nothing else, and it never feeds anything back except three fields.
 
-**Google never receives data identifying a patient.** An event carries the contact number as its title, the two times, and one bit of status. No description, no participants, no invitations, no location, no hint of a service or an activity type. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set — so a new column on `appointment` cannot leak into a payload by being spread.
+**Google never receives data identifying a patient.** An event carries the contact number as its title, the two times, and one bit of status. An appointment that belongs to nobody has no number, and what stands in for it is the **constant "Belegt"** — never the appointment's own title, which the practitioner types and where "Rückruf Frau K." is exactly the sentence this rule exists to keep out. No description, no participants, no invitations, no location, no hint of a service or an activity type. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set — so a new column on `appointment` cannot leak into a payload by being spread.
 
 The reason is § 203 StGB, not data-protection cosmetics: "Erstgespräch — Maria Schulz" in the calendar of a Heilpraktiker für Psychotherapie discloses that this person is in psychotherapeutic treatment, and Google signs no Verpflichtungserklärung under § 203 Abs. 4.
 
@@ -426,7 +436,8 @@ opening_hour          tenant_id uuid not null -> tenant(id),
                         tsrange(DATE '2000-01-01' + starts_at,
                                 DATE '2000-01-01' + ends_at) WITH &&)
                         -- Two windows on one weekday cannot overlap. The same
-                        -- mechanism as appointment_no_overlap; `time` is not
+                        -- mechanism appointment_no_overlap used until 0034
+                        -- dropped it; `time` is not
                         -- gist-indexable, so a constant date turns the pair
                         -- into a tsrange and the date itself means nothing.
                         -- The domain refuses first so the message names the
@@ -884,19 +895,31 @@ activity_type_preset_item
                       -- outside the catalogue references a group" rule.
                       -- set_updated_at; RLS created and disabled.
 
--- as built (slice 4), status narrowed in slice 7.5, extended in slice 9.
+-- as built (slice 4), status narrowed in slice 7.5, extended in slice 9,
+-- turned into a free-standing entry in D-K1 (migration 0034).
 -- D9 changed no column here. What it changed is who may move one: dragging
--- goes through moveAppointment(), which writes this row AND its activity's
+-- goes through updateAppointment(), which writes this row AND its activity's
 -- occurred_at/duration_min in one transaction. The times of the two are one
 -- fact in two places, and until D9 only the editor wrote them — both, from a
 -- single value. A drag that touched this row alone would have been the first
 -- writer to pull them apart, and it would have done it silently.
 appointment           tenant_id uuid not null -> tenant(id),
-                      contact_id uuid not null                  -- NOT null,
-                        -- against the sketch: every appointment belongs to an
-                        -- activity for a contact, and slice 9's private
-                        -- blockers arrive from Google as read-only intervals
-                        -- that are never stored
+                      contact_id uuid                           -- NULLABLE
+                        -- since 0034, and that is the reversal this table went
+                        -- through. It was NOT null because every appointment
+                        -- belonged to an activity for a contact — so a blocker,
+                        -- documentation time or a team meeting could not be
+                        -- entered at all. Now the appointment stands alone and
+                        -- the activity is what optionally has one.
+                        --
+                        -- The other end is deliberately NOT relaxed: activity
+                        -- .contact_id stays not null and the composite key
+                        -- below still carries the contact through, so an
+                        -- appointment without one can never be picked up by an
+                        -- activity. Turning a blocker into a Vorgang after the
+                        -- fact is therefore impossible, which is where D-K1
+                        -- left it — one database guarantee was given up here
+                        -- (the overlap), and a second one is not for sale.
                       starts_at timestamptz not null,
                       ends_at timestamptz not null check (> starts_at),
                       status text not null default 'planned' check in
@@ -906,21 +929,26 @@ appointment           tenant_id uuid not null -> tenant(id),
                         -- `attended` and `no_show` moved to activity.status in
                         -- slice 7.5: a no-show is an activity that did not
                         -- happen in a slot that stayed occupied.
+                        -- Since 0034 it gates NOTHING: it used to decide the
+                        -- exclusion constraint, and that is gone. COMMENT ON
+                        -- COLUMN says so in the database too.
                       title, note                               (text, nullable)
+                        -- what a bare appointment is called. No type and no
+                        -- colour of its own — those come from the activity
+                        -- type, and it has none.
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id)
                       unique (id, contact_id, tenant_id)        -- target of
-                        -- activity's three-column foreign key
+                        -- activity's three-column foreign key; see contact_id
                       index (tenant_id, starts_at)
-                      EXCLUDE USING gist (tenant_id WITH =,
-                        tstzrange(starts_at, ends_at) WITH &&)
-                        WHERE (status NOT IN ('cancelled','cancelled_late'))
-                        -- migration 0009, needs btree_gist. tstzrange is
-                        -- half-open, so back-to-back slots do not clash. Only
-                        -- a cancellation releases the slot — a session that
-                        -- nobody attended still occupied the time, which since
-                        -- 7.5 is said by activity.status and not here.
-                        -- Violations are SQLSTATE 23P01.
+                      -- DELIBERATELY ABSENT since 0034: the EXCLUDE constraint
+                      -- appointment_no_overlap (0009), which refused a second
+                      -- entry in an occupied slot. Overlaps are allowed now,
+                      -- because a double booking is a decision and a constraint
+                      -- cannot be overruled at the moment it matters. The form
+                      -- warns and paints the entry destructive; findFreeSlots
+                      -- still never SUGGESTS a time that is taken. btree_gist
+                      -- stays — opening_hour_no_overlap (0032) uses it.
                       --
                       -- added in slice 9, the projection towards Google:
                       google_event_id text,   -- derived from this row's own id
@@ -1417,7 +1445,13 @@ appointment_sync_conflict
                         -- only the three fields the return channel knows; a
                         -- remote title never gets this far
                       reason text not null
-                        check in ('both_changed','overlap')
+                        check in ('both_changed')
+                        -- one value since 0034. `overlap` meant "Google's
+                        -- times cannot be applied at all, another appointment
+                        -- holds them" — the exclusion constraint coming back
+                        -- through the return channel. A remote change always
+                        -- applies now. The column stays: a conflict has a
+                        -- reason, and the next kind will say a different one.
                       foreign key (appointment_id, tenant_id)
                         -> appointment (id, tenant_id) on delete cascade
                       unique (appointment_id),                -- one open

@@ -18,7 +18,7 @@ import { CalendarRail, type RailSelection } from '@/components/calendar-rail'
 import { SlotFinder, type SlotSearch } from '@/components/slot-finder'
 import { SyncConflictBanner } from '@/components/sync-conflicts'
 import { Button } from '@/components/ui/button'
-import { calendarQueryOptions, freeSlotsQueryOptions, moveAppointment } from '@/lib/activities'
+import { calendarQueryOptions, freeSlotsQueryOptions, updateAppointment } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import { addDays, isoWeek, startOfWeek, todayInBerlin } from '@/lib/calendar-dates'
@@ -159,7 +159,7 @@ function CalendarPage() {
    */
   const move = useMutation({
     mutationFn: (target: DropTarget) =>
-      moveAppointment(target.appointmentId, {
+      updateAppointment(target.appointmentId, {
         startsAt: target.startsAt,
         endsAt: target.endsAt,
       }),
@@ -182,7 +182,7 @@ function CalendarPage() {
     onSuccess: () => toast.success(strings.appointment.moved),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ['appointments'] })
-      // The activity moved with it (see `moveAppointment` in the domain), so
+      // The activity moved with it (see `updateAppointment` in the domain), so
       // every list that shows a date of service is stale too.
       await queryClient.invalidateQueries({ queryKey: ['activities'] })
     },

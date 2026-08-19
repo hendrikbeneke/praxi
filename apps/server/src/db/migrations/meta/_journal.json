@@ -239,6 +239,13 @@
       "when": 1786877536205,
       "tag": "0033_practice_vat_id",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786877536206,
+      "tag": "0034_appointment_standalone",
+      "breakpoints": true
     }
   ]
 }

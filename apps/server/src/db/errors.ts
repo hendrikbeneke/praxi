@@ -10,10 +10,6 @@
 /** SQLSTATE 23505. */
 const UNIQUE_VIOLATION = '23505'
 
-/** SQLSTATE 23P01 — an EXCLUDE constraint. Only `appointment_no_overlap` uses
- *  one, so the name identifies it. */
-const EXCLUSION_VIOLATION = '23P01'
-
 type PostgresError = { code?: unknown; constraint_name?: unknown; message?: unknown }
 
 /**
@@ -56,13 +52,6 @@ export function foreignKeyViolationConstraint(error: unknown): string | null {
   if (!driver || driver.code !== FOREIGN_KEY_VIOLATION) return null
 
   return typeof driver.constraint_name === 'string' ? driver.constraint_name : ''
-}
-
-/** True when two appointments would occupy the same slot — the
- *  `appointment_no_overlap` exclusion constraint from migration 0009. */
-export function isOverlapViolation(error: unknown): boolean {
-  const driver = driverError(error)
-  return driver?.code === EXCLUSION_VIOLATION
 }
 
 /** SQLSTATE P0001 — `RAISE EXCEPTION` from PL/pgSQL, which is how the

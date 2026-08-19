@@ -1,5 +1,6 @@
 import type { AppointmentStatus } from '@praxi/shared'
 import { occupiesSlot } from '@praxi/shared'
+import { messages } from '../messages.js'
 
 /**
  * Building the event that goes to Google.
@@ -53,7 +54,9 @@ export type GoogleEventPayload = {
  *  the type is the second lock next to the test. */
 export type EventSource = {
   appointmentId: string
-  contactNumber: number
+  /** Null on an appointment that belongs to nobody (0034) — see the summary
+   *  in `buildEvent`. */
+  contactNumber: number | null
   startsAt: Date
   endsAt: Date
   status: AppointmentStatus
@@ -103,13 +106,22 @@ export function googleEventId(appointmentId: string): string {
  * been released becomes a cancelled event rather than a deletion. That keeps
  * the id valid — reviving is then an ordinary update — and it frees the time
  * in Google just the same. `occupiesSlot()` from `packages/shared` decides it,
- * the same function the exclusion constraint mirrors, so the two cannot drift.
+ * the same function the exclusion constraint mirrored until migration 0034.
  */
 export function buildEvent(source: EventSource): GoogleEventPayload {
   return {
     id: googleEventId(source.appointmentId),
     // The contact number, and nothing else. See the block comment above.
-    summary: String(source.contactNumber),
+    //
+    // An appointment that belongs to nobody has no number, and what stands in
+    // for it is a **constant** — never the appointment's own title. The title
+    // is typed by the practitioner and "Rückruf Frau K." is exactly the
+    // sentence the rule above exists to keep out of Google. So: a busy block
+    // with no content at all, which is all a projection owes anyone.
+    summary:
+      source.contactNumber === null
+        ? messages.appointment.googleBusy
+        : String(source.contactNumber),
     start: { dateTime: source.startsAt.toISOString() },
     end: { dateTime: source.endsAt.toISOString() },
     status: occupiesSlot(source.status) ? 'confirmed' : 'cancelled',

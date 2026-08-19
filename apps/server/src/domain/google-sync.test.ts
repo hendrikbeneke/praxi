@@ -14,7 +14,7 @@ import { googleEventId } from '../google/payload.js'
 import { newId } from '../id.js'
 import { createTenant } from '../test/fixtures.js'
 import { createActivity, deleteActivity, updateActivity } from './activity.js'
-import { moveAppointment } from './appointment.js'
+import { updateAppointment } from './appointment.js'
 import { createContact } from './contact.js'
 import { disconnect } from './google-connection.js'
 import {
@@ -188,7 +188,7 @@ describe('enqueueing', () => {
     await updateActivity(db(), tenantId, created.id, {
       ...booking('2026-09-02T10:00:00.000Z', '2026-09-02T11:00:00.000Z'),
     })
-    await moveAppointment(db(), tenantId, created.appointment?.id ?? '', {
+    await updateAppointment(db(), tenantId, created.appointment?.id ?? '', {
       startsAt: '2026-09-02T11:00:00.000Z',
       endsAt: '2026-09-02T12:00:00.000Z',
     })
@@ -501,7 +501,7 @@ describe('conflicts', () => {
     const appointmentId = created.appointment?.id ?? ''
 
     // Changed here, not out yet.
-    await moveAppointment(db(), tenantId, appointmentId, {
+    await updateAppointment(db(), tenantId, appointmentId, {
       startsAt: '2026-09-02T12:00:00.000Z',
       endsAt: '2026-09-02T13:00:00.000Z',
     })
@@ -551,7 +551,7 @@ describe('conflicts', () => {
   it('holds back a push that is enqueued again while the conflict is open', async () => {
     const appointmentId = await bothSidesChanged()
 
-    await moveAppointment(db(), tenantId, appointmentId, {
+    await updateAppointment(db(), tenantId, appointmentId, {
       startsAt: '2026-09-02T18:00:00.000Z',
       endsAt: '2026-09-02T19:00:00.000Z',
     })
@@ -592,7 +592,14 @@ describe('conflicts', () => {
     expect(recorder.updated[0]?.start.dateTime).toBe('2026-09-02T12:00:00.000Z')
   })
 
-  it('reports remote times that cannot be applied at all', async () => {
+  /**
+   * The inversion of a test that used to assert the opposite: Google moving an
+   * event straight into an occupied slot was a conflict, because the exclusion
+   * constraint refused the times. Migration 0034 dropped that constraint, so
+   * the remote change simply applies — and the two entries share the hour, as
+   * they would if the practitioner had dropped one there by hand.
+   */
+  it('applies remote times that land on an occupied slot', async () => {
     await connect()
     const recorder = fakeApi()
 
@@ -625,13 +632,12 @@ describe('conflicts', () => {
     }
 
     expect(await pullRemote(db(), tenantId, puller.api, NOW)).toMatchObject({
-      pulled: 0,
-      conflicts: 1,
+      pulled: 1,
+      conflicts: 0,
     })
-    expect((await listConflicts(db(), tenantId))[0]?.reason).toBe('overlap')
-    // Untouched, because the exclusion constraint refused.
+    expect(await listConflicts(db(), tenantId)).toHaveLength(0)
     expect((await appointmentRow(appointmentId))?.startsAt.toISOString()).toBe(
-      '2026-09-02T08:00:00.000Z',
+      '2026-09-02T10:15:00.000Z',
     )
   })
 })

@@ -2216,6 +2216,56 @@ mechanism was built.
   proof, not just "looks fine on screenshot"), and the `--sidebar` fix
   visible as a now-distinct sidebar tone in the default theme.
 
+## Design-Korrektur 2 — 01 Kalender
+
+Die Vorlagen dieser Runde sind Bilder, nicht Prosa: `docs/design-korrektur-2/
+01 - Kalender/Desired Screens/`. Sie stehen laut Vorgabe **über** dem
+Handoff-Prototyp, über `docs/design-abgleich/` und über den Paketen K1–K10.
+Wo eine frühere Entscheidung ihnen widerspricht, ist sie überstimmt — was in
+diesem Bildschirm dreimal vorkommt und dort jeweils vermerkt ist. Vier Pakete,
+in dieser Reihenfolge:
+
+1. **K1 — Schema und Domäne** (erledigt, Migration `0034`)
+2. **K2 — Layout**: drei Spalten (links 238 px mit „Neuer Termin", Minimonat und
+   Terminfinder; rechts der Tagesüberblick), Raster mit Halbstundenlinien und
+   grau hinterlegten Zeiten außerhalb der Öffnungszeiten, Blockinhalte,
+   Minimonat mit Wochenband, Terminfinder als Modus
+3. **K3 — Panels**: „Neuer Eintrag" mit beiden Reitern, Detail lesend und
+   bearbeitend, „Absagen", Überschneidungswarnung, Leistungspicker
+4. **K4 — Ansichten**: Monat und Liste
+
+**K1, as built.** Vor der Umsetzung entschieden:
+
+- **Der Termin steht für sich.** `appointment.contact_id` ist nullable,
+  `activity.contact_id` bleibt `not null`. Regel 6 in `CLAUDE.md` ist
+  entsprechend fortgeschrieben; die Folge, dass ein Termin ohne Kontakt
+  nachträglich keinen Vorgang mehr aufnehmen kann, steht dort als Absicht.
+- **Der Überschneidungsschutz ist weg.** `appointment_no_overlap` gelöscht,
+  weil eine Doppelbelegung eine Entscheidung ist und ein Constraint sich im
+  entscheidenden Moment nicht überstimmen lässt. `findFreeSlots` schlägt
+  belegte Zeiten weiterhin nicht vor — das ist die einzige Stelle, an der eine
+  Überschneidung *vorgeschlagen* statt gewählt würde.
+- **Eine Route statt `/move`:** `POST /api/appointments`,
+  `PATCH /api/appointments/:id`, `DELETE /api/appointments/:id`. Das Ziehen im
+  Raster schickt nur die zwei Zeitpunkte durch dasselbe PATCH.
+- **Löschen nur ohne Vorgang.** Ein versehentlich angelegter Blocker muss
+  verschwinden; „Absagen" wäre dafür falsch, er bliebe als abgesagter Termin
+  stehen und zählte in der Absagen-Zahl mit. Wo ein Vorgang hängt, ist Absagen
+  die richtige Geste, und `deleteAppointment` verweigert mit einem Satz.
+- **Google:** ein Termin ohne Kontakt hat keine Kontaktnummer; statt ihrer geht
+  die Konstante „Belegt" hinaus, nie der selbst getippte Titel (Regel 13).
+- **Konfliktart `overlap` entfällt**, Check auf `both_changed` verengt, der tote
+  Zweig im Rückkanal gelöscht.
+
+**Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
+Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein
+Vorgang hängt, und der Vorgang gibt seinen Termin nur mit auf. Was der Fall
+bedeuten soll, ist nicht definiert: ein Vorgang ohne Kalendereintrag ist
+zulässig (nachträglich dokumentiert), aber ob ein *entfernter* Termin dasselbe
+heißen soll wie ein *nie angelegter*, hat noch niemand entschieden. Zu klären,
+bevor es jemand braucht.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

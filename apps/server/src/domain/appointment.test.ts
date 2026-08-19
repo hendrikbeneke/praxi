@@ -2,10 +2,15 @@ import type { ActivityInput, AppointmentStatus, ContactInput } from '@praxi/shar
 import { occupiesSlot, SLOT_RELEASING_STATUSES } from '@praxi/shared'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
-import { isOverlapViolation } from '../db/errors.js'
 import { createTenant } from '../test/fixtures.js'
 import { createActivity, getActivity } from './activity.js'
-import { listCalendarEntries, moveAppointment } from './appointment.js'
+import {
+  AppointmentHasActivityError,
+  createAppointment,
+  deleteAppointment,
+  listCalendarEntries,
+  updateAppointment,
+} from './appointment.js'
 import { createContact } from './contact.js'
 
 let tenantId: string
@@ -68,122 +73,69 @@ function booking(
   }
 }
 
-/** The error surfaces as SQLSTATE 23P01 through Drizzle's wrapper. */
-async function bookingError(input: ActivityInput): Promise<unknown> {
-  return createActivity(db(), tenantId, input).then(
-    () => null,
-    (error: unknown) => error,
-  )
-}
-
-describe('no two appointments in one slot', () => {
+/**
+ * **Overlaps are allowed** (migration 0034), and this block is what says so.
+ *
+ * It is the inversion of what stood here before: `appointment_no_overlap`
+ * refused a second appointment in an occupied slot, and six tests asserted the
+ * refusal. The constraint is gone because a double booking is a decision, and
+ * a database that refuses it cannot be overruled at the moment it matters —
+ * an emergency at 14:00 on a full day ended in a dead end.
+ *
+ * What still refuses to *propose* one is `findFreeSlots`, and that is tested
+ * where it lives: `free-slots.test.ts` covers the held slot, the cancelled one
+ * and the no-show. The two files together are the whole rule — nothing here
+ * blocks, nothing there suggests a taken time.
+ */
+describe('two appointments may share a slot', () => {
   beforeEach(async () => {
     await createActivity(db(), tenantId, booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'))
   })
 
-  it('rejects an overlapping appointment with SQLSTATE 23P01', async () => {
-    const error = await bookingError(booking('2026-09-01T08:30:00Z', '2026-09-01T09:30:00Z'))
+  it('accepts an overlapping appointment', async () => {
+    await expect(
+      createActivity(db(), tenantId, booking('2026-09-01T08:30:00Z', '2026-09-01T09:30:00Z')),
+    ).resolves.toBeDefined()
 
-    expect(error).not.toBeNull()
-    expect(isOverlapViolation(error)).toBe(true)
+    const day = await listCalendarEntries(db(), tenantId, {
+      from: AT('2026-09-01T00:00:00Z'),
+      to: AT('2026-09-02T00:00:00Z'),
+    })
+    expect(day).toHaveLength(2)
   })
 
-  it('rejects one fully inside the other', async () => {
-    expect(
-      isOverlapViolation(
-        await bookingError(booking('2026-09-01T08:15:00Z', '2026-09-01T08:45:00Z')),
-      ),
-    ).toBe(true)
-  })
-
-  it('rejects an identical slot for a different contact', async () => {
+  it('accepts an identical slot for a different contact', async () => {
     const other = (await createContact(db(), tenantId, person({ lastName: 'Beispiel' }))).id
 
-    expect(
-      isOverlapViolation(
-        await bookingError(
-          booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z', { contactId: other }),
-        ),
+    await expect(
+      createActivity(
+        db(),
+        tenantId,
+        booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z', { contactId: other }),
       ),
-    ).toBe(true)
+    ).resolves.toBeDefined()
   })
 
-  /**
-   * `tstzrange` is half-open, `[a, b)`. Back-to-back sessions are the normal
-   * case in a practice, so this must never be rejected — an inclusive range
-   * would break every consecutive pair.
-   */
-  it('allows an appointment starting exactly when the previous one ends', async () => {
+  it('still accepts back-to-back appointments', async () => {
     await expect(
       createActivity(db(), tenantId, booking('2026-09-01T09:00:00Z', '2026-09-01T10:00:00Z')),
-    ).resolves.toBeDefined()
-
-    await expect(
-      createActivity(db(), tenantId, booking('2026-09-01T07:00:00Z', '2026-09-01T08:00:00Z')),
-    ).resolves.toBeDefined()
-  })
-
-  it('allows the same slot in a different tenant', async () => {
-    const otherTenant = await createTenant(db())
-    const otherContact = (await createContact(db(), otherTenant, person())).id
-
-    await expect(
-      createActivity(db(), otherTenant, {
-        ...booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
-        contactId: otherContact,
-      }),
     ).resolves.toBeDefined()
   })
 })
 
-describe('which statuses hold the slot', () => {
-  it('frees the slot when the appointment is cancelled', async () => {
-    for (const status of SLOT_RELEASING_STATUSES) {
-      const tenant = await createTenant(db())
-      const held = (await createContact(db(), tenant, person())).id
-      const next = (await createContact(db(), tenant, person({ lastName: 'Nachrücker' }))).id
-
-      await createActivity(db(), tenant, {
-        ...booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z', { status }),
-        contactId: held,
-      })
-
-      await expect(
-        createActivity(db(), tenant, {
-          ...booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
-          contactId: next,
-        }),
-      ).resolves.toBeDefined()
-    }
-  })
-
+describe('what the statuses mean now', () => {
   /**
-   * A no-show really did occupy the time — nothing else can have taken place
-   * in it, so the slot stays blocked. Since slice 7.5 that is expressed by the
-   * appointment staying `planned` while `activity.status` says `no_show`, and
-   * this test is what makes sure the split did not quietly free the slot.
+   * Nothing in the database reads them any more. The helper is what the
+   * calendar and the slot finder reason with — cancellation counts, the hours
+   * a day holds, the strike-through, and which times may be suggested.
    */
-  it('keeps the slot blocked on a no-show', async () => {
-    await createActivity(db(), tenantId, {
-      ...booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
-      status: 'no_show',
-    })
-
-    expect(
-      isOverlapViolation(
-        await bookingError(booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z')),
-      ),
-    ).toBe(true)
-  })
-
-  /** The SQL in migration 0009 repeats this list; the helper is what the
-   *  client reasons with. They must agree. */
   it('agrees with the helper in packages/shared', () => {
     expect(occupiesSlot('requested')).toBe(true)
     expect(occupiesSlot('planned')).toBe(true)
     expect(occupiesSlot('confirmed')).toBe(true)
     expect(occupiesSlot('cancelled')).toBe(false)
     expect(occupiesSlot('cancelled_late')).toBe(false)
+    expect([...SLOT_RELEASING_STATUSES]).toEqual(['cancelled', 'cancelled_late'])
   })
 })
 
@@ -197,12 +149,12 @@ describe('dragging an entry to another time', () => {
     const id = created.appointment?.id
     if (!id) throw new Error('fixture missing')
 
-    const moved = await moveAppointment(db(), tenantId, id, {
+    const moved = await updateAppointment(db(), tenantId, id, {
       startsAt: AT('2026-09-02T10:00:00Z'),
       endsAt: AT('2026-09-02T11:00:00Z'),
     })
 
-    expect(moved).toBe(true)
+    expect(moved?.startsAt).toBe(AT('2026-09-02T10:00:00Z'))
 
     const entries = await listCalendarEntries(db(), tenantId, {
       from: AT('2026-09-02T00:00:00Z'),
@@ -233,7 +185,7 @@ describe('dragging an entry to another time', () => {
     const id = created.appointment?.id
     if (!id) throw new Error('fixture missing')
 
-    await moveAppointment(db(), tenantId, id, {
+    await updateAppointment(db(), tenantId, id, {
       startsAt: AT('2026-09-02T14:30:00Z'),
       endsAt: AT('2026-09-02T15:15:00Z'),
     })
@@ -244,7 +196,9 @@ describe('dragging an entry to another time', () => {
     expect(reloaded?.appointment?.startsAt).toBe(AT('2026-09-02T14:30:00Z'))
   })
 
-  it('refuses to move onto an occupied slot', async () => {
+  /** The other side of migration 0034, from the drag: what used to be refused
+   *  now lands, and both entries sit in the same hour. */
+  it('may be dropped onto an occupied slot', async () => {
     const first = await createActivity(
       db(),
       tenantId,
@@ -259,96 +213,17 @@ describe('dragging an entry to another time', () => {
     const id = first.appointment?.id
     if (!id) throw new Error('fixture missing')
 
-    const error = await moveAppointment(db(), tenantId, id, {
+    const moved = await updateAppointment(db(), tenantId, id, {
       startsAt: AT('2026-09-01T10:30:00Z'),
       endsAt: AT('2026-09-01T11:30:00Z'),
-    }).then(
-      () => null,
-      (caught: unknown) => caught,
-    )
-
-    expect(isOverlapViolation(error)).toBe(true)
-  })
-
-  /** Nothing moved, so the activity did not move either — the transaction
-   *  takes both ends or neither. */
-  it('leaves the activity where it was when the move is refused', async () => {
-    const first = await createActivity(
-      db(),
-      tenantId,
-      booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
-    )
-    const other = (await createContact(db(), tenantId, person({ lastName: 'Beispiel' }))).id
-    await createActivity(db(), tenantId, {
-      ...booking('2026-09-01T10:00:00Z', '2026-09-01T11:00:00Z'),
-      contactId: other,
     })
 
-    const id = first.appointment?.id
-    if (!id) throw new Error('fixture missing')
-
-    await moveAppointment(db(), tenantId, id, {
-      startsAt: AT('2026-09-01T10:30:00Z'),
-      endsAt: AT('2026-09-01T11:30:00Z'),
-    }).catch(() => null)
-
+    expect(moved?.startsAt).toBe(AT('2026-09-01T10:30:00Z'))
     const reloaded = await getActivity(db(), tenantId, first.id)
-    expect(reloaded?.occurredAt).toBe(AT('2026-09-01T08:00:00Z'))
+    expect(reloaded?.occurredAt).toBe(AT('2026-09-01T10:30:00Z'))
   })
 
-  /** A cancelled entry holds no slot, so its time may be taken — and it can
-   *  still be dragged itself, which is how a released slot is revived. */
-  it('may be moved onto a slot a cancelled entry sits in', async () => {
-    const other = (await createContact(db(), tenantId, person({ lastName: 'Beispiel' }))).id
-    await createActivity(db(), tenantId, {
-      ...booking('2026-09-01T10:00:00Z', '2026-09-01T11:00:00Z', { status: 'cancelled' }),
-      contactId: other,
-    })
-    const mine = await createActivity(
-      db(),
-      tenantId,
-      booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
-    )
-    const id = mine.appointment?.id
-    if (!id) throw new Error('fixture missing')
-
-    await expect(
-      moveAppointment(db(), tenantId, id, {
-        startsAt: AT('2026-09-01T10:00:00Z'),
-        endsAt: AT('2026-09-01T11:00:00Z'),
-      }),
-    ).resolves.toBe(true)
-  })
-
-  /** A no-show is an activity that did not happen in a slot that stayed
-   *  occupied (rule 6), so that time is not free. */
-  it('refuses a slot held by a no-show', async () => {
-    const other = (await createContact(db(), tenantId, person({ lastName: 'Beispiel' }))).id
-    await createActivity(db(), tenantId, {
-      ...booking('2026-09-01T10:00:00Z', '2026-09-01T11:00:00Z'),
-      contactId: other,
-      status: 'no_show',
-    })
-    const mine = await createActivity(
-      db(),
-      tenantId,
-      booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
-    )
-    const id = mine.appointment?.id
-    if (!id) throw new Error('fixture missing')
-
-    const error = await moveAppointment(db(), tenantId, id, {
-      startsAt: AT('2026-09-01T10:00:00Z'),
-      endsAt: AT('2026-09-01T11:00:00Z'),
-    }).then(
-      () => null,
-      (caught: unknown) => caught,
-    )
-
-    expect(isOverlapViolation(error)).toBe(true)
-  })
-
-  it('returns false for an unknown id and for another tenant', async () => {
+  it('returns null for an unknown id and for another tenant', async () => {
     const created = await createActivity(
       db(),
       tenantId,
@@ -359,7 +234,196 @@ describe('dragging an entry to another time', () => {
     const otherTenant = await createTenant(db())
 
     const move = { startsAt: AT('2026-09-03T08:00:00Z'), endsAt: AT('2026-09-03T09:00:00Z') }
-    expect(await moveAppointment(db(), otherTenant, id, move)).toBe(false)
+    expect(await updateAppointment(db(), otherTenant, id, move)).toBeNull()
+  })
+})
+
+/**
+ * The appointment that belongs to no activity — a blocker, documentation time,
+ * a team meeting (D-K1). Until migration 0034 there was no way to enter one.
+ */
+describe('an appointment of its own', () => {
+  it('is created without a contact and appears in the calendar', async () => {
+    const created = await createAppointment(db(), tenantId, {
+      contactId: null,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: 'Teambesprechung',
+      note: null,
+    })
+
+    expect(created.contactId).toBeNull()
+
+    const day = await listCalendarEntries(db(), tenantId, {
+      from: AT('2026-09-01T00:00:00Z'),
+      to: AT('2026-09-02T00:00:00Z'),
+    })
+    expect(day).toHaveLength(1)
+    expect(day[0]).toMatchObject({
+      title: 'Teambesprechung',
+      contactId: null,
+      contactName: null,
+      contactNumber: null,
+      activityId: null,
+    })
+  })
+
+  /**
+   * The join that carries the contact must be a left one. An inner join would
+   * drop every blocker from the calendar without a word — and a time that is
+   * taken would look free, which is the worst way for this to be wrong.
+   */
+  it('does not fall out of the calendar next to entries that have one', async () => {
+    await createActivity(db(), tenantId, booking('2026-09-01T09:00:00Z', '2026-09-01T10:00:00Z'))
+    await createAppointment(db(), tenantId, {
+      contactId: null,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: 'Doku & Telefonzeit',
+      note: null,
+    })
+
+    const day = await listCalendarEntries(db(), tenantId, {
+      from: AT('2026-09-01T00:00:00Z'),
+      to: AT('2026-09-02T00:00:00Z'),
+    })
+    expect(day.map((entry) => entry.title)).toEqual(['Doku & Telefonzeit', null])
+  })
+
+  it('may carry a contact without carrying an activity', async () => {
+    const created = await createAppointment(db(), tenantId, {
+      contactId,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: 'Rückruf',
+      note: null,
+    })
+
+    expect(created.contactId).toBe(contactId)
+
+    const [entry] = await listCalendarEntries(db(), tenantId, {
+      from: AT('2026-09-01T00:00:00Z'),
+      to: AT('2026-09-02T00:00:00Z'),
+    })
+    expect(entry).toMatchObject({ contactName: 'Erika Musterfrau', activityId: null })
+  })
+})
+
+describe('editing an appointment', () => {
+  async function blocker() {
+    return createAppointment(db(), tenantId, {
+      contactId: null,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: 'Teambesprechung',
+      note: null,
+    })
+  }
+
+  /** What "Absagen" sends: the status and nothing else. */
+  it('cancels without touching the times or the title', async () => {
+    const created = await blocker()
+
+    const updated = await updateAppointment(db(), tenantId, created.id, { status: 'cancelled' })
+
+    expect(updated).toMatchObject({
+      status: 'cancelled',
+      title: 'Teambesprechung',
+      startsAt: AT('2026-09-01T08:00:00Z'),
+    })
+  })
+
+  /**
+   * An absent key means "leave alone". `optionalTextPatch` exists for exactly
+   * this: with `optionalText`'s default the note would be nulled out by every
+   * patch that does not mention it.
+   */
+  it('leaves out what the patch does not mention, and clears what it sets to null', async () => {
+    const created = await createAppointment(db(), tenantId, {
+      contactId: null,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: 'Teambesprechung',
+      note: 'wöchentlich',
+    })
+
+    const renamed = await updateAppointment(db(), tenantId, created.id, { title: 'Supervision' })
+    expect(renamed).toMatchObject({ title: 'Supervision', note: 'wöchentlich' })
+
+    const cleared = await updateAppointment(db(), tenantId, created.id, { note: null })
+    expect(cleared).toMatchObject({ title: 'Supervision', note: null })
+  })
+
+  it('adds and removes the contact', async () => {
+    const created = await blocker()
+
+    expect((await updateAppointment(db(), tenantId, created.id, { contactId }))?.contactId).toBe(
+      contactId,
+    )
+    expect(
+      (await updateAppointment(db(), tenantId, created.id, { contactId: null }))?.contactId,
+    ).toBeNull()
+  })
+})
+
+describe('deleting an appointment', () => {
+  it('removes one that carries no activity', async () => {
+    const created = await createAppointment(db(), tenantId, {
+      contactId: null,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: 'Teambesprechung',
+      note: null,
+    })
+
+    expect(await deleteAppointment(db(), tenantId, created.id)).toBe(true)
+    expect(
+      await listCalendarEntries(db(), tenantId, {
+        from: AT('2026-09-01T00:00:00Z'),
+        to: AT('2026-09-02T00:00:00Z'),
+      }),
+    ).toHaveLength(0)
+  })
+
+  /**
+   * Cancelling is the right gesture where a Vorgang hangs on the appointment:
+   * what happened, or did not, stays documented. Deleting the slot and keeping
+   * the Vorgang is a third thing nobody has defined — a line in WORKPLAN.md,
+   * not a branch in the domain.
+   */
+  it('refuses one that carries an activity', async () => {
+    const created = await createActivity(
+      db(),
+      tenantId,
+      booking('2026-09-01T08:00:00Z', '2026-09-01T09:00:00Z'),
+    )
+    const id = created.appointment?.id
+    if (!id) throw new Error('fixture missing')
+
+    await expect(deleteAppointment(db(), tenantId, id)).rejects.toBeInstanceOf(
+      AppointmentHasActivityError,
+    )
+    expect(await getActivity(db(), tenantId, created.id)).not.toBeNull()
+  })
+
+  it('returns false for another tenant', async () => {
+    const created = await createAppointment(db(), tenantId, {
+      contactId: null,
+      startsAt: AT('2026-09-01T08:00:00Z'),
+      endsAt: AT('2026-09-01T08:30:00Z'),
+      status: 'planned',
+      title: null,
+      note: null,
+    })
+    const otherTenant = await createTenant(db())
+
+    expect(await deleteAppointment(db(), otherTenant, created.id)).toBe(false)
   })
 })
 

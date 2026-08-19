@@ -79,14 +79,13 @@ function ConflictRow({ conflict }: { conflict: SyncConflict }) {
 
   return (
     <div className="rounded-md border p-4">
+      {/* The contact number, or nothing to name: a conflict over an
+          appointment that belongs to nobody is still a conflict to resolve. */}
       <p className="font-medium text-sm">
-        {strings.google.contactNumberShort} {conflict.contactNumber}
+        {conflict.contactNumber === null
+          ? strings.google.conflictWithoutContact
+          : `${strings.google.contactNumberShort} ${conflict.contactNumber}`}
       </p>
-      {conflict.reason === 'overlap' && (
-        <p className="mt-1 text-muted-foreground text-xs">
-          {strings.google.conflictReasons.overlap}
-        </p>
-      )}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border p-3">

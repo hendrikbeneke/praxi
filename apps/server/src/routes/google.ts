@@ -10,7 +10,6 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
-import { isOverlapViolation } from '../db/errors.js'
 import {
   busyIntervals,
   disconnect,
@@ -218,12 +217,7 @@ export const googleRoute = new Hono<AppEnv>()
         tenantId(c),
         c.req.valid('param').appointmentId,
         c.req.valid('json').keep,
-      ).catch((error: unknown) => {
-        if (isOverlapViolation(error)) {
-          throw new HTTPException(409, { message: messages.google.conflictOverlap })
-        }
-        throw error
-      })
+      )
 
       if (!resolved) throw new HTTPException(404, { message: messages.google.conflictNotFound })
       return c.body(null, 204)

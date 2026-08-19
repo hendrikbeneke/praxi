@@ -170,8 +170,10 @@ export const calendarEntrySchema = appointmentSchema.extend({
   activityId: z.uuid().nullable(),
   activityType: z.string().nullable(),
   activityStatus: activityStatusSchema.nullable(),
-  contactNumber: z.number().int(),
-  contactName: z.string(),
+  /** Both null on an appointment that belongs to nobody. What the block then
+   *  shows is its title — which is why a bare appointment has one. */
+  contactNumber: z.number().int().nullable(),
+  contactName: z.string().nullable(),
 })
 
 export type CalendarEntry = z.infer<typeof calendarEntrySchema>

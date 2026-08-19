@@ -8,7 +8,7 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
-import { foreignKeyViolationConstraint, isOverlapViolation } from '../db/errors.js'
+import { foreignKeyViolationConstraint } from '../db/errors.js'
 import {
   ActivityHasNotesError,
   activitySummary,
@@ -48,9 +48,6 @@ function translate(error: unknown): never {
   }
   if (error instanceof UnknownServiceGroupError) {
     throw new HTTPException(409, { message: messages.activity.unknownServiceGroup })
-  }
-  if (isOverlapViolation(error)) {
-    throw new HTTPException(409, { message: messages.appointment.overlap })
   }
   // An activity type that was deleted or deactivated between loading the form
   // and saving it. The catalogue is the only place a type can come from.

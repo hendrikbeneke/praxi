@@ -81,11 +81,13 @@ export const busyRangeQuerySchema = z.object({
  * Why a conflict exists.
  *
  * `both_changed` — the slot was moved here and in Google before our change got
- * out. `overlap` — Google's times cannot be applied at all, because another
- * appointment already occupies them; the exclusion constraint refuses, and
- * that refusal is a fact worth showing rather than an error to swallow.
+ * out. That is the only kind there is: `overlap` ("Google's times cannot be
+ * applied at all, another appointment holds them") went with the exclusion
+ * constraint in migration 0034, because a remote change can now always be
+ * applied. The single-valued enum stays because a conflict has a reason, and
+ * the next kind will want to say a different one.
  */
-export const syncConflictReasons = ['both_changed', 'overlap'] as const
+export const syncConflictReasons = ['both_changed'] as const
 export const syncConflictReasonSchema = z.enum(syncConflictReasons)
 export type SyncConflictReason = z.infer<typeof syncConflictReasonSchema>
 
@@ -96,8 +98,9 @@ export type SyncConflictReason = z.infer<typeof syncConflictReasonSchema>
 export const syncConflictSchema = z.object({
   appointmentId: z.uuid(),
   activityId: z.uuid().nullable(),
-  contactId: z.uuid(),
-  contactNumber: z.number().int(),
+  /** Null on an appointment that belongs to nobody (0034). */
+  contactId: z.uuid().nullable(),
+  contactNumber: z.number().int().nullable(),
   detectedAt: z.iso.datetime(),
   reason: syncConflictReasonSchema,
   localStartsAt: z.iso.datetime(),

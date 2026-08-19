@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { optionalText } from './field.js'
+import { optionalText, optionalTextPatch } from './field.js'
 
 /**
  * The calendar entry. Separate from the activity and optional: the foreign key
@@ -30,10 +30,17 @@ export const appointmentStatuses = [
 export const appointmentStatusSchema = z.enum(appointmentStatuses)
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>
 
-/** The statuses that release the slot for someone else. Kept next to the list
- *  it belongs to, because the exclusion constraint in migration 0009 repeats
- *  it in SQL and the two must not drift — which is also who reads it: the test
- *  that compares the two, and nothing else. */
+/**
+ * The statuses that release the slot for someone else.
+ *
+ * Until migration 0034 this list was repeated in SQL — the exclusion
+ * constraint named the same two values, and a test compared the two so they
+ * could not drift. The constraint is gone and nothing enforces occupancy any
+ * more, so the list has exactly two readers left, and both of them only
+ * *describe*: `findFreeSlots`, which refuses to suggest a time that is taken,
+ * and the calendar, which counts cancellations, sums the hours held and
+ * strikes a released entry through.
+ */
 export const SLOT_RELEASING_STATUSES: readonly AppointmentStatus[] = ['cancelled', 'cancelled_late']
 
 export function occupiesSlot(status: AppointmentStatus): boolean {
@@ -41,10 +48,12 @@ export function occupiesSlot(status: AppointmentStatus): boolean {
 }
 
 /**
- * An appointment runs within a day. Anything longer is a typo, and a typo here
- * is expensive: the exclusion constraint takes the slot literally, so a single
- * mistyped end date blocks the calendar for every day it covers and every
- * later booking fails with "there is already an appointment".
+ * An appointment runs within a day. Anything longer is a typo — and one worth
+ * refusing even now that overlaps are allowed: an entry spanning a fortnight
+ * is painted across every column it touches and makes the weeks it covers
+ * unreadable. Until 0034 the argument was sharper still, because the exclusion
+ * constraint took the slot literally and every later booking in those days
+ * failed.
  */
 export const MAX_APPOINTMENT_MINUTES = 24 * 60
 
@@ -71,36 +80,91 @@ export const appointmentDraftSchema = z
 export type AppointmentDraft = z.infer<typeof appointmentDraftSchema>
 
 /**
- * Dragging an entry to another time (D9) — the two instants and nothing else.
+ * A calendar entry of its own — the "Nur Termin" tab (D-K2).
  *
- * Deliberately narrower than `appointmentDraftSchema`: a drag says *when*, and
- * a payload that could also carry the status, the title or the note would be a
- * second way to edit them beside the activity form. What it moves is not only
- * the appointment, either — see `moveAppointment` in the domain, which carries
- * `activity.occurred_at` along so the record of what happened cannot drift
- * away from the slot it happened in.
+ * The contact is optional here and nowhere else: a blocker, documentation
+ * time, a team meeting are appointments that belong to nobody, and until this
+ * package they could not be entered at all. An **activity** still always has a
+ * contact, so an appointment created without one cannot later carry a Vorgang
+ * — the composite foreign key sees to that, and it stays that way on purpose.
+ *
+ * It has no type and no colour: colours come from the activity type, and a
+ * bare appointment has none. The grid paints it in the neutral default.
  */
-export const appointmentMoveSchema = z
+export const appointmentCreateSchema = z
   .object({
+    contactId: z.uuid().nullable().default(null),
     startsAt: z.iso.datetime(),
     endsAt: z.iso.datetime(),
+    status: appointmentStatusSchema.default('planned'),
+    title: optionalText(200),
+    note: optionalText(2000),
   })
-  .refine((move) => new Date(move.endsAt) > new Date(move.startsAt), {
+  .refine((draft) => new Date(draft.endsAt) > new Date(draft.startsAt), {
     message: 'endsAt must be after startsAt',
     path: ['endsAt'],
   })
   .refine(
-    (move) =>
-      new Date(move.endsAt).getTime() - new Date(move.startsAt).getTime() <=
+    (draft) =>
+      new Date(draft.endsAt).getTime() - new Date(draft.startsAt).getTime() <=
       MAX_APPOINTMENT_MINUTES * 60_000,
     { message: 'appointment is longer than a day', path: ['endsAt'] },
   )
 
-export type AppointmentMove = z.infer<typeof appointmentMoveSchema>
+export type AppointmentCreate = z.infer<typeof appointmentCreateSchema>
+
+/**
+ * Editing one — dragging it, renaming it, cancelling it.
+ *
+ * **One shape for all three**, which replaces the `/move` payload D9 kept
+ * deliberately narrow. Its argument was that status, title and note are edited
+ * through the activity, so a second door here would be a second way to change
+ * them; an appointment without an activity has no such door, and this is it.
+ * A drag still sends nothing but the two instants.
+ *
+ * The two times travel **together or not at all**: half a move is not a
+ * shorter move, it is an interval whose end may precede its start, and the
+ * checks below can only be made when both are known.
+ */
+export const appointmentPatchSchema = z
+  .object({
+    contactId: z.uuid().nullable().optional(),
+    startsAt: z.iso.datetime().optional(),
+    endsAt: z.iso.datetime().optional(),
+    status: appointmentStatusSchema.optional(),
+    title: optionalTextPatch(200),
+    note: optionalTextPatch(2000),
+  })
+  .superRefine((patch, ctx) => {
+    if ((patch.startsAt === undefined) !== (patch.endsAt === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'startsAt and endsAt must be given together',
+        path: [patch.startsAt === undefined ? 'startsAt' : 'endsAt'],
+      })
+      return
+    }
+    if (patch.startsAt === undefined || patch.endsAt === undefined) return
+
+    const span = new Date(patch.endsAt).getTime() - new Date(patch.startsAt).getTime()
+    if (span <= 0) {
+      ctx.addIssue({ code: 'custom', message: 'endsAt must be after startsAt', path: ['endsAt'] })
+    } else if (span > MAX_APPOINTMENT_MINUTES * 60_000) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'appointment is longer than a day',
+        path: ['endsAt'],
+      })
+    }
+  })
+
+export type AppointmentPatch = z.infer<typeof appointmentPatchSchema>
 
 export const appointmentSchema = z.object({
   id: z.uuid(),
-  contactId: z.uuid(),
+  /** Null on an appointment that belongs to nobody — see
+   *  `appointmentCreateSchema`. */
+  contactId: z.uuid().nullable(),
   startsAt: z.iso.datetime(),
   endsAt: z.iso.datetime(),
   status: appointmentStatusSchema,

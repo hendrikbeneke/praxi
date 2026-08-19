@@ -852,10 +852,8 @@ export const strings = {
     conflictKeepLocal: 'Diese Fassung behalten',
     conflictKeepRemote: 'Google übernehmen',
     conflictCancelled: 'abgesagt',
-    conflictReasons: {
-      overlap: 'Die Zeiten aus Google überschneiden sich mit einem anderen Termin.',
-    },
     conflictResolved: 'Konflikt aufgelöst.',
+    conflictWithoutContact: 'Termin ohne Kontakt',
     contactNumberShort: 'Kontakt',
   },
   note: {

@@ -16,6 +16,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   lte,
   notInArray,
@@ -302,6 +303,10 @@ function nearestAppointments(database: Database, tenantId: string, now: Date) {
     .where(
       and(
         eq(appointment.tenantId, tenantId),
+        // An appointment that belongs to nobody (0034) is nobody's next one.
+        // Without this the distinct-on would form a group for NULL and carry a
+        // blocker into the list as if it were a contact's appointment.
+        isNotNull(appointment.contactId),
         gte(appointment.startsAt, from),
         lte(appointment.startsAt, to),
         notInArray(appointment.status, ['cancelled', 'cancelled_late']),
