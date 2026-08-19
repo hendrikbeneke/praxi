@@ -67,7 +67,17 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     log.info({ signal }, 'shutting down')
     if (googleWorker) clearInterval(googleWorker)
     server.close(() => {
-      void closeDatabase().then(() => process.exit(0))
+      // Same family as the worker's floated tick: a rejection here would end
+      // the shutdown with an unhandled rejection instead of a clean exit, and
+      // a pool that refuses to close is not a reason to fail on the way out.
+      closeDatabase()
+        .catch((error: unknown) => {
+          log.warn(
+            { name: error instanceof Error ? error.name : 'unknown' },
+            'closing the database failed',
+          )
+        })
+        .finally(() => process.exit(0))
     })
   })
 }

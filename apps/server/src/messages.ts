@@ -270,6 +270,14 @@ export const messages = {
       'Die Anmeldung bei Google ist abgelaufen oder wurde nicht von hier gestartet. ' +
       'Bitte erneut versuchen.',
     conflictNotFound: 'Für diesen Termin gibt es keinen offenen Konflikt.',
+    /**
+     * What the settings say after a failed pass. The kind of fault, never the
+     * error's own text: a driver error's message is the failed query with its
+     * parameters, and this string is stored and printed (rule 12). The next
+     * tick tries again, which is why a sentence is enough.
+     */
+    syncFailed: (kind: string) =>
+      `Die Synchronisierung ist fehlgeschlagen (${kind}). Der nächste Versuch läuft automatisch.`,
     /** The page the loopback redirect lands on. `127.0.0.1` is a different
      *  origin than `localhost`, so this cannot be the SPA — it is a plain page
      *  that says the flow is done. */
