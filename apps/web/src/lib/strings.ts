@@ -600,10 +600,13 @@ export const strings = {
   /** "Freien Termin finden" (D9.5) — the calendar rail's third state. */
   slotFinder: {
     title: 'Freien Termin finden',
-    open: 'Freien Termin finden',
     clear: 'Auswahl aufheben',
     minutes: (value: number) => `${value} Min`,
-    orDuration: 'Oder nach freier Dauer (Minuten)',
+    orDuration: 'Oder nach freier Dauer',
+    /** What the panel is for, before anything is chosen. */
+    hintIdle: 'Vorgangsart wählen — der Kalender zeigt dann alle Zeiten, in die sie passt.',
+    /** And what to do with the answer, once it is on the grid. */
+    hintChoosing: 'Klick auf eine freie Zeit legt dort einen Vorgang mit Termin an.',
     empty: 'In diesem Zeitraum ist nichts frei. Blättern Sie weiter.',
     /** Why the list of activity types is short — a missing entry, not a bug. */
     typesWithoutDuration: 'Arten ohne hinterlegte Dauer stehen hier nicht.',
@@ -633,6 +636,9 @@ export const strings = {
     saved: 'Öffnungszeiten gespeichert.',
   },
   appointment: {
+    /** A calendar entry with no title, no contact and no type — all a bare
+     *  appointment is obliged to have is a time. */
+    untitled: 'Termin',
     title: 'Termine',
     description: 'Kalender der Praxis.',
     today: 'Heute',

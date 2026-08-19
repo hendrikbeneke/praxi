@@ -4,15 +4,24 @@ import {
   activityTypeLabel,
   type BusyInterval,
   type CalendarEntry,
+  clockToMinutes,
   type FreeSlot,
   formatBerlinTime,
   fromBerlinDateTimeLocal,
   minutesBetween,
+  type OpeningHour,
   occupiesSlot,
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useEffect, useRef, useState } from 'react'
-import { minutesOfDay, minutesToClock, shortDate, todayInBerlin } from '@/lib/calendar-dates'
+import {
+  minutesOfDay,
+  minutesToClock,
+  shortDate,
+  todayInBerlin,
+  weekdayIndex,
+} from '@/lib/calendar-dates'
+import { entryName, entrySubline } from '@/lib/calendar-entry'
 import { strings } from '@/lib/strings'
 import { cn } from '@/lib/utils'
 
@@ -42,8 +51,15 @@ import { cn } from '@/lib/utils'
  * when the line is up. That is the worst kind of rule, so there is none.
  */
 
-/** Pixels per minute, by view. A day column is wider, so it can afford to be
- *  taller too; a week has to fit five or seven of them side by side. */
+/**
+ * Pixels per minute, by view. A day column is wider, so it can afford to be
+ * taller too; a week has to fit five or seven of them side by side.
+ *
+ * 44 px per half hour, measured in the design's own screenshots over five
+ * consecutive hour lines — not taken from prose. A proposal of 36 px went back
+ * with the measurement attached: at that height a 45-minute entry is 54 px and
+ * loses its third line, which is the type, which is what the block is for.
+ */
 const MINUTE_PX = { day: 56 / 30, workweek: 44 / 30, week: 44 / 30 } as const
 
 /** Dropping snaps to this. Fifteen minutes is what a practice books in, and it
@@ -51,6 +67,20 @@ const MINUTE_PX = { day: 56 / 30, workweek: 44 / 30, week: 44 / 30 } as const
 const SNAP_MINUTES = 15
 
 const DAY_MINUTES = 24 * 60
+/** Where the grid is scrolled to when it opens (design). */
+const OPENS_AT_HOUR = 8
+
+/**
+ * The four tones of the grid itself, from the design's value list.
+ *
+ * Written as `color-mix` against the theme's own tokens rather than as fixed
+ * colours, so all five themes — including the dark one — get a wash that sits
+ * on their own ground instead of a grey that only works on the light one.
+ */
+const TODAY_HEADER = 'color-mix(in oklab, var(--primary) 8%, var(--card))'
+const TODAY_COLUMN = 'color-mix(in oklab, var(--primary) 3%, var(--card))'
+const HALF_HOUR_LINE = 'color-mix(in oklab, var(--border) 45%, transparent)'
+const CLOSED_WASH = 'color-mix(in oklab, var(--muted) 55%, transparent)'
 /** Enough for two lines of text — a five-minute entry must stay readable. */
 const MIN_BLOCK_PX = 22
 
@@ -72,11 +102,13 @@ export function CalendarGrid({
   view,
   entries,
   busy,
+  openingHours,
   types,
   conflicted,
   selectedId,
   freeSlots,
   freeSlotsAreComplete = true,
+  slotTypeLabel = null,
   onSelect,
   onNewAt,
   onMove,
@@ -86,16 +118,29 @@ export function CalendarGrid({
   view: CalendarView
   entries: readonly CalendarEntry[]
   busy: readonly BusyInterval[]
+  /**
+   * The weekly pattern, painted as a grey wash outside its windows (D-K2).
+   *
+   * **Optical only.** An appointment can be entered there like anywhere else —
+   * a Saturday course and an evening call are exactly the cases a practice has
+   * — and only the slot finder treats the hours as a rule. Empty while the
+   * query is loading and when nothing is configured, which both come out as no
+   * wash rather than as a day painted shut.
+   */
+  openingHours: readonly OpeningHour[]
   types: readonly ActivityType[] | undefined
   conflicted: ReadonlySet<string>
   selectedId: string | null
   /** Suggestions from the slot finder (D9.5). Empty unless it is running. */
   freeSlots?: readonly FreeSlot[]
   /** False when the private calendars could not be consulted. The suggestions
-   *  are then painted in the warning tone rather than the primary one —
-   *  whoever clicks a slot without reading the rail still sees that the
-   *  answer is the weaker kind. */
+   *  are then painted in the warning tone rather than in grey — whoever clicks
+   *  a slot without reading the rail still sees that the answer is the weaker
+   *  kind. */
   freeSlotsAreComplete?: boolean
+  /** What the search was for, printed under the time on every offer. Null when
+   *  the finder was given a bare duration and there is nothing to name. */
+  slotTypeLabel?: string | null
   onSelect: (entry: CalendarEntry) => void
   onNewAt: (startsAtLocal: string) => void
   onMove: (target: DropTarget) => void
@@ -103,14 +148,23 @@ export function CalendarGrid({
 }) {
   const perMinute = MINUTE_PX[view]
   const height = DAY_MINUTES * perMinute
+  /** The week steps back while the finder is offering times, so what the eye
+   *  lands on is the offers (design). */
+  const dimmed = freeSlots !== undefined
   const scroller = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const today = todayInBerlin()
 
-  /** Opened at the morning rather than at midnight — the hours before are
-   *  drawn so nothing can be misplaced, not because anyone reads them. */
+  /**
+   * Opened at eight rather than at midnight — the hours before are drawn so
+   * nothing can be misplaced, not because anyone reads them.
+   *
+   * A few pixels short of eight, because the hour's label sits *on* its line
+   * and scrolling exactly to it hides the label under the sticky header: the
+   * grid would open with an unlabelled line at the top.
+   */
   useEffect(() => {
-    if (scroller.current) scroller.current.scrollTop = 7 * 60 * perMinute
+    if (scroller.current) scroller.current.scrollTop = OPENS_AT_HOUR * 60 * perMinute - 12
   }, [perMinute])
 
   const dayOf = (iso: string) => toBerlinDateTimeLocal(iso).slice(0, 10)
@@ -149,6 +203,38 @@ export function CalendarGrid({
 
   const hours = Array.from({ length: 24 }, (_, hour) => hour)
 
+  /**
+   * The parts of a day that lie outside every opening window, as
+   * `[from, to)` in minutes — the complement, computed once per day rather
+   * than per hour cell.
+   *
+   * With no pattern configured the answer is *nothing shaded*, not a day
+   * painted shut: an empty table means "not said yet", and a screen that
+   * greys out the whole week because a form has never been filled in would be
+   * claiming a state that does not exist.
+   */
+  function closedIntervals(day: string): Array<[number, number]> {
+    if (openingHours.length === 0) return []
+
+    const iso = weekdayIndex(day) + 1
+    const windows = openingHours
+      .filter((window) => window.weekday === iso)
+      .map((window): [number, number] => [
+        clockToMinutes(window.startsAt),
+        clockToMinutes(window.endsAt),
+      ])
+      .sort((a, b) => a[0] - b[0])
+
+    const closed: Array<[number, number]> = []
+    let cursor = 0
+    for (const [from, to] of windows) {
+      if (from > cursor) closed.push([cursor, from])
+      cursor = Math.max(cursor, to)
+    }
+    if (cursor < DAY_MINUTES) closed.push([cursor, DAY_MINUTES])
+    return closed
+  }
+
   return (
     <div ref={scroller} className="flex-1 overflow-auto">
       <div className="min-w-[560px]">
@@ -157,7 +243,8 @@ export function CalendarGrid({
           {days.map((day) => (
             <div
               key={day}
-              className={cn('min-w-0 flex-1 border-l px-2 py-2', day === today && 'bg-primary/5')}
+              className="min-w-0 flex-1 border-l px-2 py-2"
+              style={day === today ? { backgroundColor: TODAY_HEADER } : undefined}
             >
               <p
                 className={cn(
@@ -210,8 +297,8 @@ export function CalendarGrid({
               // biome-ignore lint/a11y/noStaticElementInteractions: drop zone, see above
               <div
                 key={day}
-                className={cn('relative min-w-0 flex-1 border-l', day === today && 'bg-primary/3')}
-                style={{ height }}
+                className="relative min-w-0 flex-1 border-l"
+                style={{ height, ...(day === today ? { backgroundColor: TODAY_COLUMN } : {}) }}
                 onDragOver={(event) => {
                   if (!drag) return
                   event.preventDefault()
@@ -249,6 +336,35 @@ export function CalendarGrid({
                   />
                 ))}
 
+                {/* The half hour, lighter than the hour above it (design).
+                    Drawn rather than made into a second button per half hour:
+                    that would be a change to where a click lands, and this
+                    package is about how the grid reads. */}
+                {hours.map((hour) => (
+                  <div
+                    key={`half-${hour}`}
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 h-px"
+                    style={{ top: (hour * 60 + 30) * perMinute, backgroundColor: HALF_HOUR_LINE }}
+                  />
+                ))}
+
+                {/* Outside the opening hours. Behind everything, and it stops
+                    no click: entering an appointment there is allowed and only
+                    the finder treats the hours as a rule. */}
+                {closedIntervals(day).map(([from, to]) => (
+                  <div
+                    key={`closed-${from}`}
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0"
+                    style={{
+                      top: from * perMinute,
+                      height: (to - from) * perMinute,
+                      backgroundColor: CLOSED_WASH,
+                    }}
+                  />
+                ))}
+
                 {/* Where a treatment would fit (D9.5). Below the entries in
                     the stack, so an existing appointment always wins the
                     click. Dashed, because it is an offer and not a thing. */}
@@ -268,14 +384,27 @@ export function CalendarGrid({
                       }}
                       className={cn(
                         'absolute inset-x-0.5 z-[1] overflow-hidden rounded border border-dashed px-1.5 py-0.5 text-left text-[11px] leading-tight',
+                        // Grey and dashed, not primary-tinted (design): an
+                        // offer is a shape in the grid, not a second kind of
+                        // appointment. The warning tone stays for the one case
+                        // that means something — private calendars unchecked,
+                        // so the answer is the weaker kind.
                         freeSlotsAreComplete
-                          ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/20'
+                          ? 'border-border bg-muted/60 hover:bg-muted'
                           : 'border-warning/60 bg-warning/10 text-warning hover:bg-warning/20',
                       )}
                     >
                       <span className="block truncate font-semibold tabular-nums">
                         {formatBerlinTime(slot.startsAt)}–{formatBerlinTime(slot.endsAt)}
                       </span>
+                      {/* What would be booked there, where the search named a
+                          kind. Only if the block is tall enough to hold it. */}
+                      {slotTypeLabel !== null &&
+                        minutesBetween(slot.startsAt, slot.endsAt) * perMinute >= 40 && (
+                          <span className="block truncate text-muted-foreground">
+                            {slotTypeLabel}
+                          </span>
+                        )}
                     </button>
                   ))}
 
@@ -325,12 +454,19 @@ export function CalendarGrid({
                      * slot is asked for, not held.
                      */
                     const color = activityTypeColor(types, entry.activityType)
+                    /**
+                     * 20 % of the type's colour, 9 % while the slot is only
+                     * asked for — and 12 % for an entry that carries no
+                     * Vorgang, which is the practice's own time and has no
+                     * type to take a colour from. It is painted in the neutral
+                     * default, and at 20 % a neutral reads heavier than a
+                     * session does.
+                     */
+                    const fill = requested ? '9%' : entry.activityId === null ? '12%' : '20%'
                     const paint = released
                       ? undefined
                       : {
-                          backgroundColor: `color-mix(in oklab, ${color} ${
-                            requested ? '9%' : '20%'
-                          }, var(--card))`,
+                          backgroundColor: `color-mix(in oklab, ${color} ${fill}, var(--card))`,
                           borderColor: requested ? color : 'transparent',
                           borderLeftColor: color,
                           borderLeftWidth: requested ? 1 : 3,
@@ -355,12 +491,12 @@ export function CalendarGrid({
                         onDragEnd={() => setDrag(null)}
                         onClick={() => onSelect(entry)}
                         title={[
+                          entryName(entry, types),
                           entry.activityType ? activityTypeLabel(types, entry.activityType) : null,
                           strings.appointment.status[entry.status],
                           entry.activityStatus && entry.activityStatus !== 'planned'
                             ? strings.activity.statuses[entry.activityStatus]
                             : null,
-                          entry.contactName,
                         ]
                           .filter((part) => part !== null)
                           .join(' — ')}
@@ -370,9 +506,12 @@ export function CalendarGrid({
                           ...paint,
                         }}
                         className={cn(
-                          'absolute inset-x-0.5 z-[2] overflow-hidden rounded border px-1.5 py-0.5 text-left text-xs leading-tight',
+                          'absolute inset-x-0.5 z-[2] overflow-hidden rounded border px-1.5 py-0.5 text-left text-xs leading-tight hover:brightness-[0.97]',
                           released && 'border-dashed bg-muted text-muted-foreground line-through',
                           requested && 'border-dashed',
+                          // While the finder is running the week steps back, so
+                          // the offers are what the eye lands on (design).
+                          dimmed && 'opacity-45',
                           drag?.entry.id === entry.id && 'opacity-40',
                           selectedId === entry.id && 'ring-2 ring-ring',
                           // Changed here and in Google at the same time. The
@@ -383,14 +522,12 @@ export function CalendarGrid({
                         <span className="block truncate text-muted-foreground tabular-nums">
                           {formatBerlinTime(entry.startsAt)}–{formatBerlinTime(entry.endsAt)}
                         </span>
-                        <span className="block truncate font-semibold">{entry.contactName}</span>
+                        <span className="block truncate font-semibold">
+                          {entryName(entry, types)}
+                        </span>
                         {length * perMinute >= 58 && (
                           <span className="block truncate text-muted-foreground">
-                            {entry.activityStatus && entry.activityStatus !== 'planned'
-                              ? strings.activity.statuses[entry.activityStatus]
-                              : entry.activityType
-                                ? activityTypeLabel(types, entry.activityType)
-                                : ''}
+                            {entrySubline(entry, types)}
                           </span>
                         )}
                       </button>

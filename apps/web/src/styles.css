@@ -56,4 +56,30 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+   * Scroll bars in the application's own tones (design values, D-K2).
+   *
+   * The calendar is what made this worth doing: its grid scrolls all day, and
+   * the platform's default bar is a dark slab that reads as a piece of
+   * furniture in a screen made of hairlines. `scrollbar-width`/`-color` is the
+   * standard property Firefox has had for years; the WebKit pseudo-elements
+   * say the same thing for Chrome and Safari, which is why both are here and
+   * neither is a fallback for the other.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 999px;
+  }
 }

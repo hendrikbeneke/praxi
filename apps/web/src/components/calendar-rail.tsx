@@ -1,6 +1,5 @@
 import {
   activityTypeColor,
-  activityTypeLabel,
   type CalendarEntry,
   type FreeSlot,
   formatBerlinTime,
@@ -10,19 +9,19 @@ import {
   toBerlinDateTimeLocal,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useState } from 'react'
 import { ActivityDetail } from '@/components/activity-detail'
 import { ActivityForm } from '@/components/activity-form'
-import { MiniMonth } from '@/components/mini-month'
 import { Button } from '@/components/ui/button'
 import { activityQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
+import { entryName } from '@/lib/calendar-entry'
 import { strings } from '@/lib/strings'
 
 /**
- * The calendar's right-hand column — and **the calendar's container for
- * `ActivityDetail`** (D9).
+ * The calendar's right-hand column — the day's overview, and **the calendar's
+ * container for `ActivityDetail`** (D9).
  *
  * It replaces the dialog D8 left here, on that package's own argument taken one
  * step further: the dialog existed because navigating away would take the week
@@ -32,6 +31,10 @@ import { strings } from '@/lib/strings'
  * So the three containers of D8 are still three — Vorgänge list, contact tab,
  * this — and none of them is the odd one out any more. Nothing about an
  * activity is decided here either; this only says where it sits.
+ *
+ * Since D-K2 it holds nothing else: the button, the month and the slot finder
+ * moved to `calendar-sidebar.tsx` on the left, where the design has them, and
+ * what is left here answers rather than asks.
  */
 export type RailSelection =
   | { kind: 'activity'; activityId: string; appointmentId: string }
@@ -44,78 +47,41 @@ export type RailSelection =
 export function CalendarRail({
   anchor,
   entries,
-  occupied,
   selection,
-  finder,
-  finderOpen,
   nextFree,
   nextFreeDuration,
-  onNew,
-  onToggleFinder,
   onUseNextFree,
-  onPickDay,
   onSelectEntry,
   onClose,
+  onSaved,
 }: {
   anchor: string
   /** Everything loaded for the visible window, for the day's schedule. */
   entries: readonly CalendarEntry[]
-  occupied: ReadonlySet<string>
   selection: RailSelection
-  /** The slot finder's third state (D9.5), rendered by the page so the search
-   *  parameters and the grid's overlay stay one piece of state. */
-  finder: React.ReactNode | null
-  finderOpen: boolean
   /** The first gap on the overview day, or null when there is none. */
   nextFree: FreeSlot | null
   nextFreeDuration: number
-  onNew: () => void
-  onToggleFinder: () => void
   onUseNextFree: (slot: FreeSlot) => void
-  onPickDay: (date: string) => void
   onSelectEntry: (entry: CalendarEntry) => void
   onClose: () => void
+  /** Saved, as opposed to merely closed — the slot finder ends on the first
+   *  and not on the second. */
+  onSaved: () => void
 }) {
   return (
-    /* The design puts "Neuer Termin", the mini month and the slot finder in a
-       rail of their own and leaves the header with the range and the views;
-       ours is the same composition mirrored into the one rail this calendar
-       has. Until K10 the two buttons sat in the header, which is why it broke
-       into a second line as soon as "Freien Termin finden" joined them.
-       Recorded in `docs/design-korrektur/abweichungen.md`. */
-    <aside className="hidden w-[380px] shrink-0 flex-col gap-5 overflow-auto border-l bg-card p-4 lg:flex">
-      <Button className="w-full" size="sm" onClick={onNew}>
-        <Plus className="size-4" aria-hidden />
-        {strings.appointment.newAppointment}
-      </Button>
-
-      <MiniMonth anchor={anchor} occupied={occupied} onPick={onPickDay} />
-
-      {finder ?? (
-        <>
-          <Button
-            variant={finderOpen ? 'default' : 'outline'}
-            size="sm"
-            className="w-full"
-            onClick={onToggleFinder}
-          >
-            <Search className="size-4" aria-hidden />
-            {strings.slotFinder.open}
-          </Button>
-
-          {selection === null ? (
-            <DayOverview
-              anchor={anchor}
-              entries={entries}
-              nextFree={nextFree}
-              nextFreeDuration={nextFreeDuration}
-              onUseNextFree={onUseNextFree}
-              onSelectEntry={onSelectEntry}
-            />
-          ) : (
-            <Selected selection={selection} onClose={onClose} />
-          )}
-        </>
+    <aside className="hidden w-[320px] shrink-0 flex-col overflow-auto border-l bg-card p-4 lg:flex">
+      {selection === null ? (
+        <DayOverview
+          anchor={anchor}
+          entries={entries}
+          nextFree={nextFree}
+          nextFreeDuration={nextFreeDuration}
+          onUseNextFree={onUseNextFree}
+          onSelectEntry={onSelectEntry}
+        />
+      ) : (
+        <Selected selection={selection} onClose={onClose} onSaved={onSaved} />
       )}
     </aside>
   )
@@ -124,9 +90,11 @@ export function CalendarRail({
 function Selected({
   selection,
   onClose,
+  onSaved,
 }: {
   selection: NonNullable<RailSelection>
   onClose: () => void
+  onSaved: () => void
 }) {
   /** Read mode first: an entry opens to be looked at. A new one has nothing to
    *  read, so it starts in the form. */
@@ -158,7 +126,7 @@ function Selected({
           {...(selection.startsAtLocal ? { startsAtLocal: selection.startsAtLocal } : {})}
           {...(selection.typeCode ? { initialTypeCode: selection.typeCode } : {})}
           {...(selection.durationMin ? { initialDurationMin: selection.durationMin } : {})}
-          onSaved={onClose}
+          onSaved={onSaved}
           onCancel={onClose}
         />
       ) : activity.data ? (
@@ -170,7 +138,7 @@ function Selected({
           onStopEditing={() => setEditing(false)}
           onSaved={() => {
             setEditing(false)
-            onClose()
+            onSaved()
           }}
         />
       ) : (
@@ -180,15 +148,7 @@ function Selected({
   )
 }
 
-/**
- * What the day looks like, when nothing is selected.
- *
- * Three figures the data can actually answer. The design also shows free time
- * and the next gap; both need opening hours, which the schema does not have —
- * that is D9.5, and inventing a working day here to fill the box would be the
- * kind of claim the "a form never claims a state that does not exist" rule is
- * about.
- */
+/** What the day looks like, when nothing is selected. */
 function DayOverview({
   anchor,
   entries,
@@ -244,7 +204,9 @@ function DayOverview({
       {/* Where the next treatment would still fit, and the way straight into
           it. Appears with the gap, not without: a card saying "no free time"
           with a dead button under it would be a control that leads nowhere. */}
-      <div className="mt-4 rounded-lg border border-primary/30 bg-primary/6 px-3 py-2.5">
+      {/* Neutral, not primary-tinted (design): the next gap is a fact about
+          the day, not an offer competing with the day itself. */}
+      <div className="mt-4 rounded-lg border bg-muted/50 px-3 py-2.5">
         <p className="text-[12px] text-muted-foreground">{strings.appointment.nextFree}</p>
         <p className="mt-0.5 font-semibold tabular-nums">
           {nextFree
@@ -293,10 +255,14 @@ function DayOverview({
                       : 'min-w-0 flex-1 truncate text-muted-foreground text-sm line-through'
                   }
                 >
-                  {entry.contactName}
+                  {entryName(entry, types.data)}
                 </span>
-                <span className="shrink-0 text-muted-foreground text-xs">
-                  {entry.activityType ? activityTypeLabel(types.data, entry.activityType) : ''}
+                {/* How long it takes, not what kind it is (design). The kind is
+                    already said by the colour to the left of the name, and the
+                    length is the thing this list is read for — where the day
+                    still has room. */}
+                <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                  {strings.slotFinder.minutes(minutesBetween(entry.startsAt, entry.endsAt))}
                 </span>
               </button>
             </li>

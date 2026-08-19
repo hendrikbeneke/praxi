@@ -6,24 +6,30 @@ import { strings } from '@/lib/strings'
 import { cn } from '@/lib/utils'
 
 /**
- * The month at a glance, for jumping — the navigation half of what the design's
- * month *view* was for (D9).
- *
- * The other half, "how full is October", the big month view answered badly: at
- * six sessions a day its cells show three entries and "+5 weitere". A dot per
- * occupied day says the same thing in a fortieth of the space, and this one
- * also fits beside the grid instead of replacing it.
+ * The month at a glance, for jumping.
  *
  * It walks its own month independently of the calendar's anchor, so paging
  * ahead to look does not move the grid; clicking a day does.
+ *
+ * **Three marks, and they say three different things** (D-K2): today is filled
+ * with the primary colour, the *selected* day sits on a fifth of it, and the
+ * days the grid is currently showing carry a band of `--accent` behind them.
+ * Until this package there were two, and one of them was wrong: the anchor was
+ * painted like today and today was merely coloured text, so on any week but
+ * this one the month showed a filled square for a day nobody was looking at
+ * and no sign at all of the week on screen.
  */
 export function MiniMonth({
   anchor,
+  visible,
   occupied,
   onPick,
 }: {
-  /** The day the calendar is showing. */
+  /** The day the calendar is describing — the selected one. */
   anchor: string
+  /** Every day the grid is showing, so the month can band them. One day in the
+   *  day view, five or seven in the others. */
+  visible: ReadonlySet<string>
   /** Days with at least one slot-holding entry, as `YYYY-MM-DD`. */
   occupied: ReadonlySet<string>
   onPick: (date: string) => void
@@ -74,25 +80,44 @@ export function MiniMonth({
 
         {days.map((day) => {
           const inMonth = day.slice(0, 7) === shownMonth
+          const isToday = day === today
+          const isAnchor = day === anchor && !isToday
+
+          /* The band first, then the day's own mark on top of it: a selected
+             day inside the visible week has to read as both. */
+          const background = isToday
+            ? 'var(--primary)'
+            : isAnchor
+              ? 'color-mix(in oklab, var(--primary) 20%, var(--card))'
+              : visible.has(day)
+                ? 'var(--accent)'
+                : undefined
+
           return (
             <button
               key={day}
               type="button"
               onClick={() => onPick(day)}
+              style={background ? { backgroundColor: background } : undefined}
               className={cn(
                 'relative flex h-7 items-center justify-center rounded text-xs tabular-nums hover:outline hover:outline-border',
                 inMonth ? '' : 'text-muted-foreground/50',
-                day === anchor && 'bg-primary font-semibold text-primary-foreground',
-                day !== anchor && day === today && 'font-semibold text-primary',
+                isToday && 'font-semibold text-primary-foreground',
+                (isAnchor || visible.has(day)) && 'font-semibold',
               )}
             >
               {Number(day.slice(8, 10))}
               {occupied.has(day) && (
                 <span
                   aria-hidden
+                  style={
+                    isToday
+                      ? undefined
+                      : { backgroundColor: 'color-mix(in oklab, var(--primary) 70%, transparent)' }
+                  }
                   className={cn(
                     'absolute bottom-0.5 size-1 rounded-full',
-                    day === anchor ? 'bg-primary-foreground' : 'bg-muted-foreground',
+                    isToday && 'bg-primary-foreground',
                   )}
                 />
               )}

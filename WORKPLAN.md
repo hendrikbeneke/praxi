@@ -2226,10 +2226,7 @@ diesem Bildschirm dreimal vorkommt und dort jeweils vermerkt ist. Vier Pakete,
 in dieser Reihenfolge:
 
 1. **K1 — Schema und Domäne** (erledigt, Migration `0034`)
-2. **K2 — Layout**: drei Spalten (links 238 px mit „Neuer Termin", Minimonat und
-   Terminfinder; rechts der Tagesüberblick), Raster mit Halbstundenlinien und
-   grau hinterlegten Zeiten außerhalb der Öffnungszeiten, Blockinhalte,
-   Minimonat mit Wochenband, Terminfinder als Modus
+2. **K2 — Layout** (erledigt)
 3. **K3 — Panels**: „Neuer Eintrag" mit beiden Reitern, Detail lesend und
    bearbeitend, „Absagen", Überschneidungswarnung, Leistungspicker
 4. **K4 — Ansichten**: Monat und Liste
@@ -2256,6 +2253,40 @@ in dieser Reihenfolge:
   die Konstante „Belegt" hinaus, nie der selbst getippte Titel (Regel 13).
 - **Konfliktart `overlap` entfällt**, Check auf `both_changed` verengt, der tote
   Zweig im Rückkanal gelöscht.
+
+**K2, as built.** Drei Spalten: links 238 px mit „Neuer Termin", Minimonat und
+Terminfinder (`components/calendar-sidebar.tsx`, neu), in der Mitte das Raster,
+rechts 320 px Tagesüberblick (`calendar-rail.tsx`, auf das Antworten
+reduziert). Damit ist die K10-Entscheidung „zwei Spalten statt drei" aus
+`docs/design-korrektur/abweichungen.md` überstimmt; der Eintrag dort bleibt als
+Protokoll stehen, gilt aber nicht mehr.
+
+- **Raster**: Halbstundenlinien (`--border` auf 45 %), graue Fläche außerhalb
+  der Öffnungszeiten (`--muted` auf 55 %, rein optisch — dort lässt sich
+  weiterhin ein Termin anlegen, nur der Finder hält sich an die Zeiten), Start
+  bei 08:00, Heute-Ton auf Kopf (8 %) und Spalte (3 %).
+- **Block**: Hauptzeile ist die Bezeichnung, ersatzweise der Kontaktname
+  (`lib/calendar-entry.ts`); darunter die Art, bei abgesagt oder angefragt
+  stattdessen der Terminstatus. Der *Vorgangs*status steht nicht mehr dort — er
+  hatte die Art verdrängt, und damit stand in einer vergangenen Woche überall
+  „Stattgefunden" statt dessen, wofür die Spalte gelesen wird. Füllung 20 % der
+  Artfarbe, 9 % bei angefragt, 12 % bei einem Termin ohne Vorgang.
+- **Minimonat**: drei Marken statt zwei — heute gefüllt, gewählter Tag auf
+  20 % Primary, die sichtbare Woche als `--accent`-Band.
+- **Terminfinder**: fest in der linken Leiste statt als Modus, ohne
+  Ergebnisliste (die Treffer stehen im Raster), mit Erklärsatz und „Auswahl
+  aufheben". Ein zweiter Klick auf denselben Eintrag hebt die Auswahl auf. Beim
+  Klick auf eine freie Zeit **bleibt die Suche stehen** — sie endet erst mit dem
+  angelegten Termin; vorher kostete ein Fehlklick die ganze Antwort.
+- **Tagesüberblick**: „Nächste freie Zeit" neutral statt primary-getönt, und
+  die Ablaufliste zeigt die Dauer statt der Art.
+- **Rollbalken** produktweit dünn, Daumen `--border`, 8 px (`styles.css`).
+- **Nicht umgesetzt, auf Ansage:** schmalere Wochenendspalten (L1). Alle Tage
+  sind gleich breit.
+- **Nachgemessen statt übernommen:** die Zeilenhöhe. Der Vorschlag von 36 px
+  pro halber Stunde ging mit der Messung zurück — die Bilder zeigen 44 px
+  (Tagesansicht 56), und bei 36 verliert ein 45-Minuten-Block seine dritte
+  Zeile. Bleibt bei 44/56.
 
 **Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
 Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein

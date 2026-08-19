@@ -1,4 +1,5 @@
 import {
+  activityTypeLabel,
   type CalendarEntry,
   type FreeSlot,
   formatBerlinDayMonth,
@@ -15,6 +16,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { CalendarGrid, type CalendarView, type DropTarget } from '@/components/calendar-grid'
 import { CalendarRail, type RailSelection } from '@/components/calendar-rail'
+import { CalendarSidebar } from '@/components/calendar-sidebar'
 import { SlotFinder, type SlotSearch } from '@/components/slot-finder'
 import { SyncConflictBanner } from '@/components/sync-conflicts'
 import { Button } from '@/components/ui/button'
@@ -23,6 +25,7 @@ import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import { addDays, isoWeek, startOfWeek, todayInBerlin } from '@/lib/calendar-dates'
 import { busyQueryOptions, googleConflictsQueryOptions } from '@/lib/google'
+import { openingHoursQueryOptions } from '@/lib/settings'
 import { strings } from '@/lib/strings'
 
 /**
@@ -93,6 +96,9 @@ function CalendarPage() {
    * firing a request per keystroke.
    */
   const busy = useQuery(busyQueryOptions(from, to))
+  /** The weekly pattern, for the wash outside it. Painted, never enforced —
+   *  see the prop's note in `CalendarGrid`. */
+  const openingHours = useQuery(openingHoursQueryOptions)
   const conflicts = useQuery(googleConflictsQueryOptions)
   const conflicted = new Set((conflicts.data ?? []).map((entry) => entry.appointmentId))
 
@@ -188,17 +194,22 @@ function CalendarPage() {
     },
   })
 
-  /** Taking a suggestion: the finder closes and the form opens on that slot,
-   *  with the length and the kind already set — the two things the search was
-   *  about. */
+  /**
+   * Taking a suggestion: the form opens on that slot with the length and the
+   * kind already set — the two things the search was about.
+   *
+   * **The search stays running** (D-K2). It used to be cleared here, which
+   * meant a mistaken click cost the whole answer and the eight other times it
+   * had found. It ends when the appointment is entered, when the same entry in
+   * the rail is clicked again, or through "Auswahl aufheben" — three ways out,
+   * none of them accidental.
+   */
   const pickSlot = (slot: FreeSlot) => {
-    const chosen = slotSearch
-    setSlotSearch(null)
     setSelection({
       kind: 'new',
       startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
-      ...(chosen?.typeCode ? { typeCode: chosen.typeCode } : {}),
-      ...(chosen ? { durationMin: chosen.durationMin } : {}),
+      ...(slotSearch?.typeCode ? { typeCode: slotSearch.typeCode } : {}),
+      ...(slotSearch ? { durationMin: slotSearch.durationMin } : {}),
     })
   }
 
@@ -233,6 +244,22 @@ function CalendarPage() {
        above it changed height. Found in K6, when the shell started owning the
        scroll. */
     <div className="flex h-full min-w-0">
+      <CalendarSidebar
+        anchor={overviewDay}
+        visible={new Set(days)}
+        occupied={occupied}
+        onNew={() => setSelection({ kind: 'new' })}
+        onPickDay={(date: string) => setSearch({ date })}
+        finder={
+          <SlotFinder
+            search={slotSearch}
+            result={freeSlots.data}
+            onSearch={setSlotSearch}
+            onClear={() => setSlotSearch(null)}
+          />
+        }
+      />
+
       <section className="flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b bg-card px-5 py-3">
           <Button variant="outline" size="sm" onClick={() => setSearch({ date: undefined })}>
@@ -291,6 +318,7 @@ function CalendarPage() {
           view={view}
           entries={shown}
           busy={busy.data ?? []}
+          openingHours={openingHours.data ?? []}
           types={types.data}
           conflicted={conflicted}
           selectedId={selection?.kind === 'activity' ? selection.appointmentId : null}
@@ -308,6 +336,9 @@ function CalendarPage() {
             ? {
                 freeSlots: freeSlots.data?.slots ?? [],
                 freeSlotsAreComplete: freeSlots.data?.privateCalendarsChecked ?? true,
+                slotTypeLabel: slotSearch.typeCode
+                  ? activityTypeLabel(types.data, slotSearch.typeCode)
+                  : null,
                 onPickSlot: pickSlot,
               }
             : {})}
@@ -316,43 +347,17 @@ function CalendarPage() {
 
       <CalendarRail
         anchor={overviewDay}
-        onNew={() => {
-          setSlotSearch(null)
-          setSelection({ kind: 'new' })
-        }}
-        finderOpen={slotSearch !== null}
         nextFree={(nextFree.data?.slots ?? [])[0] ?? null}
         nextFreeDuration={nextFreeDuration}
-        onUseNextFree={(slot) => {
-          setSlotSearch(null)
+        onUseNextFree={(slot) =>
           setSelection({
             kind: 'new',
             startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
             durationMin: nextFreeDuration,
           })
-        }}
-        onToggleFinder={() => {
-          setSelection(null)
-          setSlotSearch((current) =>
-            current ? null : { durationMin: DEFAULT_FREE_MINUTES, typeCode: null },
-          )
-        }}
-        entries={shown}
-        occupied={occupied}
-        selection={selection}
-        finder={
-          slotSearch ? (
-            <SlotFinder
-              search={slotSearch}
-              result={freeSlots.data}
-              loading={freeSlots.isPending}
-              onSearch={setSlotSearch}
-              onClear={() => setSlotSearch(null)}
-              onPick={pickSlot}
-            />
-          ) : null
         }
-        onPickDay={(date) => setSearch({ date })}
+        entries={shown}
+        selection={selection}
         onSelectEntry={(entry) => {
           if (!entry.activityId) return
           setSelection({
@@ -362,6 +367,11 @@ function CalendarPage() {
           })
         }}
         onClose={() => setSelection(null)}
+        onSaved={() => {
+          // Entered — which is what the search was for, so it ends here.
+          setSelection(null)
+          setSlotSearch(null)
+        }}
       />
     </div>
   )
