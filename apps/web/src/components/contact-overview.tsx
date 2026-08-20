@@ -28,6 +28,7 @@ import { relationListQueryOptions } from '@/lib/contact-types'
 import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
+import { countryListQueryOptions } from '@/lib/value-lists'
 
 /**
  * What the record is opened for: the contact's details, where they stand, and
@@ -104,6 +105,10 @@ function GuardianHint({ contact }: { contact: Contact }) {
 }
 
 function ContactDetails({ contact }: { contact: Contact }) {
+  const countries = useQuery(countryListQueryOptions)
+  const countryCode =
+    countries.data?.find((entry) => entry.id === contact.countryId)?.isoCode ?? null
+
   const streetLine = formatStreetLine(contact)
   const hasAddress = streetLine !== null || contact.postalCode || contact.city
   const hasPhone = contact.phoneMobile !== null || contact.phoneLandline !== null
@@ -156,7 +161,9 @@ function ContactDetails({ contact }: { contact: Contact }) {
                 {streetLine && <div>{streetLine}</div>}
                 <div>
                   {[contact.postalCode, contact.city].filter(Boolean).join(' ')}
-                  {contact.country !== 'DE' && ` · ${countryName(contact.country)}`}
+                  {/* Named, not coded — and nothing at all for Germany, the
+                      same rule the invoice's address block follows. */}
+                  {countryCode !== null && countryCode !== 'DE' && ` · ${countryName(countryCode)}`}
                 </div>
               </address>
             </>

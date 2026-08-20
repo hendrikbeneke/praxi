@@ -10,24 +10,6 @@ export const contactKindSchema = z.enum(contactKinds)
 export type ContactKind = z.infer<typeof contactKindSchema>
 
 /**
- * The three entries German civil status law knows since 2018. Text with a
- * named check constraint rather than a `pgEnum`, because the set may well
- * change again.
- *
- * There is deliberately no `unspecified`: "no entry" is `null`, and a fourth
- * value beside it would be a second way of saying almost the same thing. The
- * two would eventually disagree.
- *
- * **The salutation is not derived from this and never will be.** "Familie" and
- * "Herr und Frau" have to stay possible, so it remains free text beside this
- * field (CLAUDE.md rule 4). The German labels live in `strings.ts`; nothing
- * reads a value to a person.
- */
-export const contactGenders = ['female', 'male', 'diverse'] as const
-export const contactGenderSchema = z.enum(contactGenders)
-export type ContactGender = z.infer<typeof contactGenderSchema>
-
-/**
  * Roles are separate from `kind` and there can be several per contact: a
  * prospect who becomes a patient, someone who is both a patient and a course
  * participant (CLAUDE.md rule 4).
@@ -67,13 +49,19 @@ const sharedFields = {
   houseNumber: optionalText(20),
   postalCode: optionalText(16),
   city: optionalText(80),
-  country: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .length(2)
-    .regex(/^[A-Z]{2}$/)
-    .default('DE'),
+  /**
+   * A `country` catalogue entry (D-R3), and genuinely optional with it: the
+   * column was `not null default 'DE'`, so "not recorded" and "Germany" were
+   * the same value. It is null now when nothing was entered.
+   */
+  countryId: z.uuid().nullable().default(null),
+  /**
+   * A `salutation` catalogue entry. It sits in the **shared** fields rather
+   * than under `person`: "Firma Mustermann GmbH" is the usual first line of a
+   * German address, and there the salutation is what it is for a person — a
+   * prefix to the name, not a personal attribute.
+   */
+  salutationId: z.uuid().nullable().default(null),
   email: z
     .union([z.literal(''), z.email().max(160)])
     .transform((value) => (value === '' ? null : value))
@@ -90,15 +78,21 @@ const sharedFields = {
 
 const personFields = {
   kind: z.literal('person'),
-  // Free text, not an enum: "Familie" and "Herr und Frau" have to be
-  // possible, and no letter is generated from this.
-  salutation: optionalText(40),
   title: optionalText(40),
   firstName: optionalText(80),
   lastName: requiredText(80),
   dateOfBirth: z.iso.date().nullable().default(null),
   birthPlace: optionalText(120),
-  gender: contactGenderSchema.nullable().default(null),
+  /**
+   * A `gender` catalogue entry, and a person's alone — unlike the salutation
+   * above, this one really does apply to people only.
+   *
+   * Null is "not recorded", which is at the same time the fourth state German
+   * civil status law has, "no entry". There is deliberately no catalogue entry
+   * for it: a value meaning the same as its own absence would be a second way
+   * of saying almost the same thing, and the two would eventually disagree.
+   */
+  genderId: z.uuid().nullable().default(null),
 }
 
 const organizationFields = {
@@ -154,13 +148,13 @@ export const contactSchema = z.object({
   id: z.uuid(),
   contactNumber: z.number().int().positive(),
   kind: contactKindSchema,
-  salutation: z.string().nullable(),
+  salutationId: z.uuid().nullable(),
   title: z.string().nullable(),
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   dateOfBirth: z.string().nullable(),
   birthPlace: z.string().nullable(),
-  gender: contactGenderSchema.nullable(),
+  genderId: z.uuid().nullable(),
   companyName: z.string().nullable(),
   vatId: z.string().nullable(),
   contactPerson: z.string().nullable(),
@@ -168,7 +162,7 @@ export const contactSchema = z.object({
   houseNumber: z.string().nullable(),
   postalCode: z.string().nullable(),
   city: z.string().nullable(),
-  country: z.string(),
+  countryId: z.uuid().nullable(),
   email: z.string().nullable(),
   phoneMobile: z.string().nullable(),
   phoneLandline: z.string().nullable(),

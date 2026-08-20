@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { contact, contactRole } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant, roleTypeId } from '../test/fixtures.js'
+import { createTenant, genderId, roleTypeId, salutationId } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import {
   ContactKindChangeError,
@@ -48,19 +48,19 @@ const query = (overrides: Partial<ContactListQuery> = {}): ContactListQuery => (
 function person(overrides: Partial<Extract<ContactInput, { kind: 'person' }>> = {}): ContactInput {
   return {
     kind: 'person',
-    salutation: null,
+    salutationId: null,
     title: null,
     firstName: 'Erika',
     lastName: 'Musterfrau',
     dateOfBirth: null,
     birthPlace: null,
-    gender: null,
+    genderId: null,
     vatId: null,
     street: null,
     houseNumber: null,
     postalCode: null,
     city: null,
-    country: 'DE',
+    countryId: null,
     email: null,
     phoneMobile: null,
     phoneLandline: null,
@@ -78,12 +78,13 @@ function organization(
     kind: 'organization',
     companyName: 'Beispiel GmbH',
     contactPerson: null,
+    salutationId: null,
     vatId: null,
     street: null,
     houseNumber: null,
     postalCode: null,
     city: null,
-    country: 'DE',
+    countryId: null,
     email: null,
     phoneMobile: null,
     phoneLandline: null,
@@ -158,7 +159,7 @@ describe('createContact', () => {
       db(),
       tenantId,
       person({
-        gender: 'diverse',
+        genderId: await genderId(db(), tenantId, 'divers'),
         birthPlace: 'Musterstadt',
         street: 'Musterweg',
         houseNumber: '12a',
@@ -167,7 +168,7 @@ describe('createContact', () => {
       }),
     )
 
-    expect(created.gender).toBe('diverse')
+    expect(created.genderId).toBe(await genderId(db(), tenantId, 'divers'))
     expect(created.birthPlace).toBe('Musterstadt')
     expect(created.houseNumber).toBe('12a')
     expect(created.phoneMobile).toBe('0170 0000000')
@@ -175,28 +176,46 @@ describe('createContact', () => {
   })
 
   /**
-   * Text with a named check rather than a pgEnum, because the set may change
-   * again — but the database still refuses anything outside it, so a value
-   * that reached it past the Zod schema cannot be stored.
+   * A catalogue entry since D-R3, so what refuses an impossible value is the
+   * composite foreign key rather than the check constraint that used to hold
+   * `female | male | diverse`. The id below belongs to nobody.
    */
-  it('refuses a gender outside the three values', async () => {
+  it('refuses a gender that is no catalogue entry of this tenant', async () => {
     await expect(
-      createContact(db(), tenantId, person({ gender: 'unknown' as never })),
+      createContact(db(), tenantId, person({ genderId: '019fde08-0000-7000-8000-0000000000aa' })),
     ).rejects.toThrow()
   })
 
+  /**
+   * The salutation is the one field of this block an organization may hold
+   * (D-R3): "Firma Mustermann GmbH" is the usual first line of a German
+   * address, and there it is a prefix to the name rather than a personal
+   * attribute.
+   */
+  it('allows a salutation on an organization', async () => {
+    const created = await createContact(
+      db(),
+      tenantId,
+      organization({ salutationId: await salutationId(db(), tenantId, 'Firma') }),
+    )
+
+    expect(created.salutationId).toBe(await salutationId(db(), tenantId, 'Firma'))
+  })
+
   /** `kind` decides which fields apply: gender and birth place belong to a
-   *  person, exactly like the salutation and the date of birth. */
+   *  person, exactly like the title and the date of birth. */
   it('refuses person fields on an organization', async () => {
     await expect(
-      db().insert(contact).values({
-        id: newId(),
-        tenantId,
-        contactNumber: 900,
-        kind: 'organization',
-        companyName: 'Beispiel GmbH',
-        gender: 'female',
-      }),
+      db()
+        .insert(contact)
+        .values({
+          id: newId(),
+          tenantId,
+          contactNumber: 900,
+          kind: 'organization',
+          companyName: 'Beispiel GmbH',
+          genderId: await genderId(db(), tenantId, 'weiblich'),
+        }),
     ).rejects.toThrow()
 
     await expect(
@@ -603,19 +622,19 @@ describe('roles have their own path', () => {
 
     const updated = await updateContact(db(), tenantId, created.id, {
       kind: 'person',
-      salutation: null,
+      salutationId: null,
       title: null,
       firstName: 'Erika',
       lastName: 'Musterfrau',
       dateOfBirth: null,
       birthPlace: null,
-      gender: null,
+      genderId: null,
       vatId: null,
       street: null,
       houseNumber: null,
       postalCode: null,
       city: 'Musterstadt',
-      country: 'DE',
+      countryId: null,
       email: null,
       phoneMobile: null,
       phoneLandline: null,

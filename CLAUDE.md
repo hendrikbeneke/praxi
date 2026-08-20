@@ -188,6 +188,8 @@ Both sets are **configurable**. `contact_role_type` and `contact_relation_type` 
 
 Every contact gets a sequential `contact_number` on creation, regardless of role. There is no separate patient number.
 
+**Three fields of a contact take their values from a catalogue too** (D-R3): the salutation, the gender and the country of the address — `salutation`, `gender` and `country`, three tables built exactly like `contact_role_type` after 0035. None of the three is a rule the software depends on; they are the values a field can take, so the practitioner maintains them. The salutation is the only one of the three allowed on an **organization**, because "Firma Mustermann GmbH" is the usual first line of a German address and a salutation there is a prefix to the name rather than a personal attribute. The country catalogue carries no label: a country's name is resolved from its ISO code by `countryName()`, so what is configured is *which countries the form offers*, not what they are called. And the practice's **own** country is none of this — it is a system property in `practice_settings`, from the fixed `practiceCountries`, because which law applies hangs on it.
+
 **Nothing keys off a particular role.** Not the pseudonymization towards Google, which is a switch in the Google settings (rule 13), and not anything else. This paragraph used to say the opposite — that professional secrecy and the pseudonymization applied to holders of the system entry `code = 'patient'` — and it was never true: no line outside a comment ever read that code. A rule derived from roles can be tipped over in silence by a role someone forgot to tick, and it cannot be tested as an absolute; a switch is one decision, at one place, at a knowable time.
 
 ### 5. Services are templates, never live references
@@ -402,7 +404,18 @@ tenant                -- id and timestamps, nothing else. Identity only, as the
 practice_settings     tenant_id uuid not null unique -> tenant(id),
                       practice_name text not null,
                       street, postal_code, city              (text, nullable)
-                      country text not null default 'DE',
+                      country text not null default 'DE'
+                        check practice_settings_country_supported
+                        -- THE PRACTICE'S OWN country, which is a different
+                        -- thing from the `country` catalogue a contact picks
+                        -- from: it is a system property, because which law
+                        -- applies hangs on it — VAT, what an invoice must
+                        -- state, how long records are kept. The set is
+                        -- `practiceCountries` in packages/shared and the check
+                        -- above mirrors it, so an entry there is an assertion
+                        -- that those rules were implemented: it happens in a
+                        -- commit and a migration, never in a settings screen.
+                        -- One entry today, and nothing reads it yet (D-R3).
                       phone, email, website, tax_number      (text, nullable)
                       bank_name, iban, bic                   (text, nullable)
                       default_payment_term_days integer not null default 14
@@ -509,24 +522,32 @@ session               tenant_id uuid not null -> tenant(id),
                       unique index on (token_hash)
                       index on (user_id), index on (expires_at)
 
--- as built (slice 2), person fields and the address split in slice 10.5
+-- as built (slice 2), person fields and the address split in slice 10.5,
+-- three fields turned into catalogues in D-R3/0037
 contact               tenant_id uuid not null -> tenant(id),
                       contact_number integer not null check (>= 1),
                       kind contact_kind not null                (pgEnum:
                         -- person | organization; structural, never changes)
+                      salutation_id uuid -> salutation             -- how this
+                        -- contact is addressed. Free text until 0037, and NOT
+                        -- under `person`: it is allowed on an organization,
+                        -- because "Firma Mustermann GmbH" is the usual first
+                        -- line of a German address and the salutation there is
+                        -- what it is for a person — a prefix to the name, not
+                        -- a personal attribute. NEVER derived from gender_id:
+                        -- "Familie" and "Herr und Frau" have to stay possible,
+                        -- and nothing here generates a letter.
                       -- person
-                      salutation, title, first_name, last_name  (text, nullable)
-                        -- salutation stays free text and is NEVER derived from
-                        -- `gender`: "Familie" and "Herr und Frau" have to be
-                        -- possible, and nothing here generates a letter.
+                      title, first_name, last_name             (text, nullable)
                       date_of_birth date, birth_place text,
-                      gender text                               -- female |
-                        -- male | diverse, the three entries German civil status
-                        -- law knows. NULL means not recorded and is at the same
-                        -- time the fourth state the law has, "no entry" — which
-                        -- is why there is deliberately no `unspecified` value
-                        -- beside it. text + named check, not an enum: the set
-                        -- has changed once already.
+                      gender_id uuid -> gender                    -- a
+                        -- catalogue entry since 0037; female | male | diverse
+                        -- behind a check constraint before that. NULL means
+                        -- not recorded and is at the same time the fourth
+                        -- state German civil status law has, "no entry" —
+                        -- which is why there is deliberately no `unspecified`
+                        -- entry beside it: a value meaning the same as its own
+                        -- absence, and the two would eventually disagree.
                       -- organization
                       company_name, contact_person              (text, nullable)
                       -- both: a sole trader is a person and can have a VAT id
@@ -536,7 +557,10 @@ contact               tenant_id uuid not null -> tenant(id),
                         -- assembled by formatStreetLine() in packages/shared,
                         -- shared by the screen and the invoice PDF, so a
                         -- document reads like what was checked before it.
-                      country text not null default 'DE',
+                      country_id uuid -> country                  -- a
+                        -- catalogue entry since 0037, and genuinely optional
+                        -- with it: the column was `not null default 'DE'`, so
+                        -- "not recorded" and "Germany" were the same value.
                       email, internal_note                      (text, nullable)
                       phone_mobile, phone_landline              (text, nullable)
                         -- two columns since slice 10.5, because which of them
@@ -567,15 +591,83 @@ contact               tenant_id uuid not null -> tenant(id),
                       index on (tenant_id, sort_name)           -- the list's
                         -- ORDER BY. No index for the search: it is a leading
                         -- wildcard ILIKE, which no btree can serve.
+                      foreign key (salutation_id, tenant_id)
+                        -> salutation (id, tenant_id),
+                      foreign key (gender_id, tenant_id) -> gender (id, tenant_id),
+                      foreign key (country_id, tenant_id) -> country (id, tenant_id)
+                        -- all three on update/delete RESTRICT. The domain
+                        -- counts first, so the message says how many contacts
+                        -- hold an entry instead of naming a constraint.
+                      index on (salutation_id), (gender_id), (country_id)
+                        -- on the child side, so deleting a catalogue entry
+                        -- does not seq-scan this table
                       check contact_kind_fields (
                         person       => last_name not null,
                                         company_name/contact_person null
                         organization => company_name not null,
-                                        salutation/title/first_name/
-                                        last_name/date_of_birth/
-                                        birth_place/gender null)
-                      check contact_gender_values (
-                        gender is null or in ('female','male','diverse'))
+                                        title/first_name/last_name/
+                                        date_of_birth/birth_place/
+                                        gender_id null)
+                        -- salutation_id is deliberately NOT in that list; see
+                        -- the column. contact_gender_values went with the
+                        -- column it guarded.
+
+-- as built (D-R3/0037)
+salutation            tenant_id uuid not null -> tenant(id),
+gender                label text not null,
+                      sort_order integer not null default 0
+                      unique (tenant_id, label)                 -- what an
+                        -- entry is recognised by, now that there is no code
+                      unique (id, tenant_id)                    -- the target
+                        -- of contact's composite foreign key
+                      index on (tenant_id, sort_order, label)
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- TWO TABLES, identical column for column. A salutation
+                      -- and a gender are the same thing — a label with an
+                      -- order — but one catalogue is one table here, and a
+                      -- shared table with a `kind` would be the first
+                      -- exception to that in the whole schema.
+                      --
+                      -- Built like contact_role_type after 0035: no code as an
+                      -- anchor, so a label stays renamable and every contact
+                      -- follows, and no `active` flag, because an assignment
+                      -- is one nullable column at the contact that can always
+                      -- be cleared. There is no dead end here for a flag to
+                      -- manage — unlike a service, which can never be taken
+                      -- off a finalized invoice.
+                      --
+                      -- A SECOND LANGUAGE would be additive: a `label_en`
+                      -- beside `label`, maintained by the practitioner, the
+                      -- uniqueness staying on `label`. No codes, no
+                      -- translation table, nothing built for it in advance.
+
+-- as built (D-R3/0037)
+country               tenant_id uuid not null -> tenant(id),
+                      iso_code text not null,                  -- ISO 3166-1
+                        -- alpha-2, upper case
+                      sort_order integer not null default 0
+                      unique (tenant_id, iso_code),
+                      unique (id, tenant_id),
+                      index on (tenant_id, sort_order, iso_code)
+                      check country_iso_code_shape (~ '^[A-Z]{2}$')
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- DELIBERATELY NO LABEL. A country's name is not
+                      -- maintained here; countryName() in packages/shared
+                      -- resolves it from the code through Intl.DisplayNames. A
+                      -- renamed country in a billing address would simply be
+                      -- wrong, and a second place holding the same name would
+                      -- eventually hold a different one. What is configured
+                      -- here is a SELECTION — which countries the contact form
+                      -- offers — and picking one is a search over the ISO list
+                      -- rather than a dropdown of 250 rows.
+                      --
+                      -- The iso_code earns its place because it comes from a
+                      -- standard and never changes. It is still a field of the
+                      -- row and not an anchor: the reference runs over the id.
+                      --
+                      -- Needs no translation, ever: Intl has every language.
 
 -- as built (slice 6.5, reduced to a label in D-R1/0035)
 contact_role_type     tenant_id uuid not null -> tenant(id),
@@ -1128,7 +1220,18 @@ invoice               tenant_id uuid not null -> tenant(id),
                       invoice_date date not null,
                       payment_term_days integer not null
                         check (between 0 and 365),
-                      recipient_snapshot jsonb,       -- formatContactName(),
+                      recipient_snapshot jsonb,       -- carries the
+                        -- SALUTATION as text since D-R3, not a reference: a
+                        -- later rename must not change a document printed long
+                        -- ago, the same reasoning as intro_text and
+                        -- outro_text. Nothing renders it yet — the PDF's
+                        -- address block has no salutation line — because a
+                        -- snapshot holds what was true, not only what was
+                        -- printed. `country` became nullable there at the same
+                        -- time and stays a REQUIRED KEY with no default: a
+                        -- snapshot that never carried the field is a different
+                        -- thing from one recording "no country".
+                        -- formatContactName(),
                         -- the same function the screen uses. Every key ADDED
                         -- AFTER the first version is optional with a default,
                         -- and that is the model rather than a concession to
@@ -1611,7 +1714,7 @@ Defaults in a *creation* form are not this mistake, as long as the screen says p
 
 *Placeholders stay resolved on the server even when the dialog changes the template (rule 14): switching prepares the draft again through `prepareSend`, which is still "when the dialog is prepared" and keeps one resolver. Replacing text the practitioner has already edited is refused and named, with taking it over offered as an action — the same shape as applying an activity type's presets.*
 
-**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_code`, `contact_relation.relation_code` and `activity.type` point at a catalogue table through a composite foreign key (rules 4 and 6). `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
+**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_type_id`, `contact.salutation_id`, `contact.gender_id`, `contact.country_id`, `contact_relation.relation_code` and `activity.type` point at a catalogue table through a composite foreign key (rules 4 and 6). `contact.gender` was the check-constraint case in this very sentence until D-R3 and is a catalogue now, which is the second time that has happened. `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 
 **`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
 

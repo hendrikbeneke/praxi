@@ -15,12 +15,12 @@
 import type {
   ActivityStatus,
   AppointmentStatus,
-  ContactGender,
   ContactKind,
   InvoiceStatus,
   InvoiceType,
   NoteType,
   PaymentMethod,
+  PracticeCountry,
   RecipientSnapshot,
   SmtpSecurity,
   SyncConflictReason,
@@ -85,7 +85,13 @@ export const practiceSettings = pgTable(
     street: text(),
     postalCode: text(),
     city: text(),
-    country: text().notNull().default('DE'),
+    /**
+     * The practice's own country — a system property, not an address detail:
+     * which law applies hangs on it. A closed set from `practiceCountries` in
+     * packages/shared, not the `country` catalogue the contact picks from, and
+     * deliberately not configurable (D-R3).
+     */
+    country: text().notNull().default('DE').$type<PracticeCountry>(),
     phone: text(),
     email: text(),
     website: text(),
@@ -106,6 +112,9 @@ export const practiceSettings = pgTable(
       'practice_settings_payment_term_range',
       sql`${t.defaultPaymentTermDays} between 0 and 365`,
     ),
+    // Text with a named check, per Conventions: a set expected to grow, but
+    // only in a commit. See the column.
+    check('practice_settings_country_supported', sql`${t.country} in ('DE')`),
   ],
 )
 
@@ -219,6 +228,88 @@ export const numberRange = pgTable(
 export const contactKind = pgEnum('contact_kind', ['person', 'organization'])
 
 /**
+ * The three value lists behind a contact's own fields: how it is addressed,
+ * its gender, and the country of its address (migration 0037).
+ *
+ * All three were fixed before — free text, a check constraint over three
+ * English identifiers, an ISO code against a list of eight. None of them is a
+ * rule the software depends on, so the practitioner maintains them, built like
+ * `contact_role_type` after 0035: a label and an order, no code as an anchor
+ * so a label stays renamable, and no `active` flag because an assignment is
+ * one nullable column that can always be cleared.
+ *
+ * Three tables rather than one with a `kind`, the way every other catalogue in
+ * this schema is built.
+ */
+export const salutation = pgTable(
+  'salutation',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    label: text().notNull(),
+    sortOrder: integer().notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    unique('salutation_tenant_label_key').on(t.tenantId, t.label),
+    unique('salutation_id_tenant_key').on(t.id, t.tenantId),
+    index('salutation_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
+  ],
+)
+
+export const gender = pgTable(
+  'gender',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    label: text().notNull(),
+    sortOrder: integer().notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    unique('gender_tenant_label_key').on(t.tenantId, t.label),
+    unique('gender_id_tenant_key').on(t.id, t.tenantId),
+    index('gender_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
+  ],
+)
+
+/**
+ * The odd one out: **no label.**
+ *
+ * A country's name is not maintained here; it is resolved from the ISO code by
+ * `countryName()` in `packages/shared`. A renamed country in a billing address
+ * would simply be wrong, and a second place holding the same name would
+ * eventually hold a different one. What is configured here is a *selection* —
+ * which countries the contact form offers.
+ *
+ * The ISO code earns its place because it comes from a standard and never
+ * changes. It is still a field of the row and not an anchor: the reference
+ * runs over the id, like everywhere else.
+ */
+export const country = pgTable(
+  'country',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    isoCode: text().notNull(),
+    sortOrder: integer().notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    unique('country_tenant_iso_key').on(t.tenantId, t.isoCode),
+    unique('country_id_tenant_key').on(t.id, t.tenantId),
+    index('country_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.isoCode),
+    check('country_iso_code_shape', sql`${t.isoCode} ~ '^[A-Z]{2}$'`),
+  ],
+)
+
+/**
  * The generic party — person or organization. A patient is a contact holding
  * the `patient` role, never its own table (CLAUDE.md rule 4).
  */
@@ -232,23 +323,33 @@ export const contact = pgTable(
     contactNumber: integer().notNull(),
     kind: contactKind().notNull().$type<ContactKind>(),
 
+    /**
+     * How this contact is addressed. A catalogue entry since 0037, free text
+     * before that.
+     *
+     * Allowed on an **organization** too, unlike everything else in this
+     * block: "Firma Mustermann GmbH" is the usual first line of a German
+     * address, and there the salutation is what it is for a person — a prefix
+     * to the name, not a personal attribute.
+     */
+    salutationId: uuid(),
+
     // person
-    salutation: text(),
     title: text(),
     firstName: text(),
     lastName: text(),
     dateOfBirth: date({ mode: 'string' }),
     birthPlace: text(),
     /**
-     * `female | male | diverse`, the three entries German civil status law
-     * knows; NULL is "not recorded" and is at the same time the fourth state
-     * the law has, "no entry". Text with a named check rather than a pgEnum,
-     * because the set may change again.
+     * A catalogue entry since 0037; `female | male | diverse` behind a check
+     * constraint before that. NULL is "not recorded", which is at the same
+     * time the fourth state German civil status law has, "no entry".
      *
-     * The salutation is NOT derived from this — "Familie" and "Herr und Frau"
-     * stay possible, so it remains free text beside this column.
+     * The salutation is NOT derived from this and never will be — "Familie"
+     * and "Herr und Frau" have to stay possible, and nothing here generates a
+     * letter.
      */
-    gender: text().$type<ContactGender>(),
+    genderId: uuid(),
 
     // organization
     companyName: text(),
@@ -263,7 +364,12 @@ export const contact = pgTable(
     houseNumber: text(),
     postalCode: text(),
     city: text(),
-    country: text().notNull().default('DE'),
+    /**
+     * A catalogue entry since 0037, and genuinely optional with it: it was
+     * `not null default 'DE'`, so "not recorded" and "Germany" were the same
+     * value. Empty means not recorded now.
+     */
+    countryId: uuid(),
     email: text(),
     phoneMobile: text(),
     phoneLandline: text(),
@@ -310,16 +416,40 @@ export const contact = pgTable(
       ) or (
         ${t.kind} = 'organization'
           and ${t.companyName} is not null
-          and ${t.salutation} is null and ${t.title} is null
+          and ${t.title} is null
           and ${t.firstName} is null and ${t.lastName} is null
           and ${t.dateOfBirth} is null
-          and ${t.birthPlace} is null and ${t.gender} is null
+          and ${t.birthPlace} is null and ${t.genderId} is null
       )`,
     ),
-    check(
-      'contact_gender_values',
-      sql`${t.gender} is null or ${t.gender} in ('female', 'male', 'diverse')`,
-    ),
+    // The salutation is deliberately absent from the list above since 0037 —
+    // see the column. `contact_gender_values` went with the column it guarded.
+    foreignKey({
+      columns: [t.salutationId, t.tenantId],
+      foreignColumns: [salutation.id, salutation.tenantId],
+      name: 'contact_salutation_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
+    foreignKey({
+      columns: [t.genderId, t.tenantId],
+      foreignColumns: [gender.id, gender.tenantId],
+      name: 'contact_gender_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
+    foreignKey({
+      columns: [t.countryId, t.tenantId],
+      foreignColumns: [country.id, country.tenantId],
+      name: 'contact_country_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
+    // On the child side, so deleting a catalogue entry does not seq-scan this
+    // table — and neither does the count the domain runs first for its message.
+    index('contact_salutation_idx').on(t.salutationId),
+    index('contact_gender_idx').on(t.genderId),
+    index('contact_country_idx').on(t.countryId),
   ],
 )
 

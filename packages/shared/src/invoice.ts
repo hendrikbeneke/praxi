@@ -42,12 +42,28 @@ export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>
 export const recipientSnapshotSchema = z.object({
   contactNumber: z.number().int(),
   name: z.string(),
+  /**
+   * The salutation as **text**, not a reference: a later rename must not
+   * change a document that was printed long ago. Added in D-R3, hence
+   * optional with a default like every field after the first version.
+   *
+   * Nothing renders it yet — the PDF's address block has no salutation line.
+   * It is stored because a snapshot holds what was true, not only what was
+   * printed; whether the line arrives is a decision for the invoice screen.
+   */
+  salutation: z.string().nullable().default(null),
   contactPerson: z.string().nullable().default(null),
   street: z.string().nullable().default(null),
   houseNumber: z.string().nullable().default(null),
   postalCode: z.string().nullable().default(null),
   city: z.string().nullable().default(null),
-  country: z.string(),
+  /**
+   * Nullable since D-R3, when the contact's country became genuinely optional
+   * — but **still a required key**, with no default. A snapshot that never
+   * carried the field at all is a different thing from one that recorded "no
+   * country", and only the second may be written from now on.
+   */
+  country: z.string().nullable(),
   vatId: z.string().nullable().default(null),
 })
 

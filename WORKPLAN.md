@@ -2423,6 +2423,50 @@ inhaltlich zählen sollte, wird ein Schalter.
   Einstellung zurücksetzt. Beschriftet als *„Namen statt Kontaktnummer
   übertragen"*, also als das, was das Ankreuzen tut.
 
+**R3, as built** — *Anrede, Geschlecht und Land sind Kataloge* (Migration `0037`):
+
+- **Drei Tabellen**, nicht eine mit `kind`: `salutation`, `gender`, `country`.
+  Ein Katalog, eine Tabelle — so ist das ganze Schema gebaut. Alle drei nach
+  dem Vorbild von `contact_role_type` nach 0035: `label`, `sort_order`, kein
+  Kürzel als Anker, kein `active`. Eine Zuordnung ist eine leere machbare
+  Spalte am Kontakt, also gibt es keine Sackgasse, die ein Flag verwalten
+  müsste.
+- **`country` trägt kein `label`.** Der Name kommt aus `countryName()`, was
+  konfiguriert wird, ist eine *Auswahl* — welche Länder das Kontaktformular
+  anbietet. Hinzufügen ist eine Suche über die ISO-Liste, kein Dropdown mit 250
+  Zeilen.
+- **`country.ts` hält nur noch Codes.** `countryName()` löst über
+  `Intl.DisplayNames` auf, mit der Sprache aus `DISPLAY_LOCALE`. Der Nachteil
+  steht als Kommentar an der Funktion: Server und Browser lesen aus zwei
+  ICU-Beständen und könnten abweichen. Vertretbar, weil eine Rechnung genau
+  einmal gerendert wird und danach als Datei liegt (Regel 9); die Antwort, falls
+  es je stört, steht daneben — den *Namen* beim Festschreiben einfrieren.
+- **Die Anrede gilt auch für Organisationen.** `contact_kind_fields` nennt sie
+  nicht mehr: „Firma Mustermann GmbH" ist die übliche erste Zeile einer
+  deutschen Anschrift. `title`, `first_name`, `date_of_birth` und `gender_id`
+  bleiben Personen vorbehalten.
+- **Der Default `DE` am Kontakt ist weg.** Leer heißt „nicht erfasst". Für das
+  PDF ändert das nichts — bei Deutschland stand dort ohnehin nie eine
+  Landeszeile.
+- **Der Umzug prüft sich selbst**: ein `DO`-Block zählt die Zeilen, die einen
+  Wert hatten und keinen mehr haben, und benennt sie, bevor die alten Spalten
+  fallen.
+- **`practice_settings.country` ist etwas anderes** und bleibt ein ISO-Code:
+  eine Systemeigenschaft, an der hängt, welches Recht gilt. Die Menge ist
+  `practiceCountries` in `packages/shared`, dazu eine Check-Constraint, die sie
+  spiegelt — ein Eintrag dort ist die Behauptung, dass die Regeln umgesetzt
+  sind, also braucht er einen Commit und eine Migration. Ein Eintrag heute,
+  gelesen wird er von nichts.
+- **Neuer Einstellungsbereich „Auswahllisten"**, nicht „Listen": Rollen,
+  Beziehungen, Vorgangsarten und Textbausteine sind auch Listen. Was diese drei
+  unterscheidet, ist, dass sie die Werte *eines Feldes am Kontakt* sind.
+
+**Offen, bewusst nicht gebaut:** *Eine Anredezeile im Adressblock der Rechnung.*
+Die Anrede steht seit R3 im `recipient_snapshot`, gedruckt wird sie nicht — der
+Adressblock in `pdf/invoice.tsx` kennt sie nicht. Der Snapshot hält fest, was
+galt, nicht nur was gedruckt wurde, also ist das kein Widerspruch. Ob die Zeile
+kommt, entscheidet sich beim Rechnungsbildschirm; das Feld liegt bereit.
+
 **Offen, bewusst nicht gebaut:** *Bereits geschriebene Google-Ereignisse
 nachträglich anonymisieren.* Wer den Schalter wieder auf Pseudonymisieren
 stellt, ändert nichts an dem, was schon draußen ist — die Einstellung gilt für

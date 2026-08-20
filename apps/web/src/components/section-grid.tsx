@@ -64,6 +64,10 @@ export function Section({
   )
 }
 
+/** The twelfths a field may occupy — named so components that pass one
+ *  through, like `ValueSelect`, need no copy of the union. */
+export type SectionSpan = 3 | 4 | 5 | 6 | 7 | 9 | 12
+
 /**
  * One field in a `Section`'s grid. `span` is in twelfths, as the design states
  * its widths; `min-w-0` so a long value cannot push the grid wider than its
@@ -84,7 +88,7 @@ export function SectionField({
   className,
   children,
 }: {
-  span?: 3 | 4 | 5 | 6 | 7 | 9 | 12
+  span?: SectionSpan
   className?: string
   children: React.ReactNode
 }) {

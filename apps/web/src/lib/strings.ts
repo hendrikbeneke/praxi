@@ -117,6 +117,39 @@ export const strings = {
     saved: 'Praxisstammdaten gespeichert.',
     saveFailed: 'Die Praxisstammdaten konnten nicht gespeichert werden.',
   },
+  /** The three value lists behind a contact's own fields (D-R3). */
+  valueList: {
+    /** "Auswahllisten" and not "Listen": roles, relations, activity types and
+     *  text templates are lists too. What sets these three apart is that they
+     *  are the values a *field at a contact* can take. */
+    sectionTitle: 'Auswahllisten',
+    sectionHint: 'Anrede, Geschlecht und Land',
+
+    salutationsTitle: 'Anreden',
+    salutationsHint: 'stehen vor dem Namen in der Anschrift',
+    salutationsFooter:
+      'Eine Anrede gilt für Personen und Organisationen gleichermaßen — „Firma Mustermann ' +
+      'GmbH" ist die übliche erste Zeile einer deutschen Anschrift.',
+    createSalutation: 'Neue Anrede',
+    salutationsEmptyCard: 'Noch keine Anrede angelegt.',
+
+    gendersTitle: 'Geschlechter',
+    gendersHint: 'stehen nur bei Personen',
+    createGender: 'Neues Geschlecht',
+    gendersEmptyCard: 'Noch kein Geschlecht angelegt.',
+
+    countriesTitle: 'Länder',
+    countriesHint: 'stehen in der Anschrift zur Auswahl',
+    countrySearch: 'Land hinzufügen',
+    /** A search, not a dropdown: the ISO list has some 250 entries. */
+    countrySearchPlaceholder: 'Name oder Kürzel eingeben',
+    countryNoMatch: 'Kein Land gefunden.',
+    countriesEmptyCard: 'Noch kein Land angelegt.',
+
+    deleteTitle: 'Eintrag löschen?',
+    deleteCountryTitle: 'Land aus der Liste nehmen?',
+    deleteBody: 'Das lässt sich nicht rückgängig machen.',
+  },
   contactType: {
     tabRoles: 'Rollen',
     tabRelations: 'Beziehungen',
@@ -349,7 +382,7 @@ export const strings = {
       'Mobil und Festnetz getrennt — die Art entscheidet, ob man anruft oder schreibt.',
     sectionInternal: 'Intern',
     salutation: 'Anrede',
-    salutationOptions: ['Herr', 'Frau'],
+    salutationNone: 'Keine Anrede',
     academicTitle: 'Titel',
     firstName: 'Vorname',
     lastName: 'Nachname',
@@ -357,13 +390,24 @@ export const strings = {
     birthPlace: 'Geburtsort',
     gender: 'Geschlecht',
     genderNone: 'Keine Angabe',
-    /** The three values, written out. Never derived from the stored value —
-     *  the column holds English identifiers, the screen shows German. */
-    genders: {
-      female: 'weiblich',
-      male: 'männlich',
-      diverse: 'divers',
-    },
+    countryNone: 'Kein Land',
+    /**
+     * The empty state of the three value lists (D-R3). Each says the same
+     * three things: that the list is empty, that this is allowed, and where it
+     * is filled — the last of which is one string for all three.
+     *
+     * Not a placeholder waiting to be filled in: an empty dropdown looks
+     * broken and explains nothing, which is why the field becomes a sentence
+     * instead. Same shape as the roles section since 0035.
+     */
+    salutationsEmpty: 'Es sind keine Anreden angelegt.',
+    salutationsEmptyHint: 'Ein Kontakt braucht keine.',
+    gendersEmpty: 'Es sind keine Geschlechter angelegt.',
+    gendersEmptyHint: 'Ein Kontakt braucht keines.',
+    countriesEmpty: 'Es sind keine Länder angelegt.',
+    countriesEmptyHint:
+      'Eine Anschrift braucht kein Land — bei Deutschland steht es ohnehin nie auf der Rechnung.',
+    valueListEmptySettings: 'Anlegen können Sie sie in den Einstellungen unter Auswahllisten.',
     companyName: 'Firmenname',
     contactPerson: 'Ansprechpartner',
     vatId: 'USt-IdNr.',

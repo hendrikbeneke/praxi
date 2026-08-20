@@ -29,7 +29,7 @@ const FORM = {
   iban: null,
   bic: null,
   defaultPaymentTermDays: 14,
-}
+} as const
 
 /**
  * The letterhead is a file, and whether one exists is a question the screen
@@ -114,12 +114,15 @@ describe('updatePracticeSettings — patch semantics', () => {
    * the caller never touched.
    */
   it('does not resurrect a defaulted field that was left out of the patch', async () => {
-    await updatePracticeSettings(db(), tenantId, { ...FORM, country: 'AT' })
+    // Shown on `defaultPaymentTermDays` alone: `country` carries the same
+    // `.default()`, but `practiceCountries` has one entry since D-R3, so no
+    // second value exists to tell a reset apart from the original.
+    await updatePracticeSettings(db(), tenantId, { ...FORM, defaultPaymentTermDays: 30 })
 
     const patched = await updatePracticeSettings(db(), tenantId, { street: 'Neue Straße 2' })
 
-    expect(patched?.country).toBe('AT')
-    expect(patched?.defaultPaymentTermDays).toBe(FORM.defaultPaymentTermDays)
+    expect(patched?.defaultPaymentTermDays).toBe(30)
+    expect(patched?.country).toBe('DE')
   })
 
   /**

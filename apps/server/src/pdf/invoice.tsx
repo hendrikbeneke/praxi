@@ -122,8 +122,12 @@ function AddressBlock({ recipient }: { recipient: RecipientSnapshot }) {
     [recipient.postalCode, recipient.city].filter(Boolean).join(' ') || null,
     /* The name, not the code: "AT" in an address block is as wrong in a letter
        as it is on a screen, and a finalized document can never be corrected.
-       No line at all for Germany, which is how the code sat here unnoticed. */
-    recipient.country === 'DE' ? null : countryName(recipient.country),
+       No line at all for Germany, which is how the code sat here unnoticed —
+       and none for a snapshot that recorded no country, which the contact's
+       country being optional made possible (D-R3). */
+    recipient.country === null || recipient.country === 'DE'
+      ? null
+      : countryName(recipient.country),
   ].filter((line): line is string => Boolean(line?.trim()))
 
   return (

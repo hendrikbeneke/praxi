@@ -17,9 +17,11 @@ import type { Database, DbReader, Transaction } from '../db/client.js'
 import {
   activityItem,
   contact,
+  country,
   invoice,
   invoiceLine,
   practiceSettings,
+  salutation,
   textTemplate,
 } from '../db/schema.js'
 import { newId } from '../id.js'
@@ -122,16 +124,30 @@ type LastSend = { sentAt: Date; recipient: string } | undefined
 
 /** The recipient as they are right now. Frozen into the invoice at
  *  finalization; `formatContactName` is the same function the screen uses. */
-export function recipientSnapshotOf(row: typeof contact.$inferSelect): RecipientSnapshot {
+/**
+ * The contact row plus the two catalogue values a snapshot has to freeze as
+ * text. `loadContactRow` resolves them; nothing else does, because nothing
+ * else writes a snapshot.
+ */
+export type SnapshotSource = typeof contact.$inferSelect & {
+  salutationLabel: string | null
+  countryCode: string | null
+}
+
+export function recipientSnapshotOf(row: SnapshotSource): RecipientSnapshot {
   return {
     contactNumber: row.contactNumber,
     name: formatContactName(row),
+    // The text, not the reference (D-R3): renaming a salutation afterwards
+    // must not change a document that was printed long ago. Same reasoning as
+    // the intro and outro texts, one table over.
+    salutation: row.salutationLabel,
     contactPerson: row.contactPerson,
     street: row.street,
     houseNumber: row.houseNumber,
     postalCode: row.postalCode,
     city: row.city,
-    country: row.country,
+    country: row.countryCode,
     vatId: row.vatId,
   }
 }
@@ -610,14 +626,23 @@ export async function loadContactRow(
   tx: Transaction,
   tenantId: string,
   contactId: string,
-): Promise<typeof contact.$inferSelect | null> {
+): Promise<SnapshotSource | null> {
+  // Left joins: both are optional at the contact, and a missing one is a
+  // snapshot field that is null — not a row that fails to load.
   const [row] = await tx
-    .select()
+    .select({
+      contact,
+      salutationLabel: salutation.label,
+      countryCode: country.isoCode,
+    })
     .from(contact)
+    .leftJoin(salutation, eq(salutation.id, contact.salutationId))
+    .leftJoin(country, eq(country.id, contact.countryId))
     .where(and(eq(contact.tenantId, tenantId), eq(contact.id, contactId)))
     .limit(1)
 
-  return row ?? null
+  if (!row) return null
+  return { ...row.contact, salutationLabel: row.salutationLabel, countryCode: row.countryCode }
 }
 
 /** `pdf_path` is internal and deliberately absent from the payload — where a

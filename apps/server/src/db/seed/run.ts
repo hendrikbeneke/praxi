@@ -12,6 +12,7 @@ import { seedActivityTypes } from './activity-types.js'
 import { seedBase } from './base.js'
 import { seedContactTypes } from './contact-types.js'
 import { seedServices } from './services.js'
+import { seedValueLists } from './value-lists.js'
 
 loadEnvFile()
 
@@ -19,6 +20,7 @@ try {
   const database = db()
   const tenantId = await seedBase(database)
   await seedContactTypes(database, tenantId)
+  await seedValueLists(database, tenantId)
   await seedActivityTypes(database, tenantId)
   await seedServices(database, tenantId)
   console.info('seed complete')

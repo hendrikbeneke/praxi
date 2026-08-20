@@ -4,10 +4,7 @@ import {
   type ContactKind,
   type ContactRoleInput,
   type ContactUpdate,
-  contactGenderSchema,
-  contactGenders,
   contactKinds,
-  countries,
   countryName,
   formatBerlinDate,
 } from '@praxi/shared'
@@ -31,8 +28,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { ValueSelect } from '@/components/value-select'
 import { roleTypeListQueryOptions } from '@/lib/contact-types'
 import { strings } from '@/lib/strings'
+import {
+  countryListQueryOptions,
+  genderListQueryOptions,
+  salutationListQueryOptions,
+} from '@/lib/value-lists'
 
 /**
  * The API models a contact as a discriminated union, which is right for the
@@ -44,14 +47,17 @@ import { strings } from '@/lib/strings'
 const contactFormSchema = z
   .object({
     kind: z.enum(contactKinds),
-    salutation: z.string().trim().max(40),
+    // `''` is "none chosen", which is what NULL means in the column too. Held
+    // as a string rather than as `uuid | null` because a Radix select cannot
+    // carry an empty value; `toContactUpdate` folds it back.
+    salutationId: z.union([z.literal(''), z.uuid()]),
     title: z.string().trim().max(40),
     firstName: z.string().trim().max(80),
     lastName: z.string().trim().max(80),
     dateOfBirth: z.union([z.literal(''), z.iso.date()]),
     birthPlace: z.string().trim().max(120),
     // `''` is "not recorded", which is what NULL means in the column too.
-    gender: z.union([z.literal(''), contactGenderSchema]),
+    genderId: z.union([z.literal(''), z.uuid()]),
     companyName: z.string().trim().max(120),
     contactPerson: z.string().trim().max(120),
     vatId: z.string().trim().max(40),
@@ -59,11 +65,7 @@ const contactFormSchema = z
     houseNumber: z.string().trim().max(20),
     postalCode: z.string().trim().max(16),
     city: z.string().trim().max(80),
-    country: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .regex(/^[A-Z]{2}$/),
+    countryId: z.union([z.literal(''), z.uuid()]),
     email: z.union([z.literal(''), z.email().max(160)]),
     phoneMobile: z.string().trim().max(40),
     phoneLandline: z.string().trim().max(40),
@@ -94,11 +96,6 @@ type ContactFormOutput = z.output<typeof contactFormSchema>
 
 const emptyToNull = (value: string) => (value === '' ? null : value)
 
-/** A Radix select item cannot carry an empty value, so "not recorded" needs a
- *  token of its own on the way through the dropdown. It is folded back to `''`
- *  immediately, and to `null` on submit. */
-const NO_GENDER = 'none'
-
 function toContactUpdate(values: ContactFormOutput): ContactUpdate {
   const shared = {
     vatId: emptyToNull(values.vatId),
@@ -106,7 +103,10 @@ function toContactUpdate(values: ContactFormOutput): ContactUpdate {
     houseNumber: emptyToNull(values.houseNumber),
     postalCode: emptyToNull(values.postalCode),
     city: emptyToNull(values.city),
-    country: values.country,
+    countryId: emptyToNull(values.countryId),
+    // Shared, not person-only (D-R3): an organization is addressed as
+    // "Firma Mustermann GmbH" too.
+    salutationId: emptyToNull(values.salutationId),
     email: emptyToNull(values.email),
     phoneMobile: emptyToNull(values.phoneMobile),
     phoneLandline: emptyToNull(values.phoneLandline),
@@ -117,13 +117,12 @@ function toContactUpdate(values: ContactFormOutput): ContactUpdate {
   return values.kind === 'person'
     ? {
         kind: 'person',
-        salutation: emptyToNull(values.salutation),
         title: emptyToNull(values.title),
         firstName: emptyToNull(values.firstName),
         lastName: values.lastName,
         dateOfBirth: emptyToNull(values.dateOfBirth),
         birthPlace: emptyToNull(values.birthPlace),
-        gender: values.gender === '' ? null : values.gender,
+        genderId: emptyToNull(values.genderId),
         ...shared,
       }
     : {
@@ -143,13 +142,13 @@ function todayInBerlin(): string {
 function toFormValues(contact: Contact | undefined): ContactFormValues {
   return {
     kind: contact?.kind ?? 'person',
-    salutation: contact?.salutation ?? '',
+    salutationId: contact?.salutationId ?? '',
     title: contact?.title ?? '',
     firstName: contact?.firstName ?? '',
     lastName: contact?.lastName ?? '',
     dateOfBirth: contact?.dateOfBirth ?? '',
     birthPlace: contact?.birthPlace ?? '',
-    gender: contact?.gender ?? '',
+    genderId: contact?.genderId ?? '',
     companyName: contact?.companyName ?? '',
     contactPerson: contact?.contactPerson ?? '',
     vatId: contact?.vatId ?? '',
@@ -157,7 +156,7 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     houseNumber: contact?.houseNumber ?? '',
     postalCode: contact?.postalCode ?? '',
     city: contact?.city ?? '',
-    country: contact?.country ?? 'DE',
+    countryId: contact?.countryId ?? '',
     email: contact?.email ?? '',
     phoneMobile: contact?.phoneMobile ?? '',
     phoneLandline: contact?.phoneLandline ?? '',
@@ -209,6 +208,17 @@ export function ContactForm({
   // filter out and no role a contact could hold but not see.
   const types = useQuery(roleTypeListQueryOptions)
   const roleTypes = types.data ?? []
+
+  const salutations = useQuery(salutationListQueryOptions)
+  const genders = useQuery(genderListQueryOptions)
+  const countries = useQuery(countryListQueryOptions)
+  /** The catalogue stores the code; the name comes from `countryName()`, the
+   *  same function the invoice PDF uses. Sorted by the practitioner's order,
+   *  which the query already returns. */
+  const countryEntries = countries.data?.map((entry) => ({
+    id: entry.id,
+    label: countryName(entry.isoCode),
+  }))
 
   const chosen = new Set(roles.map((entry) => entry.roleTypeId))
   const unassigned = roleTypes.filter((type) => !chosen.has(type.id))
@@ -264,21 +274,27 @@ export function ContactForm({
             )}
           </SectionField>
 
-          <Field
-            span={3}
-            className="sm:col-start-1"
-            id="salutation"
-            editing={editing}
-            readValue={contact?.salutation}
-            label={strings.contact.salutation}
-            list="salutation-options"
-            {...form.register('salutation')}
+          {/* Outside the `kind === 'person'` branch on purpose (D-R3): an
+              organization is addressed as "Firma Mustermann GmbH" too. */}
+          <Controller
+            control={form.control}
+            name="salutationId"
+            render={({ field }) => (
+              <ValueSelect
+                span={3}
+                className="sm:col-start-1"
+                id="salutation"
+                editing={editing}
+                label={strings.contact.salutation}
+                noneLabel={strings.contact.salutationNone}
+                emptyTitle={strings.contact.salutationsEmpty}
+                emptyHint={strings.contact.salutationsEmptyHint}
+                entries={salutations.data}
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
-          <datalist id="salutation-options">
-            {strings.contact.salutationOptions.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
 
           {kind === 'person' ? (
             <>
@@ -448,41 +464,24 @@ export function ContactForm({
               {...form.register('birthPlace')}
             />
 
-            <SectionField span={4}>
-              <Label htmlFor={editing ? 'gender' : undefined}>{strings.contact.gender}</Label>
-              {/* The readable word lives only in the option list — without
-                  this mapping read mode would show `male` (K2). */}
-              {!editing ? (
-                <ReadValue>
-                  {contact?.gender ? strings.contact.genders[contact.gender] : undefined}
-                </ReadValue>
-              ) : (
-                <Controller
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value === '' ? NO_GENDER : field.value}
-                      onValueChange={(value) => field.onChange(value === NO_GENDER ? '' : value)}
-                    >
-                      <SelectTrigger id="gender" className="mt-2 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Not recorded is a value one can pick back, not only
-                            a state one starts in. */}
-                        <SelectItem value={NO_GENDER}>{strings.contact.genderNone}</SelectItem>
-                        {contactGenders.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {strings.contact.genders[value]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+            <Controller
+              control={form.control}
+              name="genderId"
+              render={({ field }) => (
+                <ValueSelect
+                  span={4}
+                  id="gender"
+                  editing={editing}
+                  label={strings.contact.gender}
+                  noneLabel={strings.contact.genderNone}
+                  emptyTitle={strings.contact.gendersEmpty}
+                  emptyHint={strings.contact.gendersEmptyHint}
+                  entries={genders.data}
+                  value={field.value}
+                  onChange={field.onChange}
                 />
               )}
-            </SectionField>
+            />
           </Section>
         )}
 
@@ -528,32 +527,27 @@ export function ContactForm({
             {...form.register('city')}
           />
           {/* A country is stored as a code and never shown as one — see
-              `packages/shared/src/country.ts`. */}
-          <SectionField span={4} className="sm:col-start-1">
-            <Label htmlFor={editing ? 'country' : undefined}>{strings.contact.country}</Label>
-            {editing ? (
-              <Controller
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger id="country" className="mt-2 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map((entry) => (
-                        <SelectItem key={entry.code} value={entry.code}>
-                          {entry.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+              `packages/shared/src/country.ts`. Which codes are offered is the
+              practice's choice since D-R3, the name still comes from there. */}
+          <Controller
+            control={form.control}
+            name="countryId"
+            render={({ field }) => (
+              <ValueSelect
+                span={4}
+                className="sm:col-start-1"
+                id="country"
+                editing={editing}
+                label={strings.contact.country}
+                noneLabel={strings.contact.countryNone}
+                emptyTitle={strings.contact.countriesEmpty}
+                emptyHint={strings.contact.countriesEmptyHint}
+                entries={countryEntries}
+                value={field.value}
+                onChange={field.onChange}
               />
-            ) : (
-              <ReadValue>{contact && countryName(contact.country)}</ReadValue>
             )}
-          </SectionField>
+          />
         </Section>
 
         <Section

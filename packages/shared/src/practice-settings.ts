@@ -19,12 +19,22 @@ const ibanCore = z
 const iban = ibanCore.nullable().default(null)
 const ibanPatch = ibanCore.nullable().optional()
 
-const countryCore = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .length(2)
-  .regex(/^[A-Z]{2}$/)
+/**
+ * The countries this software is built for.
+ *
+ * Not a catalogue and not configurable — unlike a contact's country, which is
+ * a detail of an address, the practice's own country decides which law
+ * applies: VAT, what an invoice must state, how long records are kept. Adding
+ * an entry here is a claim that those rules were implemented, so it happens in
+ * a commit and not in a settings screen.
+ *
+ * One entry today, and nothing reads it yet. It is the anchor for the day
+ * something does.
+ */
+export const practiceCountries = ['DE'] as const
+export type PracticeCountry = (typeof practiceCountries)[number]
+
+const countryCore = z.string().trim().toUpperCase().pipe(z.enum(practiceCountries))
 const emailCore = z
   .union([z.literal(''), z.email().max(160)])
   .transform((value) => (value === '' ? null : value))

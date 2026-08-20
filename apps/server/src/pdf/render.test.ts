@@ -19,6 +19,7 @@ import { renderInvoicePdf } from './render.js'
 const RECIPIENT: RecipientSnapshot = {
   contactNumber: 1,
   name: 'Erika Testperson',
+  salutation: null,
   contactPerson: null,
   street: 'Teststraße',
   houseNumber: '1',

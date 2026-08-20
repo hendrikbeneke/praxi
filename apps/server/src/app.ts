@@ -22,6 +22,7 @@ import { servicesRoute } from './routes/services.js'
 import { settingsRoute } from './routes/settings.js'
 import { textTemplatesRoute } from './routes/text-templates.js'
 import { userPreferencesRoute } from './routes/user-preferences.js'
+import { countriesRoute, gendersRoute, salutationsRoute } from './routes/value-lists.js'
 
 const app = new Hono<AppEnv>()
 
@@ -41,6 +42,9 @@ const routes = app
   .route('/api/settings', settingsRoute)
   .route('/api/contacts', contactsRoute)
   .route('/api/contact-role-types', contactRoleTypesRoute)
+  .route('/api/salutations', salutationsRoute)
+  .route('/api/genders', gendersRoute)
+  .route('/api/countries', countriesRoute)
   .route('/api/contact-relation-types', contactRelationTypesRoute)
   .route('/api/services', servicesRoute)
   .route('/api/service-groups', serviceGroupsRoute)

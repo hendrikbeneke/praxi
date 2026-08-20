@@ -50,6 +50,34 @@ export const messages = {
     relationContactMissing: 'Der gewählte Kontakt existiert nicht.',
     relationNotFound: 'Diese Beziehung existiert nicht.',
   },
+  valueList: {
+    notFound: 'Dieser Eintrag existiert nicht.',
+    labelTaken: 'Ein Eintrag mit dieser Bezeichnung gibt es bereits.',
+    countryTaken: 'Dieses Land steht bereits in der Liste.',
+    /**
+     * Says how many, because "clear it there first" without a number sends the
+     * practitioner through the whole card index.
+     *
+     * The demonstrative travels with the noun rather than being glued on in
+     * the sentence: "die Anrede" is feminine, "das Geschlecht" and "das Land"
+     * are neuter, and a template with one fixed article gets two of the three
+     * wrong.
+     */
+    inUse: (list: 'salutation' | 'gender' | 'country', count: number) => {
+      const subject = {
+        salutation: 'Diese Anrede',
+        gender: 'Dieses Geschlecht',
+        country: 'Dieses Land',
+      }[list]
+      const held = count === 1 ? 'einem Kontakt' : `${count} Kontakten`
+      return `${subject} ist ${held} zugeordnet und lässt sich nicht löschen. Entfernen Sie die Zuordnung dort zuerst.`
+    },
+    /** The foreign key rather than the domain check — it cannot count. Only
+     *  reachable if something deletes past `deleteEntry`. */
+    inUseUnknown:
+      'Dieser Eintrag ist noch Kontakten zugeordnet und lässt sich nicht löschen. ' +
+      'Entfernen Sie die Zuordnung dort zuerst.',
+  },
   contactType: {
     notFound: 'Dieser Eintrag existiert nicht.',
     codeTaken: 'Dieses Kürzel ist bereits vergeben.',

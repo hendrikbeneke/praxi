@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  countries,
   countryName,
   type PracticeSettings,
+  practiceCountries,
   practiceSettingsInputSchema,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -34,6 +34,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  CountrySettings,
+  GenderSettings,
+  SalutationSettings,
+} from '@/components/value-list-settings'
 import { ApiError } from '@/lib/api'
 import { practiceSettingsQueryOptions, updatePracticeSettings } from '@/lib/settings'
 import { strings } from '@/lib/strings'
@@ -43,6 +48,7 @@ const sectionKeys = [
   'invoicing',
   'roles',
   'relations',
+  'valueLists',
   'activityTypes',
   'textTemplates',
   'mail',
@@ -83,6 +89,11 @@ const SECTIONS: { key: SectionKey; label: string; hint: string }[] = [
     key: 'relations',
     label: strings.contactType.tabRelations,
     hint: strings.settingsNav.relationsHint,
+  },
+  {
+    key: 'valueLists',
+    label: strings.valueList.sectionTitle,
+    hint: strings.valueList.sectionHint,
   },
   {
     key: 'activityTypes',
@@ -148,6 +159,13 @@ function SettingsPage() {
           {section === 'invoicing' && <InvoiceSettings />}
           {section === 'roles' && <RoleTypeSettings />}
           {section === 'relations' && <RelationTypeSettings />}
+          {section === 'valueLists' && (
+            <div className="space-y-8">
+              <SalutationSettings />
+              <GenderSettings />
+              <CountrySettings />
+            </div>
+          )}
           {section === 'activityTypes' && <ActivityTypeSettings />}
           {section === 'textTemplates' && <TextTemplateSettings />}
           {section === 'mail' && <MailSettings />}
@@ -298,8 +316,10 @@ function PracticeForm() {
               />
             </SectionField>
             <SectionField span={4}>
-              {/* A country is stored as a code and never shown as one — see
-                  `packages/shared/src/country.ts`. */}
+              {/* NOT the contact catalogue: the practice's own country is a
+                  system property — which law applies hangs on it — so the set
+                  is `practiceCountries`, given in a commit and not configurable
+                  (D-R3). The name still comes from `countryName()`. */}
               <Label htmlFor={editing ? 'country' : undefined}>{strings.settings.country}</Label>
               {editing ? (
                 <Controller
@@ -311,9 +331,9 @@ function PracticeForm() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {countries.map((entry) => (
-                          <SelectItem key={entry.code} value={entry.code}>
-                            {entry.name}
+                        {practiceCountries.map((code) => (
+                          <SelectItem key={code} value={code}>
+                            {countryName(code)}
                           </SelectItem>
                         ))}
                       </SelectContent>
