@@ -52,6 +52,18 @@ export function isoWeek(date: string): number {
   return Math.round((thursday.getTime() - firstWeekMonday.getTime()) / (7 * 86_400_000)) + 1
 }
 
+/** The same day-of-month in another month, clamped to its length — the 31st
+ *  of January is the 28th of February, not the 3rd of March. Paging a month
+ *  view uses it, which is why it does not simply add 30 days. */
+export function shiftMonth(date: string, months: number): string {
+  const year = Number(date.slice(0, 4))
+  const month = Number(date.slice(5, 7)) - 1 + months
+  const day = Number(date.slice(8, 10))
+  const lastOfTarget = new Date(Date.UTC(year, month + 1, 0, 12)).getUTCDate()
+  const moved = new Date(Date.UTC(year, month, Math.min(day, lastOfTarget), 12))
+  return moved.toISOString().slice(0, 10)
+}
+
 export function monthLabel(date: string): string {
   const month = strings.date.months[Number(date.slice(5, 7)) - 1] ?? ''
   return `${month} ${date.slice(0, 4)}`

@@ -2228,7 +2228,7 @@ in dieser Reihenfolge:
 1. **K1 — Schema und Domäne** (erledigt, Migration `0034`)
 2. **K2 — Layout** (erledigt)
 3. **K3 — Panels** (erledigt)
-4. **K4 — Ansichten**: Monat und Liste
+4. **K4 — Ansichten** (erledigt)
 
 **K1, as built.** Vor der Umsetzung entschieden:
 
@@ -2322,6 +2322,31 @@ Fußzeile.
   Bild 11. `ActivityDetail` bedient drei Container, und Bild 11 gibt nur den
   Kalender vor — die gemeinsame Form wird gesucht, wenn Vorgänge und
   Kontaktakte an der Reihe sind.
+
+**K4, as built.** Fünf Ansichten statt drei. Monat und Liste sind nicht das
+Raster mit anderen Zahlen — sie beantworten andere Fragen und zeichnen deshalb
+nichts maßstäblich; geteilt werden nur die Einträge und was ein Klick auslöst.
+
+- **Monat** (`calendar-month.tsx`): sechs volle Wochen, damit ein Tag beim
+  Blättern nie die Zeile wechselt. Je Zelle drei Einträge und „+ N weitere";
+  heute als gefüllter Kreis auf der Zahl, Tage außerhalb des Monats gedämpft.
+  Ein Klick auf die Zahl oder auf „+ N weitere" führt in die Tagesansicht — der
+  Monat ist die grobe Ansicht, aus der man navigiert.
+- **Liste** (`calendar-list.tsx`): sieben Tage, je eine Karte, Zeitspanne,
+  Farbquadrat, Name, Art und Status-Chip. Tage ohne Eintrag entfallen ganz.
+  Breite auf 820 px begrenzt — am Bild nachgemessen; über die volle Breite
+  eines 2560-px-Schirms stehen Name und Chip an entgegengesetzten Enden einer
+  leeren Zeile.
+- **Blättern** im Monat um einen Monat, nicht um 42 Tage, und auf die Länge des
+  Zielmonats geklemmt (`shiftMonth`): sonst wäre der 31. Januar der 3. März und
+  die Kopfzeile nennte nach zwei Klicks einen anderen Monat als das Raster.
+- **Kopfzeile**: „August 2026" ohne KW — eine Kalenderwoche sagt über einen
+  Zeitraum, der fünf davon umfasst, nichts.
+- **Zwei Entscheidungen, die kein Bild zeigt:** Die Google-Freibelegung wird in
+  Monat und Liste nicht abgefragt (sechs Wochen Intervalle, die nichts
+  zeichnet). Und wer die Terminsuche aus Monat oder Liste startet, landet in
+  der Arbeitswoche — die Antwort sind Zeiten an Tagen, und nur das Raster kann
+  sie zeigen.
 
 **Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
 Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein

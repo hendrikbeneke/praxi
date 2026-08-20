@@ -14,7 +14,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { CalendarGrid, type CalendarView, type DropTarget } from '@/components/calendar-grid'
+import { CalendarGrid, type DropTarget } from '@/components/calendar-grid'
+import { CalendarList } from '@/components/calendar-list'
+import { CalendarMonth } from '@/components/calendar-month'
 import { CalendarRail, type RailSelection } from '@/components/calendar-rail'
 import { CalendarSidebar } from '@/components/calendar-sidebar'
 import { SlotFinder, type SlotSearch } from '@/components/slot-finder'
@@ -23,7 +25,14 @@ import { Button } from '@/components/ui/button'
 import { calendarQueryOptions, freeSlotsQueryOptions, updateAppointment } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
-import { addDays, isoWeek, startOfWeek, todayInBerlin } from '@/lib/calendar-dates'
+import {
+  addDays,
+  isoWeek,
+  monthLabel,
+  shiftMonth,
+  startOfWeek,
+  todayInBerlin,
+} from '@/lib/calendar-dates'
 import { busyQueryOptions, googleConflictsQueryOptions } from '@/lib/google'
 import { openingHoursQueryOptions } from '@/lib/settings'
 import { strings } from '@/lib/strings'
@@ -40,7 +49,7 @@ const searchSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
-  view: z.enum(['day', 'workweek', 'week']).optional(),
+  view: z.enum(['day', 'workweek', 'week', 'month', 'list']).optional(),
   /** The slot's status. What became of the treatment is the activity's status
    *  and is filtered on the Vorgänge page, where the list is the record. */
 })
@@ -64,17 +73,41 @@ export const Route = createFileRoute('/_app/appointments')({
  *  a length of its own — the middle of the design's three offers. */
 const DEFAULT_FREE_MINUTES = 60
 
-const DAY_COUNT: Record<CalendarView, number> = { day: 1, workweek: 5, week: 7 }
+/**
+ * The five views (D-K4). Three of them are the time grid, and two are not: the
+ * month asks how full a fortnight is, the list asks what is coming — neither is
+ * a question the grid answers well, which is why they draw nothing to scale.
+ */
+const VIEWS = ['day', 'workweek', 'week', 'month', 'list'] as const
+type View = (typeof VIEWS)[number]
+
+/** A month is drawn as six whole weeks, so it always has the same shape and a
+ *  day never moves between rows as one pages through. */
+const MONTH_DAYS = 42
+
+const DAY_COUNT: Record<View, number> = {
+  day: 1,
+  workweek: 5,
+  week: 7,
+  month: MONTH_DAYS,
+  list: 7,
+}
 
 function CalendarPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const queryClient = useQueryClient()
 
-  const view: CalendarView = search.view ?? 'workweek'
+  const view: View = search.view ?? 'workweek'
   const anchor = search.date ?? todayInBerlin()
   const dayCount = DAY_COUNT[view]
-  const firstDay = view === 'day' ? anchor : startOfWeek(anchor)
+  const firstDay =
+    view === 'day'
+      ? anchor
+      : view === 'month'
+        ? // The Monday on or before the first of the month.
+          startOfWeek(`${anchor.slice(0, 7)}-01`)
+        : startOfWeek(anchor)
   const days = Array.from({ length: dayCount }, (_, index) => addDays(firstDay, index))
   const lastDay = addDays(firstDay, dayCount)
 
@@ -96,7 +129,12 @@ function CalendarPage() {
    * not storage — it keeps paging through weeks with the arrow keys from
    * firing a request per keystroke.
    */
-  const busy = useQuery(busyQueryOptions(from, to))
+  const busy = useQuery({
+    ...busyQueryOptions(from, to),
+    // Only the time grid paints them, and a month would ask Google for six
+    // weeks of intervals nothing draws.
+    enabled: view !== 'month' && view !== 'list',
+  })
   /** The weekly pattern, for the wash outside it. Painted, never enforced —
    *  see the prop's note in `CalendarGrid`. */
   const openingHours = useQuery(openingHoursQueryOptions)
@@ -249,23 +287,56 @@ function CalendarPage() {
   const setSearch = (change: Partial<z.infer<typeof searchSchema>>) =>
     void navigate({ search: (previous) => ({ ...previous, ...change }) })
 
+  /** Opening an entry, from whichever of the three views it was clicked in. */
+  const selectEntry = (entry: CalendarEntry) =>
+    setSelection(
+      entry.activityId
+        ? { kind: 'activity', activityId: entry.activityId, appointmentId: entry.id }
+        : // A calendar entry with no Vorgang behind it — which since D-K1 is a
+          // thing one can create, and therefore a thing one has to be able to
+          // open.
+          { kind: 'appointment', appointmentId: entry.id },
+    )
+
+  const selectedEntryId =
+    selection?.kind === 'activity' || selection?.kind === 'appointment'
+      ? selection.appointmentId
+      : null
+
   /**
-   * What the header says about the range, in the design's three forms:
-   * `Mittwoch, 12. August` with `2026` beside it for a day, and
-   * `10. – 14. August 2026` with `KW 33` for a week. The long weekday, not the
-   * two-letter one from `strings.date.weekdays` — that list belongs to column
-   * headings and the date picker, and reading it as prose is what produced
-   * "Mi, 12.08.2026" (K9/K10).
+   * What the header says about the range, in the design's forms:
+   * `Mittwoch, 12. August` with `2026` beside it for a day, `10. – 14. August
+   * 2026` with `KW 33` for a week or a list, and `August 2026` with nothing
+   * beside it for a month — a calendar week means nothing to a range that
+   * spans five of them.
+   *
+   * The long weekday, not the two-letter one from `strings.date.weekdays` —
+   * that list belongs to column headings and the date picker, and reading it
+   * as prose is what produced "Mi, 12.08.2026" (K9/K10).
    */
   const lastDayInView = addDays(firstDay, dayCount - 1)
   const title =
     view === 'day'
       ? formatBerlinWeekdayLong(`${anchor}T12:00:00Z`)
-      : `${Number(firstDay.slice(8, 10))}. – ${formatBerlinDayMonth(
-          `${lastDayInView}T12:00:00Z`,
-        )} ${lastDayInView.slice(0, 4)}`
+      : view === 'month'
+        ? monthLabel(anchor)
+        : `${Number(firstDay.slice(8, 10))}. – ${formatBerlinDayMonth(
+            `${lastDayInView}T12:00:00Z`,
+          )} ${lastDayInView.slice(0, 4)}`
   const subtitle =
-    view === 'day' ? anchor.slice(0, 4) : strings.appointment.calendarWeek(isoWeek(anchor))
+    view === 'day'
+      ? anchor.slice(0, 4)
+      : view === 'month'
+        ? ''
+        : strings.appointment.calendarWeek(isoWeek(anchor))
+
+  /** Paging. A month moves by a month — stepping 42 days would drift, and
+   *  after two presses the header would name a month the grid is not on. */
+  const step = (direction: 1 | -1) =>
+    setSearch({
+      date:
+        view === 'month' ? shiftMonth(anchor, direction) : addDays(anchor, direction * dayCount),
+    })
 
   return (
     /* `h-full`, not a viewport calculation, and no negative margin: the shell
@@ -279,7 +350,10 @@ function CalendarPage() {
     <div className="flex h-full min-w-0">
       <CalendarSidebar
         anchor={overviewDay}
-        visible={new Set(days)}
+        // The band says which days the grid is showing. In the month view that
+        // is the whole month, and a band over every row says nothing — the
+        // mini month is already on that month.
+        visible={view === 'month' ? new Set<string>() : new Set(days)}
         occupied={occupied}
         onNew={() => setSelection({ kind: 'new' })}
         onPickDay={(date: string) => setSearch({ date })}
@@ -287,7 +361,14 @@ function CalendarPage() {
           <SlotFinder
             search={slotSearch}
             result={freeSlots.data}
-            onSearch={setSlotSearch}
+            onSearch={(next) => {
+              setSlotSearch(next)
+              // The answer is times on days, and only the grid can show it.
+              // Starting a search from the month or the list therefore goes
+              // where the answer can be seen, rather than leaving the finder
+              // running against a view that cannot paint it.
+              if (view === 'month' || view === 'list') setSearch({ view: undefined })
+            }}
             onClear={() => setSlotSearch(null)}
           />
         }
@@ -304,7 +385,7 @@ function CalendarPage() {
               size="icon"
               className="size-7"
               aria-label={strings.appointment.previous}
-              onClick={() => setSearch({ date: addDays(anchor, -dayCount) })}
+              onClick={() => step(-1)}
             >
               <ChevronLeft className="size-4" aria-hidden />
             </Button>
@@ -313,7 +394,7 @@ function CalendarPage() {
               size="icon"
               className="size-7"
               aria-label={strings.appointment.next}
-              onClick={() => setSearch({ date: addDays(anchor, dayCount) })}
+              onClick={() => step(1)}
             >
               <ChevronRight className="size-4" aria-hidden />
             </Button>
@@ -326,7 +407,7 @@ function CalendarPage() {
           </span>
 
           <div className="ml-auto flex items-center gap-0.5 rounded-lg border p-0.5">
-            {(['day', 'workweek', 'week'] as const).map((value) => (
+            {VIEWS.map((value) => (
               <Button
                 key={value}
                 size="sm"
@@ -346,40 +427,54 @@ function CalendarPage() {
           </div>
         )}
 
-        <CalendarGrid
-          days={days}
-          view={view}
-          entries={shown}
-          busy={busy.data ?? []}
-          openingHours={openingHours.data ?? []}
-          types={types.data}
-          conflicted={conflicted}
-          selectedId={selection?.kind === 'activity' ? selection.appointmentId : null}
-          onSelect={(entry) => {
-            setSelection(
-              entry.activityId
-                ? { kind: 'activity', activityId: entry.activityId, appointmentId: entry.id }
-                : // A calendar entry with no Vorgang behind it — which since
-                  // D-K1 is a thing one can create, and therefore a thing one
-                  // has to be able to open.
-                  { kind: 'appointment', appointmentId: entry.id },
-            )
-          }}
-          onNewAt={(startsAtLocal) => setSelection({ kind: 'new', startsAtLocal })}
-          onMove={(target) => move.mutate(target)}
-          draft={draft}
-          draftClashes={clashes}
-          {...(slotSearch
-            ? {
-                freeSlots: freeSlots.data?.slots ?? [],
-                freeSlotsAreComplete: freeSlots.data?.privateCalendarsChecked ?? true,
-                slotTypeLabel: slotSearch.typeCode
-                  ? activityTypeLabel(types.data, slotSearch.typeCode)
-                  : null,
-                onPickSlot: pickSlot,
-              }
-            : {})}
-        />
+        {/* One of three. The month and the list are not the grid with other
+            numbers — they answer different questions and share only the entries
+            and what happens when one is clicked. */}
+        {view === 'month' ? (
+          <CalendarMonth
+            days={days}
+            month={anchor.slice(0, 7)}
+            entries={shown}
+            types={types.data}
+            selectedId={selectedEntryId}
+            onSelectEntry={selectEntry}
+            onPickDay={(date) => setSearch({ date, view: 'day' })}
+          />
+        ) : view === 'list' ? (
+          <CalendarList
+            days={days}
+            entries={shown}
+            types={types.data}
+            selectedId={selectedEntryId}
+            onSelectEntry={selectEntry}
+          />
+        ) : (
+          <CalendarGrid
+            days={days}
+            view={view}
+            entries={shown}
+            busy={busy.data ?? []}
+            openingHours={openingHours.data ?? []}
+            types={types.data}
+            conflicted={conflicted}
+            selectedId={selectedEntryId}
+            onSelect={selectEntry}
+            onNewAt={(startsAtLocal) => setSelection({ kind: 'new', startsAtLocal })}
+            onMove={(target) => move.mutate(target)}
+            draft={draft}
+            draftClashes={clashes}
+            {...(slotSearch
+              ? {
+                  freeSlots: freeSlots.data?.slots ?? [],
+                  freeSlotsAreComplete: freeSlots.data?.privateCalendarsChecked ?? true,
+                  slotTypeLabel: slotSearch.typeCode
+                    ? activityTypeLabel(types.data, slotSearch.typeCode)
+                    : null,
+                  onPickSlot: pickSlot,
+                }
+              : {})}
+          />
+        )}
       </section>
 
       <CalendarRail
@@ -395,13 +490,7 @@ function CalendarPage() {
         }
         entries={shown}
         selection={selection}
-        onSelectEntry={(entry) => {
-          setSelection(
-            entry.activityId
-              ? { kind: 'activity', activityId: entry.activityId, appointmentId: entry.id }
-              : { kind: 'appointment', appointmentId: entry.id },
-          )
-        }}
+        onSelectEntry={selectEntry}
         draft={draft}
         onDraftChange={setDraft}
         warning={

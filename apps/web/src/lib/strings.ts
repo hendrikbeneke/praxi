@@ -683,7 +683,13 @@ export const strings = {
       day: 'Tag',
       workweek: 'Arbeitswoche',
       week: 'Woche',
+      month: 'Monat',
+      list: 'Liste',
     },
+    /** The month cell shows three entries and counts the rest (design). */
+    moreInDay: (count: number) => `+ ${count} weitere`,
+    /** Both views answer with nothing on a quiet week. */
+    listEmpty: 'Keine Termine in diesem Zeitraum.',
     empty: 'Keine Termine in diesem Zeitraum.',
     newHere: 'Termin anlegen',
     newAppointment: 'Neuer Termin',
@@ -1314,6 +1320,10 @@ export const strings = {
       'Dezember',
     ],
     weekdays: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+    /** Written out, for the month view's column headings. Not derived from
+     *  `Intl` at render time: these are seven fixed words, and a list beside
+     *  the short one is easier to read than a formatter call per column. */
+    weekdaysLong: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
     invalid: (example: string) => `Kein gültiges Datum. Zum Beispiel ${example}.`,
     timeInvalid: (example: string) => `Keine gültige Uhrzeit. Zum Beispiel ${example}.`,
   },
