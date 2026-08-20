@@ -4,6 +4,7 @@ import {
   googleCalendarSelectionSchema,
   googleDisconnectSchema,
   googleFreebusySelectionSchema,
+  googlePseudonymizeSchema,
 } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -18,6 +19,7 @@ import {
   setAccountEmail,
   setCalendar,
   setFreebusyCalendars,
+  setPseudonymize,
 } from '../domain/google-connection.js'
 import { listConflicts, resolveConflict } from '../domain/google-sync.js'
 import { openGoogleApi } from '../google/api.js'
@@ -174,6 +176,14 @@ export const googleRoute = new Hono<AppEnv>()
 
   .put('/calendar', validate('json', googleCalendarSelectionSchema), async (c) => {
     const ok = await setCalendar(db(), tenantId(c), c.req.valid('json').calendarId)
+    if (!ok) throw new HTTPException(409, { message: messages.google.notConnected })
+    return c.body(null, 204)
+  })
+
+  /** The pseudonymization switch (rule 13). Nothing is re-pushed: what stands
+   *  in Google keeps the title it went out with. */
+  .put('/pseudonymize', validate('json', googlePseudonymizeSchema), async (c) => {
+    const ok = await setPseudonymize(db(), tenantId(c), c.req.valid('json').pseudonymize)
     if (!ok) throw new HTTPException(409, { message: messages.google.notConnected })
     return c.body(null, 204)
   })

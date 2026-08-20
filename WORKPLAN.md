@@ -2400,6 +2400,38 @@ inhaltlich zählen sollte, wird ein Schalter.
 - **Die URL der Kontaktliste führt die uuid** (`?role=…`) statt des Kürzels. Ein
   zweiter Anker, nur für die Adresszeile gehalten, wäre der Code gewesen.
 
+**R2, as built** — *die Pseudonymisierung ist eine Einstellung* (Migration `0036`):
+
+- **`google_connection.pseudonymize`**, Vorgabe `true`. An der Verbindung und
+  nicht an `practice_settings`: ohne Verbindung bedeutungslos, und
+  `getPracticeSettings` antwortet mit der ganzen Zeile — der Schalter stünde
+  dann in den Stammdaten, weit weg von den Sätzen, die ihn erklären. Trennen
+  löscht die Zeile, also fängt der nächste Zugang wieder pseudonymisiert an.
+- **`buildEvent` fragt in drei Stufen**, und die Reihenfolge ist der Punkt:
+  „kein Kontakt" zuerst, in **beiden** Stellungen — ein Termin ohne Kontakt
+  bleibt „Belegt", nie sein eigener Titel. Erst danach entscheidet der
+  Schalter zwischen Nummer und Name.
+- **Der Test ist zweigeteilt**, und die zweite Hälfte ist die wichtige: der
+  Schalter darf genau eine Sache ändern. Gleiche Schlüsselmenge, weiter keine
+  Leistung, keine Vorgangsart, keine Beschreibung — geprüft, indem beide
+  Nutzlasten ohne `summary` verglichen werden.
+- **Ein Test in `google-sync.test.ts` prüft die Verdrahtung**, nicht die
+  Entscheidung: ohne dass `pushQueue` die Verbindung überhaupt liest, säße der
+  Schalter sichtbar in den Einstellungen und bewirkte nichts.
+- **Drei Sätze am Häkchen**: was das Abschalten bewirkt, dass es nur für
+  künftige Termine gilt, und — nur wenn es abgeschaltet ist — dass Trennen die
+  Einstellung zurücksetzt. Beschriftet als *„Namen statt Kontaktnummer
+  übertragen"*, also als das, was das Ankreuzen tut.
+
+**Offen, bewusst nicht gebaut:** *Bereits geschriebene Google-Ereignisse
+nachträglich anonymisieren.* Wer den Schalter wieder auf Pseudonymisieren
+stellt, ändert nichts an dem, was schon draußen ist — die Einstellung gilt für
+künftige Ereignisse, und der Bildschirm sagt das. Ein Nachziehen wäre machbar
+(die Warteschlange kann jeden Termin erneut senden), aber es wäre nie
+vollständig: was einmal in einem Google-Kalender stand, liegt längst im Cache
+eines Telefons. Zu entscheiden, ob ein unvollständiges Nachziehen mehr wert ist
+als der klare Satz, dass es keines gibt.
+
 **Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
 Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein
 Vorgang hängt, und der Vorgang gibt seinen Termin nur mit auf. Was der Fall

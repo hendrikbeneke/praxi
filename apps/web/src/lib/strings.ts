@@ -855,9 +855,9 @@ export const strings = {
   google: {
     title: 'Google-Kalender',
     description:
-      'Termine erscheinen im Google-Kalender ausschließlich mit der Kontaktnummer — ' +
-      'ohne Namen, ohne Leistung, ohne Vorgangsart. Die Praxisdatenbank bleibt das ' +
-      'führende System; der Google-Kalender ist eine Projektion.',
+      'Termine erscheinen im Google-Kalender mit der Kontaktnummer statt mit dem Namen — ' +
+      'ohne Leistung, ohne Vorgangsart. Die Praxisdatenbank bleibt das führende System; ' +
+      'der Google-Kalender ist eine Projektion.',
     notConfigured:
       'Nicht eingerichtet. In der Umgebung fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ' +
       'oder ENCRYPTION_KEY.',
@@ -887,6 +887,22 @@ export const strings = {
       'Hierhin werden Termine geschrieben. Am besten ein eigener Kalender, kein privater.',
     practiceCalendarNone: 'Keiner — es wird nichts geschrieben',
     practiceCalendarReadOnly: 'nur lesbar',
+    /** Labelled as what ticking it DOES, not as "Pseudonymisieren" — nothing
+     *  here has to be inverted while reading. */
+    pseudonymizeOff: 'Namen statt Kontaktnummer übertragen',
+    pseudonymizeConsequence:
+      'Die Namen Ihrer Kontakte stehen dann im Klartext im Google-Kalender. Ob das in ' +
+      'Ihrem Fall zulässig ist, müssen Sie selbst beurteilen.',
+    /** Rule 13: a rewrite of what already went out could never be complete —
+     *  the data has long since been cached on a phone. */
+    pseudonymizeFuture:
+      'Die Einstellung gilt nur für künftige Termine. Was bereits in Google steht, bleibt ' +
+      'unverändert.',
+    /** Because the row holding it is deleted with the connection, and finding
+     *  the switch back on after reconnecting would otherwise be a puzzle. */
+    pseudonymizeReset:
+      'Beim Trennen der Verbindung wird die Einstellung zurückgesetzt — ein neuer Zugang ' +
+      'überträgt wieder Kontaktnummern.',
     freebusyCalendars: 'Kalender für die Belegtzeiten',
     freebusyCalendarsHint:
       'Beim Planen werden aus diesen Kalendern nur die belegten Zeiträume abgefragt — ' +

@@ -339,11 +339,15 @@ Health data falls under Art. 9 GDPR and professional confidentiality under § 20
 
 The local database is the system of record. Google Calendar holds *when* the practitioner is occupied and nothing else, and it never feeds anything back except three fields.
 
-**Google never receives data identifying a patient.** An event carries the contact number as its title, the two times, and one bit of status. An appointment that belongs to nobody has no number, and what stands in for it is the **constant "Belegt"** — never the appointment's own title, which the practitioner types and where "Rückruf Frau K." is exactly the sentence this rule exists to keep out. No description, no participants, no invitations, no location, no hint of a service or an activity type. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set — so a new column on `appointment` cannot leak into a payload by being spread.
+**By default, Google receives no data identifying a patient.** An event carries the contact number as its title, the two times, and one bit of status. An appointment that belongs to nobody has no number, and what stands in for it is the **constant "Belegt"** — never the appointment's own title, which the practitioner types and where "Rückruf Frau K." is exactly the sentence this rule exists to keep out. No description, no participants, no invitations, no location, no hint of a service or an activity type. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set — so a new column on `appointment` cannot leak into a payload by being spread.
 
 The reason is § 203 StGB, not data-protection cosmetics: "Erstgespräch — Maria Schulz" in the calendar of a Heilpraktiker für Psychotherapie discloses that this person is in psychotherapeutic treatment, and Google signs no Verpflichtungserklärung under § 203 Abs. 4.
 
-**The rule has no exception**, not even for a contact holding no patient role. Two reasons, and the second is the stronger one: a rule without an exception can be tested as an absolute, and *roles change retroactively while written events do not* — a prospect becomes a patient, and the events that went out under their name are still sitting there. The exception would need a rewrite mechanism that could never be complete, because the data has long since been cached on a phone. Both reasons stand as a comment at the top of `payload.ts`.
+**The operator can switch it off**, and then the title is the contact's name — `google_connection.pseudonymize`, migration 0036, a checkbox in the Google settings labelled as what ticking it *does* rather than as "pseudonymize", so nothing has to be inverted while reading. Two sentences stand under it: that the names then travel in clear, and that judging whether that is lawful in this practice is the operator's own; and that the setting governs *future* events, because what already stands in Google is not rewritten. It is off by default and it resets on disconnecting, since the row holding it goes with the connection — which is the point rather than a side effect, because a new grant can go to a different account and "send names" is not something a new access should inherit in silence.
+
+**The switch governs the title and nothing else**, in either position. Everything the paragraph above keeps out stays out both ways, and the test says so: two describes, and the second is the one that matters — same key set, still no service, still no activity type, still no description, and a contact-less appointment still says "Belegt".
+
+**What this is not is a rule derived from roles.** "Pseudonymize the patients" was refused twice over, and the second reason is the stronger one: a rule without an exception can be tested as an absolute — a switch keeps that, it simply has two settings, each testable on its own — and *roles change retroactively while written events do not*. A prospect becomes a patient, and the events that went out under their name are still sitting there; keying off a role would need a rewrite mechanism that could never be complete, because the data has long since been cached on a phone. The switch shares that property, which is exactly why it too only governs what is written from now on and why the screen says so. Both reasons stand as a comment at the top of `payload.ts`.
 
 The read side asks `freebusy.query` for busy intervals, which are painted while scheduling and never stored. What makes that a guarantee rather than a promise is the **scope**: `calendar.freebusy`, never `calendar.readonly`. Do not widen it. The concrete temptation will be "we cannot show the calendar names otherwise" — `calendar.calendarlist.readonly` shows names and no content, and no feature in this software needs to read an appointment title. There is no identity scope either: the connected account's address is the id of its primary calendar, so `openid email` would buy a second consent line for something already in hand. Three scopes, all three about calendars, asserted exactly in `google/oauth.test.ts` — a promise that lives only in a comment is one refactor away from being gone.
 
@@ -1407,6 +1411,24 @@ google_connection     tenant_id uuid not null unique -> tenant(id),
                       freebusy_calendar_ids jsonb not null default '[]',
                         -- string[]. Their content is never read: the token
                         -- carries calendar.freebusy, not calendar.readonly.
+                      pseudonymize boolean not null default true (D-R2/0036)
+                        -- whether an event's title is the contact number or
+                        -- the contact's name. Read by buildEvent() and by
+                        -- nothing else; it governs the TITLE and nothing
+                        -- besides, in either position.
+                        --
+                        -- Here rather than on practice_settings for three
+                        -- reasons: it means nothing without a connection;
+                        -- getPracticeSettings answers with the whole row, so
+                        -- the switch would land in the master data form, far
+                        -- from the two sentences that explain it; and
+                        -- disconnecting DELETES this row, so the next
+                        -- connection starts pseudonymized again. The third is
+                        -- the point rather than a side effect — a new grant
+                        -- can go to a different account, and "send names" is
+                        -- not something a new access should inherit in
+                        -- silence. The settings say that, or finding the
+                        -- switch back on would be a puzzle.
                       sync_token text,                        -- events.list
                         -- continuation; null forces a full pass, which is what
                         -- Google asks for after it expires (410)

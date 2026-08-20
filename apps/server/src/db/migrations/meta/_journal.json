@@ -253,6 +253,13 @@
       "when": 1787000000000,
       "tag": "0035_roles_are_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787000100000,
+      "tag": "0036_pseudonymize_switch",
+      "breakpoints": true
     }
   ]
 }

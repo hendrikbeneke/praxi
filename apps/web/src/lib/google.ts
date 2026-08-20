@@ -90,6 +90,12 @@ export async function setFreebusyCalendars(calendarIds: string[]): Promise<void>
   if (!res.ok) throw await apiError(res)
 }
 
+/** Rule 13's switch. Nothing already in Google is touched by it. */
+export async function setGooglePseudonymize(pseudonymize: boolean): Promise<void> {
+  const res = await api.api.google.pseudonymize.$put({ json: { pseudonymize } })
+  if (!res.ok) throw await apiError(res)
+}
+
 export async function syncGoogleNow(): Promise<GoogleSyncResult> {
   const res = await api.api.google.sync.$post()
   if (!res.ok) throw await apiError(res)

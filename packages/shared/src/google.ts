@@ -33,6 +33,12 @@ export const googleStatusSchema = z.object({
   calendarId: z.string().nullable(),
   /** The calendars queried for busy intervals while scheduling. */
   freebusyCalendarIds: z.array(z.string()),
+  /**
+   * Whether an event's title is the contact number rather than the contact's
+   * name. True unless the practitioner turned it off; it resets to true when
+   * the connection is taken apart, because the row holding it goes with it.
+   */
+  pseudonymize: z.boolean(),
   lastSyncAt: z.iso.datetime().nullable(),
   /** The last error from the API, as a sentence. Never a payload (rule 12). */
   lastError: z.string().nullable(),
@@ -124,6 +130,16 @@ export const googleCalendarSelectionSchema = z.object({ calendarId: z.string().m
 export const googleFreebusySelectionSchema = z.object({
   calendarIds: z.array(z.string().min(1)).max(20),
 })
+
+/**
+ * Turning the pseudonymization off — and back on.
+ *
+ * It only ever governs the *title* of an event; everything else rule 13 keeps
+ * out stays out either way. And it only governs events written from now on:
+ * what already stands in Google is not rewritten, because a rewrite could
+ * never be complete — the data has long since been cached on a phone.
+ */
+export const googlePseudonymizeSchema = z.object({ pseudonymize: z.boolean() })
 
 /**
  * Disconnecting. Whether the events in Google go with it is a decision only

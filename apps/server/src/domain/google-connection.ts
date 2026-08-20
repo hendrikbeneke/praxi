@@ -91,6 +91,9 @@ export async function getStatus(database: Database, tenantId: string): Promise<G
     accountEmail: row?.accountEmail ?? null,
     calendarId: row?.calendarId ?? null,
     freebusyCalendarIds: row?.freebusyCalendarIds ?? [],
+    // True with no connection at all: nothing is written then, and the safe
+    // answer is the one a screen should show while it waits.
+    pseudonymize: row?.pseudonymize ?? true,
     lastSyncAt: row?.lastSyncAt?.toISOString() ?? null,
     lastError: row?.lastError ?? null,
     queuePending: queue.pending,
@@ -129,6 +132,28 @@ export async function setCalendar(
     // another calendar with the old token would ask for changes to a stream
     // that no longer applies.
     .set({ calendarId, syncToken: null })
+    .where(eq(googleConnection.tenantId, tenantId))
+    .returning({ id: googleConnection.id })
+
+  return row !== undefined
+}
+
+/**
+ * Turning the pseudonymization off, or back on.
+ *
+ * Nothing else happens — no re-push, no rewrite. What already stands in Google
+ * keeps the title it went out with, and the settings screen says so, because a
+ * rewrite could never be complete: the data has long since been cached on a
+ * phone.
+ */
+export async function setPseudonymize(
+  database: Database,
+  tenantId: string,
+  pseudonymize: boolean,
+): Promise<boolean> {
+  const [row] = await database
+    .update(googleConnection)
+    .set({ pseudonymize })
     .where(eq(googleConnection.tenantId, tenantId))
     .returning({ id: googleConnection.id })
 

@@ -16,7 +16,7 @@ import { createTenant } from '../test/fixtures.js'
 import { createActivity, deleteActivity, updateActivity } from './activity.js'
 import { updateAppointment } from './appointment.js'
 import { createContact } from './contact.js'
-import { disconnect } from './google-connection.js'
+import { disconnect, setPseudonymize } from './google-connection.js'
 import {
   listConflicts,
   pullRemote,
@@ -230,6 +230,32 @@ describe('pushing', () => {
     expect(stored?.googleEtag).toBe('etag-1')
     expect(stored?.lastPushedAt).not.toBeNull()
     expect(await queueRows()).toHaveLength(0)
+  })
+
+  /**
+   * The wiring, not the decision — that one lives in `payload.test.ts`. What
+   * could break here without either of them noticing is `pushQueue` reading
+   * the connection at all: with the flag never fetched, the switch would sit
+   * in the settings looking effective and change nothing.
+   */
+  it('sends the name once the pseudonymization is switched off', async () => {
+    await connect()
+    await setPseudonymize(db(), tenantId, false)
+    const recorder = fakeApi()
+
+    await createActivity(
+      db(),
+      tenantId,
+      booking('2026-09-02T08:00:00.000Z', '2026-09-02T09:00:00.000Z'),
+    )
+    await pushQueue(db(), tenantId, recorder.api, NOW)
+
+    expect(recorder.inserted[0]?.summary).toBe('Erika Testperson')
+    // And still nothing else: the switch governs the title alone.
+    const serialized = JSON.stringify(recorder.inserted[0])
+    expect(serialized).not.toContain('Erstgespräch')
+    expect(serialized).not.toContain('Nur intern')
+    expect(serialized).not.toContain('session')
   })
 
   it('sends a released slot as a cancelled event, not as a deletion', async () => {

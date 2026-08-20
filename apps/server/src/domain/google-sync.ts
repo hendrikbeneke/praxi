@@ -4,7 +4,7 @@ import type {
   SyncConflict,
   SyncConflictReason,
 } from '@praxi/shared'
-import { occupiesSlot } from '@praxi/shared'
+import { formatContactName, occupiesSlot } from '@praxi/shared'
 import { and, asc, eq, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database, Transaction } from '../db/client.js'
 import {
@@ -178,6 +178,7 @@ async function pushRow(
   api: GoogleApi,
   row: QueueRow,
   now: Date,
+  pseudonymize: boolean,
 ): Promise<boolean> {
   try {
     if (row.operation === 'delete') {
@@ -188,7 +189,7 @@ async function pushRow(
         })
       }
     } else {
-      await pushUpsert(database, tenantId, api, row, now)
+      await pushUpsert(database, tenantId, api, row, now, pseudonymize)
     }
 
     await database.delete(googleSyncQueue).where(eq(googleSyncQueue.id, row.id))
@@ -215,6 +216,7 @@ async function pushUpsert(
   api: GoogleApi,
   row: QueueRow,
   now: Date,
+  pseudonymize: boolean,
 ): Promise<void> {
   if (!row.appointmentId) return
 
@@ -226,6 +228,12 @@ async function pushUpsert(
       status: appointment.status,
       googleEventId: appointment.googleEventId,
       contactNumber: contact.contactNumber,
+      // Only reaches the payload while `pseudonymize` is off; `buildEvent`
+      // decides, in the one function that documents why.
+      contactKind: contact.kind,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      companyName: contact.companyName,
     })
     .from(appointment)
     // Left, not inner: an appointment without a contact is projected like any
@@ -245,6 +253,16 @@ async function pushUpsert(
   const event = buildEvent({
     appointmentId: current.id,
     contactNumber: current.contactNumber,
+    contactName:
+      current.contactKind === null
+        ? null
+        : formatContactName({
+            kind: current.contactKind,
+            firstName: current.firstName,
+            lastName: current.lastName,
+            companyName: current.companyName,
+          }),
+    pseudonymize,
     startsAt: current.startsAt,
     endsAt: current.endsAt,
     status: current.status,
@@ -295,10 +313,24 @@ export async function pushQueue(
 ): Promise<{ pushed: number; failed: number }> {
   const rows = await claimDue(database, tenantId, now, limit)
 
+  /**
+   * Read once for the whole tick and handed down, rather than per row: it is
+   * one setting for one account, and asking fifty times would say the same
+   * thing fifty times. The *appointment* is still read fresh per push — that
+   * is what "upsert reads the current state" is about, and it is a different
+   * question from which name the connection is configured to send.
+   */
+  const [connection] = await database
+    .select({ pseudonymize: googleConnection.pseudonymize })
+    .from(googleConnection)
+    .where(eq(googleConnection.tenantId, tenantId))
+    .limit(1)
+  const pseudonymize = connection?.pseudonymize ?? true
+
   let pushed = 0
   let failed = 0
   for (const row of rows) {
-    if (await pushRow(database, tenantId, api, row, now)) pushed += 1
+    if (await pushRow(database, tenantId, api, row, now, pseudonymize)) pushed += 1
     else failed += 1
   }
 

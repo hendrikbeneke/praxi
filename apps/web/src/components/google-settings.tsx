@@ -24,6 +24,7 @@ import {
   googleStatusQueryOptions,
   setFreebusyCalendars,
   setGoogleCalendar,
+  setGooglePseudonymize,
   syncGoogleNow,
 } from '@/lib/google'
 import { strings } from '@/lib/strings'
@@ -178,6 +179,7 @@ export function GoogleSettings() {
             <CalendarPickers
               calendarId={data.calendarId}
               freebusyCalendarIds={data.freebusyCalendarIds}
+              pseudonymize={data.pseudonymize}
               onSaved={invalidate}
             />
           </>
@@ -202,13 +204,24 @@ const NO_CALENDAR = '__none__'
 function CalendarPickers({
   calendarId,
   freebusyCalendarIds,
+  pseudonymize,
   onSaved,
 }: {
   calendarId: string | null
   freebusyCalendarIds: string[]
+  pseudonymize: boolean
   onSaved: () => Promise<void> | void
 }) {
   const calendars = useQuery(googleCalendarsQueryOptions)
+
+  const savePseudonymize = useMutation({
+    mutationFn: (value: boolean) => setGooglePseudonymize(value),
+    onSuccess: async () => {
+      await onSaved()
+      toast.success(strings.google.saved)
+    },
+    onError: (error) => toast.error(message(error)),
+  })
 
   const saveCalendar = useMutation({
     mutationFn: (value: string | null) => setGoogleCalendar(value),
@@ -256,6 +269,34 @@ function CalendarPickers({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* The switch stands under the calendar it writes to, because that is
+          what it governs — the title of the events going there. Ticked means
+          names go out, so nothing has to be inverted while reading, and the
+          two consequences stand under it rather than in a tooltip. */}
+      <div>
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="google-pseudonymize"
+            className="mt-0.5"
+            checked={!pseudonymize}
+            disabled={savePseudonymize.isPending}
+            onCheckedChange={(next) => savePseudonymize.mutate(next !== true)}
+          />
+          <div>
+            <Label htmlFor="google-pseudonymize" className="font-normal">
+              {strings.google.pseudonymizeOff}
+            </Label>
+            <p className="mt-1 max-w-prose text-muted-foreground text-xs">
+              {strings.google.pseudonymizeConsequence}
+            </p>
+            <p className="mt-1 max-w-prose text-muted-foreground text-xs">
+              {strings.google.pseudonymizeFuture}{' '}
+              {!pseudonymize && strings.google.pseudonymizeReset}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div>

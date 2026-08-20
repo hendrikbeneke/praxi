@@ -1473,6 +1473,19 @@ export const googleConnection = pgTable(
     /** The calendars asked for busy intervals. Their content is never read:
      *  the token carries `calendar.freebusy`, not `calendar.readonly`. */
     freebusyCalendarIds: jsonb().$type<string[]>().notNull().default([]),
+    /**
+     * Whether an event's title is the contact number or the contact's name
+     * (rule 13, migration 0036). True by default: on connecting, the protected
+     * state is the right one, and switching it off is a deliberate act.
+     *
+     * It lives here and not on `practice_settings` because it means nothing
+     * without a connection — and because disconnecting deletes this row, so
+     * the next connection starts pseudonymized again. That is the point rather
+     * than a side effect: a new grant can go to a different account.
+     *
+     * Read by `buildEvent()` and by nothing else.
+     */
+    pseudonymize: boolean().notNull().default(true),
     /** Continuation token for `events.list`. Null forces a full pass, which is
      *  what Google asks for after it expires (410). */
     syncToken: text(),

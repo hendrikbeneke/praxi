@@ -8,31 +8,41 @@ import { messages } from '../messages.js'
  * ─────────────────────────────────────────────────────────────────────────
  * WHY THIS LOOKS SO AWKWARD — read before simplifying it.
  *
- * Google never receives data that identifies a patient. This is not data
- * protection cosmetics, it is § 203 StGB: a calendar entry "Erstgespräch —
- * Maria Schulz" in the calendar of a Heilpraktiker für Psychotherapie
+ * By default Google receives no data that identifies a patient. This is not
+ * data protection cosmetics, it is § 203 StGB: a calendar entry "Erstgespräch
+ * — Maria Schulz" in the calendar of a Heilpraktiker für Psychotherapie
  * discloses that this person is in psychotherapeutic treatment. Google signs
  * no Verpflichtungserklärung under § 203 Abs. 4.
  *
- * The rule holds for **every** contact, with no exception for the ones who
- * hold no patient role — the company booking a talk included. Two reasons:
+ * So the title is the contact number as a bare string of digits, with no
+ * prefix. Every additional character is the place where somebody later "just
+ * adds" the activity type.
  *
- *   1. A rule without an exception can be tested as an absolute: "the
- *      assembled payload contains nothing but the contact number, start, end
- *      and status". With an exception that test becomes an either-or, and a
- *      test that permits both branches no longer checks the property that
- *      matters.
+ * **The operator can switch it off** (`google_connection.pseudonymize`,
+ * migration 0036), and then the title is the contact's name. Whether that is
+ * lawful in their practice is their judgement to make and their
+ * responsibility to carry; the setting says so in two sentences.
+ *
+ * What it is NOT is a rule derived from roles. "Pseudonymize the patients"
+ * was considered and refused, twice over:
+ *
+ *   1. A rule without an exception can be tested as an absolute. With one it
+ *      becomes an either-or, and a test that permits both branches no longer
+ *      checks the property that matters. A switch keeps the absolute — it
+ *      just has two settings, and each is testable on its own.
  *
  *   2. Roles change retroactively, written events do not. A prospect becomes
  *      a patient. The appointments that went to Google under their real name
- *      while they were a prospect are still sitting there. The exception
+ *      while they were a prospect are still sitting there. Keying off a role
  *      would therefore need a mechanism that rewrites every past event — and
  *      that mechanism could never be complete, because the data has long
- *      since been cached on a phone.
+ *      since been cached on a phone. The switch has the same property, which
+ *      is why it too only governs what is written from now on, and why the
+ *      settings screen says that in as many words.
  *
- * So: the title is the contact number as a bare string of digits, with no
- * prefix. Every additional character is the place where somebody later "just
- * adds" the activity type.
+ * The switch governs **the title and nothing else**. No description, no
+ * participants, no invitations, no location, no hint of a service or an
+ * activity type — in either setting.
  * ─────────────────────────────────────────────────────────────────────────
  */
 
@@ -57,6 +67,11 @@ export type EventSource = {
   /** Null on an appointment that belongs to nobody (0034) — see the summary
    *  in `buildEvent`. */
   contactNumber: number | null
+  /** Only ever used when `pseudonymize` is false. It is listed here rather
+   *  than resolved elsewhere so the whole decision stays in one function. */
+  contactName: string | null
+  /** `google_connection.pseudonymize`. True is the protected setting. */
+  pseudonymize: boolean
   startsAt: Date
   endsAt: Date
   status: AppointmentStatus
@@ -111,17 +126,7 @@ export function googleEventId(appointmentId: string): string {
 export function buildEvent(source: EventSource): GoogleEventPayload {
   return {
     id: googleEventId(source.appointmentId),
-    // The contact number, and nothing else. See the block comment above.
-    //
-    // An appointment that belongs to nobody has no number, and what stands in
-    // for it is a **constant** — never the appointment's own title. The title
-    // is typed by the practitioner and "Rückruf Frau K." is exactly the
-    // sentence the rule above exists to keep out of Google. So: a busy block
-    // with no content at all, which is all a projection owes anyone.
-    summary:
-      source.contactNumber === null
-        ? messages.appointment.googleBusy
-        : String(source.contactNumber),
+    summary: summaryFor(source),
     start: { dateTime: source.startsAt.toISOString() },
     end: { dateTime: source.endsAt.toISOString() },
     status: occupiesSlot(source.status) ? 'confirmed' : 'cancelled',
@@ -130,4 +135,20 @@ export function buildEvent(source: EventSource): GoogleEventPayload {
     // No notification for an event nobody is invited to.
     reminders: { useDefault: false },
   }
+}
+
+/**
+ * The title, and the only place the switch has any effect.
+ *
+ * The order of the three cases is the point. "No contact" is asked **first**,
+ * in both settings: an appointment that belongs to nobody has no number and no
+ * name, and what stands in for it is a **constant** — never the appointment's
+ * own title. That title is typed by the practitioner, and "Rückruf Frau K." is
+ * exactly the sentence rule 13 exists to keep out of Google. A busy block with
+ * no content at all is all a projection owes anyone.
+ */
+function summaryFor(source: EventSource): string {
+  if (source.contactNumber === null) return messages.appointment.googleBusy
+  if (source.pseudonymize) return String(source.contactNumber)
+  return source.contactName ?? messages.appointment.googleBusy
 }
