@@ -52,7 +52,7 @@ export function ContactPicker({
       includeArchived: false,
       limit: SUGGESTION_LIMIT,
     }),
-    enabled: value === null,
+    enabled: value === null && deferredTerm.trim() !== '',
   })
 
   if (value !== null) {
@@ -90,7 +90,14 @@ export function ContactPicker({
     )
   }
 
-  const items = results.data?.items ?? []
+  /**
+   * Nothing until something is typed (D-K2/V10). It used to open onto the
+   * whole address book: harmless on a wide page, but in a 320 px panel the
+   * list pushed every field below it off the screen, and the first thing the
+   * form said was a list nobody had asked for. A search field that answers
+   * once it is asked is also what "Name suchen" promises.
+   */
+  const items = term.trim() === '' ? [] : (results.data?.items ?? [])
   const activeIndex = items.length === 0 ? -1 : Math.min(active, items.length - 1)
 
   function choose(contact: ContactListItem) {

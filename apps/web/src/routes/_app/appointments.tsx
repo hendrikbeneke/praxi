@@ -130,6 +130,35 @@ function CalendarPage() {
   const [selection, setSelection] = useState<RailSelection>(null)
 
   /**
+   * What the open form currently describes, reported up from it (D-K3). Held
+   * here rather than in the panel because two things need it: the grid, which
+   * draws the block, and the sentence below, which is worked out against the
+   * week this page has loaded and nobody else has.
+   */
+  const [draft, setDraft] = useState<{
+    startsAt: string
+    endsAt: string
+    typeCode: string
+  } | null>(null)
+
+  /**
+   * Does the draft land on somebody? Advice, not a rule — migration 0034 took
+   * the refusal out of the database on purpose, so this warns and the entry
+   * saves anyway. It can only see the entries this window has loaded, which is
+   * enough: the draft is inside that window by construction.
+   */
+  const clashes =
+    draft !== null &&
+    shown.some(
+      (entry) =>
+        occupiesSlot(entry.status) &&
+        entry.startsAt < draft.endsAt &&
+        entry.endsAt > draft.startsAt &&
+        // Editing an entry does not collide with itself.
+        (selection?.kind !== 'appointment' || entry.id !== selection.appointmentId),
+    )
+
+  /**
    * The slot finder (D9.5). Its range is the window on screen, so paging
    * forward is how one looks further — the answer stays in the grid, where a
    * time on a day is readable rather than merely describable.
@@ -211,6 +240,9 @@ function CalendarPage() {
       startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
       ...(slotSearch?.typeCode ? { typeCode: slotSearch.typeCode } : {}),
       ...(slotSearch ? { durationMin: slotSearch.durationMin } : {}),
+      // A search by a bare duration was a search for a *Termin*: there is no
+      // kind of treatment behind it, so the panel opens on the other tab.
+      mode: slotSearch?.typeCode ? 'activity' : 'appointment',
     })
   }
 
@@ -324,15 +356,19 @@ function CalendarPage() {
           conflicted={conflicted}
           selectedId={selection?.kind === 'activity' ? selection.appointmentId : null}
           onSelect={(entry) => {
-            if (!entry.activityId) return
-            setSelection({
-              kind: 'activity',
-              activityId: entry.activityId,
-              appointmentId: entry.id,
-            })
+            setSelection(
+              entry.activityId
+                ? { kind: 'activity', activityId: entry.activityId, appointmentId: entry.id }
+                : // A calendar entry with no Vorgang behind it — which since
+                  // D-K1 is a thing one can create, and therefore a thing one
+                  // has to be able to open.
+                  { kind: 'appointment', appointmentId: entry.id },
+            )
           }}
           onNewAt={(startsAtLocal) => setSelection({ kind: 'new', startsAtLocal })}
           onMove={(target) => move.mutate(target)}
+          draft={draft}
+          draftClashes={clashes}
           {...(slotSearch
             ? {
                 freeSlots: freeSlots.data?.slots ?? [],
@@ -360,13 +396,21 @@ function CalendarPage() {
         entries={shown}
         selection={selection}
         onSelectEntry={(entry) => {
-          if (!entry.activityId) return
-          setSelection({
-            kind: 'activity',
-            activityId: entry.activityId,
-            appointmentId: entry.id,
-          })
+          setSelection(
+            entry.activityId
+              ? { kind: 'activity', activityId: entry.activityId, appointmentId: entry.id }
+              : { kind: 'appointment', appointmentId: entry.id },
+          )
         }}
+        draft={draft}
+        onDraftChange={setDraft}
+        warning={
+          clashes ? (
+            <p className="mt-4 text-destructive text-sm leading-snug">
+              {strings.appointment.clashHint}
+            </p>
+          ) : null
+        }
         onClose={() => setSelection(null)}
         onSaved={() => {
           // Entered — which is what the search was for, so it ends here.

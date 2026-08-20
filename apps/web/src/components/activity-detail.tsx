@@ -7,20 +7,25 @@ import {
   formatBerlinTime,
   formatEuro,
   invoicePaymentState,
+  occupiesSlot,
   plainNoteText,
   sumItems,
   toBerlinDate,
 } from '@praxi/shared'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { FileText } from 'lucide-react'
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
+import { toast } from 'sonner'
 import { ActivityForm } from '@/components/activity-form'
 import { CollectDialog, type CollectPlanEntry } from '@/components/collect-dialog'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { updateAppointment } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
+import { ApiError } from '@/lib/api'
 import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
@@ -41,6 +46,7 @@ import { strings } from '@/lib/strings'
 export function ActivityDetail({
   activity,
   editing,
+  footerPortal,
   onStartEditing,
   onStopEditing,
   onSaved,
@@ -48,6 +54,13 @@ export function ActivityDetail({
 }: {
   activity: Activity
   editing: boolean
+  /**
+   * The calendar's sticky footer (D-K3). Where it is given, the actions render
+   * into it instead of into the flow — the same portal the form uses, so read
+   * mode and edit mode put their buttons in the same place rather than one of
+   * them jumping.
+   */
+  footerPortal?: HTMLElement | null
   onStartEditing: () => void
   onStopEditing: () => void
   onSaved: () => void
@@ -61,6 +74,7 @@ export function ActivityDetail({
         key={activity.id}
         activity={activity}
         {...(showContact ? {} : { contactId: activity.contactId })}
+        {...(footerPortal ? { footerPortal } : {})}
         onSaved={onSaved}
         onCancel={onStopEditing}
       />
@@ -84,6 +98,26 @@ export function ActivityDetail({
      * also the honest reading of "one component, three containers".
      */
     <div className="@container">
+      {/* The calendar's footer: "Absagen" on the left because it acts on the
+          slot rather than on the record, "Bearbeiten" on the right where every
+          primary action sits. Deleting is deliberately not offered — a Vorgang
+          hangs on this appointment, and the server refuses it with a sentence
+          about cancelling instead (D-K1). */}
+      {footerPortal &&
+        createPortal(
+          <div className="flex items-center justify-between gap-2">
+            {activity.appointment && occupiesSlot(activity.appointment.status) ? (
+              <CancelAppointment appointmentId={activity.appointment.id} onDone={onSaved} />
+            ) : (
+              <span />
+            )}
+            <Button type="button" onClick={onStartEditing}>
+              {strings.actions.edit}
+            </Button>
+          </div>,
+          footerPortal,
+        )}
+
       <div className="grid gap-8 @2xl:grid-cols-[minmax(0,1fr)_250px]">
         <div>
           {activity.title && <p className="mb-3 font-semibold text-lg">{activity.title}</p>}
@@ -131,9 +165,11 @@ export function ActivityDetail({
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button type="button" variant="outline" size="sm" onClick={onStartEditing}>
-              {strings.actions.edit}
-            </Button>
+            {footerPortal === undefined || footerPortal === null ? (
+              <Button type="button" variant="outline" size="sm" onClick={onStartEditing}>
+                {strings.actions.edit}
+              </Button>
+            ) : null}
             {/* Acts on what is stored, not on what is on screen — which is why
                 it is only offered while the activity is open for billing. */}
             {activity.billingState === 'open' && <BillActivity activity={activity} />}
@@ -345,5 +381,39 @@ function ActivityNotes({ activityId }: { activityId: string }) {
         ))}
       </ul>
     </section>
+  )
+}
+
+/** "Absagen" — the slot is released, the Vorgang stays documented. Its own
+ *  component so the mutation is not declared above an early return. */
+function CancelAppointment({
+  appointmentId,
+  onDone,
+}: {
+  appointmentId: string
+  onDone: () => void
+}) {
+  const queryClient = useQueryClient()
+
+  const cancel = useMutation({
+    mutationFn: () => updateAppointment(appointmentId, { status: 'cancelled' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      await queryClient.invalidateQueries({ queryKey: ['activities'] })
+      onDone()
+    },
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : strings.error.generic),
+  })
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={cancel.isPending}
+      onClick={() => cancel.mutate()}
+    >
+      {strings.appointment.cancelAction}
+    </Button>
   )
 }

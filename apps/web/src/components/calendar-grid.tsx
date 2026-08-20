@@ -110,6 +110,8 @@ export function CalendarGrid({
   freeSlots,
   freeSlotsAreComplete = true,
   slotTypeLabel = null,
+  draft = null,
+  draftClashes = false,
   onSelect,
   onNewAt,
   onMove,
@@ -142,6 +144,16 @@ export function CalendarGrid({
   /** What the search was for, printed under the time on every offer. Null when
    *  the finder was given a bare duration and there is nothing to name. */
   slotTypeLabel?: string | null
+  /**
+   * The entry being entered right now, drawn before it exists (D-K3, design
+   * image 13). It follows the fields as they are typed, which is what makes
+   * "12:15, 60 minutes" a place on the screen rather than an arithmetic
+   * problem — and it is where a collision is seen rather than described.
+   */
+  draft?: { startsAt: string; endsAt: string; typeCode: string } | null
+  /** Whether that draft lands on an occupied slot. Since migration 0034 that
+   *  is a warning and not a refusal: the practitioner decides. */
+  draftClashes?: boolean
   onSelect: (entry: CalendarEntry) => void
   onNewAt: (startsAtLocal: string) => void
   onMove: (target: DropTarget) => void
@@ -535,9 +547,23 @@ export function CalendarGrid({
                     )
                   })}
 
-                {/* Where it would land. Red when it would clash — which the
-                    database decides, not this, so the drop is still allowed
-                    and answers with a sentence if it was wrong. */}
+                {/* The entry being entered, in the form's own colour and with
+                    a two-pixel outline so it reads as a draft rather than as
+                    something already booked. */}
+                {draft && dayOf(draft.startsAt) === day && (
+                  <DraftBlock
+                    draft={draft}
+                    clashes={draftClashes}
+                    perMinute={perMinute}
+                    typeLabel={
+                      draft.typeCode === '' ? null : activityTypeLabel(types, draft.typeCode)
+                    }
+                  />
+                )}
+
+                {/* Where a dragged entry would land. Red when it would clash —
+                    which nothing refuses any more, so this is advice and the
+                    drop goes through either way. */}
                 {target && (
                   <div
                     aria-hidden
@@ -576,6 +602,79 @@ export function CalendarGrid({
           })}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The entry being entered, drawn before it exists (D-K3, design image 13).
+ *
+ * **Its lines are ranked, not stacked.** A half-hour block is 44 px and holds
+ * three of them, so a fourth would simply be cut off — and the one that got cut
+ * off was the warning, which is the whole reason the block turns red. So the
+ * lines are handed out in order of what one needs to know: when, that it
+ * collides, what it is called, what kind it is.
+ *
+ * The height stays the true interval either way. A box drawn taller than the
+ * time it represents would be the one lie a calendar must not tell.
+ */
+function DraftBlock({
+  draft,
+  clashes,
+  perMinute,
+  typeLabel,
+}: {
+  draft: { startsAt: string; endsAt: string; typeCode: string }
+  clashes: boolean
+  perMinute: number
+  typeLabel: string | null
+}) {
+  const height = Math.max(
+    MIN_BLOCK_PX,
+    minutesBetween(draft.startsAt, draft.endsAt) * perMinute - 2,
+  )
+  /** 13 px a line at this size, and 4 px of padding above and below. */
+  const room = Math.max(1, Math.floor((height - 4) / 13))
+
+  const lines: React.ReactNode[] = [
+    <span key="time" className="block truncate font-semibold tabular-nums">
+      {formatBerlinTime(draft.startsAt)}–{formatBerlinTime(draft.endsAt)}
+    </span>,
+  ]
+  if (clashes) {
+    lines.push(
+      <span key="clash" className="block truncate font-semibold text-destructive">
+        {strings.appointment.draftClash}
+      </span>,
+    )
+  }
+  lines.push(
+    <span key="name" className="block truncate font-semibold">
+      {strings.appointment.draftTitle}
+    </span>,
+  )
+  if (typeLabel !== null) {
+    lines.push(
+      <span key="kind" className="block truncate text-muted-foreground">
+        {strings.appointment.draftKind(typeLabel)}
+      </span>,
+    )
+  }
+
+  return (
+    <div
+      aria-hidden
+      style={{
+        top: minutesOfDay(toBerlinDateTimeLocal(draft.startsAt)) * perMinute,
+        height,
+        borderColor: clashes ? 'var(--destructive)' : 'var(--primary)',
+        backgroundColor: clashes
+          ? 'color-mix(in oklab, var(--destructive) 12%, var(--card))'
+          : 'color-mix(in oklab, var(--primary) 10%, var(--card))',
+      }}
+      className="pointer-events-none absolute inset-x-0.5 z-[4] overflow-hidden rounded border-2 px-1.5 py-0.5 text-xs leading-tight"
+    >
+      {lines.slice(0, room)}
     </div>
   )
 }

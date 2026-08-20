@@ -510,7 +510,7 @@ export const strings = {
     empty: 'Noch keine Vorgänge.',
 
     type: 'Art',
-    statusLabel: 'Status',
+    statusLabel: 'Status des Vorgangs',
     statuses: {
       planned: 'Geplant',
       rendered: 'Stattgefunden',
@@ -540,6 +540,11 @@ export const strings = {
     contactLocked: 'fest',
     contactChange: 'Anderer Kontakt',
     contactRequired: 'Bitte zuerst einen Kontakt wählen.',
+    /** The calendar's panel (D-K3). */
+    newEntry: 'Neuer Eintrag',
+    newEntryAt: (date: string, time: string) => `${date} · ${time}`,
+    createSubmit: 'Vorgang anlegen',
+    tabs: { activity: 'Vorgang mit Termin', appointment: 'Nur Termin' },
     occurredAt: 'Datum',
     occurredTime: 'Uhrzeit',
     durationMin: 'Dauer in Minuten',
@@ -551,7 +556,13 @@ export const strings = {
     itemsEmpty: 'Noch keine Position.',
     addService: 'Leistung hinzufügen',
     addGroup: 'Leistungsgruppe einfügen',
+    /** The one picker that replaced those two in the calendar (D-K3). */
+    addFromCatalogue: 'Aus dem Katalog',
+    catalogueServices: 'Leistungen',
+    catalogueGroups: 'Leistungsgruppen',
+    groupSize: (count: number) => `${count} ${count === 1 ? 'Position' : 'Positionen'}`,
     addFree: 'Freie Position',
+    addFreeShort: 'Frei',
     /** Rule 5, said plainly where it matters most. */
     copyHint:
       'Beim Hinzufügen werden Bezeichnung, Ziffer, Preis und Dauer aus dem Katalog kopiert. ' +
@@ -640,6 +651,26 @@ export const strings = {
     /** A calendar entry with no title, no contact and no type — all a bare
      *  appointment is obliged to have is a time. */
     untitled: 'Termin',
+    /** The bare appointment — the "Nur Termin" tab (D-K3). */
+    titlePlaceholder: 'z. B. Teambesprechung',
+    optionalSuffix: '(optional)',
+    createSubmit: 'Termin anlegen',
+    /** Two different gestures, and the difference is not cosmetic — see
+     *  `AppointmentDetail`. */
+    cancelAction: 'Absagen',
+    /** The block the grid draws while the panel is open (design image 13). */
+    draftTitle: 'Neuer Termin',
+    draftKind: (type: string) => `Vorgang · ${type}`,
+    draftClash: '⚠ Überschneidet sich',
+    clashHint: 'Diese Zeit überschneidet sich mit einem bestehenden Termin.',
+    deleteAction: 'Löschen',
+    headerSpan: (date: string, from: string, to: string) => `${date} · ${from}–${to}`,
+    fromLabel: 'Von',
+    toLabel: 'Bis',
+    durationLabel: 'Dauer (Min)',
+    noteLabel: 'Notiz',
+    notePlaceholder: 'Notiz zum Termin',
+    bareHint: 'Der Termin erscheint beim Kontakt, ohne einen Vorgang anzulegen.',
     title: 'Termine',
     description: 'Kalender der Praxis.',
     today: 'Heute',

@@ -22,9 +22,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
 import { DateField } from '@/components/date-field'
+import { ServicePicker } from '@/components/service-picker'
 import { TimeField } from '@/components/time-field'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -43,6 +45,7 @@ import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import { serviceGroupListQueryOptions, serviceListQueryOptions } from '@/lib/services'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
  * Editing an activity — the fields, the position list, and the calendar entry
@@ -198,6 +201,11 @@ export function ActivityForm({
   startsAtLocal,
   initialTypeCode,
   initialDurationMin,
+  appointmentFixed = false,
+  submitLabel,
+  warning,
+  footerPortal,
+  onDraftChange,
   onSaved,
   onCancel,
 }: {
@@ -213,6 +221,35 @@ export function ActivityForm({
   /** Likewise the length. Only meaningful for a search by free duration; with
    *  a type the preset supplies it. */
   initialDurationMin?: number | undefined
+  /**
+   * The four below are the calendar's, and they are the price of **one**
+   * activity form rather than a second, thinner one in the panel (D-K3, V6):
+   * a Vorgang has to be enterable there exactly as it is under "Neuer
+   * Vorgang", so the form is reused and only its chrome differs.
+   *
+   * `appointmentFixed` — the calendar's tab already said "with a Termin", so
+   * the checkbox that could take it away again would contradict it.
+   */
+  appointmentFixed?: boolean
+  /** "Vorgang anlegen" rather than "Speichern", where the panel names the
+   *  action after what it produces. */
+  submitLabel?: string | undefined
+  /** Shown above the actions — the overlap sentence, which the panel works out
+   *  because only it knows what else is in the week. */
+  warning?: React.ReactNode
+  /**
+   * Where the action row goes. The panel's footer is sticky and therefore
+   * outside the scrolling area, so the row is *portalled* into it rather than
+   * lifted out: the buttons keep their own disabled state and their own
+   * pending state, and this file stays the only place that knows when saving
+   * is possible.
+   */
+  footerPortal?: HTMLElement | null
+  /**
+   * The interval currently in the fields, so the grid can draw the entry
+   * before it exists. Null while the form does not describe a slot.
+   */
+  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeCode: string } | null) => void
   onSaved: () => void
   onCancel: () => void
 }) {
@@ -424,11 +461,6 @@ export function ActivityForm({
     })
   }
 
-  function addService(serviceId: string) {
-    const service = services.data?.find((entry) => entry.id === serviceId)
-    if (service) setItems((current) => [...current, fromService(service, 1)])
-  }
-
   /**
    * A group is resolved the moment it is picked, into one row per member — no
    * group id is sent and none is stored (rule 5). The rows go back as service
@@ -484,6 +516,26 @@ export function ActivityForm({
           : null,
     })
   }
+
+  /**
+   * What the grid should draw while this form is open. Reported rather than
+   * lifted: the fields stay here, and the calendar gets the one derived value
+   * it needs — where the block goes, and in which colour.
+   */
+  const draftStartsAt = occurredAtLocal === '' ? null : fromBerlinDateTimeLocal(occurredAtLocal)
+  const draftEndsAt = endsAtLocal === null ? null : fromBerlinDateTimeLocal(endsAtLocal)
+  useEffect(() => {
+    if (!onDraftChange) return
+    onDraftChange(
+      withAppointment && draftStartsAt !== null && draftEndsAt !== null
+        ? { startsAt: draftStartsAt, endsAt: draftEndsAt, typeCode: type }
+        : null,
+    )
+  }, [onDraftChange, withAppointment, draftStartsAt, draftEndsAt, type])
+
+  /** And taken back down again when the form goes, or the grid would keep
+   *  painting a block nobody is editing. */
+  useEffect(() => () => onDraftChange?.(null), [onDraftChange])
 
   const billableTotal = items
     .filter((item) => item.billable)
@@ -552,7 +604,6 @@ export function ActivityForm({
                 ))}
               </SelectContent>
             </Select>
-            <p className="mt-1 text-muted-foreground text-xs">{strings.activity.statusHint}</p>
           </div>
 
           {/* The presets were not drawn, because something of the
@@ -751,48 +802,25 @@ export function ActivityForm({
             </ul>
           )}
 
-          {/* Both pickers list the catalogue in the order the catalogue is
-              kept in — `sortOrder` first, then the name (D5). Neither sorts
-              again here, which is what makes the setting reach the picker. */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <div className="min-w-56 flex-1">
-              <Select key={`service-${items.length}`} onValueChange={addService}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={strings.activity.addService} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(services.data ?? []).map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {service.description} — {formatEuro(service.defaultPriceCents)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* One control for the whole catalogue since D-K3 — services and
+              groups under two headings. They used to be two dropdowns side by
+              side, which asked the practitioner to know in advance whether
+              what they wanted was a single service or a bundle. */}
+          <div className="mt-4 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <ServicePicker
+                services={services.data ?? []}
+                groups={groups.data ?? []}
+                resetKey={items.length}
+                onPickService={(service) =>
+                  setItems((current) => [...current, fromService(service, 1)])
+                }
+                onPickGroup={addGroup}
+              />
             </div>
 
-            <div className="min-w-56 flex-1">
-              <Select
-                key={`group-${items.length}`}
-                onValueChange={(groupId) => {
-                  const group = groups.data?.find((entry) => entry.id === groupId)
-                  if (group) addGroup(group)
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={strings.activity.addGroup} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(groups.data ?? []).map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button type="button" variant="outline" size="sm" onClick={addFreeItem}>
-              {strings.activity.addFree}
+            <Button type="button" variant="outline" onClick={addFreeItem}>
+              {strings.activity.addFreeShort}
             </Button>
           </div>
           <p className="mt-2 text-muted-foreground text-xs">{strings.activity.groupHint}</p>
@@ -816,7 +844,7 @@ export function ActivityForm({
         </section>
 
         <section>
-          <div className="flex items-center gap-2">
+          <div className={cn('flex items-center gap-2', appointmentFixed && 'hidden')}>
             <Checkbox
               id={`${formId}-with-appointment`}
               checked={withAppointment}
@@ -833,9 +861,11 @@ export function ActivityForm({
               {strings.activity.withAppointment}
             </Label>
           </div>
-          <p className="mt-1 text-muted-foreground text-xs">
-            {strings.activity.withAppointmentHint}
-          </p>
+          {!appointmentFixed && (
+            <p className="mt-1 text-muted-foreground text-xs">
+              {strings.activity.withAppointmentHint}
+            </p>
+          )}
 
           {withAppointment && (
             <div className="mt-3 grid gap-4 @xl:grid-cols-12">
@@ -909,14 +939,30 @@ export function ActivityForm({
         )}
       </div>
 
-      <div className="mt-6 flex justify-end gap-2">
+      {warning}
+
+      {footerPortal ? (
+        createPortal(<Actions />, footerPortal)
+      ) : (
+        <div className="mt-6">
+          <Actions />
+        </div>
+      )}
+    </>
+  )
+
+  /** One definition, two places — in the flow of the form, or in the panel's
+   *  sticky footer through a portal. */
+  function Actions() {
+    return (
+      <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
           {strings.activity.cancel}
         </Button>
         <Button type="button" onClick={submit} disabled={mutation.isPending || !canSave}>
-          {mutation.isPending ? strings.activity.saving : strings.activity.save}
+          {mutation.isPending ? strings.activity.saving : (submitLabel ?? strings.activity.save)}
         </Button>
       </div>
-    </>
-  )
+    )
+  }
 }

@@ -2227,8 +2227,7 @@ in dieser Reihenfolge:
 
 1. **K1 — Schema und Domäne** (erledigt, Migration `0034`)
 2. **K2 — Layout** (erledigt)
-3. **K3 — Panels**: „Neuer Eintrag" mit beiden Reitern, Detail lesend und
-   bearbeitend, „Absagen", Überschneidungswarnung, Leistungspicker
+3. **K3 — Panels** (erledigt)
 4. **K4 — Ansichten**: Monat und Liste
 
 **K1, as built.** Vor der Umsetzung entschieden:
@@ -2287,6 +2286,42 @@ Protokoll stehen, gilt aber nicht mehr.
   pro halber Stunde ging mit der Messung zurück — die Bilder zeigen 44 px
   (Tagesansicht 56), und bei 36 verliert ein 45-Minuten-Block seine dritte
   Zeile. Bleibt bei 44/56.
+
+**K3, as built.** Das Panel in der rechten Leiste bekommt einen Kopf (Art,
+Name, Tag und Spanne), zwei Reiter für einen neuen Eintrag und eine klebende
+Fußzeile.
+
+- **Ein Vorgangsformular, nicht zwei.** `ActivityForm` wird im Kalender
+  weiterverwendet (V6) und hat dafür vier Zugänge bekommen: `submitLabel`,
+  `footerPortal` (die Aktionszeile rendert per Portal in die Fußzeile des
+  Panels, die außerhalb des scrollenden Bereichs liegt), `warning` und
+  `onDraftChange`. Dazu `appointmentFixed`, weil im Kalender der Reiter
+  entscheidet, ob ein Termin dazugehört. Es ist dasselbe Formular mit anderem
+  Rahmen — keine reduzierte Fassung.
+- **„Nur Termin" ist ein eigenes Formular** (`appointment-form.tsx`), und das
+  ist die umgekehrte Entscheidung zum Absatz darüber: kein Typ, keine
+  Positionen, keine Abrechnung, keine Kontaktpflicht — vier von fünf
+  Abschnitten hätten abgeschaltet werden müssen. Es hat ein Feld
+  „Bezeichnung", das Bild 06 fehlt; ohne es hätte ein Blocker im Raster keinen
+  Namen.
+- **Leistungspicker** (`service-picker.tsx`, Bild 14): eine Auswahl mit den
+  Überschriften „Leistungen" und „Leistungsgruppen" statt zweier Dropdowns
+  nebeneinander. Die Gruppe wird beim Picken sofort aufgelöst (Regel 5).
+  Eingesetzt nur im Kalender; Rechnungspositionen und die Vorbelegung der
+  Vorgangsart behalten ihre Steuerung, bis ihre Bildschirme drankommen.
+- **Absagen und Löschen** getrennt: am Vorgangstermin nur „Absagen", am reinen
+  Termin „Löschen" links und „Absagen" rechts (`appointment-detail.tsx`).
+- **Überschneidungswarnung** nach Bild 13: der Entwurfsblock im Raster folgt
+  den Feldern und wird bei Kollision destructive gezeichnet, im Panel steht der
+  Satz. Nichts verweigert das Speichern. Die Zeilen des Blocks sind nach Rang
+  vergeben statt gestapelt — eine halbe Stunde ist 44 px hoch und trägt drei
+  Zeilen, und abgeschnitten wurde ausgerechnet die Warnung.
+- **Kontaktsuche startet geschlossen** (V10): sie zeigte vorher das ganze
+  Adressbuch, was in einer 320-px-Leiste jedes Feld darunter vom Schirm schob.
+- **Nicht angefasst, auf Entscheidung:** die Feldreihenfolge im Lesemodus nach
+  Bild 11. `ActivityDetail` bedient drei Container, und Bild 11 gibt nur den
+  Kalender vor — die gemeinsame Form wird gesucht, wenn Vorgänge und
+  Kontaktakte an der Reihe sind.
 
 **Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
 Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein
