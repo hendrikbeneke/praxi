@@ -5,7 +5,7 @@ import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, raisedMessage } from '../db/errors.js'
 import { contactRelationType, contactRole, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant } from '../test/fixtures.js'
+import { createTenant, roleTypeId } from '../test/fixtures.js'
 import { createContact } from './contact.js'
 import {
   createRoleType,
@@ -13,6 +13,7 @@ import {
   deleteRoleType,
   listRelationTypes,
   listRoleTypes,
+  RoleTypeInUseError,
   SystemTypeError,
   updateRoleType,
 } from './contact-type.js'
@@ -64,20 +65,16 @@ function testPerson(roles: ContactInput['roles'] = []): ContactInput {
   }
 }
 
-function roleTypeRow(code: string) {
-  return db()
-    .select({ id: contactRoleType.id, isSystem: contactRoleType.isSystem })
-    .from(contactRoleType)
-    .where(and(eq(contactRoleType.tenantId, tenantId), eq(contactRoleType.code, code)))
-    .limit(1)
-}
-
 describe('the seeded catalogue', () => {
-  it('marks patient as a system role and gives it a tab', async () => {
-    const types = await listRoleTypes(db(), tenantId, false)
-    const patient = types.find((type) => type.code === 'patient')
+  it('gives patient a tab and no standing beyond that', async () => {
+    const types = await listRoleTypes(db(), tenantId)
+    const patient = types.find((type) => type.label === 'Patient')
 
-    expect(patient).toMatchObject({ isSystem: true, showAsTab: true, active: true })
+    expect(patient).toMatchObject({ showAsTab: true })
+    // The point of migration 0035, asserted as a shape: a role type has a
+    // label, a tab flag and a place in the list. No code, no system flag, no
+    // active flag — nothing logic could key off.
+    expect(Object.keys(patient ?? {}).sort()).toEqual(['id', 'label', 'showAsTab', 'sortOrder'])
   })
 
   it('marks the two relations logic will depend on as system entries', async () => {
@@ -102,69 +99,52 @@ describe('the seeded catalogue', () => {
   })
 })
 
-describe('system entries', () => {
-  it('are not deletable through the domain', async () => {
-    const [patient] = await roleTypeRow('patient')
-    if (!patient) throw new Error('the seed did not create the patient role type')
+/**
+ * Roles used to be protected the same way relations still are: `patient` was a
+ * system entry, undeletable, its code frozen. All of that is gone (0035) —
+ * these tests assert the *absence*, because a protection that quietly comes
+ * back is worse than one that never left.
+ */
+describe('role types carry no protection', () => {
+  it('lets the seeded patient role be deleted while nobody holds it', async () => {
+    const patient = await roleTypeId(db(), tenantId, 'Patient')
 
-    await expect(deleteRoleType(db(), tenantId, patient.id)).rejects.toThrow(SystemTypeError)
-
-    const [stillThere] = await roleTypeRow('patient')
-    expect(stillThere).toBeDefined()
+    expect(await deleteRoleType(db(), tenantId, patient)).toBe(true)
+    expect((await listRoleTypes(db(), tenantId)).map((type) => type.label)).toEqual([
+      'Interessent',
+      'Teilnehmer',
+    ])
   })
 
-  it('are not deletable at the database either', async () => {
-    const [patient] = await roleTypeRow('patient')
-    if (!patient) throw new Error('the seed did not create the patient role type')
+  it('lets the database delete it too — no trigger stands in the way', async () => {
+    const patient = await roleTypeId(db(), tenantId, 'Patient')
 
-    expect(
-      await refusal(db().delete(contactRoleType).where(eq(contactRoleType.id, patient.id))),
-    ).toBe('system entry is not deletable')
+    await db().delete(contactRoleType).where(eq(contactRoleType.id, patient))
+
+    expect(await listRoleTypes(db(), tenantId)).toHaveLength(2)
   })
 
-  it('keep their code when it is changed at the database', async () => {
-    const [patient] = await roleTypeRow('patient')
-    if (!patient) throw new Error('the seed did not create the patient role type')
+  it('lets it be renamed', async () => {
+    const patient = await roleTypeId(db(), tenantId, 'Patient')
 
-    expect(
-      await refusal(
-        db()
-          .update(contactRoleType)
-          .set({ code: 'client' })
-          .where(eq(contactRoleType.id, patient.id)),
-      ),
-    ).toBe('system entry code is immutable')
-  })
-
-  it('cannot have the system flag cleared, which would be a way around the guard', async () => {
-    const [patient] = await roleTypeRow('patient')
-    if (!patient) throw new Error('the seed did not create the patient role type')
-
-    expect(
-      await refusal(
-        db()
-          .update(contactRoleType)
-          .set({ isSystem: false })
-          .where(eq(contactRoleType.id, patient.id)),
-      ),
-    ).toBe('system flag is immutable')
-  })
-
-  it('stay editable in everything that is presentation', async () => {
-    const [patient] = await roleTypeRow('patient')
-    if (!patient) throw new Error('the seed did not create the patient role type')
-
-    const updated = await updateRoleType(db(), tenantId, patient.id, {
+    const updated = await updateRoleType(db(), tenantId, patient, {
       label: 'Klientin oder Klient',
       showAsTab: false,
       sortOrder: 5,
-      active: true,
     })
 
-    expect(updated).toMatchObject({ code: 'patient', label: 'Klientin oder Klient', sortOrder: 5 })
+    expect(updated).toMatchObject({ label: 'Klientin oder Klient', showAsTab: false, sortOrder: 5 })
   })
 
-  it('protect the relation catalogue the same way', async () => {
+  it('refuses a second role with the same label', async () => {
+    await expect(
+      createRoleType(db(), tenantId, { label: 'Patient', showAsTab: false, sortOrder: 40 }),
+    ).rejects.toThrow()
+  })
+})
+
+describe('system entries', () => {
+  it('protect the relation catalogue, and only that one', async () => {
     const [guardian] = await db()
       .select({ id: contactRelationType.id })
       .from(contactRelationType)
@@ -189,48 +169,56 @@ describe('system entries', () => {
 describe('the practice’s own entries', () => {
   it('can be created and deleted while unused', async () => {
     const created = await createRoleType(db(), tenantId, {
-      code: 'referrer',
       label: 'Zuweiser',
       showAsTab: false,
       sortOrder: 40,
-      active: true,
     })
 
     expect(await deleteRoleType(db(), tenantId, created.id)).toBe(true)
   })
 
-  it('cannot be deleted while a contact still holds the role', async () => {
+  /** With the number, because "delete them there first" without one sends the
+   *  practitioner through the whole card index. */
+  it('cannot be deleted while contacts still hold the role, and says how many', async () => {
     const created = await createRoleType(db(), tenantId, {
-      code: 'referrer',
       label: 'Zuweiser',
       showAsTab: false,
       sortOrder: 40,
-      active: true,
     })
 
-    await createContact(db(), tenantId, testPerson([{ roleCode: 'referrer', since: null }]))
+    await createContact(db(), tenantId, testPerson([{ roleTypeId: created.id, since: null }]))
+    await createContact(db(), tenantId, testPerson([{ roleTypeId: created.id, since: null }]))
 
-    await expect(deleteRoleType(db(), tenantId, created.id)).rejects.toThrow()
+    const thrown = await deleteRoleType(db(), tenantId, created.id).catch((error: unknown) => error)
+    if (!(thrown instanceof RoleTypeInUseError)) throw new Error('expected RoleTypeInUseError')
+    expect(thrown.count).toBe(2)
+    // The domain refuses first; the foreign key is the backstop behind it.
+    expect(
+      foreignKeyViolationConstraint(
+        await db()
+          .delete(contactRoleType)
+          .where(eq(contactRoleType.id, created.id))
+          .catch((error: unknown) => error),
+      ),
+    ).toBe('contact_role_type_fk')
   })
 })
 
 describe('tenant scoping', () => {
   it('refuses a role type that belongs to another tenant', async () => {
     const otherTenant = await createTenant(db())
-    await createRoleType(db(), otherTenant, {
-      code: 'referrer',
+    const foreign = await createRoleType(db(), otherTenant, {
       label: 'Zuweiser',
       showAsTab: false,
       sortOrder: 40,
-      active: true,
     })
 
     const created = await createContact(db(), tenantId, testPerson())
 
     /**
-     * The code exists — for the other tenant. The foreign key is composite and
-     * carries `tenant_id`, so what is checked is the pair and not the string,
-     * and this row cannot be written at all.
+     * The role type exists — for the other tenant. The foreign key is
+     * composite and carries `tenant_id`, so what is checked is the pair and
+     * not the id, and this row cannot be written at all.
      */
     let constraint: string | null = null
     try {
@@ -238,7 +226,7 @@ describe('tenant scoping', () => {
         id: newId(),
         tenantId,
         contactId: created.id,
-        roleCode: 'referrer',
+        roleTypeId: foreign.id,
         since: null,
       })
       throw new Error('expected the database to refuse, but the insert succeeded')

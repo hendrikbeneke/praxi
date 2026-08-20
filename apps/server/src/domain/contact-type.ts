@@ -3,12 +3,11 @@ import type {
   ContactRelationTypeCreate,
   ContactRelationTypeInput,
   ContactRoleType,
-  ContactRoleTypeCreate,
   ContactRoleTypeInput,
 } from '@praxi/shared'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
-import { contactRelation, contactRelationType, contactRoleType } from '../db/schema.js'
+import { contactRelation, contactRelationType, contactRole, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
 import { moveInList } from './reorder.js'
 
@@ -18,15 +17,18 @@ import { moveInList } from './reorder.js'
  * the practitioner, because the set of roles this practice needs is not known
  * up front.
  *
- * Entries flagged `is_system` are the ones logic is allowed to depend on. They
- * cannot be deleted and their `code` cannot change — enforced here so the
- * message is readable, and by the `protect_system_type` trigger so it also
- * holds for anything that goes around this file. `is_system` appears in no
- * input schema; only the seed sets it.
+ * **The two are no longer symmetric, since migration 0035.** A relation type
+ * flagged `is_system` is one logic is allowed to depend on — `billing_recipient`
+ * decides who an invoice goes to and is exclusive, `guardian` drives the
+ * minor's notice — so it cannot be deleted, its `code` cannot change, and the
+ * `protect_system_type` trigger holds that for anything going around this
+ * file. `is_system` appears in no input schema; only the seed sets it.
  *
- * A `code` never changes, for system and non-system entries alike: it is the
- * handle other rows point at, and the update schemas simply do not carry one.
- * A typo is fixed by deleting the unused entry and adding it again.
+ * A **role** carries none of that. It is a label: creatable, renamable,
+ * deletable as long as no contact holds it. It had a code and a system flag
+ * for one reason, that logic might key off `patient` — and nothing outside a
+ * comment ever did. What is pseudonymized towards Google is a switch on the
+ * Google connection now, not a property of a role.
  */
 
 export class SystemTypeError extends Error {
@@ -36,14 +38,21 @@ export class SystemTypeError extends Error {
   }
 }
 
+/** A role type some contact still holds. Counted rather than left to the
+ *  foreign key, so the message can say how many — "delete them there first"
+ *  without a number sends the practitioner looking. */
+export class RoleTypeInUseError extends Error {
+  constructor(readonly count: number) {
+    super(`role type is held by ${count} contacts`)
+    this.name = 'RoleTypeInUseError'
+  }
+}
+
 const roleColumns = {
   id: contactRoleType.id,
-  code: contactRoleType.code,
   label: contactRoleType.label,
-  isSystem: contactRoleType.isSystem,
   showAsTab: contactRoleType.showAsTab,
   sortOrder: contactRoleType.sortOrder,
-  active: contactRoleType.active,
 }
 
 const relationColumns = {
@@ -60,25 +69,23 @@ const relationColumns = {
 
 // ---------------------------------------------------------------- role types
 
+/** All of them. There is no `active` flag to filter on since 0035 — see the
+ *  block comment above. */
 export async function listRoleTypes(
   database: Database,
   tenantId: string,
-  includeInactive: boolean,
 ): Promise<ContactRoleType[]> {
-  const filters = [eq(contactRoleType.tenantId, tenantId)]
-  if (!includeInactive) filters.push(eq(contactRoleType.active, true))
-
   return database
     .select(roleColumns)
     .from(contactRoleType)
-    .where(and(...filters))
+    .where(eq(contactRoleType.tenantId, tenantId))
     .orderBy(asc(contactRoleType.sortOrder), asc(contactRoleType.label))
 }
 
 export async function createRoleType(
   database: Database,
   tenantId: string,
-  input: ContactRoleTypeCreate,
+  input: ContactRoleTypeInput,
 ): Promise<ContactRoleType> {
   const [row] = await database
     .insert(contactRoleType)
@@ -104,21 +111,32 @@ export async function updateRoleType(
   return row ?? null
 }
 
-/** Refuses a system entry. An entry still assigned to a contact is refused by
- *  the foreign key, which the route turns into its own message. */
+/**
+ * Deletes a role type, unless a contact still holds it.
+ *
+ * There is no system entry to refuse anymore. What is refused is a type in
+ * use, and the count is fetched for the message — the foreign key would refuse
+ * it too, and stays as the backstop, but it can only name a constraint.
+ */
 export async function deleteRoleType(
   database: Database,
   tenantId: string,
   id: string,
 ): Promise<boolean> {
   const [existing] = await database
-    .select({ isSystem: contactRoleType.isSystem })
+    .select({ id: contactRoleType.id })
     .from(contactRoleType)
     .where(and(eq(contactRoleType.tenantId, tenantId), eq(contactRoleType.id, id)))
     .limit(1)
 
   if (!existing) return false
-  if (existing.isSystem) throw new SystemTypeError()
+
+  const [held] = await database
+    .select({ count: sql<number>`count(*)::int` })
+    .from(contactRole)
+    .where(and(eq(contactRole.tenantId, tenantId), eq(contactRole.roleTypeId, id)))
+
+  if (held && held.count > 0) throw new RoleTypeInUseError(held.count)
 
   const deleted = await database
     .delete(contactRoleType)

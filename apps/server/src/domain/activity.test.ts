@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { activity, activityItem, appointment } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant } from '../test/fixtures.js'
+import { createTenant, roleTypeId } from '../test/fixtures.js'
 import {
   activitySummary,
   createActivity,
@@ -46,7 +46,7 @@ beforeEach(async () => {
     phoneLandline: null,
     internalNote: null,
     diagnosis: null,
-    roles: [{ roleCode: 'patient', since: null }],
+    roles: [{ roleTypeId: await roleTypeId(db(), tenantId, 'Patient'), since: null }],
   })
   contactId = created.id
 })

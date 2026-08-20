@@ -76,7 +76,7 @@ const contactFormSchema = z
      * note on `contactUpdateSchema` for why they must not be part of the
      * update payload.
      */
-    roles: z.array(z.object({ roleCode: z.string(), since: z.iso.date().nullable() })),
+    roles: z.array(z.object({ roleTypeId: z.uuid(), since: z.iso.date().nullable() })),
   })
   .superRefine((values, ctx) => {
     // Mirrors the `contact_kind_fields` check constraint, so the practitioner
@@ -163,7 +163,8 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     phoneLandline: contact?.phoneLandline ?? '',
     internalNote: contact?.internalNote ?? '',
     diagnosis: contact?.diagnosis ?? '',
-    roles: contact?.roles.map((entry) => ({ roleCode: entry.roleCode, since: entry.since })) ?? [],
+    roles:
+      contact?.roles.map((entry) => ({ roleTypeId: entry.roleTypeId, since: entry.since })) ?? [],
   }
 }
 
@@ -204,26 +205,23 @@ export function ContactForm({
 
   const creating = contact === undefined
 
-  // Inactive types included, then narrowed to the ones still offered plus the
-  // ones this contact holds: without the second half a role whose type was
-  // deactivated afterwards could never be taken off again — it would not be in
-  // the list to untick.
-  const held = new Set(contact?.roles.map((entry) => entry.roleCode))
-  const types = useQuery(roleTypeListQueryOptions(true))
-  const roleTypes = (types.data ?? []).filter((type) => type.active || held.has(type.code))
+  // The whole catalogue: since migration 0035 there is no inactive half to
+  // filter out and no role a contact could hold but not see.
+  const types = useQuery(roleTypeListQueryOptions)
+  const roleTypes = types.data ?? []
 
-  const chosen = new Set(roles.map((entry) => entry.roleCode))
-  const unassigned = roleTypes.filter((type) => !chosen.has(type.code))
+  const chosen = new Set(roles.map((entry) => entry.roleTypeId))
+  const unassigned = roleTypes.filter((type) => !chosen.has(type.id))
 
-  const toggleRole = (code: string, checked: boolean) => {
+  const toggleRole = (typeId: string, checked: boolean) => {
     // "seit" is recorded but not shown: on the day a role is ticked, today is
     // the only sensible answer, and a date field per role would turn the
     // section into a form of its own.
     form.setValue(
       'roles',
       checked
-        ? [...roles, { roleCode: code, since: todayInBerlin() }]
-        : roles.filter((entry) => entry.roleCode !== code),
+        ? [...roles, { roleTypeId: typeId, since: todayInBerlin() }]
+        : roles.filter((entry) => entry.roleTypeId !== typeId),
       { shouldDirty: true },
     )
   }
@@ -346,9 +344,9 @@ export function ContactForm({
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   {roleTypes
-                    .filter((type) => chosen.has(type.code))
+                    .filter((type) => chosen.has(type.id))
                     .map((type) => (
-                      <Badge key={type.code} variant="secondary">
+                      <Badge key={type.id} variant="secondary">
                         {type.label}
                       </Badge>
                     ))}
@@ -369,21 +367,27 @@ export function ContactForm({
                  them, and at this width `auto-fit` happens to give three too —
                  two spellings of one picture are one too many (K6). */
               <div className="grid grid-cols-[repeat(3,minmax(150px,220px))] gap-x-5 gap-y-3">
+                {/* No role type at all is a legitimate state, not an error:
+                    a contact needs none. What it needs is a sentence, or the
+                    section is simply empty and reads as broken. */}
                 {roleTypes.length === 0 && (
                   <p className="col-span-3 text-muted-foreground text-sm">
-                    {strings.contact.roleHint}
+                    <span className="font-medium text-foreground">
+                      {strings.contact.roleTypesEmpty}
+                    </span>{' '}
+                    {strings.contact.roleTypesEmptyHint}
                   </p>
                 )}
                 {roleTypes.map((type) => (
                   <label
-                    key={type.code}
-                    htmlFor={`role-${type.code}`}
+                    key={type.id}
+                    htmlFor={`role-${type.id}`}
                     className="flex cursor-pointer items-center gap-[9px] text-sm"
                   >
                     <Checkbox
-                      id={`role-${type.code}`}
-                      checked={chosen.has(type.code)}
-                      onCheckedChange={(value) => toggleRole(type.code, value === true)}
+                      id={`role-${type.id}`}
+                      checked={chosen.has(type.id)}
+                      onCheckedChange={(value) => toggleRole(type.id, value === true)}
                     />
                     {type.label}
                   </label>

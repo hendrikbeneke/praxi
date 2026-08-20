@@ -8,21 +8,21 @@ import { requiredText } from './field.js'
  * A role is a *property* of one contact. Anything that only means something
  * with a counterpart — a guardian, a billing recipient — is a relation and
  * lives in `contact-relation-type.ts`.
+ *
+ * **And it is a label, nothing more.** There is no `code` here, no `isSystem`
+ * and no `active` (migration 0035): all three existed so logic could depend on
+ * a particular role, and nothing ever did. What decides who is pseudonymized
+ * towards Google is a switch on the Google connection, not a role. So every
+ * entry is alike — creatable, renamable, deletable as long as no contact holds
+ * it — and the assignment points at the id.
+ *
+ * The relation catalogue kept all three on purpose; there the codes really do
+ * carry logic.
  */
-
-/**
- * The stable handle of a type. Logic may hang on it, so it is set when the
- * entry is created and never changes afterwards — not for system entries,
- * where a trigger enforces it, and not for the practice's own, where the
- * domain refuses. A typo is fixed by deleting the unused entry and adding it
- * again.
- */
-export const typeCodeSchema = z
-  .string()
-  .trim()
-  .regex(/^[a-z][a-z0-9_]{0,39}$/)
 
 const roleTypeFields = {
+  /** What a role is recognised by, now that there is no code. Unique per
+   *  tenant, so the contact list cannot grow two identical tabs. */
   label: requiredText(60),
   /**
    * The contact list offers this role as a tab of its own. Roles without the
@@ -31,27 +31,18 @@ const roleTypeFields = {
    */
   showAsTab: z.boolean().default(false),
   sortOrder: z.number().int().min(0).max(9999).default(0),
-  active: z.boolean().default(true),
 }
 
-/** What an edit may change. `code` is absent on purpose, `isSystem` too — the
- *  latter is set by the seed and by nothing else. */
+/** Creating and editing take the same fields — there is nothing that may only
+ *  be set once anymore. */
 export const contactRoleTypeInputSchema = z.object(roleTypeFields)
 export type ContactRoleTypeInput = z.infer<typeof contactRoleTypeInputSchema>
 
-export const contactRoleTypeCreateSchema = z.object({ code: typeCodeSchema, ...roleTypeFields })
-export type ContactRoleTypeCreate = z.infer<typeof contactRoleTypeCreateSchema>
-
 export const contactRoleTypeSchema = z.object({
   id: z.uuid(),
-  code: z.string(),
   label: z.string(),
-  /** Not deletable, `code` not changeable — logic is allowed to depend on it.
-   *  The label stays editable. */
-  isSystem: z.boolean(),
   showAsTab: z.boolean(),
   sortOrder: z.number().int(),
-  active: z.boolean(),
 })
 
 export type ContactRoleType = z.infer<typeof contactRoleTypeSchema>

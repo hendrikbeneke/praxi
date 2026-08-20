@@ -1,7 +1,6 @@
 import {
   contactRelationTypeCreateSchema,
   contactRelationTypeInputSchema,
-  contactRoleTypeCreateSchema,
   contactRoleTypeInputSchema,
   moveInputSchema,
 } from '@praxi/shared'
@@ -20,6 +19,7 @@ import {
   listRoleTypes,
   moveRelationType,
   moveRoleType,
+  RoleTypeInUseError,
   SystemTypeError,
   updateRelationType,
   updateRoleType,
@@ -31,7 +31,9 @@ import { tenantId, withTenant } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const typeParam = z.object({ typeId: z.uuid() })
-const listQuery = z.object({
+/** Relations only. A role type has no `active` flag to leave out — see
+ *  `domain/contact-type.ts`. */
+const relationListQuery = z.object({
   includeInactive: z
     .enum(['true', 'false'])
     .default('false')
@@ -44,13 +46,20 @@ function translate(error: unknown): never {
   if (error instanceof SystemTypeError) {
     throw new HTTPException(409, { message: messages.contactType.systemNotDeletable })
   }
+  if (error instanceof RoleTypeInUseError) {
+    throw new HTTPException(409, { message: messages.contactType.roleInUse(error.count) })
+  }
+  if (uniqueViolationConstraint(error) === 'contact_role_type_tenant_label_key') {
+    throw new HTTPException(409, { message: messages.contactType.labelTaken })
+  }
   if (uniqueViolationConstraint(error)?.endsWith('_tenant_code_key')) {
     throw new HTTPException(409, { message: messages.contactType.codeTaken })
   }
 
   const foreignKey = foreignKeyViolationConstraint(error)
   if (foreignKey === 'contact_role_type_fk') {
-    throw new HTTPException(409, { message: messages.contactType.roleInUse })
+    // The backstop: `deleteRoleType` counts first and refuses with a number.
+    throw new HTTPException(409, { message: messages.contactType.roleInUseUnknown })
   }
   if (foreignKey === 'contact_relation_type_fk') {
     throw new HTTPException(409, { message: messages.contactType.relationInUse })
@@ -72,11 +81,11 @@ function translate(error: unknown): never {
 export const contactRoleTypesRoute = new Hono<AppEnv>()
   .use('*', requireAuth, withTenant)
 
-  .get('/', validate('query', listQuery), async (c) => {
-    return c.json(await listRoleTypes(db(), tenantId(c), c.req.valid('query').includeInactive))
+  .get('/', async (c) => {
+    return c.json(await listRoleTypes(db(), tenantId(c)))
   })
 
-  .post('/', validate('json', contactRoleTypeCreateSchema), async (c) => {
+  .post('/', validate('json', contactRoleTypeInputSchema), async (c) => {
     const created = await createRoleType(db(), tenantId(c), c.req.valid('json')).catch(translate)
     return c.json(created, 201)
   })
@@ -127,7 +136,7 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
 export const contactRelationTypesRoute = new Hono<AppEnv>()
   .use('*', requireAuth, withTenant)
 
-  .get('/', validate('query', listQuery), async (c) => {
+  .get('/', validate('query', relationListQuery), async (c) => {
     return c.json(await listRelationTypes(db(), tenantId(c), c.req.valid('query').includeInactive))
   })
 

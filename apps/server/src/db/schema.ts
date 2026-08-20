@@ -328,11 +328,21 @@ export const contact = pgTable(
  * treat patients and the set of roles it needs is not known up front
  * (CLAUDE.md rule 4).
  *
- * `is_system` marks the entries logic may depend on — currently `patient`
- * alone, which is what professional secrecy and the pseudonymization towards
- * Google key off. Such an entry cannot be deleted and its `code` cannot
- * change; the trigger `protect_system_type` in migration 0017 enforces that,
- * and `domain/contact-type.ts` refuses before it. The label stays editable.
+ * **A role is a label and nothing more** (migration 0035). It carried a
+ * `code`, an `is_system` flag and `active` until then, all three for one
+ * reason: logic was allowed to depend on a particular role, and `patient` was
+ * named as the one deciding what is pseudonymized towards Google. It never
+ * was — nothing outside a comment ever read that code — and the
+ * pseudonymization is a switch on `google_connection` now. So there is no
+ * anchor to freeze, nothing to protect, and every entry is alike: creatable,
+ * renamable, deletable as long as no contact holds it.
+ *
+ * `contact_relation_type` next door kept all three, and that is not an
+ * oversight: `billing_recipient` and `guardian` really do carry logic.
+ *
+ * The label is what a role is recognised by now, so it is unique per tenant —
+ * two roles reading "Patient" would put two indistinguishable tabs in the
+ * contact list.
  */
 export const contactRoleType = pgTable(
   'contact_role_type',
@@ -341,22 +351,19 @@ export const contactRoleType = pgTable(
     tenantId: uuid()
       .notNull()
       .references(() => tenant.id),
-    code: text().notNull(),
     label: text().notNull(),
-    isSystem: boolean().notNull().default(false),
     /** The contact list gives this role a tab of its own; the rest stay
      *  reachable through the dropdown beside it. */
     showAsTab: boolean().notNull().default(false),
     sortOrder: integer().notNull().default(0),
-    active: boolean().notNull().default(true),
     ...timestamps,
   },
   (t) => [
-    // Also the target of the composite foreign key on `contact_role`, so a
-    // role type of another tenant cannot be referenced.
-    unique('contact_role_type_tenant_code_key').on(t.tenantId, t.code),
+    unique('contact_role_type_tenant_label_key').on(t.tenantId, t.label),
+    // The target of the composite foreign key on `contact_role`, so a role
+    // type of another tenant cannot be assigned.
+    unique('contact_role_type_id_tenant_key').on(t.id, t.tenantId),
     index('contact_role_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
-    check('contact_role_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
   ],
 )
 
@@ -413,10 +420,10 @@ export const contactRelationType = pgTable(
  * Roles live here rather than in a column on `contact`, because a contact
  * holds several at once and they come and go over time (CLAUDE.md rule 4).
  *
- * `role_code` points at `contact_role_type` through a composite foreign key
+ * `role_type_id` points at `contact_role_type` through a composite foreign key
  * carrying `tenant_id`, so a role type of another tenant cannot be assigned.
- * `ON UPDATE RESTRICT` needs nothing to cascade: a code is set when the type
- * is created and never changes.
+ * It pointed at the type's `code` until migration 0035; with the code gone the
+ * id is the anchor, and `ON UPDATE RESTRICT` has all the less to cascade.
  */
 export const contactRole = pgTable(
   'contact_role',
@@ -426,7 +433,7 @@ export const contactRole = pgTable(
       .notNull()
       .references(() => tenant.id),
     contactId: uuid().notNull(),
-    roleCode: text().notNull(),
+    roleTypeId: uuid().notNull(),
     since: date({ mode: 'string' }),
     ...timestamps,
   },
@@ -437,15 +444,15 @@ export const contactRole = pgTable(
       name: 'contact_role_contact_tenant_fk',
     }).onDelete('cascade'),
     foreignKey({
-      columns: [t.roleCode, t.tenantId],
-      foreignColumns: [contactRoleType.code, contactRoleType.tenantId],
+      columns: [t.roleTypeId, t.tenantId],
+      foreignColumns: [contactRoleType.id, contactRoleType.tenantId],
       name: 'contact_role_type_fk',
     })
       .onUpdate('restrict')
       .onDelete('restrict'),
     // Also serves lookups by contact — contact_id is the leading column.
-    unique('contact_role_contact_role_key').on(t.contactId, t.roleCode),
-    index('contact_role_tenant_role_idx').on(t.tenantId, t.roleCode),
+    unique('contact_role_contact_type_key').on(t.contactId, t.roleTypeId),
+    index('contact_role_tenant_type_idx').on(t.tenantId, t.roleTypeId),
   ],
 )
 

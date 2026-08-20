@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { appointmentDraftSchema, appointmentSchema } from './appointment.js'
-import { typeCodeSchema } from './contact-role-type.js'
 import { optionalText, requiredText } from './field.js'
+import { typeCodeSchema } from './type-code.js'
 
 /**
  * A dated event where services were rendered to a contact — a session, a talk,

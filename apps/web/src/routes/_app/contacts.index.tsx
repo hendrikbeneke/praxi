@@ -73,8 +73,10 @@ const COLUMN_CLASS: Record<string, string> = { contactNumber: 'w-20' }
  * the URL ends up in browser history and autocomplete (CLAUDE.md rule 12).
  */
 const searchSchema = z.object({
-  // A role code, not an enum: the set is maintained in the settings. It is not
-  // personal data, so it may live in the URL.
+  // A role type's id, not an enum: the set is maintained in the settings, and
+  // a role has no code to name it by since migration 0035. Not personal data,
+  // so it may live in the URL — a uuid there is ugly and nothing more, and a
+  // second anchor kept only for the address bar would be the code again.
   role: z.string().optional(),
   /**
    * The screen starts on `current` — opening the contact list is how the day's
@@ -166,8 +168,8 @@ function contactColumns(options: ColumnOptions) {
           return (
             <span className="flex flex-wrap gap-1">
               {roles.map((entry) => (
-                <Badge key={entry.roleCode} variant="outline">
-                  {options.roleLabels.get(entry.roleCode) ?? entry.roleCode}
+                <Badge key={entry.roleTypeId} variant="outline">
+                  {options.roleLabels.get(entry.roleTypeId) ?? ''}
                 </Badge>
               ))}
             </span>
@@ -253,12 +255,10 @@ function ContactListPage() {
   const deferredTerm = useDeferredValue(term)
   const searching = deferredTerm.trim() !== ''
 
-  // Inactive types included: a contact may still hold one, and its badge has
-  // to read as a name rather than as a code.
-  const roleTypes = useQuery(roleTypeListQueryOptions(true))
+  const roleTypes = useQuery(roleTypeListQueryOptions)
   const types = roleTypes.data ?? []
-  const tabTypes = types.filter((type) => type.active && type.showAsTab)
-  const otherTypes = types.filter((type) => type.active && !type.showAsTab)
+  const tabTypes = types.filter((type) => type.showAsTab)
+  const otherTypes = types.filter((type) => !type.showAsTab)
 
   const preferences = useQuery(userPreferencesQueryOptions)
   const visibleColumns = preferences.data?.contactListColumns ?? DEFAULT_COLUMNS
@@ -273,10 +273,11 @@ function ContactListPage() {
     onSuccess: (saved) => queryClient.setQueryData(userPreferencesQueryKey, saved),
   })
 
-  /** No role in the URL means the first tab — "Patienten" after the seed. With
-   *  no flagged role at all there is nothing to default to, so it is Alle. */
-  const activeRole = search.role ?? tabTypes[0]?.code ?? ALL_ROLES
-  const otherRole = otherTypes.find((type) => type.code === activeRole)
+  /** No role in the URL means the first tab — "Patient" after the seed. With
+   *  no flagged role at all there is nothing to default to, so it is Alle, and
+   *  the tab row is then that one button. */
+  const activeRole = search.role ?? tabTypes[0]?.id ?? ALL_ROLES
+  const otherRole = otherTypes.find((type) => type.id === activeRole)
 
   /**
    * The search beats both filters: while something is typed, the whole card
@@ -286,7 +287,7 @@ function ContactListPage() {
   const contacts = useQuery(
     contactListQueryOptions({
       q: deferredTerm.trim() || undefined,
-      roleCode: searching || activeRole === ALL_ROLES ? undefined : activeRole,
+      roleTypeId: searching || activeRole === ALL_ROLES ? undefined : activeRole,
       order: searching ? 'alpha' : search.order,
       sort: search.sort,
       dir: search.dir,
@@ -335,7 +336,7 @@ function ContactListPage() {
   // columns and the sort arrows all depend on state that changes here, and the
   // table holds no state of its own that recreating them could disturb.
   const columns = contactColumns({
-    roleLabels: new Map(types.map((type) => [type.code, type.label])),
+    roleLabels: new Map(types.map((type) => [type.id, type.label])),
     visibleColumns,
     showAppointment,
     sortHeader,
@@ -388,10 +389,10 @@ function ContactListPage() {
         <div className="flex flex-wrap items-center gap-1">
           {tabTypes.map((type) => (
             <button
-              key={type.code}
+              key={type.id}
               type="button"
-              className={listTabClass(activeRole === type.code)}
-              onClick={() => setSearch({ role: type.code })}
+              className={listTabClass(activeRole === type.id)}
+              onClick={() => setSearch({ role: type.id })}
             >
               {type.label}
             </button>
@@ -422,17 +423,17 @@ function ContactListPage() {
                 <div className="flex flex-col gap-px">
                   {otherTypes.map((type) => (
                     <button
-                      key={type.code}
+                      key={type.id}
                       type="button"
                       className={cn(
                         'rounded-md px-[9px] py-[7px] text-left text-[13.5px] transition-colors',
-                        activeRole === type.code
+                        activeRole === type.id
                           ? 'bg-primary font-semibold text-primary-foreground'
                           : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                       )}
                       onClick={() => {
                         setMoreOpen(false)
-                        setSearch({ role: type.code })
+                        setSearch({ role: type.id })
                       }}
                     >
                       {type.label}

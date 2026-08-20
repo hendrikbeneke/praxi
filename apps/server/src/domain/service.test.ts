@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { service, serviceGroup, serviceGroupItem } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant } from '../test/fixtures.js'
+import { createTenant, roleTypeId } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { createActivityType } from './activity-type.js'
 import { createContact } from './contact.js'
@@ -405,7 +405,7 @@ describe('deleting the catalogue', () => {
       phoneLandline: null,
       internalNote: null,
       diagnosis: null,
-      roles: [{ roleCode: 'patient', since: null }],
+      roles: [{ roleTypeId: await roleTypeId(db(), tenantId, 'Patient'), since: null }],
     })
     await createActivity(db(), tenantId, {
       contactId: contact.id,

@@ -27,10 +27,10 @@ export function ContactHeader({
   actions?: ReactNode
   children?: ReactNode
 }) {
-  // Inactive types included: a contact may still hold one, and its badge has
-  // to read as a name rather than as a code.
-  const types = useQuery(roleTypeListQueryOptions(true))
-  const label = (code: string) => types.data?.find((type) => type.code === code)?.label ?? code
+  const types = useQuery(roleTypeListQueryOptions)
+  // The badge falls back to nothing rather than to the id: a uuid in a chip
+  // says less than an empty one, and the catalogue is loaded a moment later.
+  const label = (typeId: string) => types.data?.find((type) => type.id === typeId)?.label ?? ''
 
   const age = contact.dateOfBirth ? ageInYears(contact.dateOfBirth, new Date()) : null
 
@@ -63,8 +63,8 @@ export function ContactHeader({
               <span className="text-muted-foreground text-xs">{strings.contact.noRoles}</span>
             ) : (
               contact.roles.map((entry) => (
-                <Badge key={entry.roleCode} variant="outline">
-                  {label(entry.roleCode)}
+                <Badge key={entry.roleTypeId} variant="outline">
+                  {label(entry.roleTypeId)}
                 </Badge>
               ))
             )}

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { typeCodeSchema } from './contact-role-type.js'
 import { optionalText, requiredText } from './field.js'
 
 /**
@@ -33,16 +32,17 @@ export type ContactGender = z.infer<typeof contactGenderSchema>
  * prospect who becomes a patient, someone who is both a patient and a course
  * participant (CLAUDE.md rule 4).
  *
- * The set is configurable — `roleCode` points at a `contact_role_type` of the
- * same tenant and is validated by a composite foreign key, not by an enum or a
- * check constraint. Anything that needs a counterpart to mean something is not
- * a role but a relation; see `contact-relation.ts`.
+ * The set is configurable — `roleTypeId` points at a `contact_role_type` of
+ * the same tenant and is validated by a composite foreign key, not by an enum
+ * or a check constraint. It pointed at that type's `code` until migration
+ * 0035; a role is a label now and has none. Anything that needs a counterpart
+ * to mean something is not a role but a relation; see `contact-relation.ts`.
  */
 
 /** `since` may be unknown — when an old contact is entered afterwards, the
  *  date the role started often cannot be reconstructed. */
 export const contactRoleInputSchema = z.object({
-  roleCode: typeCodeSchema,
+  roleTypeId: z.uuid(),
   since: z.iso.date().nullable().default(null),
 })
 
@@ -52,7 +52,7 @@ const rolesField = z
   .array(contactRoleInputSchema)
   .max(50)
   .default([])
-  .refine((roles) => new Set(roles.map((entry) => entry.roleCode)).size === roles.length, {
+  .refine((roles) => new Set(roles.map((entry) => entry.roleTypeId)).size === roles.length, {
     message: 'duplicate role',
   })
 
@@ -175,7 +175,7 @@ export const contactSchema = z.object({
   internalNote: z.string().nullable(),
   diagnosis: z.string().nullable(),
   archivedAt: z.iso.datetime().nullable(),
-  roles: z.array(z.object({ roleCode: z.string(), since: z.string().nullable() })),
+  roles: z.array(z.object({ roleTypeId: z.uuid(), since: z.string().nullable() })),
 })
 
 export type Contact = z.infer<typeof contactSchema>
@@ -229,7 +229,7 @@ export type SortDirection = z.infer<typeof sortDirectionSchema>
  */
 export const contactListQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
-  roleCode: typeCodeSchema.optional(),
+  roleTypeId: z.uuid().optional(),
   order: contactListOrderSchema.default('alpha'),
   sort: contactSortFieldSchema.default('name'),
   dir: sortDirectionSchema.default('asc'),

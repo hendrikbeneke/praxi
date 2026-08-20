@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { contact, contactRole } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant } from '../test/fixtures.js'
+import { createTenant, roleTypeId } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import {
   ContactKindChangeError,
@@ -22,9 +22,17 @@ import {
 } from './contact.js'
 
 let tenantId: string
+/** The seeded role types, looked up by label: a role has no code since
+ *  migration 0035, so a test that wants "the patient role" resolves its id. */
+let patientRole: string
+let prospectRole: string
+let participantRole: string
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  patientRole = await roleTypeId(db(), tenantId, 'Patient')
+  prospectRole = await roleTypeId(db(), tenantId, 'Interessent')
+  participantRole = await roleTypeId(db(), tenantId, 'Teilnehmer')
 })
 
 const query = (overrides: Partial<ContactListQuery> = {}): ContactListQuery => ({
@@ -119,15 +127,17 @@ describe('createContact', () => {
       tenantId,
       person({
         roles: [
-          { roleCode: 'prospect', since: '2026-01-15' },
-          { roleCode: 'participant', since: null },
+          { roleTypeId: prospectRole, since: '2026-01-15' },
+          { roleTypeId: participantRole, since: null },
         ],
       }),
     )
 
+    // In catalogue order — Interessent (20) before Teilnehmer (30). Sorted by
+    // the code's alphabet until 0035, which is gone.
     expect(created.roles).toEqual([
-      { roleCode: 'participant', since: null },
-      { roleCode: 'prospect', since: '2026-01-15' },
+      { roleTypeId: prospectRole, since: '2026-01-15' },
+      { roleTypeId: participantRole, since: null },
     ])
   })
 
@@ -244,7 +254,7 @@ describe('setContactRoles', () => {
     const created = await createContact(
       db(),
       tenantId,
-      person({ roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
+      person({ roles: [{ roleTypeId: patientRole, since: '2024-03-01' }] }),
     )
     const [before] = await db()
       .select()
@@ -252,10 +262,10 @@ describe('setContactRoles', () => {
       .where(eq(contactRole.contactId, created.id))
 
     const updated = await setContactRoles(db(), tenantId, created.id, [
-      { roleCode: 'patient', since: '2024-03-01' },
+      { roleTypeId: patientRole, since: '2024-03-01' },
     ])
 
-    expect(updated?.roles).toEqual([{ roleCode: 'patient', since: '2024-03-01' }])
+    expect(updated?.roles).toEqual([{ roleTypeId: patientRole, since: '2024-03-01' }])
 
     const [after] = await db()
       .select()
@@ -271,17 +281,17 @@ describe('setContactRoles', () => {
     const created = await createContact(
       db(),
       tenantId,
-      person({ roles: [{ roleCode: 'prospect', since: '2024-03-01' }] }),
+      person({ roles: [{ roleTypeId: prospectRole, since: '2024-03-01' }] }),
     )
 
     const updated = await setContactRoles(db(), tenantId, created.id, [
-      { roleCode: 'prospect', since: '2024-03-01' },
-      { roleCode: 'patient', since: '2026-08-08' },
+      { roleTypeId: prospectRole, since: '2024-03-01' },
+      { roleTypeId: patientRole, since: '2026-08-08' },
     ])
 
     expect(updated?.roles).toEqual([
-      { roleCode: 'patient', since: '2026-08-08' },
-      { roleCode: 'prospect', since: '2024-03-01' },
+      { roleTypeId: patientRole, since: '2026-08-08' },
+      { roleTypeId: prospectRole, since: '2024-03-01' },
     ])
   })
 
@@ -291,31 +301,31 @@ describe('setContactRoles', () => {
       tenantId,
       person({
         roles: [
-          { roleCode: 'patient', since: null },
-          { roleCode: 'prospect', since: null },
+          { roleTypeId: patientRole, since: null },
+          { roleTypeId: prospectRole, since: null },
         ],
       }),
     )
 
     const updated = await setContactRoles(db(), tenantId, created.id, [
-      { roleCode: 'patient', since: null },
+      { roleTypeId: patientRole, since: null },
     ])
 
-    expect(updated?.roles).toEqual([{ roleCode: 'patient', since: null }])
+    expect(updated?.roles).toEqual([{ roleTypeId: patientRole, since: null }])
   })
 
   it('writes a deliberately changed date', async () => {
     const created = await createContact(
       db(),
       tenantId,
-      person({ roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
+      person({ roles: [{ roleTypeId: patientRole, since: '2024-03-01' }] }),
     )
 
     const updated = await setContactRoles(db(), tenantId, created.id, [
-      { roleCode: 'patient', since: '2024-04-01' },
+      { roleTypeId: patientRole, since: '2024-04-01' },
     ])
 
-    expect(updated?.roles).toEqual([{ roleCode: 'patient', since: '2024-04-01' }])
+    expect(updated?.roles).toEqual([{ roleTypeId: patientRole, since: '2024-04-01' }])
   })
 })
 
@@ -327,7 +337,7 @@ describe('listContacts', () => {
       person({
         firstName: 'Erika',
         lastName: 'Musterfrau',
-        roles: [{ roleCode: 'patient', since: null }],
+        roles: [{ roleTypeId: patientRole, since: null }],
       }),
     )
     await createContact(
@@ -336,7 +346,7 @@ describe('listContacts', () => {
       person({
         firstName: 'Ödön',
         lastName: 'Özdemir',
-        roles: [{ roleCode: 'prospect', since: null }],
+        roles: [{ roleTypeId: prospectRole, since: null }],
       }),
     )
     await createContact(db(), tenantId, person({ firstName: 'Anton', lastName: 'Zimmermann' }))
@@ -378,7 +388,7 @@ describe('listContacts', () => {
   })
 
   it('filters by role', async () => {
-    const { items } = await listContacts(db(), tenantId, query({ roleCode: 'patient' }))
+    const { items } = await listContacts(db(), tenantId, query({ roleTypeId: patientRole }))
 
     expect(items.map((item) => item.lastName)).toEqual(['Musterfrau'])
   })
@@ -538,16 +548,16 @@ describe('listContacts, ordered by what is current', () => {
     const patient = await createContact(
       db(),
       tenantId,
-      person({ lastName: 'Patientin', roles: [{ roleCode: 'patient', since: null }] }),
+      person({ lastName: 'Patientin', roles: [{ roleTypeId: patientRole, since: null }] }),
     )
     const other = await createContact(db(), tenantId, person({ lastName: 'Ohnerolle' }))
 
     await book(patient.id, hoursFromNow(1))
     await book(other.id, hoursFromNow(2))
 
-    expect((await current({ roleCode: 'patient' })).items.map((item) => item.lastName)).toEqual([
-      'Patientin',
-    ])
+    expect((await current({ roleTypeId: patientRole })).items.map((item) => item.lastName)).toEqual(
+      ['Patientin'],
+    )
 
     await setContactArchived(db(), tenantId, patient.id, true)
     expect((await current()).items.map((item) => item.lastName)).toEqual(['Ohnerolle'])
@@ -588,7 +598,7 @@ describe('roles have their own path', () => {
     const created = await createContact(
       db(),
       tenantId,
-      person({ roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
+      person({ roles: [{ roleTypeId: patientRole, since: '2024-03-01' }] }),
     )
 
     const updated = await updateContact(db(), tenantId, created.id, {
@@ -614,7 +624,7 @@ describe('roles have their own path', () => {
     })
 
     expect(updated?.city).toBe('Musterstadt')
-    expect(updated?.roles).toEqual([{ roleCode: 'patient', since: '2024-03-01' }])
+    expect(updated?.roles).toEqual([{ roleTypeId: patientRole, since: '2024-03-01' }])
   })
 
   it('report an unknown contact rather than inventing one', async () => {
@@ -629,12 +639,12 @@ describe('archiving', () => {
     const created = await createContact(
       db(),
       tenantId,
-      person({ roles: [{ roleCode: 'patient', since: '2024-03-01' }] }),
+      person({ roles: [{ roleTypeId: patientRole, since: '2024-03-01' }] }),
     )
 
     const archived = await setContactArchived(db(), tenantId, created.id, true)
     expect(archived?.archivedAt).not.toBeNull()
-    expect(archived?.roles).toEqual([{ roleCode: 'patient', since: '2024-03-01' }])
+    expect(archived?.roles).toEqual([{ roleTypeId: patientRole, since: '2024-03-01' }])
 
     const restored = await setContactArchived(db(), tenantId, created.id, false)
     expect(restored?.archivedAt).toBeNull()
@@ -675,7 +685,7 @@ describe('database guarantees', () => {
         id: '019fde08-0000-7000-8000-000000000001',
         tenantId,
         contactId: created.id,
-        roleCode: 'nonsense',
+        roleTypeId: '019fde08-0000-7000-8000-00000000ffff',
         since: null,
       }),
     ).rejects.toThrow()
@@ -690,7 +700,7 @@ describe('database guarantees', () => {
         id: '019fde08-0000-7000-8000-000000000002',
         tenantId: otherTenant,
         contactId: created.id,
-        roleCode: 'patient',
+        roleTypeId: patientRole,
         since: null,
       }),
     ).rejects.toThrow()

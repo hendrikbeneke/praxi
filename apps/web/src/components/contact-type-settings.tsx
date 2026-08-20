@@ -2,7 +2,7 @@ import type {
   ContactRelationType,
   ContactRelationTypeCreate,
   ContactRoleType,
-  ContactRoleTypeCreate,
+  ContactRoleTypeInput,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
@@ -61,12 +61,12 @@ function useCatalogue(key: string) {
 
 export function RoleTypeSettings() {
   const { invalidate, onError } = useCatalogue('contact-role-types')
-  const types = useQuery(roleTypeListQueryOptions(true))
+  const types = useQuery(roleTypeListQueryOptions)
   const detail = useInlineDetail()
   const [creating, setCreating] = useState(false)
 
   const save = useMutation({
-    mutationFn: (input: { id?: string; values: ContactRoleTypeCreate }) =>
+    mutationFn: (input: { id?: string; values: ContactRoleTypeInput }) =>
       input.id
         ? updateRoleType(input.id, input.values)
         : createRoleType(input.values).then(() => undefined),
@@ -145,24 +145,11 @@ export function RoleTypeSettings() {
                   >
                     <TableCell>
                       <span className="font-medium">{type.label}</span>
-                      <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
                       {type.showAsTab && (
                         <Badge variant="outline" className="ml-2">
                           {strings.contactType.showAsTab}
                         </Badge>
                       )}
-                      {type.isSystem && (
-                        <Badge
-                          variant="secondary"
-                          className="ml-2"
-                          title={strings.contactType.systemHint}
-                        >
-                          {strings.contactType.systemBadge}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <ActiveStatus active={type.active} />
                     </TableCell>
                     <TableCell onClick={(event) => event.stopPropagation()}>
                       <OrderButtons
@@ -178,7 +165,7 @@ export function RoleTypeSettings() {
                   </TableRow>
 
                   {detail.isOpen(type.id) && (
-                    <InlineDetailRow colSpan={3}>
+                    <InlineDetailRow colSpan={2}>
                       {detail.editing ? (
                         <RoleTypeForm
                           type={type}
@@ -189,10 +176,9 @@ export function RoleTypeSettings() {
                       ) : (
                         <div className="space-y-4">
                           <dl className="flex flex-wrap gap-8">
-                            <DetailField label={strings.contactType.code} value={type.code} />
                             <DetailField
                               label={strings.contactType.showAsTab}
-                              value={type.showAsTab ? strings.contactType.showAsTab : DASH}
+                              value={type.showAsTab ? strings.contactType.flagYes : DASH}
                             />
                           </dl>
                           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
@@ -202,10 +188,12 @@ export function RoleTypeSettings() {
                             <Button size="sm" variant="ghost" onClick={detail.close}>
                               {strings.actions.close}
                             </Button>
+                            {/* Never disabled: there is no system entry left to
+                                protect. A role a contact still holds is refused
+                                by the server, with the number in the message. */}
                             <DeleteButton
-                              disabled={type.isSystem}
+                              disabled={false}
                               onConfirm={() => remove.mutate(type.id)}
-                              hint={type.isSystem ? strings.contactType.systemHint : undefined}
                               title={strings.contactType.deleteTitle}
                               body={strings.contactType.deleteBody}
                             />
@@ -227,13 +215,11 @@ export function RoleTypeSettings() {
   )
 }
 
-function toRoleValues(type: ContactRoleType): ContactRoleTypeCreate {
+function toRoleValues(type: ContactRoleType): ContactRoleTypeInput {
   return {
-    code: type.code,
     label: type.label,
     showAsTab: type.showAsTab,
     sortOrder: type.sortOrder,
-    active: type.active,
   }
 }
 
@@ -246,32 +232,17 @@ function RoleTypeForm({
   type?: ContactRoleType
   pending: boolean
   onCancel: () => void
-  onSubmit: (values: ContactRoleTypeCreate) => void
+  onSubmit: (values: ContactRoleTypeInput) => void
 }) {
-  const [values, setValues] = useState<ContactRoleTypeCreate>(
-    type
-      ? toRoleValues(type)
-      : { code: '', label: '', showAsTab: false, sortOrder: 100, active: true },
+  const [values, setValues] = useState<ContactRoleTypeInput>(
+    type ? toRoleValues(type) : { label: '', showAsTab: false, sortOrder: 100 },
   )
 
   return (
     <div className="space-y-4">
+      {/* One field. A role is a label since migration 0035 — no code that has
+          to be fixed on creation, no system flag, no active flag. */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="role-code">{strings.contactType.code}</Label>
-          <Input
-            id="role-code"
-            className="mt-2"
-            // A code is the handle other rows point at, so it is fixed once
-            // the entry exists — for system and own entries alike.
-            disabled={type !== undefined}
-            value={values.code}
-            onChange={(event) => setValues({ ...values, code: event.target.value })}
-          />
-          {type === undefined && (
-            <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.codeHint}</p>
-          )}
-        </div>
         <div>
           <Label htmlFor="role-label">{strings.contactType.label}</Label>
           <Input
@@ -280,6 +251,7 @@ function RoleTypeForm({
             value={values.label}
             onChange={(event) => setValues({ ...values, label: event.target.value })}
           />
+          <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.roleLabelHint}</p>
         </div>
       </div>
 
@@ -290,12 +262,6 @@ function RoleTypeForm({
           checked={values.showAsTab}
           onChange={(checked) => setValues({ ...values, showAsTab: checked })}
         />
-        <CheckboxField
-          id="role-active"
-          label={strings.contactType.active}
-          checked={values.active}
-          onChange={(checked) => setValues({ ...values, active: checked })}
-        />
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-4">
@@ -304,7 +270,7 @@ function RoleTypeForm({
         </Button>
         <Button
           type="button"
-          disabled={pending || values.code.trim() === '' || values.label.trim() === ''}
+          disabled={pending || values.label.trim() === ''}
           onClick={() => onSubmit(values)}
         >
           {strings.actions.save}

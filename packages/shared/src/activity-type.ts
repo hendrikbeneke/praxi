@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { DEFAULT_COLOR, hexColorSchema } from './color.js'
-import { typeCodeSchema } from './contact-role-type.js'
 import { requiredText } from './field.js'
+import { typeCodeSchema } from './type-code.js'
 
 /**
  * The catalogue of activity types — Erstgespräch, Folgesitzung, Vortrag,

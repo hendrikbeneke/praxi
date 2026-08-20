@@ -1,27 +1,31 @@
 /**
  * The role and relation types every tenant starts with (CLAUDE.md rule 4).
  *
- * The entries marked `isSystem` are the ones the software itself depends on:
- * `patient` decides what counts as treatment documentation and what is
- * pseudonymized towards Google, `guardian` and `billing_recipient` are what
- * later slices resolve when they need a counterpart. They cannot be deleted
- * and their code cannot change; everything about how they read can.
+ * The **relation** entries marked `isSystem` are the ones the software itself
+ * depends on: `guardian` and `billing_recipient` are what other parts resolve
+ * when they need a counterpart. They cannot be deleted and their code cannot
+ * change; everything about how they read can.
+ *
+ * **The roles carry no such entry.** `patient` is a starting point like the
+ * other two and nothing more — it is deletable and renamable, and no code
+ * anywhere looks for it. Who is pseudonymized towards Google is decided by a
+ * switch on the Google connection, not by a role (migration 0035).
  *
  * The rest are a starting point, editable and deletable like anything the
  * practitioner adds.
  *
- * Idempotent: an entry that already exists keeps the label it has. Migration
- * 0017 carries a frozen copy of this list for the tenant that existed when it
- * ran — this file is the living definition.
+ * Idempotent: an entry that already exists keeps what it has. Migrations 0017
+ * and 0035 carry the history for the tenant that existed when they ran — this
+ * file is the living definition.
  */
 import { newId } from '../../id.js'
 import type { Database } from '../client.js'
 import { contactRelationType, contactRoleType } from '../schema.js'
 
 const ROLE_TYPES = [
-  { code: 'patient', label: 'Patient', isSystem: true, showAsTab: true, sortOrder: 10 },
-  { code: 'prospect', label: 'Interessent', isSystem: false, showAsTab: false, sortOrder: 20 },
-  { code: 'participant', label: 'Teilnehmer', isSystem: false, showAsTab: false, sortOrder: 30 },
+  { label: 'Patient', showAsTab: true, sortOrder: 10 },
+  { label: 'Interessent', showAsTab: false, sortOrder: 20 },
+  { label: 'Teilnehmer', showAsTab: false, sortOrder: 30 },
 ] as const
 
 const RELATION_TYPES = [
@@ -71,7 +75,8 @@ export async function seedContactTypes(database: Database, tenantId: string): Pr
     await database
       .insert(contactRoleType)
       .values({ id: newId(), tenantId, ...type })
-      .onConflictDoNothing({ target: [contactRoleType.tenantId, contactRoleType.code] })
+      // The label is the anchor now; there is no code to key off.
+      .onConflictDoNothing({ target: [contactRoleType.tenantId, contactRoleType.label] })
   }
 
   for (const type of RELATION_TYPES) {

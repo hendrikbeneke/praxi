@@ -5,7 +5,6 @@ import type {
   ContactRelationTypeCreate,
   ContactRelationTypeInput,
   ContactRoleType,
-  ContactRoleTypeCreate,
   ContactRoleTypeInput,
 } from '@praxi/shared'
 import { queryOptions } from '@tanstack/react-query'
@@ -20,19 +19,18 @@ import { api, apiError } from './api'
  * settings screen.
  */
 
-export const roleTypeListQueryOptions = (includeInactive = false) =>
-  queryOptions({
-    queryKey: ['contact-role-types', { includeInactive }],
-    queryFn: async (): Promise<ContactRoleType[]> => {
-      const res = await api.api['contact-role-types'].$get({
-        query: { includeInactive: includeInactive ? 'true' : 'false' },
-      })
-      if (!res.ok) throw await apiError(res)
-      return res.json()
-    },
-  })
+/** All of them — a role type has no `active` flag since migration 0035, so
+ *  there is nothing to leave out and nothing to key the cache on. */
+export const roleTypeListQueryOptions = queryOptions({
+  queryKey: ['contact-role-types'],
+  queryFn: async (): Promise<ContactRoleType[]> => {
+    const res = await api.api['contact-role-types'].$get()
+    if (!res.ok) throw await apiError(res)
+    return res.json()
+  },
+})
 
-export async function createRoleType(input: ContactRoleTypeCreate): Promise<ContactRoleType> {
+export async function createRoleType(input: ContactRoleTypeInput): Promise<ContactRoleType> {
   const res = await api.api['contact-role-types'].$post({ json: input })
   if (!res.ok) throw await apiError(res)
   return res.json()

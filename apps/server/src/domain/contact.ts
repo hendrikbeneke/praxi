@@ -24,7 +24,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
-import { appointment, contact, contactRole } from '../db/schema.js'
+import { appointment, contact, contactRole, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
 import { nextNumber } from './counter.js'
 
@@ -164,20 +164,24 @@ function columnsFromInput(input: ContactUpdate) {
 async function rolesFor(reader: DbReader, contactIds: string[]) {
   if (contactIds.length === 0) return new Map<string, Contact['roles']>()
 
+  // Joined for the order alone: the roles of one contact read in the order the
+  // catalogue is kept in, the same one every list and every checkbox grid
+  // uses. Ordering by the id they point at would be a coin toss.
   const rows = await reader
     .select({
       contactId: contactRole.contactId,
-      roleCode: contactRole.roleCode,
+      roleTypeId: contactRole.roleTypeId,
       since: contactRole.since,
     })
     .from(contactRole)
+    .innerJoin(contactRoleType, eq(contactRoleType.id, contactRole.roleTypeId))
     .where(inArray(contactRole.contactId, contactIds))
-    .orderBy(asc(contactRole.roleCode))
+    .orderBy(asc(contactRoleType.sortOrder), asc(contactRoleType.label))
 
   const byContact = new Map<string, Contact['roles']>()
   for (const row of rows) {
     const list = byContact.get(row.contactId) ?? []
-    list.push({ roleCode: row.roleCode, since: row.since })
+    list.push({ roleTypeId: row.roleTypeId, since: row.since })
     byContact.set(row.contactId, list)
   }
   return byContact
@@ -197,28 +201,28 @@ async function replaceRoles(
   roles: ContactRoleInput[],
 ): Promise<void> {
   const existing = await tx
-    .select({ id: contactRole.id, roleCode: contactRole.roleCode, since: contactRole.since })
+    .select({ id: contactRole.id, roleTypeId: contactRole.roleTypeId, since: contactRole.since })
     .from(contactRole)
     .where(eq(contactRole.contactId, contactId))
 
-  const wanted = new Set(roles.map((entry) => entry.roleCode))
-  const removed = existing.filter((row) => !wanted.has(row.roleCode)).map((row) => row.roleCode)
+  const wanted = new Set(roles.map((entry) => entry.roleTypeId))
+  const removed = existing.filter((row) => !wanted.has(row.roleTypeId)).map((row) => row.roleTypeId)
 
   if (removed.length > 0) {
     await tx
       .delete(contactRole)
-      .where(and(eq(contactRole.contactId, contactId), inArray(contactRole.roleCode, removed)))
+      .where(and(eq(contactRole.contactId, contactId), inArray(contactRole.roleTypeId, removed)))
   }
 
   for (const entry of roles) {
-    const current = existing.find((row) => row.roleCode === entry.roleCode)
+    const current = existing.find((row) => row.roleTypeId === entry.roleTypeId)
 
     if (!current) {
       await tx.insert(contactRole).values({
         id: newId(),
         tenantId,
         contactId,
-        roleCode: entry.roleCode,
+        roleTypeId: entry.roleTypeId,
         since: entry.since,
       })
     } else if (current.since !== entry.since) {
@@ -404,12 +408,12 @@ export async function listContacts(
     if (matches) filters.push(matches)
   }
 
-  if (query.roleCode) {
+  if (query.roleTypeId) {
     filters.push(
       sql`exists (
         select 1 from ${contactRole}
          where ${contactRole.contactId} = ${contact.id}
-           and ${contactRole.roleCode} = ${query.roleCode}
+           and ${contactRole.roleTypeId} = ${query.roleTypeId}
       )`,
     )
   }

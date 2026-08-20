@@ -130,9 +130,11 @@ export const strings = {
     symmetricSummary: 'Gilt in beide Richtungen gleich',
     exclusiveSummary: 'Höchstens einmal pro Kontakt',
     counterpartSummary: (inverse: string) => `Gegenstück: ${inverse}`,
+    /** Roles carry no logic since migration 0035, so nothing about them is
+     *  protected — what the footer says instead is the one rule that is left. */
     rolesFooter:
-      'Ein System-Eintrag lässt sich umbenennen, aber nicht löschen — sein Kürzel bleibt, ' +
-      'wie es ist.',
+      'Eine Rolle ist eine reine Kennzeichnung. Sie lässt sich jederzeit umbenennen und ' +
+      'löschen, solange kein Kontakt sie trägt.',
     relationsFooter:
       'Der erste Kontakt ist der, in dessen Akte der Sachverhalt eine Eigenschaft dieses ' +
       'Kontakts ist — das Kind hat einen Sorgeberechtigten. Der zweite Kontakt ist das Gegenüber.',
@@ -142,6 +144,14 @@ export const strings = {
       'Technisches Kürzel, klein geschrieben, ohne Leerzeichen. Es steht mit dem Anlegen fest ' +
       'und lässt sich später nicht mehr ändern.',
     label: 'Bezeichnung',
+    /** The label is what a role is recognised by now that there is no code —
+     *  hence unique, and hence worth saying at the field. */
+    roleLabelHint: 'Jede Rolle braucht eine eigene Bezeichnung.',
+    /** The read view of a flag. Repeating the flag's own name as its value —
+     *  "Als Reiter in der Kontaktliste: Als Reiter in der Kontaktliste" — was
+     *  invisible while a second field stood beside it and glaring once the
+     *  code went. */
+    flagYes: 'Ja',
     labelForward: 'Bezeichnung in der Akte des ersten Kontakts',
     labelInverse: 'Bezeichnung in der Akte des zweiten Kontakts',
     /** The direction convention, in one sentence, where it is decided. */
@@ -265,8 +275,15 @@ export const strings = {
 
     roleLabel: 'Rollen',
     /** The labels themselves come from `contact_role_type` — the practitioner
-     *  maintains them in the settings, so there is nothing to translate here. */
-    roleHint: 'Die Rollen selbst pflegen Sie in den Einstellungen.',
+     *  maintains them in the settings, so there is nothing to translate here.
+     *
+     *  With none set up at all the section would otherwise be blank and read
+     *  as broken, so it says in words that this is a legitimate state. */
+    roleTypesEmpty: 'Es sind keine Rollen angelegt.',
+    roleTypesEmptyHint:
+      'Ein Kontakt braucht keine — Rollen sind eine Kennzeichnung, die bestimmt, in ' +
+      'welchen Listen er auftaucht. Anlegen können Sie sie in den Einstellungen unter ' +
+      'Kontaktarten.',
     moreRoles: 'Weitere',
     orderCurrent: 'Aktuell',
     orderAlpha: 'A–Z',
@@ -317,7 +334,9 @@ export const strings = {
     /** Read mode of the roles section: which ones this contact does *not*
      *  hold. Empty when it holds all of them — there is nothing to name. */
     rolesUnassigned: (labels: string[]) => `Nicht zugeordnet: ${labels.join(', ')}`,
-    rolesNone: 'Keine Rolle zugeordnet.',
+    /** The second half is the point: "no role" reads as a shortcoming and is
+     *  none, but it does have a visible consequence. */
+    rolesNone: 'Keine Rolle zugeordnet — der Kontakt taucht dadurch nur unter „Alle" auf.',
     masterReadHint: 'Stammdaten werden erst nach „Bearbeiten" änderbar.',
     unsavedChanges: 'Ungespeicherte Änderungen',
     rolesSaveFailed:

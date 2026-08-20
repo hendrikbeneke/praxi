@@ -1,6 +1,7 @@
 import type { Invoice } from '@praxi/shared'
+import { and, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
-import { appUser, practiceSettings, tenant } from '../db/schema.js'
+import { appUser, contactRoleType, practiceSettings, tenant } from '../db/schema.js'
 import { seedActivityTypes } from '../db/seed/activity-types.js'
 import { seedContactTypes } from '../db/seed/contact-types.js'
 import { hashPassword } from '../domain/auth.js'
@@ -16,8 +17,7 @@ import { newId } from '../id.js'
  * The three catalogues come with the tenant, from the same functions the seed
  * uses. A tenant without them is not a state the application can reach — every
  * one of them is the target of a composite foreign key, so without them a
- * contact could not hold the `patient` role and an activity could have no type
- * at all.
+ * contact could hold no role and an activity could have no type at all.
  */
 export async function createTenant(database: Database): Promise<string> {
   const id = newId()
@@ -25,6 +25,29 @@ export async function createTenant(database: Database): Promise<string> {
   await seedContactTypes(database, id)
   await seedActivityTypes(database, id)
   return id
+}
+
+/**
+ * The id of one of the seeded role types, by label.
+ *
+ * A role has no code since migration 0035, so a test that wants "the patient
+ * role" has to look it up. Labelled rather than positional: `roleTypeId(db,
+ * tenant, 'Patient')` says what it wants, `types[0].id` says where it happens
+ * to sit.
+ */
+export async function roleTypeId(
+  database: Database,
+  tenantId: string,
+  label: string,
+): Promise<string> {
+  const [row] = await database
+    .select({ id: contactRoleType.id })
+    .from(contactRoleType)
+    .where(and(eq(contactRoleType.tenantId, tenantId), eq(contactRoleType.label, label)))
+    .limit(1)
+
+  if (!row) throw new Error(`no role type labelled ${label}`)
+  return row.id
 }
 
 export async function createPracticeSettings(

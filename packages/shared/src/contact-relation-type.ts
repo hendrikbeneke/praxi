@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { typeCodeSchema } from './contact-role-type.js'
 import { optionalText, requiredText } from './field.js'
+import { typeCodeSchema } from './type-code.js'
 
 /**
  * The catalogue of relations between two contacts (CLAUDE.md rule 4).

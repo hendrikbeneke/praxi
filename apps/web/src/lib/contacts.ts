@@ -13,7 +13,7 @@ import { api, apiError } from './api'
 
 export type ContactListParams = {
   q?: string | undefined
-  roleCode?: string | undefined
+  roleTypeId?: string | undefined
   order?: ContactListOrder
   sort?: ContactSortField
   dir?: SortDirection
@@ -42,7 +42,7 @@ export const contactListQueryOptions = ({ enabled = true, ...params }: ContactLi
       const res = await api.api.contacts.$get({
         query: {
           ...(params.q ? { q: params.q } : {}),
-          ...(params.roleCode ? { roleCode: params.roleCode } : {}),
+          ...(params.roleTypeId ? { roleTypeId: params.roleTypeId } : {}),
           ...(params.order ? { order: params.order } : {}),
           ...(params.sort ? { sort: params.sort } : {}),
           ...(params.dir ? { dir: params.dir } : {}),

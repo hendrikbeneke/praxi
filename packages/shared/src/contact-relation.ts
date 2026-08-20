@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { ContactRelationType } from './contact-relation-type.js'
-import { typeCodeSchema } from './contact-role-type.js'
+import { typeCodeSchema } from './type-code.js'
 
 /**
  * A relation between two contacts, always stored as a single row. Both records

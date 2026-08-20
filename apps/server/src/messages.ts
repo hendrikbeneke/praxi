@@ -53,14 +53,27 @@ export const messages = {
   contactType: {
     notFound: 'Dieser Eintrag existiert nicht.',
     codeTaken: 'Dieses Kürzel ist bereits vergeben.',
-    // A system entry is one the software itself depends on — `patient` above
-    // all. The label stays editable, which is what the message points at.
+    labelTaken: 'Eine Rolle mit dieser Bezeichnung gibt es bereits.',
+    // Relations only, since migration 0035: a system entry is one the software
+    // itself depends on, and `billing_recipient` and `guardian` are the two
+    // that do. Roles carry no logic anymore.
     systemNotDeletable:
       'Dieser Eintrag gehört fest zum System und kann nicht gelöscht werden. ' +
       'Sie können ihn umbenennen oder auf inaktiv setzen.',
-    roleInUse:
+    // Says how many, because "delete them there first" without a number sends
+    // the practitioner looking through the whole card index.
+    roleInUse: (count: number) =>
+      count === 1
+        ? 'Diese Rolle ist einem Kontakt zugeordnet und kann nicht gelöscht werden. ' +
+          'Nehmen Sie sie dort zuerst ab.'
+        : `Diese Rolle ist ${count} Kontakten zugeordnet und kann nicht gelöscht werden. ` +
+          'Nehmen Sie sie dort zuerst ab.',
+    /** The foreign key rather than the domain check — it cannot count, so it
+     *  cannot say how many. Only reachable if something deletes past
+     *  `deleteRoleType`. */
+    roleInUseUnknown:
       'Diese Rolle ist noch Kontakten zugeordnet und kann nicht gelöscht werden. ' +
-      'Setzen Sie sie auf inaktiv, wenn sie nicht mehr vergeben werden soll.',
+      'Nehmen Sie sie dort zuerst ab.',
     relationInUse:
       'Diese Beziehungsart wird noch verwendet und kann nicht gelöscht werden. ' +
       'Setzen Sie sie auf inaktiv, wenn sie nicht mehr vergeben werden soll.',

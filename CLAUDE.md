@@ -178,7 +178,9 @@ A two-digit year means the nearest one: 00–69 this century, 70–99 the last. 
 
 Both sets are **configurable**. `contact_role_type` and `contact_relation_type` are catalogues the practitioner maintains, because the roles this practice needs are not known up front. Neither is an enum and neither is a check constraint; a composite foreign key carrying `tenant_id` is what validates an assignment.
 
-Entries flagged `is_system` are the ones **logic may depend on**. They cannot be deleted and their `code` cannot change — enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger. Everything about how they read stays editable: label, order, `active`, `show_as_tab`. `is_system` appears in no input schema; only the seed sets it. A `code` is fixed for every entry, system or not: it is the handle other rows point at.
+**A role is a label, and that is the whole of it** (migration 0035). It has no `code`, no `is_system` and no `active`: every entry is alike — creatable, renamable, deletable as long as no contact holds it, and the refusal says how many do. `contact_role` points at the type's `id`. The label is what a role is recognised by, so it is unique per tenant; two roles reading "Patient" would put two indistinguishable tabs in the contact list. `active` went with the rest deliberately — it raises four questions (is an inactive role shown while editing a contact that holds it, does it stay in the filter, and if not, how are those contacts found again) and prevents nothing. With `service` it is different: a service on a finalized invoice can never be removed, so there has to be a way to take it out of the selection. A role assignment is a row of its own with nothing hanging off it. Work, but never a dead end.
+
+**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. Everything about how they read stays editable: label, order, `active`. `is_system` appears in no input schema; only the seed sets it. A relation type's `code` is fixed for every entry, system or not: it is the handle other rows point at.
 
 **Direction of a relation**: `from` is the contact in whose record the fact is a property *of that contact*, `to` is the counterpart. A child is the `from` of `guardian`, a patient is the `from` of `billing_recipient`. This is not cosmetic — `is_exclusive` is enforced per `from_contact_id`, so with the convention exclusivity always reads as "this contact has at most one X", and the next exclusive type needs no fresh thinking. `parent_of` is the deliberate exception: with kinship neither side owns the fact, and "Elternteil von / Kind von" is the more common reading direction.
 
@@ -186,7 +188,7 @@ Entries flagged `is_system` are the ones **logic may depend on**. They cannot be
 
 Every contact gets a sequential `contact_number` on creation, regardless of role. There is no separate patient number.
 
-Confidentiality follows the role, not the table: professional secrecy under § 203 StGB and the pseudonymization towards Google apply to contacts holding the role whose type is the **system entry with `code = 'patient'`** — not to a label that happens to read "Patient". A company booking a talk is not a confidential relationship.
+**Nothing keys off a particular role.** Not the pseudonymization towards Google, which is a switch in the Google settings (rule 13), and not anything else. This paragraph used to say the opposite — that professional secrecy and the pseudonymization applied to holders of the system entry `code = 'patient'` — and it was never true: no line outside a comment ever read that code. A rule derived from roles can be tipped over in silence by a role someone forgot to tick, and it cannot be tested as an absolute; a switch is one decision, at one place, at a knowable time.
 
 ### 5. Services are templates, never live references
 
@@ -571,28 +573,43 @@ contact               tenant_id uuid not null -> tenant(id),
                       check contact_gender_values (
                         gender is null or in ('female','male','diverse'))
 
--- as built (slice 6.5)
+-- as built (slice 6.5, reduced to a label in D-R1/0035)
 contact_role_type     tenant_id uuid not null -> tenant(id),
-                      code text not null,                       -- the handle
-                        -- logic points at; fixed once the row exists, for every
-                        -- entry, because contact_role references it
                       label text not null,
-                      is_system boolean not null default false, -- not
-                        -- deletable, code frozen; set by the seed alone and
-                        -- present in no input schema
                       show_as_tab boolean not null default false,
                         -- the contact list gives this role a tab of its own;
                         -- the rest stay reachable through the dropdown beside
-                      sort_order integer not null default 0,
-                      active boolean not null default true
-                      unique (tenant_id, code)                  -- also the
-                        -- target of contact_role's composite foreign key
+                      sort_order integer not null default 0
+                      unique (tenant_id, label)                 -- what a role
+                        -- is recognised by now that there is no code. Two
+                        -- roles reading "Patient" would put two
+                        -- indistinguishable tabs in the contact list.
+                      unique (id, tenant_id)                    -- the target
+                        -- of contact_role's composite foreign key
                       index on (tenant_id, sort_order, label)
-                      check contact_role_type_code_shape
-                        (^[a-z][a-z0-9_]{0,39}$)
-                      -- trigger protect_system_type (migration 0017) refuses
-                      -- DELETE and any change to code or is_system on a system
-                      -- row; set_updated_at; RLS created and disabled.
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- DELIBERATELY ABSENT since 0035, all three together:
+                      -- `code`, `is_system` and the protect_system_type
+                      -- trigger, and `active`. The first two existed so logic
+                      -- could depend on a particular role — `patient` was
+                      -- named as the one deciding what is pseudonymized
+                      -- towards Google — and nothing outside a comment ever
+                      -- did; that decision is a switch on google_connection
+                      -- now. With no anchor to freeze there is nothing to
+                      -- protect, and with nothing protected the code is one
+                      -- more name to keep in step.
+                      --
+                      -- `active` went for its own reason: it raises four
+                      -- questions (shown while editing a contact that holds
+                      -- it? still in the filter? if not, how are those
+                      -- contacts found?) and prevents nothing. A service on a
+                      -- finalized invoice is a dead end and needs the flag; a
+                      -- role assignment is a row with nothing hanging off it.
+                      --
+                      -- contact_relation_type kept all three. There the codes
+                      -- carry logic, and protect_system_type() still stands
+                      -- for its trigger.
 
 -- as built (slice 6.5)
 contact_relation_type tenant_id uuid not null -> tenant(id),
@@ -615,25 +632,32 @@ contact_relation_type tenant_id uuid not null -> tenant(id),
                         (label_inverse is not null) = (not is_symmetric))
                       -- same two triggers and RLS as contact_role_type
 
--- as built (slice 2), rebuilt in slice 6.5
+-- as built (slice 2), rebuilt in slice 6.5, repointed in D-R1/0035
 contact_role          tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null,
-                      role_code text not null,
+                      role_type_id uuid not null,               -- pointed at
+                        -- contact_role_type.code until 0035; a role has no
+                        -- code anymore, so the id is the anchor
                       since date                                (nullable — when
                         -- an old contact is entered afterwards the start date
                         -- often cannot be reconstructed. Set to today when the
                         -- role is ticked; the form does not show it.)
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id) on delete cascade
-                      foreign key (role_code, tenant_id)
-                        -> contact_role_type (code, tenant_id)
+                      foreign key (role_type_id, tenant_id)
+                        -> contact_role_type (id, tenant_id)
                         on update restrict on delete restrict
                         -- composite, so a role type of another tenant cannot
-                        -- be assigned. Nothing to cascade on update: a code
-                        -- never changes.
-                      unique (contact_id, role_code)            -- also serves
+                        -- be assigned. RESTRICT on delete is what makes a role
+                        -- in use undeletable; deleteRoleType counts first, so
+                        -- the message says how many contacts hold it.
+                      unique (contact_id, role_type_id)         -- also serves
                         -- lookups by contact and the cascade check
-                      index on (tenant_id, role_code)           -- role filter
+                      index on (tenant_id, role_type_id)        -- role filter
+                      -- The roles OF one contact are read in catalogue order
+                      -- (sort_order, label) through a join, not by the column
+                      -- above: ordering by the id they point at would be a
+                      -- coin toss.
 
 -- as built (slice 6.5)
 contact_relation      tenant_id uuid not null -> tenant(id),

@@ -2362,6 +2362,44 @@ nichts maßstäblich; geteilt werden nur die Einträge und was ein Klick auslös
   hat („Nächste freie Zeit · Folgesitzung"), weil die Antwort nur für diese
   Länge gilt — und sie folgt der Auswahl im Terminfinder.
 
+## Rollen und Pseudonymisierung (D-R)
+
+Kein Bildschirm-Paket, sondern eine Aufräumrunde vor dem nächsten: Rollen
+werden zu reiner Kennzeichnung, und die einzige Stelle, an der eine Rolle je
+inhaltlich zählen sollte, wird ein Schalter.
+
+**R1, as built** — *Rollen sind Beschriftungen* (Migration `0035`):
+
+- **`contact_role_type` verliert `code`, `is_system` und `active`**, samt dem
+  Trigger `contact_role_type_protect_system`. Die Funktion `protect_system_type()`
+  bleibt — `contact_relation_type` benutzt sie weiter, und dort tragen
+  `billing_recipient` und `guardian` echte Logik. Die beiden Kataloge sind
+  seitdem bewusst nicht mehr symmetrisch.
+- **`contact_role.role_code` → `role_type_id`**, mit Datenumzug: neue Spalte,
+  `UPDATE … FROM contact_role_type` über den Code, ein `DO`-Block, der die
+  verwaisten Zeilen *zählt und benennt*, bevor `SET NOT NULL` sie über einen
+  Constraint-Namen melden könnte, dann der Rest. Der zusammengesetzte
+  Fremdschlüssel zeigt jetzt auf `(id, tenant_id)`.
+- **`unique (tenant_id, label)`** tritt an die Stelle der Eindeutigkeit, die mit
+  dem Kürzel wegfiel: die Bezeichnung ist ab jetzt das, wodurch eine Rolle
+  erkannt wird, und zwei Reiter „Patient" wären unbedienbar.
+- **Löschen sagt, wie viele.** `deleteRoleType` zählt die Zuordnungen vorher und
+  wirft `RoleTypeInUseError(count)`; der Fremdschlüssel bleibt der Rückhalt
+  dahinter, kann aber nur einen Constraint nennen.
+- **Die Rollen eines Kontakts stehen in Katalogreihenfolge** (`sort_order`,
+  `label`), über einen Join — nach der id zu sortieren wäre ein Münzwurf.
+- **`patient` ist eine gewöhnliche Rolle.** Sie kommt im Seed mit `show_as_tab`
+  mit und sonst nichts. Der Satz in `CLAUDE.md`, die Pseudonymisierung hänge an
+  ihr, ist gestrichen — er war nie wahr: außerhalb eines Kommentars hat den Code
+  nie eine Zeile gelesen.
+- **Der leere Fall hat Texte.** Ohne angelegte Rollentypen sagt das
+  Kontaktformular es in zwei Sätzen statt leer zu bleiben, und die Reiterzeile
+  der Liste zeigt nur „Alle". Im Lesemodus heißt es „Keine Rolle zugeordnet —
+  der Kontakt taucht dadurch nur unter ‚Alle' auf": der zweite Halbsatz ist der
+  Punkt, weil das Fehlen kein Mangel ist, aber eine sichtbare Folge hat.
+- **Die URL der Kontaktliste führt die uuid** (`?role=…`) statt des Kürzels. Ein
+  zweiter Anker, nur für die Adresszeile gehalten, wäre der Code gewesen.
+
 **Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
 Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein
 Vorgang hängt, und der Vorgang gibt seinen Termin nur mit auf. Was der Fall
