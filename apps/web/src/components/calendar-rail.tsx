@@ -68,7 +68,6 @@ export function CalendarRail({
   entries,
   selection,
   nextFree,
-  nextFreeDuration,
   onUseNextFree,
   onSelectEntry,
   onClose,
@@ -81,9 +80,13 @@ export function CalendarRail({
   /** Everything loaded for the visible window, for the day's schedule. */
   entries: readonly CalendarEntry[]
   selection: RailSelection
-  /** The first gap on the overview day, or null when there is none. */
-  nextFree: FreeSlot | null
-  nextFreeDuration: number
+  /**
+   * What the day's card should say, or **null when there is nothing to ask**:
+   * the practice has no default activity type, or the one it has carries no
+   * duration. A card that names a length nobody configured is a claim about
+   * the practice, so there is none.
+   */
+  nextFree: { slot: FreeSlot | null; durationMin: number; typeLabel: string | null } | null
   onUseNextFree: (slot: FreeSlot) => void
   onSelectEntry: (entry: CalendarEntry) => void
   onClose: () => void
@@ -108,7 +111,6 @@ export function CalendarRail({
             anchor={anchor}
             entries={entries}
             nextFree={nextFree}
-            nextFreeDuration={nextFreeDuration}
             onUseNextFree={onUseNextFree}
             onSelectEntry={onSelectEntry}
           />
@@ -385,14 +387,12 @@ function DayOverview({
   anchor,
   entries,
   nextFree,
-  nextFreeDuration,
   onUseNextFree,
   onSelectEntry,
 }: {
   anchor: string
   entries: readonly CalendarEntry[]
-  nextFree: FreeSlot | null
-  nextFreeDuration: number
+  nextFree: { slot: FreeSlot | null; durationMin: number; typeLabel: string | null } | null
   onUseNextFree: (slot: FreeSlot) => void
   onSelectEntry: (entry: CalendarEntry) => void
 }) {
@@ -434,31 +434,42 @@ function DayOverview({
       </div>
 
       {/* Where the next treatment would still fit, and the way straight into
-          it. Appears with the gap, not without: a card saying "no free time"
-          with a dead button under it would be a control that leads nowhere. */}
-      {/* Neutral, not primary-tinted (design): the next gap is a fact about
-          the day, not an offer competing with the day itself. */}
-      <div className="mt-4 rounded-lg border bg-muted/50 px-3 py-2.5">
-        <p className="text-[12px] text-muted-foreground">{strings.appointment.nextFree}</p>
-        <p className="mt-0.5 font-semibold tabular-nums">
-          {nextFree
-            ? strings.appointment.nextFreeSpan(
-                formatBerlinTime(nextFree.startsAt),
-                formatBerlinTime(nextFree.endsAt),
-                minutesBetween(nextFree.startsAt, nextFree.endsAt),
-              )
-            : strings.appointment.nextFreeNone(nextFreeDuration)}
-        </p>
-        {nextFree && (
-          <button
-            type="button"
-            className="mt-1.5 font-semibold text-[13px] text-primary hover:text-foreground"
-            onClick={() => onUseNextFree(nextFree)}
-          >
-            {strings.appointment.nextFreeAction}
-          </button>
-        )}
-      </div>
+          it. Neutral, not primary-tinted (design): the next gap is a fact about
+          the day, not an offer competing with the day itself.
+
+          The card names *what* it looked for — "Nächste freie Zeit ·
+          Folgesitzung" — because the answer is only true for that length, and
+          the left rail can change it. Without the name the same card said
+          different things on different days for no visible reason. */}
+      {nextFree && (
+        <div className="mt-4 rounded-lg border bg-muted/50 px-3 py-2.5">
+          <p className="text-[12px] text-muted-foreground">
+            {nextFree.typeLabel === null
+              ? strings.appointment.nextFree
+              : `${strings.appointment.nextFree} · ${nextFree.typeLabel}`}
+          </p>
+          <p className="mt-0.5 font-semibold tabular-nums">
+            {nextFree.slot
+              ? strings.appointment.nextFreeSpan(
+                  formatBerlinTime(nextFree.slot.startsAt),
+                  formatBerlinTime(nextFree.slot.endsAt),
+                  minutesBetween(nextFree.slot.startsAt, nextFree.slot.endsAt),
+                )
+              : strings.appointment.nextFreeNone(nextFree.durationMin)}
+          </p>
+          {nextFree.slot !== null && (
+            <button
+              type="button"
+              className="mt-1.5 font-semibold text-[13px] text-primary hover:text-foreground"
+              onClick={() => {
+                if (nextFree.slot !== null) onUseNextFree(nextFree.slot)
+              }}
+            >
+              {strings.appointment.nextFreeAction}
+            </button>
+          )}
+        </div>
+      )}
 
       <p className="mt-6 mb-1 font-semibold text-sm">{strings.appointment.daySchedule}</p>
       {ofDay.length === 0 ? (

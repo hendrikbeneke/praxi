@@ -82,6 +82,15 @@ const TODAY_HEADER = 'color-mix(in oklab, var(--primary) 8%, var(--card))'
 const TODAY_COLUMN = 'color-mix(in oklab, var(--primary) 3%, var(--card))'
 const HALF_HOUR_LINE = 'color-mix(in oklab, var(--border) 45%, transparent)'
 const CLOSED_WASH = 'color-mix(in oklab, var(--muted) 55%, transparent)'
+/**
+ * The offers. Darker than the grid and with a firmer outline than the first
+ * attempt, which was `muted` at 60 % over a near-white card and all but
+ * invisible against it — a suggestion nobody can see is not a suggestion.
+ * Mixed from `--muted-foreground` rather than `--muted` so the two tones scale
+ * with the theme's contrast instead of with its background.
+ */
+const FREE_SLOT_FILL = 'color-mix(in oklab, var(--muted-foreground) 12%, var(--card))'
+const FREE_SLOT_BORDER = 'color-mix(in oklab, var(--muted-foreground) 45%, transparent)'
 /** Enough for two lines of text — a five-minute entry must stay readable. */
 const MIN_BLOCK_PX = 22
 
@@ -388,13 +397,25 @@ export function CalendarGrid({
                       type="button"
                       key={slot.startsAt}
                       onClick={() => onPickSlot?.(slot)}
-                      style={{
-                        top: startMinutesOf(slot.startsAt) * perMinute,
-                        height: Math.max(
-                          MIN_BLOCK_PX,
-                          minutesBetween(slot.startsAt, slot.endsAt) * perMinute - 2,
-                        ),
-                      }}
+                      style={
+                        freeSlotsAreComplete
+                          ? {
+                              top: startMinutesOf(slot.startsAt) * perMinute,
+                              height: Math.max(
+                                MIN_BLOCK_PX,
+                                minutesBetween(slot.startsAt, slot.endsAt) * perMinute - 2,
+                              ),
+                              backgroundColor: FREE_SLOT_FILL,
+                              borderColor: FREE_SLOT_BORDER,
+                            }
+                          : {
+                              top: startMinutesOf(slot.startsAt) * perMinute,
+                              height: Math.max(
+                                MIN_BLOCK_PX,
+                                minutesBetween(slot.startsAt, slot.endsAt) * perMinute - 2,
+                              ),
+                            }
+                      }
                       className={cn(
                         'absolute inset-x-0.5 z-[1] overflow-hidden rounded border border-dashed px-1.5 py-0.5 text-left text-[11px] leading-tight',
                         // Grey and dashed, not primary-tinted (design): an
@@ -403,7 +424,7 @@ export function CalendarGrid({
                         // that means something — private calendars unchecked,
                         // so the answer is the weaker kind.
                         freeSlotsAreComplete
-                          ? 'border-border bg-muted/60 hover:bg-muted'
+                          ? 'hover:brightness-[0.97]'
                           : 'border-warning/60 bg-warning/10 text-warning hover:bg-warning/20',
                       )}
                     >

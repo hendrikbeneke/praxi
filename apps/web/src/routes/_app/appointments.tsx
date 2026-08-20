@@ -69,10 +69,6 @@ export const Route = createFileRoute('/_app/appointments')({
  * design and was struck from the correction list on instruction (D-K2). The
  * same holds for a day outside the opening hours: it is greyed, never narrowed.
  */
-/** What the rail's "next free time" asks for before the finder has been given
- *  a length of its own — the middle of the design's three offers. */
-const DEFAULT_FREE_MINUTES = 60
-
 /**
  * The five views (D-K4). Three of them are the time grid, and two are not: the
  * month asks how full a fortnight is, the list asks what is coming — neither is
@@ -207,19 +203,40 @@ function CalendarPage() {
   )
 
   /**
-   * The first gap on the overview day long enough for what the finder is set
-   * to — the card in the rail. Asked of the server like every other question
-   * about free time: `findFreeSlots` in the domain knows the opening hours and
-   * the private busy intervals, and a second answer computed in the browser
-   * would eventually disagree with the suggestions in the grid.
+   * The first gap on the overview day long enough for **what the practice
+   * usually books** — the card in the rail.
+   *
+   * Which length that is comes from the catalogue rather than from a constant
+   * here: the activity type marked as the default, if it carries a duration.
+   * A number invented in this file (it was 60) is a claim about the practice
+   * that the practice never made, and it produced a card promising room for an
+   * hour in a diary that works in three quarters.
+   *
+   * **If the default type has no duration, there is nothing to ask** and the
+   * card does not appear. The finder overrides it while a search is running,
+   * so the card answers for whatever was picked on the left.
    */
-  const nextFreeDuration = slotSearch?.durationMin ?? DEFAULT_FREE_MINUTES
+  const defaultType = (types.data ?? []).find((entry) => entry.isDefault)
+  const nextFreeSearch: SlotSearch | null =
+    slotSearch ??
+    (defaultType && defaultType.defaultDurationMin !== null
+      ? { durationMin: defaultType.defaultDurationMin, typeCode: defaultType.code }
+      : null)
+
+  /* Asked of the server like every other question about free time:
+     `findFreeSlots` in the domain knows the opening hours and the private busy
+     intervals, and a second answer computed in the browser would eventually
+     disagree with the suggestions in the grid. */
   const nextFree = useQuery(
-    freeSlotsQueryOptions({
-      from: fromBerlinDateTimeLocal(`${overviewDay}T00:00`),
-      to: fromBerlinDateTimeLocal(`${addDays(overviewDay, 1)}T00:00`),
-      durationMin: nextFreeDuration,
-    }),
+    freeSlotsQueryOptions(
+      nextFreeSearch
+        ? {
+            from: fromBerlinDateTimeLocal(`${overviewDay}T00:00`),
+            to: fromBerlinDateTimeLocal(`${addDays(overviewDay, 1)}T00:00`),
+            durationMin: nextFreeSearch.durationMin,
+          }
+        : null,
+    ),
   )
 
   /**
@@ -479,13 +496,24 @@ function CalendarPage() {
 
       <CalendarRail
         anchor={overviewDay}
-        nextFree={(nextFree.data?.slots ?? [])[0] ?? null}
-        nextFreeDuration={nextFreeDuration}
+        nextFree={
+          nextFreeSearch
+            ? {
+                slot: (nextFree.data?.slots ?? [])[0] ?? null,
+                durationMin: nextFreeSearch.durationMin,
+                typeLabel: nextFreeSearch.typeCode
+                  ? activityTypeLabel(types.data, nextFreeSearch.typeCode)
+                  : null,
+              }
+            : null
+        }
         onUseNextFree={(slot) =>
           setSelection({
             kind: 'new',
             startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
-            durationMin: nextFreeDuration,
+            ...(nextFreeSearch ? { durationMin: nextFreeSearch.durationMin } : {}),
+            ...(nextFreeSearch?.typeCode ? { typeCode: nextFreeSearch.typeCode } : {}),
+            mode: nextFreeSearch?.typeCode ? 'activity' : 'appointment',
           })
         }
         entries={shown}

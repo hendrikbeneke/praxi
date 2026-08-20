@@ -2348,6 +2348,20 @@ nichts maßstäblich; geteilt werden nur die Einträge und was ein Klick auslös
   der Arbeitswoche — die Antwort sind Zeiten an Tagen, und nur das Raster kann
   sie zeigen.
 
+**K5, as built** — zwei Nachbesserungen aus dem Durchsehen:
+
+- **Die freien Zeiten waren zu blass.** `muted` auf 60 % über einer fast weißen
+  Karte ist kaum vom Raster zu unterscheiden; sie sind jetzt aus
+  `--muted-foreground` gemischt (12 % Fläche, 45 % Rahmen), damit die beiden
+  Töne mit dem Kontrast des Themas skalieren statt mit seinem Hintergrund.
+- **„Nächste freie Zeit" nimmt die Dauer aus dem Katalog**, nicht aus einer
+  Konstante. Maßgebend ist die Vorgangsart mit `is_default`, solange sie eine
+  Dauer trägt; **hat sie keine, erscheint die Karte gar nicht.** Die 60 Minuten,
+  die vorher hier standen, waren eine Behauptung über die Praxis, die die
+  Praxis nie aufgestellt hat. Die Karte nennt jetzt auch, *wofür* sie gesucht
+  hat („Nächste freie Zeit · Folgesitzung"), weil die Antwort nur für diese
+  Länge gilt — und sie folgt der Auswahl im Terminfinder.
+
 **Offen, bewusst nicht gebaut:** *Einen Termin löschen und den Vorgang behalten.*
 Heute geht beides nicht getrennt — `deleteAppointment` verweigert, sobald ein
 Vorgang hängt, und der Vorgang gibt seinen Termin nur mit auf. Was der Fall
