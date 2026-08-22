@@ -11,7 +11,6 @@ import {
   type Invoice,
   invoicePaymentState,
   type Note,
-  noteTypes,
   occupiesSlot,
   type PaymentState,
   toBerlinDate,
@@ -56,6 +55,7 @@ import {
   updateContact,
 } from '@/lib/contacts'
 import { billableQueryOptions, createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
+import { noteTypeListQueryOptions } from '@/lib/note-types'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
@@ -546,13 +546,15 @@ function BillableCard({ contactId, onCreate }: { contactId: string; onCreate: ()
 
 function ContactNotes({ contactId }: { contactId: string }) {
   const notes = useQuery(noteListQueryOptions({ contactId }))
+  const noteTypes = useQuery(noteTypeListQueryOptions)
   const noteRows = notes.data ?? []
   const [filter, setFilter] = useState<string | undefined>()
 
-  /* Locked state first, then one chip per type that actually occurs — the
-     prototype builds the type chips from the types present, so no chip stands
-     for a category this contact has never had. The two that always exist keep
-     their zero: at a filter a zero is an answer (K7). */
+  /* Locked state first, then one chip per type flagged `show_as_tab` — the
+     flag alone decides it, so a chip appears even where the count is zero: at
+     a filter a zero is an answer (K7), and which types are worth a chip is the
+     practitioner's call rather than a consequence of what this contact happens
+     to have. */
   const noteChips = [
     {
       id: 'locked',
@@ -564,17 +566,41 @@ function ContactNotes({ contactId }: { contactId: string }) {
       label: strings.counts.notesOpen,
       matches: (note: Note) => note.lockedAt === null,
     },
-    ...noteTypes
-      .filter((type) => noteRows.some((note) => note.type === type))
+    ...(noteTypes.data ?? [])
+      .filter((type) => type.showAsTab)
       .map((type) => ({
-        id: `type:${type}`,
-        label: strings.note.types[type],
-        matches: (note: Note) => note.type === type,
+        id: `type:${type.id}`,
+        label: type.label,
+        matches: (note: Note) => note.noteTypeId === type.id,
       })),
   ]
 
+  /**
+   * **Every filter is judged on the parent note.** An addendum appears with the
+   * note it supplements or not at all — alone in the list it would sit there
+   * without anything to say what it corrects, and the panel renders it
+   * indented under exactly that note. So an addendum is shown whenever its
+   * parent matches, whatever its own type or lock state says.
+   *
+   * The walk goes up rather than one step, because nothing in the database
+   * forbids an addendum to an addendum — only the screen does.
+   */
+  const byId = new Map(noteRows.map((note) => [note.id, note]))
+  function parentOf(note: Note): Note {
+    let current = note
+    const seen = new Set<string>([current.id])
+    while (current.correctsNoteId !== null) {
+      const parent = byId.get(current.correctsNoteId)
+      if (!parent || seen.has(parent.id)) return current
+      seen.add(parent.id)
+      current = parent
+    }
+    return current
+  }
+
   const active = noteChips.find((chip) => chip.id === filter)
-  const shown = active ? noteRows.filter(active.matches) : noteRows
+  const shown = active ? noteRows.filter((note) => active.matches(parentOf(note))) : noteRows
+  const noTypes = noteTypes.data?.length === 0
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [edited, setEdited] = useState<Note | undefined>()
@@ -595,7 +621,9 @@ function ContactNotes({ contactId }: { contactId: string }) {
           chips={noteChips.map((chip) => ({
             id: chip.id,
             label: chip.label,
-            count: noteRows.filter(chip.matches).length,
+            /* What the chip will show, addenda included — a count that
+               promises fewer rows than appear is worse than no count. */
+            count: noteRows.filter((note) => chip.matches(parentOf(note))).length,
           }))}
           active={filter}
           onChange={setFilter}
@@ -604,11 +632,20 @@ function ContactNotes({ contactId }: { contactId: string }) {
           <ShieldCheck className="size-4" aria-hidden />
           {strings.note.chainCheck}
         </Button>
-        <Button onClick={() => open()}>
+        {/* Without a note type nothing can be saved, so the button says so
+            instead of opening a form that cannot be submitted. */}
+        <Button onClick={() => open()} disabled={noTypes}>
           <Plus className="size-4" aria-hidden />
           {strings.note.create}
         </Button>
       </div>
+
+      {noTypes && (
+        <p className="mb-4 text-muted-foreground text-sm">
+          <span className="font-medium text-foreground">{strings.note.typesEmpty}</span>{' '}
+          {strings.note.typesEmptyHint}
+        </p>
+      )}
 
       <NotePanel
         notes={shown}

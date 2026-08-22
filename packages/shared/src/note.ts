@@ -7,61 +7,52 @@ import { requiredText } from './field.js'
  * gives attachments the same locking semantics as the text without a second
  * mechanism (CLAUDE.md rule 7).
  *
- * `text` with a named check constraint rather than an enum: CLAUDE.md marks
- * this set as expected to change. `document` rather than the sketch's `file`,
- * because a note of type "file" next to a table called `note_file` reads as if
- * it were the attachment itself.
+ * **The type is a catalogue entry** since migration 0038 — `note_type`, see
+ * `note-type.ts`. It was `text` with a named check constraint over six fixed
+ * values before that, and this file used to explain why that was the right
+ * shape; it was the second-best one. The set is not merely expected to change,
+ * it is maintained by the practitioner, so a note points at a row through a
+ * composite foreign key, the way `activity.type` and the contact's own three
+ * fields do.
+ *
+ * `noteTypeLabel` travels beside the id and is stored nowhere: it is joined on
+ * read, like `createdByName` and like `contactName` on an activity. Renaming a
+ * type therefore reaches every note at once, which is the whole point of
+ * having no code.
+ *
+ * **An addendum is no longer a type.** It is a note with a `correctsNoteId`,
+ * and it carries a type of its own like any other — an addendum to a session
+ * note is itself session documentation. The refinement that used to tie the
+ * two together went with the check constraint `note_addendum_target`.
  */
-export const noteTypes = [
-  'general',
-  'session',
-  'document',
-  'correspondence',
-  'addendum',
-  'other',
-] as const
-export const noteTypeSchema = z.enum(noteTypes)
-export type NoteType = z.infer<typeof noteTypeSchema>
 
 /** The upper bound on a note's text. Generous — a session note is prose, not a
  *  form field — but not unbounded, so one paste cannot fill the disk. */
 const MAX_NOTE_TEXT = 20_000
 
-/**
- * A locked note cannot be corrected, only supplemented: a new note of type
- * `addendum` pointing at the locked one. The two conditions imply each other,
- * here and in the check constraint `note_addendum_target`.
- */
-function addendumTargetsMatch(input: { type: NoteType; correctsNoteId: string | null }): boolean {
-  return (input.type === 'addendum') === (input.correctsNoteId !== null)
-}
-
-const addendumRefinement = {
-  message: 'an addendum needs a note it corrects, and only an addendum may have one',
-  path: ['correctsNoteId'],
-}
-
-export const noteInputSchema = z
-  .object({
-    contactId: z.uuid(),
-    /** Optional — a note may document a session or stand on its own. */
-    activityId: z.uuid().nullable().default(null),
-    /** The day being documented, which is not always the day of writing. */
-    noteDate: z.iso.date(),
-    type: noteTypeSchema,
-    text: requiredText(MAX_NOTE_TEXT),
-    correctsNoteId: z.uuid().nullable().default(null),
-  })
-  .refine(addendumTargetsMatch, addendumRefinement)
+export const noteInputSchema = z.object({
+  contactId: z.uuid(),
+  /** Optional — a note may document a session or stand on its own. */
+  activityId: z.uuid().nullable().default(null),
+  /** The day being documented, which is not always the day of writing. */
+  noteDate: z.iso.date(),
+  noteTypeId: z.uuid(),
+  text: requiredText(MAX_NOTE_TEXT),
+  /**
+   * Set exactly when this note supplements a locked one. Nothing else marks an
+   * addendum — least of all the type, which is free here as everywhere.
+   */
+  correctsNoteId: z.uuid().nullable().default(null),
+})
 
 export type NoteInput = z.infer<typeof noteInputSchema>
 
 /** Editing leaves contact and addendum target alone: neither moves once the
- *  note exists. */
+ *  note exists. The type does move — it is an ordinary field now. */
 export const noteUpdateSchema = z.object({
   activityId: z.uuid().nullable().default(null),
   noteDate: z.iso.date(),
-  type: noteTypeSchema,
+  noteTypeId: z.uuid(),
   text: requiredText(MAX_NOTE_TEXT),
 })
 
@@ -86,7 +77,9 @@ export const noteSchema = z.object({
   contactId: z.uuid(),
   activityId: z.uuid().nullable(),
   noteDate: z.iso.date(),
-  type: noteTypeSchema,
+  noteTypeId: z.uuid(),
+  /** Joined on read, stored nowhere — see the note at the top of this file. */
+  noteTypeLabel: z.string(),
   text: z.string(),
   createdBy: z.uuid(),
   createdByName: z.string(),

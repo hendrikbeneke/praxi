@@ -4,8 +4,6 @@ import {
   activityTypeLabel,
   formatBerlinDate,
   type Note,
-  type NoteType,
-  noteTypes,
   toBerlinDate,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,7 +12,6 @@ import { toast } from 'sonner'
 import { DateField } from '@/components/date-field'
 import { NoteEditor } from '@/components/note-editor'
 import { NoteFiles } from '@/components/note-files'
-import { ReadValue } from '@/components/read-value'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -35,14 +32,11 @@ import {
 import { activityListQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
+import { noteTypeListQueryOptions } from '@/lib/note-types'
 import { createNote, updateNote } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
 const NO_ACTIVITY = 'none'
-
-/** Types that can be picked in the form. `addendum` is not among them: whether
- *  a note is an addendum is decided by how it was started and never changes. */
-const SELECTABLE_TYPES = noteTypes.filter((type) => type !== 'addendum')
 
 export function NoteDialog({
   contactId,
@@ -67,13 +61,18 @@ export function NoteDialog({
 
   const activities = useQuery({ ...activityListQueryOptions({ contactId }), enabled: open })
   const types = useQuery({ ...activityTypeListQueryOptions(true), enabled: open })
+  const noteTypes = useQuery({ ...noteTypeListQueryOptions, enabled: open })
 
   const [noteDate, setNoteDate] = useState('')
-  const [type, setType] = useState<NoteType>('session')
+  const [noteTypeId, setNoteTypeId] = useState('')
   const [text, setText] = useState('')
   const [selectedActivity, setSelectedActivity] = useState<string>(NO_ACTIVITY)
 
-  const isAddendum = correctsNote !== undefined || note?.correctsNoteId != null
+  /** The catalogue is empty: a note cannot be written at all, and saying so
+   *  beats a dropdown with nothing in it. The button that opens this dialog is
+   *  disabled for the same reason — this is what a stale screen falls back
+   *  on. */
+  const noTypes = noteTypes.data?.length === 0
 
   /** One opens this dialog to write, not to look — reading happens in the
    *  panel behind it (K7) — so the preview starts off. */
@@ -85,30 +84,43 @@ export function NoteDialog({
 
     if (note) {
       setNoteDate(note.noteDate)
-      setType(note.type)
+      setNoteTypeId(note.noteTypeId)
       setText(note.text)
       setSelectedActivity(note.activityId ?? NO_ACTIVITY)
       return
     }
 
     setNoteDate(toBerlinDate(new Date().toISOString()))
-    setType(correctsNote ? 'addendum' : 'session')
+    /* An addendum starts on the type of the note it supplements — a Nachtrag to
+       a session note is itself session documentation — and stays free to
+       change. Everything else starts empty and is filled below, because the
+       catalogue may not have arrived yet. */
+    setNoteTypeId(correctsNote?.noteTypeId ?? '')
     setText('')
     setSelectedActivity(activityId ?? correctsNote?.activityId ?? NO_ACTIVITY)
   }, [open, note, correctsNote, activityId])
+
+  /** The first entry of the catalogue is what a new note starts on — the order
+   *  the practitioner set carries that decision, so there is no default flag.
+   *  In its own effect because the list arrives after the dialog opens. */
+  useEffect(() => {
+    if (!open || noteTypeId !== '') return
+    const first = noteTypes.data?.[0]
+    if (first) setNoteTypeId(first.id)
+  }, [open, noteTypeId, noteTypes.data])
 
   const mutation = useMutation({
     mutationFn: async (): Promise<Note> => {
       const activity = selectedActivity === NO_ACTIVITY ? null : selectedActivity
 
       if (note) {
-        return updateNote(note.id, { activityId: activity, noteDate, type, text })
+        return updateNote(note.id, { activityId: activity, noteDate, noteTypeId, text })
       }
       return createNote({
         contactId,
         activityId: activity,
         noteDate,
-        type,
+        noteTypeId,
         text,
         correctsNoteId: correctsNote?.id ?? null,
       })
@@ -154,20 +166,21 @@ export function NoteDialog({
             </div>
 
             <div>
-              <Label htmlFor={isAddendum ? undefined : `${formId}-type`}>{strings.note.type}</Label>
-              {/* Whether a note is an addendum is decided by how it was
-                  started and never changes, so there is nothing to pick. */}
-              {isAddendum ? (
-                <ReadValue>{strings.note.types[type]}</ReadValue>
+              <Label htmlFor={noTypes ? undefined : `${formId}-type`}>{strings.note.type}</Label>
+              {/* An addendum picks its type like any other note: it is a note
+                  with a `correctsNoteId`, and the type stopped saying anything
+                  about that in migration 0038. */}
+              {noTypes ? (
+                <p className="mt-2 text-muted-foreground text-sm">{strings.note.typesEmpty}</p>
               ) : (
-                <Select value={type} onValueChange={(value) => setType(value as NoteType)}>
+                <Select value={noteTypeId} onValueChange={setNoteTypeId}>
                   <SelectTrigger id={`${formId}-type`} className="mt-2 w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SELECTABLE_TYPES.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {strings.note.types[value]}
+                    {(noteTypes.data ?? []).map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id}>
+                        {entry.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -221,7 +234,9 @@ export function NoteDialog({
           <Button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || noteDate === '' || text.trim() === ''}
+            disabled={
+              mutation.isPending || noteDate === '' || noteTypeId === '' || text.trim() === ''
+            }
           >
             {mutation.isPending ? strings.note.saving : strings.note.save}
           </Button>

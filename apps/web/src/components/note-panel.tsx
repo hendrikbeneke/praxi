@@ -154,9 +154,7 @@ function NoteRow({
             {note.files.length}
           </span>
         )}
-        <span className="ml-auto text-[11.5px] text-muted-foreground">
-          {strings.note.types[note.type]}
-        </span>
+        <span className="ml-auto text-[11.5px] text-muted-foreground">{note.noteTypeLabel}</span>
       </span>
       <span className="mt-1 block truncate text-[12.5px] text-muted-foreground">{excerpt}</span>
     </button>
@@ -210,7 +208,7 @@ function NoteReader({
         <span className="font-semibold text-[15px] tabular-nums">
           {formatNoteDate(note.noteDate)}
         </span>
-        <Badge variant="outline">{strings.note.types[note.type]}</Badge>
+        <Badge variant="outline">{note.noteTypeLabel}</Badge>
         {locked ? (
           <Badge variant="secondary" className="gap-1">
             <Lock className="size-3" aria-hidden />
@@ -224,7 +222,9 @@ function NoteReader({
           {locked ? (
             // A locked note is corrected only by supplementing it — and an
             // addendum is not itself corrected, or the chain would fork.
-            note.type !== 'addendum' && (
+            // `correctsNoteId` is what says it; the type stopped saying
+            // anything about it in migration 0038.
+            note.correctsNoteId === null && (
               <Button variant="outline" size="sm" onClick={() => onAddendum(note)}>
                 <Plus className="size-3.5" aria-hidden />
                 {strings.note.writeAddendum}

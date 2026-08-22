@@ -123,7 +123,7 @@ export const strings = {
      *  text templates are lists too. What sets these three apart is that they
      *  are the values a *field at a contact* can take. */
     sectionTitle: 'Auswahllisten',
-    sectionHint: 'Anrede, Geschlecht und Land',
+    sectionHint: 'Anrede, Geschlecht, Land und Notizart',
 
     salutationsTitle: 'Anreden',
     salutationsHint: 'stehen vor dem Namen in der Anschrift',
@@ -982,6 +982,26 @@ export const strings = {
     conflictWithoutContact: 'Termin ohne Kontakt',
     contactNumberShort: 'Kontakt',
   },
+  /** The catalogue behind a note's type (L1). Its own section in `strings`
+   *  rather than under `note`, because it is a settings screen and not part of
+   *  the documentation. */
+  noteType: {
+    title: 'Notizarten',
+    hint: 'wonach eine Notiz abgelegt wird',
+    create: 'Neue Notizart',
+    empty: 'Noch keine Notizart angelegt.',
+    label: 'Bezeichnung',
+    labelHint: 'Wird an jeder Notiz dieser Art angezeigt und lässt sich jederzeit ändern.',
+    showAsTab: 'Als Filter über der Notizliste',
+    deleteTitle: 'Notizart löschen?',
+    deleteBody:
+      'Die Notizart wird aus der Auswahl entfernt. Notizen, die sie tragen, verhindern das — ' +
+      'bei gesperrten Notizen endgültig.',
+    footer:
+      'Ohne Notizart lässt sich keine Notiz schreiben; eine neue Notiz startet auf dem ersten ' +
+      'Eintrag dieser Liste. Ein Nachtrag ist keine Art, sondern der Bezug auf eine gesperrte ' +
+      'Notiz — er trägt selbst eine Art wie jede andere Notiz.',
+  },
   note: {
     title: 'Notizen',
     create: 'Neue Notiz',
@@ -992,14 +1012,12 @@ export const strings = {
 
     noteDate: 'Datum',
     type: 'Art',
-    types: {
-      general: 'Allgemein',
-      session: 'Sitzung',
-      document: 'Dokument',
-      correspondence: 'Korrespondenz',
-      addendum: 'Nachtrag',
-      other: 'Sonstiges',
-    },
+    /** The labels themselves come from the catalogue and travel with the note
+     *  (L1); what is left here is the case where there are none. */
+    typesEmpty: 'Es sind keine Notizarten angelegt.',
+    typesEmptyHint:
+      'Ohne Notizart lässt sich keine Notiz schreiben. Anlegen können Sie sie in den ' +
+      'Einstellungen unter Auswahllisten.',
     text: 'Text',
     activity: 'Zum Vorgang',
     activityNone: 'Kein Vorgang',

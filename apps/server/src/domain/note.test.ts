@@ -7,7 +7,7 @@ import { db } from '../db/client.js'
 import { raisedMessage } from '../db/errors.js'
 import { contact, note, noteFile } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant, createUser, type TestUser } from '../test/fixtures.js'
+import { createTenant, createUser, noteTypeId, type TestUser } from '../test/fixtures.js'
 import { ActivityHasNotesError, createActivity, deleteActivity } from './activity.js'
 import { FileStore } from './file-store.js'
 import {
@@ -33,6 +33,8 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0
 let tenantId: string
 let user: TestUser
 let contactId: string
+let sessionType: string
+let generalType: string
 let store: FileStore
 let storeRoot: string
 
@@ -54,6 +56,8 @@ beforeEach(async () => {
   tenantId = await createTenant(db())
   user = await createUser(db(), { tenantId })
   contactId = await makeContact()
+  sessionType = await noteTypeId(db(), tenantId, 'Sitzung')
+  generalType = await noteTypeId(db(), tenantId, 'Allgemein')
   storeRoot = await mkdtemp(join(tmpdir(), 'praxi-files-'))
   store = new FileStore(storeRoot)
 })
@@ -82,7 +86,7 @@ function draft(overrides: Partial<Parameters<typeof createNote>[3]> = {}) {
     contactId,
     activityId: null,
     noteDate: '2026-08-09',
-    type: 'session' as const,
+    noteTypeId: sessionType,
     text: 'Erstgespräch geführt.',
     correctsNoteId: null,
     ...overrides,
@@ -98,7 +102,7 @@ describe('notes while unlocked', () => {
     const updated = await updateNote(db(), tenantId, created.id, {
       activityId: null,
       noteDate: '2026-08-10',
-      type: 'general',
+      noteTypeId: generalType,
       text: 'Korrigiert.',
     })
 
@@ -203,7 +207,7 @@ describe('locking', () => {
     expect(row?.contentHash).toBe(
       computeContentHash({
         noteDate: row?.noteDate ?? '',
-        type: row?.type ?? '',
+        noteTypeId: row?.noteTypeId ?? '',
         text: row?.text ?? '',
         createdAt: row?.createdAt ?? new Date(0),
         createdBy: row?.createdBy ?? '',
@@ -215,7 +219,7 @@ describe('locking', () => {
       updateNote(db(), tenantId, created.id, {
         activityId: null,
         noteDate: '2026-08-11',
-        type: 'session',
+        noteTypeId: sessionType,
         text: 'doch anders',
       }),
     ).rejects.toBeInstanceOf(NoteLockedError)
@@ -305,22 +309,47 @@ describe('addenda', () => {
       db(),
       tenantId,
       user.id,
-      draft({ type: 'addendum', text: 'Nachtrag: Dosis korrigiert.', correctsNoteId: original.id }),
+      draft({ text: 'Nachtrag: Dosis korrigiert.', correctsNoteId: original.id }),
     )
 
     expect(addendum.correctsNoteId).toBe(original.id)
+  })
+
+  /** What makes a note an addendum is `correctsNoteId`, alone. The type is an
+   *  ordinary field on it — an addendum to a session note is itself session
+   *  documentation, and it may just as well be filed under something else.
+   *  Until migration 0038 the type `addendum` said it too, and a check
+   *  constraint kept the two in step. */
+  it('carries a type of its own, freely chosen', async () => {
+    const original = await createNote(db(), tenantId, user.id, draft())
+    await lockNote(db(), tenantId, user.id, original.id)
+
+    const addendum = await createNote(
+      db(),
+      tenantId,
+      user.id,
+      draft({ noteTypeId: generalType, text: 'Nachtrag.', correctsNoteId: original.id }),
+    )
+
+    expect(addendum.noteTypeId).toBe(generalType)
+    expect(addendum.noteTypeLabel).toBe('Allgemein')
+
+    const moved = await updateNote(db(), tenantId, addendum.id, {
+      activityId: null,
+      noteDate: addendum.noteDate,
+      noteTypeId: sessionType,
+      text: addendum.text,
+    })
+
+    expect(moved?.noteTypeId).toBe(sessionType)
+    expect(moved?.correctsNoteId).toBe(original.id)
   })
 
   it('refuses to supplement a note that is still open', async () => {
     const original = await createNote(db(), tenantId, user.id, draft())
 
     await expect(
-      createNote(
-        db(),
-        tenantId,
-        user.id,
-        draft({ type: 'addendum', text: 'zu früh', correctsNoteId: original.id }),
-      ),
+      createNote(db(), tenantId, user.id, draft({ text: 'zu früh', correctsNoteId: original.id })),
     ).rejects.toBeInstanceOf(AddendumTargetError)
   })
 
@@ -336,7 +365,6 @@ describe('addenda', () => {
         user.id,
         draft({
           contactId: otherContact,
-          type: 'addendum',
           text: 'fremde Akte',
           correctsNoteId: original.id,
         }),
@@ -540,7 +568,7 @@ describe('an activity that documentation hangs on', () => {
     await updateNote(db(), tenantId, row?.id ?? '', {
       activityId: null,
       noteDate: '2026-08-09',
-      type: 'session',
+      noteTypeId: sessionType,
       text: 'Erstgespräch geführt.',
     })
 

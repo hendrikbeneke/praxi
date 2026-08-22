@@ -158,8 +158,25 @@ export const messages = {
       'Diese Leistungsgruppe existiert nicht oder enthält keine Leistungen. ' +
       'Bitte prüfen Sie den Katalog.',
   },
+  noteType: {
+    notFound: 'Diese Notizart existiert nicht.',
+    labelTaken: 'Eine Notizart mit dieser Bezeichnung gibt es bereits.',
+    /** Says how many, and says it plainly: a locked note is immutable, so its
+     *  type can never be moved out of the way. The number is the whole answer. */
+    inUse: (count: number) => {
+      const held = count === 1 ? 'einer Notiz' : `${count} Notizen`
+      return `Diese Notizart ist ${held} zugeordnet und lässt sich nicht löschen. Ändern Sie die Art dort zuerst; bei gesperrten Notizen ist das nicht mehr möglich.`
+    },
+    /** The foreign key rather than the domain check — it cannot count. Only
+     *  reachable if something deletes past `deleteNoteType`. */
+    inUseUnknown:
+      'Diese Notizart ist noch Notizen zugeordnet und lässt sich nicht löschen. ' +
+      'Ändern Sie die Art dort zuerst.',
+  },
   note: {
     notFound: 'Diese Notiz existiert nicht.',
+    unknownType:
+      'Diese Notizart gibt es nicht. Bitte prüfen Sie die Notizarten in den Einstellungen.',
     locked:
       'Diese Notiz ist gesperrt und kann nicht mehr geändert werden. ' +
       'Ergänzen Sie sie stattdessen durch einen Nachtrag.',

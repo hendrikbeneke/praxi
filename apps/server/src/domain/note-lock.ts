@@ -47,7 +47,7 @@ export async function lockNote(
         id: note.id,
         contactId: note.contactId,
         noteDate: note.noteDate,
-        type: note.type,
+        noteTypeId: note.noteTypeId,
         text: note.text,
         createdAt: note.createdAt,
         createdBy: note.createdBy,
@@ -68,7 +68,7 @@ export async function lockNote(
 
     const contentHash = computeContentHash({
       noteDate: row.noteDate,
-      type: row.type,
+      noteTypeId: row.noteTypeId,
       text: row.text,
       createdAt: row.createdAt,
       createdBy: row.createdBy,
@@ -138,7 +138,7 @@ export async function verifyChain(
     .select({
       id: note.id,
       noteDate: note.noteDate,
-      type: note.type,
+      noteTypeId: note.noteTypeId,
       text: note.text,
       createdAt: note.createdAt,
       createdBy: note.createdBy,
@@ -168,7 +168,7 @@ export async function verifyChain(
 
     const recomputed = computeContentHash({
       noteDate: row.noteDate,
-      type: row.type,
+      noteTypeId: row.noteTypeId,
       text: row.text,
       createdAt: row.createdAt,
       createdBy: row.createdBy,

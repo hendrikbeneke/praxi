@@ -10,11 +10,17 @@ import { canonicalNote, computeContentHash, type HashableNote } from './note-has
  *
  * **If one of these fails, the serialization changed. Fix the code, not the
  * expectation.**
+ *
+ * The expectations below were rewritten once, when the note type became a
+ * catalogue and the key `type` became `noteTypeId` (L1, migration 0038) — the
+ * one change the format will ever see, made on a database holding nothing but
+ * test data. That it took editing this file is the point: the value is not
+ * derivable from the code, so it cannot be adjusted by accident.
  */
 
 const sample: HashableNote = {
   noteDate: '2026-08-09',
-  type: 'session',
+  noteTypeId: '019ff100-0000-7000-8000-0000000000aa',
   // An umlaut, a newline and a quote — the three things an encoding or
   // escaping change would move.
   text: 'Erstgespräch geführt.\nNächster Termin "offen".',
@@ -34,8 +40,8 @@ describe('canonicalNote', () => {
         '"fileHashes":["aaaa000000000000000000000000000000000000000000000000000000000000",' +
         '"bbbb111111111111111111111111111111111111111111111111111111111111"],' +
         '"noteDate":"2026-08-09",' +
-        '"text":"Erstgespräch geführt.\\nNächster Termin \\"offen\\".",' +
-        '"type":"session"}',
+        '"noteTypeId":"019ff100-0000-7000-8000-0000000000aa",' +
+        '"text":"Erstgespräch geführt.\\nNächster Termin \\"offen\\"."}',
     )
   })
 
@@ -55,7 +61,7 @@ describe('canonicalNote', () => {
 describe('computeContentHash', () => {
   it('matches the recorded hash for the sample note', () => {
     expect(computeContentHash(sample)).toBe(
-      '0ade3205bc2158a76f0faa944df33a2bc9c2ac94ebf76fc15295096c9bc9964a',
+      '59382b358434f4d899b5b19a2b7333a5fe9cbf79602fec966522b293b3bf9a85',
     )
   })
 
@@ -77,5 +83,14 @@ describe('computeContentHash', () => {
     expect(computeContentHash({ ...sample, noteDate: '2026-08-10' })).not.toBe(
       computeContentHash(sample),
     )
+  })
+
+  /** The id is what is covered, so a type swapped past the application shows
+   *  up — while renaming the type in the settings leaves every chain alone,
+   *  because the label is nowhere in here. */
+  it('changes when the note type changes', () => {
+    expect(
+      computeContentHash({ ...sample, noteTypeId: '019ff100-0000-7000-8000-0000000000bb' }),
+    ).not.toBe(computeContentHash(sample))
   })
 })

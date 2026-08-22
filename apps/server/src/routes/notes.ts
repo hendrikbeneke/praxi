@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
-import { uniqueViolationConstraint } from '../db/errors.js'
+import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import { MAX_UPLOAD_BYTES, mayRenderInline } from '../domain/file-type.js'
 import {
   AddendumTargetError,
@@ -56,6 +56,11 @@ function translate(error: unknown): never {
   }
   if (error instanceof UnsupportedFileTypeError) {
     throw new HTTPException(415, { message: messages.note.fileTypeNotAccepted })
+  }
+  // A type that was deleted between loading the form and saving it, or one
+  // belonging to another tenant — the composite foreign key catches both.
+  if (foreignKeyViolationConstraint(error) === 'note_type_fk') {
+    throw new HTTPException(409, { message: messages.note.unknownType })
   }
   // Two locks at the same instant; see `note_chain_link_key`.
   const constraint = uniqueViolationConstraint(error)

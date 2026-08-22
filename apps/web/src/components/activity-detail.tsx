@@ -361,7 +361,7 @@ function ActivityNotes({ activityId }: { activityId: string }) {
           <li key={entry.id} className="rounded-md border px-3 py-2">
             <div className="flex flex-wrap items-baseline gap-x-3">
               <span className="text-sm">{formatBerlinDate(`${entry.noteDate}T12:00:00Z`)}</span>
-              <Badge variant="outline">{strings.note.types[entry.type]}</Badge>
+              <Badge variant="outline">{entry.noteTypeLabel}</Badge>
               {entry.lockedAt !== null && (
                 <Badge variant="secondary">{strings.note.lockedBadge}</Badge>
               )}

@@ -6,12 +6,14 @@ import {
   contactRoleType,
   country,
   gender,
+  noteType,
   practiceSettings,
   salutation,
   tenant,
 } from '../db/schema.js'
 import { seedActivityTypes } from '../db/seed/activity-types.js'
 import { seedContactTypes } from '../db/seed/contact-types.js'
+import { seedNoteTypes } from '../db/seed/note-types.js'
 import { seedValueLists } from '../db/seed/value-lists.js'
 import { hashPassword } from '../domain/auth.js'
 import { finalizeInvoice } from '../domain/finalize-invoice.js'
@@ -33,6 +35,7 @@ export async function createTenant(database: Database): Promise<string> {
   await database.insert(tenant).values({ id })
   await seedContactTypes(database, id)
   await seedValueLists(database, id)
+  await seedNoteTypes(database, id)
   await seedActivityTypes(database, id)
   return id
 }
@@ -57,6 +60,26 @@ export async function roleTypeId(
     .limit(1)
 
   if (!row) throw new Error(`no role type labelled ${label}`)
+  return row.id
+}
+
+/**
+ * The id of one of the seeded note types, by label — the same shape as
+ * `roleTypeId` above and for the same reason: a note type has no code either
+ * (migration 0038), and a note cannot be written without one.
+ */
+export async function noteTypeId(
+  database: Database,
+  tenantId: string,
+  label: string,
+): Promise<string> {
+  const [row] = await database
+    .select({ id: noteType.id })
+    .from(noteType)
+    .where(and(eq(noteType.tenantId, tenantId), eq(noteType.label, label)))
+    .limit(1)
+
+  if (!row) throw new Error(`no note type labelled ${label}`)
   return row.id
 }
 

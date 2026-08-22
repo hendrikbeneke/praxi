@@ -1,7 +1,7 @@
 import type { Note, NoteFile, NoteInput, NoteListQuery, NoteUpdate } from '@praxi/shared'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { Database, DbReader } from '../db/client.js'
-import { appUser, note, noteFile } from '../db/schema.js'
+import { appUser, note, noteFile, noteType } from '../db/schema.js'
 import { newId } from '../id.js'
 import type { FileStore } from './file-store.js'
 import { fileStoragePath } from './file-store.js'
@@ -51,7 +51,7 @@ const noteColumns = {
   contactId: note.contactId,
   activityId: note.activityId,
   noteDate: note.noteDate,
-  type: note.type,
+  noteTypeId: note.noteTypeId,
   text: note.text,
   createdBy: note.createdBy,
   createdAt: note.createdAt,
@@ -75,7 +75,10 @@ const fileColumns = {
 
 /** The shape of a `select(noteColumns)` row: like `Note`, but with the
  *  database's own types for the timestamps and without the joined names. */
-type NoteRow = Omit<Note, 'createdAt' | 'lockedAt' | 'createdByName' | 'lockedByName' | 'files'> & {
+type NoteRow = Omit<
+  Note,
+  'createdAt' | 'lockedAt' | 'createdByName' | 'lockedByName' | 'noteTypeLabel' | 'files'
+> & {
   createdAt: Date
   lockedAt: Date | null
   lockedBy: string | null
@@ -95,13 +98,19 @@ function toNoteFile(row: FileRow): NoteFile {
   }
 }
 
-function toNote(row: NoteRow, names: Map<string, string>, files: readonly FileRow[]): Note {
+function toNote(
+  row: NoteRow,
+  names: Map<string, string>,
+  labels: Map<string, string>,
+  files: readonly FileRow[],
+): Note {
   return {
     id: row.id,
     contactId: row.contactId,
     activityId: row.activityId,
     noteDate: row.noteDate,
-    type: row.type,
+    noteTypeId: row.noteTypeId,
+    noteTypeLabel: labels.get(row.noteTypeId) ?? '',
     text: row.text,
     createdBy: row.createdBy,
     createdByName: names.get(row.createdBy) ?? '',
@@ -115,8 +124,9 @@ function toNote(row: NoteRow, names: Map<string, string>, files: readonly FileRo
   }
 }
 
-/** Files and author names for a set of notes, in two queries rather than one
- *  per note. */
+/** Files, author names and type labels for a set of notes — three queries
+ *  rather than three per note. The label is joined here and stored nowhere, so
+ *  renaming a type reaches every note at once. */
 async function decorate(reader: DbReader, rows: NoteRow[]): Promise<Note[]> {
   if (rows.length === 0) return []
 
@@ -137,7 +147,13 @@ async function decorate(reader: DbReader, rows: NoteRow[]): Promise<Note[]> {
     .from(appUser)
     .where(inArray(appUser.id, userIds))
 
+  const types = await reader
+    .select({ id: noteType.id, label: noteType.label })
+    .from(noteType)
+    .where(inArray(noteType.id, [...new Set(rows.map((row) => row.noteTypeId))]))
+
   const names = new Map(users.map((user) => [user.id, user.name]))
+  const labels = new Map(types.map((type) => [type.id, type.label]))
   const byNote = new Map<string, FileRow[]>()
   for (const file of files) {
     const list = byNote.get(file.noteId)
@@ -145,7 +161,7 @@ async function decorate(reader: DbReader, rows: NoteRow[]): Promise<Note[]> {
     else byNote.set(file.noteId, [file])
   }
 
-  return rows.map((row) => toNote(row, names, byNote.get(row.id) ?? []))
+  return rows.map((row) => toNote(row, names, labels, byNote.get(row.id) ?? []))
 }
 
 /**
@@ -219,7 +235,7 @@ export async function createNote(
         contactId: input.contactId,
         activityId: input.activityId,
         noteDate: input.noteDate,
-        type: input.type,
+        noteTypeId: input.noteTypeId,
         text: input.text,
         createdBy: userId,
         correctsNoteId: input.correctsNoteId,
@@ -241,7 +257,7 @@ export async function updateNote(
 ): Promise<Note | null> {
   return database.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ lockedAt: note.lockedAt, correctsNoteId: note.correctsNoteId })
+      .select({ lockedAt: note.lockedAt })
       .from(note)
       .where(and(eq(note.tenantId, tenantId), eq(note.id, id)))
       .limit(1)
@@ -249,18 +265,16 @@ export async function updateNote(
     if (!existing) return null
     if (existing.lockedAt !== null) throw new NoteLockedError()
 
-    // The addendum target does not move, so the type cannot cross that line
-    // either — the check constraint would reject it anyway, less clearly.
-    if ((input.type === 'addendum') !== (existing.correctsNoteId !== null)) {
-      throw new AddendumTargetError(existing.correctsNoteId === null ? 'missing' : 'unlocked')
-    }
-
+    // `correctsNoteId` is not in the payload and does not move: whether a note
+    // is an addendum is decided when it is written. The type is an ordinary
+    // field and moves freely — it stopped saying anything about the addendum
+    // with the check constraint in migration 0038.
     const [row] = await tx
       .update(note)
       .set({
         activityId: input.activityId,
         noteDate: input.noteDate,
-        type: input.type,
+        noteTypeId: input.noteTypeId,
         text: input.text,
       })
       .where(eq(note.id, id))

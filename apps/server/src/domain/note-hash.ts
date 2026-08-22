@@ -10,7 +10,8 @@ import { createHash } from 'node:crypto'
  *
  * ```
  * {"createdAt":"2026-08-09T08:11:12.345Z","createdBy":"<uuid>",
- *  "fileHashes":["<64 hex>",…],"noteDate":"2026-08-09","text":"…","type":"session"}
+ *  "fileHashes":["<64 hex>",…],"noteDate":"2026-08-09",
+ *  "noteTypeId":"<uuid>","text":"…"}
  * ```
  *
  * - `createdAt` — ISO 8601 in UTC with **millisecond** precision, the form
@@ -24,9 +25,10 @@ import { createHash } from 'node:crypto'
  *   hex, sorted ascending. Sorting the *hashes* rather than trusting row order
  *   makes the value independent of insertion order and of file names.
  * - `noteDate` — `YYYY-MM-DD`.
+ * - `noteTypeId` — the note type as stored, which since migration 0038 is the
+ *   id of a `note_type` row. See "Why it is the id" below.
  * - `text` — exactly as stored. **No Unicode normalization**: the bytes that
  *   were saved are the bytes that are hashed.
- * - `type` — the note type as stored.
  *
  * The hash is the SHA-256 of those bytes, lower-case hex.
  *
@@ -44,6 +46,33 @@ import { createHash } from 'node:crypto'
  *
  * `note-hash.test.ts` pins the output against a hard-coded expected value.
  * If that test fails, the format changed — do not update the expectation.
+ *
+ * **The format was changed once, before the software went into use**, when the
+ * note type became a catalogue (L1, migration 0038): the key `type` holding
+ * one of six fixed words became `noteTypeId` holding a uuid. Every hash
+ * written before that stopped verifying, and there is no way to re-lock a
+ * note, so the locked test notes of the development database were deleted with
+ * it. That was possible exactly once, on a database holding nothing that
+ * cannot be recreated. It does not happen again, for any reason.
+ *
+ * ## Why it is the id
+ *
+ * A catalogue entry has two faces, and only one of them can be hashed.
+ *
+ * The **label** is what a reader sees, and it is editable: hashing it would
+ * mean that correcting a spelling in the settings invalidates every chain
+ * filed under that type. A typo must not devalue documentation.
+ *
+ * The **id** never changes, sits in the note row itself, and is therefore
+ * covered against exactly what this hash is for — a change made past the
+ * application, in `psql`. That it says nothing to a human is not new here:
+ * `createdBy` is a user id for the same reason, and the user's *name* is
+ * deliberately not in the hash either, because it is editable. The note type
+ * is now that same shape.
+ *
+ * Leaving the type out entirely was the third option. It fails on the same
+ * point: the trigger `protect_locked_note` stops the application from moving
+ * it, but the hash is what notices when something else did.
  *
  * ## Which normalizations are safe, and which are not
  *
@@ -67,11 +96,11 @@ import { createHash } from 'node:crypto'
 
 /** Exactly the keys that go into the hash. Sorted at use, not by hand: the
  *  sort has to be executed so a reordered object literal cannot shift it. */
-const HASHED_KEYS = ['createdAt', 'createdBy', 'fileHashes', 'noteDate', 'text', 'type']
+const HASHED_KEYS = ['createdAt', 'createdBy', 'fileHashes', 'noteDate', 'noteTypeId', 'text']
 
 export type HashableNote = {
   noteDate: string
-  type: string
+  noteTypeId: string
   text: string
   createdAt: Date
   createdBy: string
@@ -88,8 +117,8 @@ export function canonicalNote(note: HashableNote): string {
       createdBy: note.createdBy,
       fileHashes: [...note.fileHashes].sort(),
       noteDate: note.noteDate,
+      noteTypeId: note.noteTypeId,
       text: note.text,
-      type: note.type,
     },
     [...HASHED_KEYS].sort(),
   )

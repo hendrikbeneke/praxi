@@ -18,7 +18,6 @@ import type {
   ContactKind,
   InvoiceStatus,
   InvoiceType,
-  NoteType,
   PaymentMethod,
   PracticeCountry,
   RecipientSnapshot,
@@ -1103,14 +1102,57 @@ export const activityItem = pgTable(
 )
 
 /**
+ * The catalogue of note types (L1, migration 0038). `note.type` was a check
+ * constraint over six fixed values until then; how a practice files its
+ * documentation is not the software's decision, so the practitioner maintains
+ * it.
+ *
+ * Built like `contact_role_type` after 0035: no `code` as an anchor, so a
+ * label stays renamable and every note follows, and no `active` flag, because
+ * the assignment is one column at the note with nothing hanging off it.
+ *
+ * `addendum` was one of the six and deliberately did not become an entry — see
+ * `note.correctsNoteId`.
+ */
+export const noteType = pgTable(
+  'note_type',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    label: text().notNull(),
+    /** The note list offers this type as a filter chip of its own — the flag
+     *  alone decides it, so a chip appears even where the count is zero. */
+    showAsTab: boolean().notNull().default(false),
+    sortOrder: integer().notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    unique('note_type_tenant_label_key').on(t.tenantId, t.label),
+    // The target of the composite foreign key on `note`, so a type of another
+    // tenant cannot be assigned.
+    unique('note_type_id_tenant_key').on(t.id, t.tenantId),
+    index('note_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
+  ],
+)
+
+/**
  * Documentation. Freely editable until locked; after that neither the note nor
  * its files can be changed or deleted, enforced by the `protect_locked_note`
  * trigger in migration 0011 and not only in application code (CLAUDE.md
  * rule 7). There is no unlock path — not for admins, not via a flag, not via a
  * maintenance script.
  *
- * A locked note is corrected by supplementing it: a new note of type
- * `addendum` with `corrects_note_id` pointing at the locked one.
+ * A locked note is corrected by supplementing it: a new note with
+ * `corrects_note_id` pointing at the locked one. That column is the whole of
+ * what makes an addendum — until migration 0038 the type `addendum` said it
+ * too, and the check constraint `note_addendum_target` kept the two in step.
+ * With a catalogue behind the type that pairing could not survive: "Nachtrag"
+ * would have been selectable, and a note carrying it without a target would
+ * have been refused by a constraint no screen could explain. An addendum has
+ * an ordinary type now, because an addendum to a session note is itself
+ * session documentation.
  *
  * *Why: § 630f BGB requires corrections to remain traceable with the original
  * content recognizable. Lock plus append-only addenda satisfies this without a
@@ -1128,7 +1170,7 @@ export const note = pgTable(
     /** The day being documented — not necessarily the day of writing, which is
      *  `created_at`. Both go into the content hash. */
     noteDate: date({ mode: 'string' }).notNull(),
-    type: text().notNull().$type<NoteType>(),
+    noteTypeId: uuid().notNull(),
     /** Named `text` rather than `body` because CLAUDE.md rule 7 spells the
      *  canonical serialization with that key, and the two lining up is worth
      *  more than avoiding `text text`. */
@@ -1162,6 +1204,15 @@ export const note = pgTable(
       foreignColumns: [activity.id, activity.contactId, activity.tenantId],
       name: 'note_activity_contact_tenant_fk',
     }).onDelete('restrict'),
+    /** Restrict on delete is what makes a type in use undeletable; the domain
+     *  counts first, so the message says how many notes hold it. */
+    foreignKey({
+      columns: [t.noteTypeId, t.tenantId],
+      foreignColumns: [noteType.id, noteType.tenantId],
+      name: 'note_type_fk',
+    })
+      .onUpdate('restrict')
+      .onDelete('restrict'),
     // Three columns again: an addendum cannot correct another contact's note.
     foreignKey({
       columns: [t.correctsNoteId, t.contactId, t.tenantId],
@@ -1183,6 +1234,9 @@ export const note = pgTable(
     index('note_contact_date_idx').on(t.contactId, t.noteDate, t.createdAt),
     index('note_activity_idx').on(t.activityId),
     index('note_corrects_idx').on(t.correctsNoteId),
+    /** On the child side, so deleting a type does not seq-scan `note` — and
+     *  neither does the count the domain runs first for its message. */
+    index('note_note_type_idx').on(t.noteTypeId),
     /**
      * The chain stays linear. Two locks running at the same moment would both
      * read the same tail and both write its hash into `prev_hash`, forking the
@@ -1201,10 +1255,6 @@ export const note = pgTable(
     uniqueIndex('note_chain_head_key')
       .on(t.contactId)
       .where(sql`${t.lockedAt} is not null and ${t.prevHash} is null`),
-    check(
-      'note_type_check',
-      sql`${t.type} in ('general', 'session', 'document', 'correspondence', 'addendum', 'other')`,
-    ),
     // Locked means all three set, unlocked means none of them.
     check(
       'note_lock_fields',
@@ -1216,10 +1266,6 @@ export const note = pgTable(
       'note_hash_shape',
       sql`(${t.contentHash} is null or ${t.contentHash} ~ '^[0-9a-f]{64}$')
           and (${t.prevHash} is null or ${t.prevHash} ~ '^[0-9a-f]{64}$')`,
-    ),
-    check(
-      'note_addendum_target',
-      sql`(${t.type} = 'addendum') = (${t.correctsNoteId} is not null)`,
     ),
     check(
       'note_addendum_not_self',

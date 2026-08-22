@@ -18,6 +18,7 @@ import { ContentWidth } from '@/components/content-width'
 import { GoogleSettings } from '@/components/google-settings'
 import { InvoiceSettings } from '@/components/invoice-settings'
 import { MailSettings } from '@/components/mail-settings'
+import { NoteTypeSettings } from '@/components/note-type-settings'
 import { OpeningHoursSettings } from '@/components/opening-hours-settings'
 import { PageHeader } from '@/components/page-header'
 import { ReadValue } from '@/components/read-value'
@@ -164,6 +165,7 @@ function SettingsPage() {
               <SalutationSettings />
               <GenderSettings />
               <CountrySettings />
+              <NoteTypeSettings />
             </div>
           )}
           {section === 'activityTypes' && <ActivityTypeSettings />}

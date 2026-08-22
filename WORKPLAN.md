@@ -2485,6 +2485,49 @@ heißen soll wie ein *nie angelegter*, hat noch niemand entschieden. Zu klären,
 bevor es jemand braucht.
 
 
+## Design-Korrektur 2 — 02 Kontakte (L)
+
+Neun Pakete an den Kontaktbildschirmen. L1 bis L3 sind Grundlagen ohne
+Aussehen; die Bilder in `docs/design-korrektur-2/02 - Kontakte/` sind für alles
+Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
+
+**L1, as built** — *Notizarten sind ein Katalog* (Migration `0038`):
+
+- **`note_type`**, gebaut wie `contact_role_type` nach `0035`: `label`,
+  `sort_order`, kein Kürzel als Anker, kein `active`. Dazu `show_as_tab` wie bei
+  den Rollentypen — die Praxis entscheidet, welche Arten als Filterchip über der
+  Notizliste stehen.
+- **`note.type` → `note.note_type_id`**, Pflichtfeld, zusammengesetzter
+  Fremdschlüssel auf `(id, tenant_id)`, `RESTRICT` in beide Richtungen. Die
+  Bezeichnung reist als `noteTypeLabel` im Payload mit, verbunden beim Lesen und
+  nirgends gespeichert: Umbenennen erreicht jede Notiz auf einmal.
+- **Der Umzug musste den Sperr-Trigger abschalten.** `protect_locked_note` feuert
+  `BEFORE UPDATE` und hätte jede gesperrte Zeile abgewiesen. Aus und direkt
+  wieder an, mit dem Grund als Kommentar — die einzige Stelle, an der das je
+  zulässig ist, und der Wartungsschritt für die Testnotizen trägt denselben.
+- **Der Nachtrag ist keine Art mehr, sondern eine Eigenschaft.** `addendum` fiel
+  weg, `note_addendum_target` mit ihm; `corrects_note_id` allein sagt es. Ein
+  Nachtrag trägt eine gewöhnliche Art, vorbelegt mit der der korrigierten Notiz.
+  Bestehende Nachträge haben ihre Art über eine rekursive CTE geerbt.
+- **Der Hash nimmt die `id`, nicht die Bezeichnung.** Präzedenzfall ist
+  `createdBy`: die Benutzer-id steht drin, der änderbare Name bewusst nicht. Eine
+  korrigierte Schreibweise darf keine Dokumentation entwerten. Das Format wurde
+  dafür einmal geändert — vor der Inbetriebnahme, und danach nie wieder; die drei
+  gesperrten Testnotizen der Entwicklungsdatenbank sind mitgegangen, weil eine
+  dauerhaft rote Kettenansicht bei jeder künftigen Prüfung in die Irre führt.
+- **Der Filter greift auf die Elternnotiz.** Ein Nachtrag erscheint mit seiner
+  Notiz oder gar nicht — allein in der Liste stünde er ohne den Bezug, auf den er
+  sich beruft. Die Chips kommen aus `show_as_tab` allein, auch mit Null.
+- **Der leere Fall bekommt keinen unlöschbaren Eintrag.** Das wäre das
+  `is_system`, das `0035` den Rollen genommen hat, und es ist nur berechtigt, wo
+  Logik an einer bestimmten Zeile hängt. Ohne Notizart ist „Neue Notiz"
+  abgeschaltet, mit einem Satz und dem Verweis in die Einstellungen.
+- **Vierte Karte unter „Auswahllisten"**, gleiche Bauform wie die Rollenkarte —
+  bewusst ein zweites Bauteil und ein zweites Schema, obwohl beide Feld für Feld
+  gleich sind: ein gemeinsames bände die Kataloge aneinander, sobald einer ein
+  Feld bekommt.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

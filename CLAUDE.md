@@ -38,6 +38,7 @@ The practice does not only treat patients. It also sells courses, exam preparati
 | Sitzung | an `activity` whose type is `session` | |
 | Termin / Kalendereintrag | `appointment` | separate from the activity, optional |
 | Notiz / Dokumentation | `note` | attached to a contact, optionally to an activity |
+| Notizart | `note_type` | the configurable catalogue of note types |
 | Anhang / Datei | `note_file` | files are always attached through a note |
 | sperren / gesperrt | `lock` / `locked` | never "sign" — locking is not a signature |
 | Nachtrag | `addendum` | a note correcting a locked note |
@@ -256,7 +257,7 @@ A note belongs to a contact, and optionally to an activity. Files are always att
 A note is freely editable until locked. On lock:
 
 - set `locked_at`, `locked_by`
-- `content_hash` = SHA-256 over a canonical JSON serialization of `{ noteDate, type, text, fileHashes, createdAt, createdBy }`, keys sorted alphabetically, no whitespace
+- `content_hash` = SHA-256 over a canonical JSON serialization of `{ noteDate, noteTypeId, text, fileHashes, createdAt, createdBy }`, keys sorted alphabetically, no whitespace
 - `prev_hash` = `content_hash` of the most recently locked note of the same contact, `null` for the first
 
 This forms a hash chain per contact. `verifyChain(contactId)` walks it and reports deviations; there is a UI view for it.
@@ -278,7 +279,15 @@ as `BEFORE UPDATE OR DELETE`, plus an equivalent guard on `note_file` checking i
 
 `coalesce(NEW, OLD)` rather than `NEW`: in a `BEFORE DELETE` trigger `NEW` is NULL, and a `BEFORE` row trigger returning NULL **silently cancels the operation**. With plain `RETURN NEW` deleting an *unlocked* note reports success and changes nothing. Found in slice 5, corrected in migration `0012`.
 
-A locked note cannot be corrected, only supplemented: a new note of type `addendum` with `corrects_note_id` pointing at the locked one. Addenda render indented beneath the note they correct, labelled as an addendum with their own date. There is no unlock path — not for admins, not via a flag, not via a maintenance script.
+A locked note cannot be corrected, only supplemented: a new note with `corrects_note_id` pointing at the locked one. Addenda render indented beneath the note they correct, labelled as an addendum with their own date. There is no unlock path — not for admins, not via a flag, not via a maintenance script.
+
+**An addendum is a property, not a type.** `note.type` was a check constraint over six fixed values until migration 0038, `addendum` among them, and `note_addendum_target` enforced that the value and `corrects_note_id` implied each other. With the type a catalogue the practitioner maintains (`note_type`, below), that pairing could not survive: "Nachtrag" would have been selectable, and a note carrying it without a target would have been refused by a constraint no screen could explain. So `corrects_note_id` is the whole of what makes an addendum, and an addendum carries an ordinary type like every other note — an addendum to a session note is itself session documentation. It starts on the type of the note it supplements and is free to change. `note_addendum_not_self` stays; nothing corrects itself.
+
+**The type in the hash is the id, not the label.** A catalogue entry has two faces and only one can be hashed. Hashing the label would mean that correcting a spelling in the settings invalidates every chain filed under that type — a typo must not devalue documentation. The id never changes and sits in the note row itself, so it is covered against exactly what the hash is for: a change made past the application. That it says nothing to a human is not new — `createdBy` is a user id for the same reason, and the user's editable *name* is deliberately not hashed either. Leaving the type out entirely fails on that same point.
+
+**The format changed once for it, before go-live**, and that is the only time it ever will: the key `type` holding one of six words became `noteTypeId` holding a uuid, every hash written before stopped verifying, and the locked notes of the development database were deleted rather than left standing red in the chain view. Possible exactly once, on a database holding nothing that cannot be recreated.
+
+**A filter over notes is judged on the parent note.** An addendum appears with the note it supplements or not at all — alone in a filtered list it would sit there with nothing to say what it corrects, while the panel renders it indented under exactly that note. Which types appear as a filter chip at all is `note_type.show_as_tab`, and the flag alone decides it: a chip appears even where the count is zero, because at a filter a zero is an answer.
 
 *Why: § 630f BGB requires corrections to remain traceable with the original content recognizable. Lock plus append-only addenda satisfies this without a full change log. Locking is legally meaningful only for treatment documentation, but the mechanism is available on every note.*
 
@@ -1090,18 +1099,64 @@ appointment           tenant_id uuid not null -> tenant(id),
                         -- two slice-9 foreign keys; the key above carries
                         -- contact_id, which has nothing to do with either
 
--- as built (slice 5)
+-- as built (L1/0038)
+note_type             tenant_id uuid not null -> tenant(id),
+                      label text not null,
+                      show_as_tab boolean not null default false,
+                        -- the note list offers this type as a filter chip; the
+                        -- flag ALONE decides it, so a chip appears even where
+                        -- the count is zero — at a filter a zero is an answer,
+                        -- and which types are worth a chip is a decision
+                        -- rather than a consequence of what one contact has
+                      sort_order integer not null default 0
+                      unique (tenant_id, label)                 -- what a type
+                        -- is recognised by, there being no code
+                      unique (id, tenant_id)                    -- the target
+                        -- of note's composite foreign key
+                      index on (tenant_id, sort_order, label)
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- Built like contact_role_type after 0035 — no code as
+                      -- an anchor, so a label stays renamable and every note
+                      -- follows; no `active`, because the assignment is one
+                      -- column at the note with nothing hanging off it. A type
+                      -- can always be swapped on an open note, and a locked
+                      -- one is closed to every change anyway. No dead end for
+                      -- a flag to manage, unlike a service on a finalized
+                      -- invoice.
+                      --
+                      -- `Nachtrag` is deliberately NOT an entry: an addendum
+                      -- is a note with corrects_note_id and carries an
+                      -- ordinary type (rule 7).
+                      --
+                      -- The catalogue may be emptied and nothing guards
+                      -- against it. Without a type no note can be written; the
+                      -- screen says so and points at the settings, and whoever
+                      -- deleted the last entry has done it. An undeletable
+                      -- seed entry would be the is_system mechanism 0035 took
+                      -- off the roles, and its only justification is logic
+                      -- depending on a particular row.
+                      --
+                      -- Identical column for column to contact_role_type, and
+                      -- deliberately a second table, a second schema and a
+                      -- second card: one shared definition would bind the two
+                      -- catalogues together the moment either grows a field.
+
+-- as built (slice 5), retyped in L1/0038
 note                  tenant_id uuid not null -> tenant(id),
                       contact_id uuid not null,
                       activity_id uuid,                         (nullable)
                       note_date date not null,                  -- the day
                         -- documented, not the day of writing; both go into the
                         -- hash
-                      type text not null check in ('general','session',
-                        'document','correspondence','addendum','other')
-                        -- `document`, not the sketch's `file`: a note of type
-                        -- "file" next to a table `note_file` reads as if it
-                        -- were the attachment itself
+                      note_type_id uuid not null,               -- a catalogue
+                        -- entry since 0038; `type text` with a check
+                        -- constraint over six fixed values before that. The
+                        -- LABEL travels in the payload as note_type_label,
+                        -- joined on read like created_by_name and stored
+                        -- nowhere — renaming a type reaches every note at
+                        -- once, which is the point of having no code.
+                        -- The hash covers the ID, never the label (rule 7).
                       text text not null,                       -- named `text`
                         -- and not `body`, so the column and the key in the
                         -- canonical serialization of rule 7 line up
@@ -1112,6 +1167,13 @@ note                  tenant_id uuid not null -> tenant(id),
                       corrects_note_id uuid
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id)
+                      foreign key (note_type_id, tenant_id)
+                        -> note_type (id, tenant_id)
+                        on update restrict on delete restrict
+                        -- RESTRICT is what makes a type in use undeletable;
+                        -- deleteNoteType counts first, so the message says how
+                        -- many notes carry it — and that a locked note can
+                        -- never be moved off it.
                       foreign key (activity_id, contact_id, tenant_id)
                         -> activity (id, contact_id, tenant_id)
                         on delete restrict                      -- NOT set null:
@@ -1131,7 +1193,9 @@ note                  tenant_id uuid not null -> tenant(id),
                       unique (id, tenant_id),
                       unique (id, contact_id, tenant_id)
                       index (contact_id, note_date, created_at),
-                      index (activity_id), index (corrects_note_id)
+                      index (activity_id), index (corrects_note_id),
+                      index (note_type_id)                      -- on the child
+                        -- side, so deleting a type does not seq-scan `note`
                       unique index note_chain_link_key
                         on (contact_id, prev_hash) where prev_hash is not null
                       unique index note_chain_head_key
@@ -1146,9 +1210,12 @@ note                  tenant_id uuid not null -> tenant(id),
                         content_hash are all set or all null)
                       check note_prev_hash_requires_lock,
                       check note_hash_shape (^[0-9a-f]{64}$)
-                      check note_addendum_target (
-                        (type = 'addendum') = (corrects_note_id is not null))
                       check note_addendum_not_self
+                      -- DELIBERATELY ABSENT since 0038: note_type_check (the
+                      -- six fixed values) and note_addendum_target, which tied
+                      -- the type `addendum` to corrects_note_id. Neither can
+                      -- survive a catalogue — see rule 7. corrects_note_id is
+                      -- now the whole of what makes an addendum.
                       -- triggers protect_locked_note (migration 0011, fixed in
                       -- 0012) and set_updated_at; RLS created and disabled.
 
@@ -1714,7 +1781,7 @@ Defaults in a *creation* form are not this mistake, as long as the screen says p
 
 *Placeholders stay resolved on the server even when the dialog changes the template (rule 14): switching prepares the draft again through `prepareSend`, which is still "when the dialog is prepared" and keeps one resolver. Replacing text the practitioner has already edited is refused and named, with taking it over offered as an action — the same shape as applying an activity type's presets.*
 
-**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`, `note.type`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_type_id`, `contact.salutation_id`, `contact.gender_id`, `contact.country_id`, `contact_relation.relation_code` and `activity.type` point at a catalogue table through a composite foreign key (rules 4 and 6). `contact.gender` was the check-constraint case in this very sentence until D-R3 and is a catalogue now, which is the second time that has happened. `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
+**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_type_id`, `contact.salutation_id`, `contact.gender_id`, `contact.country_id`, `contact_relation.relation_code`, `note.note_type_id` and `activity.type` point at a catalogue table through a composite foreign key (rules 4, 6 and 7). `contact.gender` was the check-constraint case in this very sentence until D-R3 and is a catalogue now, and `note.type` stood beside it until L1 — the second and third time that has happened. `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 
 **`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
 
