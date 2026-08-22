@@ -5,6 +5,7 @@ import { eq, lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { appUser, session } from '../db/schema.js'
 import { newId } from '../id.js'
+import { deleteStaleNoteDrafts } from './note-draft.js'
 
 /**
  * Argon2id with the parameters OWASP lists as the low-memory baseline
@@ -131,6 +132,9 @@ export async function login(
 
   // Cheap housekeeping at the only moment a session is created. No job needed.
   await deleteExpiredSessions(database, now)
+  // The same reasoning for the drafts of unfinished notes — see
+  // `domain/note-draft.ts`. Not a session concern, but the same free moment.
+  await deleteStaleNoteDrafts(database, now)
 
   const token = generateSessionToken()
   const expiresAt = sessionExpiryFrom(now)

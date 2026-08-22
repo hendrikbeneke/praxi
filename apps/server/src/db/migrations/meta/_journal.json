@@ -274,6 +274,13 @@
       "when": 1787000300000,
       "tag": "0038_note_types",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787000400000,
+      "tag": "0039_note_drafts",
+      "breakpoints": true
     }
   ]
 }

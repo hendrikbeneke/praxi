@@ -1275,6 +1275,112 @@ export const note = pgTable(
 )
 
 /**
+ * The unsaved state of a note being written (L2).
+ *
+ * **A draft is not the note, and that is the whole point.** On an existing
+ * note the editor cannot write into the row: what stands there is the last
+ * saved version, so writing into it would make "Abbrechen" impossible, and a
+ * crash halfway through a rephrasing would turn half a sentence into the valid
+ * documentation. The text under the cursor lives here until "Speichern" makes
+ * a note of it and deletes the draft.
+ *
+ * Deliberately *not* an autosave switch beside the save button: saving a new
+ * note straight away leaves empty notes in the record when somebody is
+ * interrupted, a switch is a setting to think about at every note, and with it
+ * on, "Abbrechen" means the opposite of what it says.
+ *
+ * No versioning, no history, no merge — there is always exactly one draft per
+ * key, and the newer overwrites the older.
+ *
+ * On the server rather than in `localStorage`: that would be tied to one
+ * device, and it would put treatment documentation unencrypted in a place
+ * outside the practice's control (rule 12).
+ */
+export const noteDraft = pgTable(
+  'note_draft',
+  {
+    id: uuid().primaryKey(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenant.id),
+    userId: uuid().notNull(),
+    contactId: uuid().notNull(),
+    /** Null while the note does not exist yet — the key is then the contact. */
+    noteId: uuid(),
+    /** An addendum in the making. It is here because an addendum is a *new*
+     *  note and therefore shares the one draft per contact: without the
+     *  column, accepting it back would silently produce an ordinary note. */
+    correctsNoteId: uuid(),
+    activityId: uuid(),
+    /**
+     * Both nullable, and that is the rule this table is built on: **the draft
+     * mirrors the form, gaps included.** Were they required, a save running
+     * while the date field is briefly blank during retyping would fail — and
+     * take the text with it, which is the one thing this exists to keep.
+     */
+    noteTypeId: uuid(),
+    noteDate: date({ mode: 'string' }),
+    text: text().notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.userId, t.tenantId],
+      foreignColumns: [appUser.id, appUser.tenantId],
+      name: 'note_draft_user_tenant_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.contactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'note_draft_contact_tenant_fk',
+    }).onDelete('cascade'),
+    // Three columns, so a draft cannot hang on another contact's note.
+    foreignKey({
+      columns: [t.noteId, t.contactId, t.tenantId],
+      foreignColumns: [note.id, note.contactId, note.tenantId],
+      name: 'note_draft_note_contact_tenant_fk',
+    }).onDelete('cascade'),
+    /** Restrict, like `note.corrects_note_id` — and reachable only in theory,
+     *  since the note an addendum corrects is locked and undeletable. */
+    foreignKey({
+      columns: [t.correctsNoteId, t.contactId, t.tenantId],
+      foreignColumns: [note.id, note.contactId, note.tenantId],
+      name: 'note_draft_corrects_contact_tenant_fk',
+    }).onDelete('restrict'),
+    /**
+     * SET NULL on both, and on the *column* only: a draft must never be what
+     * stops an activity or a note type from being deleted. The bare form would
+     * null `tenant_id` with it, which drizzle-kit cannot express — migration
+     * 0039 writes both constraints by hand, as 0009 did.
+     */
+    foreignKey({
+      columns: [t.activityId, t.contactId, t.tenantId],
+      foreignColumns: [activity.id, activity.contactId, activity.tenantId],
+      name: 'note_draft_activity_contact_tenant_fk',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [t.noteTypeId, t.tenantId],
+      foreignColumns: [noteType.id, noteType.tenantId],
+      name: 'note_draft_note_type_tenant_fk',
+    }).onDelete('set null'),
+    /**
+     * Two partial indexes rather than one key: NULL does not collide in a
+     * plain unique index, so `(user_id, note_id)` would allow any number of
+     * drafts for a note that does not exist yet.
+     */
+    uniqueIndex('note_draft_note_key').on(t.userId, t.noteId).where(sql`${t.noteId} is not null`),
+    /** One draft per contact for a note being newly written. Starting a
+     *  second one overwrites the first, which is right: only one form is open
+     *  at a time. */
+    uniqueIndex('note_draft_new_key').on(t.userId, t.contactId).where(sql`${t.noteId} is null`),
+    index('note_draft_tenant_updated_idx').on(t.tenantId, t.updatedAt),
+    /** A draft without text is not a draft: emptying the field deletes it
+     *  rather than leaving a husk to be asked about at the next opening. */
+    check('note_draft_text_not_blank', sql`btrim(${t.text}) <> ''`),
+  ],
+)
+
+/**
  * An attachment. Cascading on delete is safe precisely because a locked note
  * cannot be deleted: the cascade only ever reaches notes that are still open.
  *

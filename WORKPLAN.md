@@ -2528,6 +2528,42 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   Feld bekommt.
 
 
+**L2, as built** — *Entwurfsspeicher statt Autosave-Häkchen* (Migration `0039`):
+
+- **`note_draft`** hält, was gerade geschrieben wird, und ist nicht die Notiz.
+  Der Fall, der die Bauweise trägt, ist die *bestehende* Notiz: dort darf der
+  Editor nicht in die Zeile schreiben, sonst wäre „Abbrechen" unmöglich und ein
+  Absturz mitten im Umformulieren machte einen halben Satz zur gültigen
+  Dokumentation.
+- **Zwei partielle Unique-Indizes**, weil NULL in einem gewöhnlichen nicht als
+  Wert gilt: einer je Benutzer und Notiz, einer je Benutzer und Kontakt für die
+  noch nicht existierende Notiz.
+- **`corrects_note_id` ist eine Spalte**, obwohl der Auftrag sie nicht nannte.
+  Ein Nachtrag ist eine *neue* Notiz und teilt sich den einen Entwurf je
+  Kontakt; ohne die Spalte würde aus zwanzig Minuten Nachtrag beim Übernehmen
+  stillschweigend eine gewöhnliche Notiz. Die Rückfrage nennt den Bezug.
+- **`note_date` und `note_type_id` sind nullable** — der Entwurf spiegelt das
+  Formular samt seiner Lücken. Ein Sicherungslauf, der scheitert, weil das
+  Datumsfeld beim Umtippen kurz leer ist, verlöre genau das, wofür es die
+  Tabelle gibt. Pflicht ist nur `text`, und nicht leer.
+- **Gesperrte Notiz, drei Riegel:** die Domäne verweigert für den Satz, der
+  Trigger `note_draft_requires_open_note` macht den Zustand unerreichbar, und
+  `lockNote` löscht die Entwürfe zu dieser Notiz *in derselben Transaktion* —
+  alle, nicht nur die des sperrenden Benutzers. Danach zu löschen hinterließe
+  einen Entwurf, den der eigene Trigger unlöschbar macht.
+- **Drei Sekunden nach dem letzten Tastendruck, spätestens alle zwanzig.** Kein
+  `beforeunload`: der Fall, für den es das gibt, ist ein Absturz, und der feuert
+  kein Ereignis. Stattdessen `flush()` beim Schließen, damit „der Entwurf bleibt
+  liegen" bis zum letzten Tastendruck stimmt.
+- **Ein Entwurf, der älter ist als seine Notiz, wird nicht ausgeliefert** — und
+  ist damit das Netz unter dem Löschen nach dem Speichern. Weggeräumt wird beim
+  Anmelden, neben `deleteExpiredSessions`: veraltete sofort, unberührte nach
+  30 Tagen.
+- **Verdrahtet in den heutigen Notizdialog**, der Haken aber gegen den
+  *Formularzustand* geschrieben, nicht gegen den Dialog — L6 holt das Schreiben
+  in den Lesebereich, und er zieht unverändert mit.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

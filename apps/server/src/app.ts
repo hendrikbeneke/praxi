@@ -14,6 +14,7 @@ import { healthRoute } from './routes/health.js'
 import { invoiceSendRoute } from './routes/invoice-send.js'
 import { invoicesRoute } from './routes/invoices.js'
 import { emailTemplatesRoute, smtpRoute } from './routes/mail.js'
+import { noteDraftsRoute } from './routes/note-drafts.js'
 import { noteTypesRoute } from './routes/note-types.js'
 import { notesRoute } from './routes/notes.js'
 import { numberRangesRoute } from './routes/number-ranges.js'
@@ -54,6 +55,7 @@ const routes = app
   .route('/api/appointments', appointmentsRoute)
   .route('/api/notes', notesRoute)
   .route('/api/note-types', noteTypesRoute)
+  .route('/api/note-drafts', noteDraftsRoute)
   .route('/api/invoices', invoicesRoute)
   // Payments and sending hang under their invoice; the chains share the prefix.
   .route('/api/invoices', paymentsRoute)

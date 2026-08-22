@@ -158,6 +158,14 @@ export const messages = {
       'Diese Leistungsgruppe existiert nicht oder enthält keine Leistungen. ' +
       'Bitte prüfen Sie den Katalog.',
   },
+  noteDraft: {
+    notFound: 'Dieser Entwurf existiert nicht.',
+    /** Reachable only from a stale screen: the note was locked while the form
+     *  stood open. The trigger refuses it too, less readably. */
+    noteLocked:
+      'Diese Notiz wurde inzwischen gesperrt und lässt sich nicht mehr ändern. ' +
+      'Ergänzen Sie sie stattdessen durch einen Nachtrag.',
+  },
   noteType: {
     notFound: 'Diese Notizart existiert nicht.',
     labelTaken: 'Eine Notizart mit dieser Bezeichnung gibt es bereits.',

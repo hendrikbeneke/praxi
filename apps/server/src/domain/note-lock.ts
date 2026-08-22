@@ -1,7 +1,7 @@
 import type { Note, NoteChainEntry, NoteChainReport } from '@praxi/shared'
 import { and, asc, desc, eq, isNotNull } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
-import { note, noteFile } from '../db/schema.js'
+import { note, noteDraft, noteFile } from '../db/schema.js'
 import type { FileStore } from './file-store.js'
 import { getNote } from './note.js'
 import { computeContentHash } from './note-hash.js'
@@ -98,6 +98,18 @@ export async function lockNote(
         prevHash: previous?.contentHash ?? null,
       })
       .where(eq(note.id, noteId))
+
+    /**
+     * The drafts of this note go with it, in the same transaction and not in
+     * the route afterwards — a draft left standing for a note that is now
+     * locked would be one the trigger `note_draft_requires_open_note` makes
+     * unremovable through its own upsert path.
+     *
+     * All of them, not only the locking user's: from here the note is
+     * immutable for everyone, so there is nothing left for any draft to
+     * become.
+     */
+    await tx.delete(noteDraft).where(eq(noteDraft.noteId, noteId))
 
     return true
   })

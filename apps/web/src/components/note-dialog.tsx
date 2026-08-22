@@ -3,6 +3,9 @@ import {
   activityLabel,
   activityTypeLabel,
   formatBerlinDate,
+  formatBerlinDateTime,
+  formatBerlinTime,
+  formatRelativeDayBerlin,
   type Note,
   toBerlinDate,
 } from '@praxi/shared'
@@ -29,14 +32,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useNoteDraft } from '@/hooks/use-note-draft'
 import { activityListQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import { noteTypeListQueryOptions } from '@/lib/note-types'
-import { createNote, updateNote } from '@/lib/notes'
+import { createNote, noteListQueryOptions, updateNote } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 
 const NO_ACTIVITY = 'none'
+
+/** When the draft was last written, in the shortest German that still places
+ *  it: "heute 14:32", "gestern 09:12", "11.08.2026, 11:04" once relative days
+ *  stop being an answer anybody can picture. */
+function draftAge(iso: string, now: Date): string {
+  const day = formatRelativeDayBerlin(iso, now)
+  return day === 'heute' || day === 'gestern'
+    ? `${day} ${formatBerlinTime(iso)}`
+    : formatBerlinDateTime(iso)
+}
 
 export function NoteDialog({
   contactId,
@@ -62,11 +76,17 @@ export function NoteDialog({
   const activities = useQuery({ ...activityListQueryOptions({ contactId }), enabled: open })
   const types = useQuery({ ...activityTypeListQueryOptions(true), enabled: open })
   const noteTypes = useQuery({ ...noteTypeListQueryOptions, enabled: open })
+  /** Only to name the note a restored addendum belongs to — the list is
+   *  already in the cache, the screen behind this dialog loaded it. */
+  const notes = useQuery({ ...noteListQueryOptions({ contactId }), enabled: open })
 
   const [noteDate, setNoteDate] = useState('')
   const [noteTypeId, setNoteTypeId] = useState('')
   const [text, setText] = useState('')
   const [selectedActivity, setSelectedActivity] = useState<string>(NO_ACTIVITY)
+  /** Which note this one supplements. State rather than the prop alone,
+   *  because a draft carries it too: a restored addendum has to stay one. */
+  const [correctsId, setCorrectsId] = useState<string | null>(null)
 
   /** The catalogue is empty: a note cannot be written at all, and saying so
    *  beats a dropdown with nothing in it. The button that opens this dialog is
@@ -98,6 +118,7 @@ export function NoteDialog({
     setNoteTypeId(correctsNote?.noteTypeId ?? '')
     setText('')
     setSelectedActivity(activityId ?? correctsNote?.activityId ?? NO_ACTIVITY)
+    setCorrectsId(correctsNote?.id ?? null)
   }, [open, note, correctsNote, activityId])
 
   /** The first entry of the catalogue is what a new note starts on — the order
@@ -108,6 +129,42 @@ export function NoteDialog({
     const first = noteTypes.data?.[0]
     if (first) setNoteTypeId(first.id)
   }, [open, noteTypeId, noteTypes.data])
+
+  /**
+   * The draft (L2). Fed the form state rather than the dialog, so it moves to
+   * the reading pane in L6 unchanged.
+   */
+  const draft = useNoteDraft({
+    open,
+    contactId,
+    noteId: note?.id,
+    form: {
+      correctsNoteId: correctsId,
+      activityId: selectedActivity === NO_ACTIVITY ? null : selectedActivity,
+      noteTypeId: noteTypeId === '' ? null : noteTypeId,
+      noteDate: noteDate === '' ? null : noteDate,
+      text,
+    },
+  })
+
+  /** The note a pending draft supplements — resolved from the list so the
+   *  question can name it, rather than offering "a draft" for something the
+   *  practitioner would only recognise after accepting it. */
+  const offered = draft.offer
+  const offeredCorrects =
+    offered?.correctsNoteId != null
+      ? notes.data?.find((entry) => entry.id === offered.correctsNoteId)
+      : undefined
+
+  function acceptDraft() {
+    if (!offered) return
+    setNoteDate(offered.noteDate ?? '')
+    setNoteTypeId(offered.noteTypeId ?? '')
+    setText(offered.text)
+    setSelectedActivity(offered.activityId ?? NO_ACTIVITY)
+    setCorrectsId(offered.correctsNoteId)
+    draft.accept()
+  }
 
   const mutation = useMutation({
     mutationFn: async (): Promise<Note> => {
@@ -122,10 +179,12 @@ export function NoteDialog({
         noteDate,
         noteTypeId,
         text,
-        correctsNoteId: correctsNote?.id ?? null,
+        correctsNoteId: correctsId,
       })
     },
     onSuccess: async () => {
+      // The draft became a note; what it was is gone with it.
+      await draft.clear()
       await queryClient.invalidateQueries({ queryKey: ['notes'] })
       toast.success(note ? strings.note.saved : strings.note.created)
       onOpenChange(false)
@@ -135,7 +194,11 @@ export function NoteDialog({
     },
   })
 
-  const title = correctsNote
+  /** The note being supplemented, from the prop or from an accepted draft. */
+  const corrected =
+    correctsNote ?? notes.data?.find((entry) => entry.id === correctsId) ?? undefined
+
+  const title = correctsId
     ? strings.note.addendumTitle
     : note
       ? strings.note.editTitle
@@ -146,14 +209,42 @@ export function NoteDialog({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {correctsNote && (
+          {corrected && (
             <DialogDescription>
-              {strings.note.addendumTo} {formatBerlinDate(`${correctsNote.noteDate}T12:00:00Z`)}
+              {strings.note.addendumTo} {formatBerlinDate(`${corrected.noteDate}T12:00:00Z`)}
             </DialogDescription>
           )}
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* The offer, not a restore that happens by itself: what is on
+              screen has to be what the practitioner chose. Naming the
+              addendum's target matters — a draft taken over blind would
+              otherwise turn twenty minutes of Nachtrag into an ordinary
+              note. */}
+          {offered && (
+            <div className="rounded-[10px] border bg-muted/45 px-4 py-3.5">
+              <p className="text-sm">
+                {strings.note.draftFound(draftAge(offered.updatedAt, new Date()))}
+                {offeredCorrects && (
+                  <>
+                    {' '}
+                    {strings.note.draftIsAddendum}{' '}
+                    {formatBerlinDate(`${offeredCorrects.noteDate}T12:00:00Z`)}.
+                  </>
+                )}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" onClick={acceptDraft}>
+                  {strings.note.draftAccept}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={draft.discard}>
+                  {strings.note.draftDiscard}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor={`${formId}-date`}>{strings.note.noteDate}</Label>
@@ -228,7 +319,16 @@ export function NoteDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          {/* Cancelling means cancelling — and leaves the draft lying, down to
+              the last keystrokes, which is what the flush is for. */}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              void draft.flush()
+              onOpenChange(false)
+            }}
+          >
             {strings.note.cancel}
           </Button>
           <Button

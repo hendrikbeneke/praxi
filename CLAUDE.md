@@ -39,6 +39,7 @@ The practice does not only treat patients. It also sells courses, exam preparati
 | Termin / Kalendereintrag | `appointment` | separate from the activity, optional |
 | Notiz / Dokumentation | `note` | attached to a contact, optionally to an activity |
 | Notizart | `note_type` | the configurable catalogue of note types |
+| Entwurf (Notiz) | `note_draft` | the unsaved state of a note being written; `draft` alone stays the invoice status |
 | Anhang / Datei | `note_file` | files are always attached through a note |
 | sperren / gesperrt | `lock` / `locked` | never "sign" — locking is not a signature |
 | Nachtrag | `addendum` | a note correcting a locked note |
@@ -286,6 +287,18 @@ A locked note cannot be corrected, only supplemented: a new note with `corrects_
 **The type in the hash is the id, not the label.** A catalogue entry has two faces and only one can be hashed. Hashing the label would mean that correcting a spelling in the settings invalidates every chain filed under that type — a typo must not devalue documentation. The id never changes and sits in the note row itself, so it is covered against exactly what the hash is for: a change made past the application. That it says nothing to a human is not new — `createdBy` is a user id for the same reason, and the user's editable *name* is deliberately not hashed either. Leaving the type out entirely fails on that same point.
 
 **The format changed once for it, before go-live**, and that is the only time it ever will: the key `type` holding one of six words became `noteTypeId` holding a uuid, every hash written before stopped verifying, and the locked notes of the development database were deleted rather than left standing red in the chain view. Possible exactly once, on a database holding nothing that cannot be recreated.
+
+**A note being written lives in `note_draft` until it is saved, and that draft is not the note.** Writing can take twenty minutes, and twenty minutes must not be lost to a crash or a stray click. The obvious answer — an autosave switch beside the save button — is wrong three times over: saving a new note straight away leaves empty notes in the record when somebody is interrupted, a switch is a setting to think about at every note, and with it on, "Abbrechen" means the opposite of what it says.
+
+The case that decides it is the *existing* note. There the editor cannot write into the row: what stands there is the last saved version, so writing into it would make cancelling impossible, and a crash halfway through a rephrasing would turn half a sentence into the valid documentation. So the text under the cursor lives beside the note until "Speichern" makes a note of it and deletes the draft; "Abbrechen" leaves it lying, and the next opening *offers* it — never restores it by itself, because what stands on screen has to be what was chosen.
+
+On the server, not in `localStorage`: that would be tied to one device and would put treatment documentation unencrypted in a place outside the practice's control (rule 12). No versioning, no history, no merge — one draft per key, the newer overwrites the older.
+
+**Saved three seconds after the last keystroke, and at the latest every twenty.** Pauses of three seconds happen constantly between sentences, so most saves land while the writer is thinking; twenty is the actual promise. There is deliberately **no `beforeunload` handler**: the case this exists for is a browser that crashes, and a crash fires no event — a farewell handler that is missing exactly when it would be needed is not a promise. What replaces it is `flush()` when the form closes, so "the draft stays" holds down to the last keystrokes.
+
+**A locked note has no draft**, and both ends are covered: `saveNoteDraft` refuses for the message, the trigger `note_draft_requires_open_note` makes the state unreachable, and `lockNote` deletes the drafts of that note *in the same transaction* — every user's, since the note is immutable for everyone from then on. Doing it afterwards would leave a draft the trigger itself makes unremovable through its own upsert path. `corrects_note_id` is deliberately outside that rule: an addendum names a locked note by definition.
+
+**A draft older than its note is never handed out.** It can only mean the note was saved after the draft was written. That is at the same time the net under deleting the draft after saving: a client that loses that call leaves nothing that surfaces. Sweeping happens at login, beside `deleteExpiredSessions` — stale drafts whatever their age, and anything untouched for 30 days.
 
 **A filter over notes is judged on the parent note.** An addendum appears with the note it supplements or not at all — alone in a filtered list it would sit there with nothing to say what it corrects, while the panel renders it indented under exactly that note. Which types appear as a filter chip at all is `note_type.show_as_tab`, and the flag alone decides it: a chip appears even where the count is zero, because at a filter a zero is an answer.
 
@@ -1218,6 +1231,78 @@ note                  tenant_id uuid not null -> tenant(id),
                       -- now the whole of what makes an addendum.
                       -- triggers protect_locked_note (migration 0011, fixed in
                       -- 0012) and set_updated_at; RLS created and disabled.
+
+-- as built (L2/0039)
+note_draft            tenant_id uuid not null -> tenant(id),
+                      user_id uuid not null,
+                      contact_id uuid not null,
+                      note_id uuid,                             -- null while
+                        -- the note does not exist yet; the key is then the
+                        -- contact
+                      corrects_note_id uuid,                    -- an addendum
+                        -- in the making. Here because an addendum is a NEW
+                        -- note and therefore shares the one draft per contact:
+                        -- without the column, taking the draft back would
+                        -- silently produce an ordinary note.
+                      activity_id uuid,
+                      note_type_id uuid,
+                      note_date date,
+                        -- Both nullable, and that is the rule this table is
+                        -- built on: THE DRAFT MIRRORS THE FORM, GAPS INCLUDED.
+                        -- Were they required, a save running while the date
+                        -- field is briefly blank during retyping would fail —
+                        -- and take the text with it, which is the one thing
+                        -- this exists to keep.
+                      text text not null
+                      check note_draft_text_not_blank (btrim(text) <> '')
+                        -- A draft without text is not a draft: emptying the
+                        -- field deletes it rather than leaving a husk to be
+                        -- asked about at the next opening.
+                      foreign key (user_id, tenant_id)
+                        -> app_user (id, tenant_id) on delete cascade,
+                      foreign key (contact_id, tenant_id)
+                        -> contact (id, tenant_id) on delete cascade,
+                      foreign key (note_id, contact_id, tenant_id)
+                        -> note (id, contact_id, tenant_id) on delete cascade,
+                      foreign key (corrects_note_id, contact_id, tenant_id)
+                        -> note (id, contact_id, tenant_id) on delete restrict,
+                      foreign key (activity_id, contact_id, tenant_id)
+                        -> activity (id, contact_id, tenant_id)
+                        on delete set null (activity_id),
+                      foreign key (note_type_id, tenant_id)
+                        -> note_type (id, tenant_id)
+                        on delete set null (note_type_id)
+                        -- SET NULL on the COLUMN for the last two: a draft
+                        -- must never be what stops an activity or a note type
+                        -- from being deleted, and the bare form would null
+                        -- tenant_id with it. drizzle-kit cannot express the
+                        -- column list, so 0039 writes them by hand — the same
+                        -- exception as migration 0009.
+                      unique index note_draft_note_key
+                        on (user_id, note_id) where note_id is not null,
+                      unique index note_draft_new_key
+                        on (user_id, contact_id) where note_id is null
+                        -- Two partial indexes rather than one key: NULL does
+                        -- not collide in a plain unique index, so
+                        -- (user_id, note_id) would allow any number of drafts
+                        -- for a note that does not exist yet. One draft per
+                        -- contact for a note being newly written — starting a
+                        -- second one overwrites the first, which is right:
+                        -- only one form is open at a time.
+                      index on (tenant_id, updated_at)          -- the sweep
+                      -- trigger note_draft_requires_open_note, BEFORE INSERT
+                      -- OR UPDATE: a locked note is not editable, so it has no
+                      -- draft. The foreign key does not know `locked_at` and a
+                      -- check constraint cannot look into a second table —
+                      -- exactly where payment_requires_finalized_invoice
+                      -- stands. corrects_note_id is deliberately not covered:
+                      -- an addendum names a locked note by definition.
+                      -- set_updated_at; RLS created and disabled.
+                      --
+                      -- Deliberately absent: any column on `note`. A draft is
+                      -- not a state of the note — the whole point is that the
+                      -- note keeps saying what was last saved while something
+                      -- else is being typed.
 
 -- as built (slice 5)
 note_file             tenant_id uuid not null -> tenant(id),

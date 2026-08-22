@@ -1051,6 +1051,13 @@ export const strings = {
     lockedAt: 'Gesperrt am',
     openBadge: 'Offen',
     addendumTo: 'Nachtrag zu',
+
+    /* The draft (L2). It is offered, never restored by itself: what stands on
+       screen has to be what was chosen. */
+    draftFound: (when: string) => `Ein nicht gespeicherter Entwurf von ${when} liegt vor.`,
+    draftIsAddendum: 'Er ist ein Nachtrag zur Notiz vom',
+    draftAccept: 'Übernehmen',
+    draftDiscard: 'Verwerfen',
     writeAddendum: 'Nachtrag',
 
     files: 'Anhänge',
