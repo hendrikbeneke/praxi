@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { optionalText, requiredText } from './field.js'
+import { cursorSchema, PAGE_SIZE, sortDirectionSchema } from './list.js'
 
 /**
  * `kind` is structural: it decides which fields apply and never changes.
@@ -186,32 +187,41 @@ export type Contact = z.infer<typeof contactSchema>
  * `listContacts` in `domain/contact.ts` mirrors this at the SQL level with its
  * own column set, so the value is never even read for a list row.
  */
-export const contactListItemSchema = contactSchema.omit({ diagnosis: true }).extend({
-  appointmentAt: z.iso.datetime().nullable(),
-})
+/**
+ * A row of the contact list: everything a contact is, minus the diagnosis
+ * (rule 12).
+ *
+ * `appointmentAt` was here until L3 and is gone with the "Termin" column. It
+ * is not a property of a contact but of the calendar, it cost a join on every
+ * sort, and whether the practice needs it in this list at all is not decided
+ * — learning that first is cheaper than carrying it meanwhile.
+ */
+export const contactListItemSchema = contactSchema.omit({ diagnosis: true })
 
 export type ContactListItem = z.infer<typeof contactListItemSchema>
 
 /**
- * How the list is ordered.
+ * Which column the list is sorted by (L3).
  *
- * `current` is the everyday entry point: whoever was here in the last days or
- * is coming in the next, nearest first. `alpha` is the card index.
+ * One plain sort, and no second concept beside it. Until L3 there was an
+ * `order` of `current` | `alpha`, where `current` sorted by nearness to now —
+ * and *filtered* to a window of fourteen days either side while doing it, so
+ * "Aktuell" showed five contacts where "Alle" showed a hundred. The window,
+ * the filtering and the switch are gone together.
  *
- * The default here is `alpha`, the plainer of the two — an API that starts
- * filtering by a time window unless told otherwise is a surprise. The screen
- * defaults to `current` and says so in the request.
+ * **Roles are deliberately not here.** A contact holds a set of them, and a
+ * set has no order; sorting would need an invented rule — "the alphabetically
+ * first role" — which for a contact with two roles is a coin toss. The same
+ * goes for the three catalogue-backed fields (salutation, gender, country):
+ * the row holds an id, and sorting by that is meaningless, while sorting by
+ * the catalogue's own order needs a join. Say the word and either becomes one.
+ *
+ * Which of these the list *offers* is L4's decision; the mechanism takes a new
+ * field in one line.
  */
-export const contactListOrders = ['current', 'alpha'] as const
-export const contactListOrderSchema = z.enum(contactListOrders)
-export type ContactListOrder = z.infer<typeof contactListOrderSchema>
-
-export const contactSortFields = ['name', 'number'] as const
+export const contactSortFields = ['name', 'number', 'city', 'dateOfBirth'] as const
 export const contactSortFieldSchema = z.enum(contactSortFields)
 export type ContactSortField = z.infer<typeof contactSortFieldSchema>
-
-export const sortDirectionSchema = z.enum(['asc', 'desc'])
-export type SortDirection = z.infer<typeof sortDirectionSchema>
 
 /**
  * Query for the contact list.
@@ -224,15 +234,15 @@ export type SortDirection = z.infer<typeof sortDirectionSchema>
 export const contactListQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   roleTypeId: z.uuid().optional(),
-  order: contactListOrderSchema.default('alpha'),
   sort: contactSortFieldSchema.default('name'),
   dir: sortDirectionSchema.default('asc'),
   includeArchived: z
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(PAGE_SIZE),
+  /** Absent means the first page — and only then is `total` counted. */
+  cursor: cursorSchema.optional(),
 })
 
 export type ContactListQuery = z.infer<typeof contactListQuerySchema>

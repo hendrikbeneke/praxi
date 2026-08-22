@@ -158,6 +158,12 @@ export const messages = {
       'Diese Leistungsgruppe existiert nicht oder enthält keine Leistungen. ' +
       'Bitte prüfen Sie den Katalog.',
   },
+  list: {
+    /** A cursor this server did not write — a stale tab, or a hand-edited URL.
+     *  Refused rather than silently answered with the first page, which would
+     *  look like a list that jumps back to the top on its own. */
+    badCursor: 'Diese Seite der Liste lässt sich nicht laden. Bitte neu laden.',
+  },
   noteDraft: {
     notFound: 'Dieser Entwurf existiert nicht.',
     /** Reachable only from a stale screen: the note was locked while the form

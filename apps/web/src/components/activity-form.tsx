@@ -250,7 +250,9 @@ export function ActivityForm({
    * before it exists. Null while the form does not describe a slot.
    */
   onDraftChange?: (draft: { startsAt: string; endsAt: string; typeCode: string } | null) => void
-  onSaved: () => void
+  /** Handed the row that was written, so a list can find out where it landed
+   *  — see `ActivityList`. */
+  onSaved: (saved: Activity) => void
   onCancel: () => void
 }) {
   const queryClient = useQueryClient()
@@ -426,11 +428,11 @@ export function ActivityForm({
   const mutation = useMutation({
     mutationFn: (input: ActivityInput) =>
       activity ? updateActivity(activity.id, input) : createActivity(input),
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ['activities'] })
       await queryClient.invalidateQueries({ queryKey: ['appointments'] })
       toast.success(activity ? strings.activity.saved : strings.activity.created)
-      onSaved()
+      onSaved(saved)
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.activity.saveFailed)

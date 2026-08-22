@@ -10,28 +10,66 @@ import type {
   CalendarEntry,
   FreeSlotQuery,
   FreeSlotsResponse,
+  Page,
 } from '@praxi/shared'
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
 type ListParams = Pick<Partial<ActivityListQuery>, 'contactId' | 'from' | 'to' | 'status' | 'type'>
 
+function listQuery(params: ListParams, extra: Record<string, string> = {}) {
+  return {
+    ...(params.contactId ? { contactId: params.contactId } : {}),
+    ...(params.from ? { from: params.from } : {}),
+    ...(params.to ? { to: params.to } : {}),
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.type ? { type: params.type } : {}),
+    ...extra,
+  }
+}
+
+/**
+ * Both halves at once, unpaged — what a *picker* asks for. The note dialog
+ * choosing an activity does not care which side of now it is on, and it shows
+ * what one request returns.
+ *
+ * The two halves of the list proper are below, and they have different rules:
+ * see `activityListPartSchema`.
+ */
 export const activityListQueryOptions = (params: ListParams) =>
   queryOptions({
     queryKey: ['activities', 'list', params],
     queryFn: async (): Promise<Activity[]> => {
+      const res = await api.api.activities.$get({ query: listQuery(params) })
+      if (!res.ok) throw await apiError(res)
+      return (await res.json()).items
+    },
+  })
+
+/** Everything ahead, nearest first, in one request — the future is finite. */
+export const upcomingActivitiesQueryOptions = (params: ListParams) =>
+  queryOptions({
+    queryKey: ['activities', 'list', 'upcoming', params],
+    queryFn: async (): Promise<Activity[]> => {
+      const res = await api.api.activities.$get({ query: listQuery(params, { part: 'upcoming' }) })
+      if (!res.ok) throw await apiError(res)
+      return (await res.json()).items
+    },
+  })
+
+/** Everything behind, newest first, one page at a time — the past is not. */
+export const pastActivitiesQueryOptions = (params: ListParams) =>
+  infiniteQueryOptions({
+    queryKey: ['activities', 'list', 'past', params],
+    queryFn: async ({ pageParam }): Promise<Page<Activity>> => {
       const res = await api.api.activities.$get({
-        query: {
-          ...(params.contactId ? { contactId: params.contactId } : {}),
-          ...(params.from ? { from: params.from } : {}),
-          ...(params.to ? { to: params.to } : {}),
-          ...(params.status ? { status: params.status } : {}),
-          ...(params.type ? { type: params.type } : {}),
-        },
+        query: listQuery(params, { part: 'past', ...(pageParam ? { cursor: pageParam } : {}) }),
       })
       if (!res.ok) throw await apiError(res)
       return res.json()
     },
+    initialPageParam: '',
+    getNextPageParam: (last) => last.nextCursor,
   })
 
 /** The figures above the Vorgänge list. Its own request because the window is

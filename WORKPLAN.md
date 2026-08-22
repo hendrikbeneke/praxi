@@ -2564,6 +2564,37 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   in den Lesebereich, und er zieht unverändert mit.
 
 
+**L3, as built** — *Listen serverseitig, mit Nachladen* (keine Migration):
+
+- **Cursor statt Offset**, `domain/keyset.ts`, 50 Zeilen je Abruf. Dazu die
+  `id` als zweiter Sortierschlüssel — ohne sie haben zwei gleichnamige Kontakte
+  keine eigene Reihenfolge, und die zweite Seite hätte einen doppelt und einen
+  gar nicht gebracht. Der Fehler steckte in jeder Listenabfrage und war
+  unsichtbar, solange nie nachgeladen wurde.
+- **NULL hinten in beiden Richtungen**, `total` nur bei der ersten Seite, ein
+  fremder Cursor wird mit 400 abgewiesen statt still von vorn zu beginnen.
+- **Der Umschalter „Aktuell / A–Z" ist weg**, samt Zeitfenster und dessen
+  Filterwirkung. Eine gewöhnliche Sortierung, Vorgabe Name aufsteigend;
+  sortierbar sind Nr., Name, Ort und Geburtsdatum. Rollen nicht — eine Menge
+  hat keine Reihenfolge; die drei Katalogfelder auch nicht, dort stünde eine id
+  oder es bräuchte einen Join.
+- **Die Spalte „Termin" ist ganz aus der Kontaktliste heraus**, mit
+  `appointmentAt` aus dem Payload und dem Join aus der Abfrage. Sie ist kein
+  Stammdatum, und ob die Praxis sie hier braucht, ist offen — erst lernen, dann
+  bauen.
+- **Die Vorgangsliste bekommt zwei Regeln statt einer Ordnung:** „Kommend"
+  ganz, aufsteigend, ohne Obergrenze; „Bisher" zu 50, absteigend. Die
+  Aufteilung lag bisher im Browser und wäre mit der ersten nachgeladenen Seite
+  falsch geworden.
+- **Der neue Vorgang findet seinen Platz ohne Server.** Ist er da, wird
+  hingescrollt und hervorgehoben; ist er es nicht, sagt ein Streifen warum —
+  und unterscheidet dabei „liegt weiter zurück" von „gehört nicht in die
+  aktuelle Auswahl" allein daran, ob noch etwas nachzuladen ist.
+- **Der Kontaktpicker bekam eine eigene Abfrage.** Ein Picker scrollt nicht, er
+  wird enger getippt; eine Infinite-Query in einem Dropdown wäre Mechanik, die
+  dort niemand benutzt.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

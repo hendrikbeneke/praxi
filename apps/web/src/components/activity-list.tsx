@@ -11,10 +11,13 @@ import {
   sumItems,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityDetail } from '@/components/activity-detail'
 import { ActivityForm } from '@/components/activity-form'
+import { InfiniteSentinel } from '@/components/infinite-sentinel'
 import { useInlineDetail } from '@/components/inline-detail-row'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { strings } from '@/lib/strings'
 import { cn } from '@/lib/utils'
@@ -46,16 +49,32 @@ function appointmentVariant(status: AppointmentStatus): 'destructive' | 'seconda
  * ascending, what is behind follows descending. A pure chronology puts the
  * oldest thing at one end and the practitioner works from both.
  */
+/**
+ * The activity list, in its two halves (L3).
+ *
+ * **The halves arrive sorted and separated from the server**, and this
+ * component only draws the line between them. Until L3 it received one array
+ * and split it itself — fine while a single request returned everything, and
+ * wrong the moment the past started paging: a second page would have carried
+ * rows belonging above ones already drawn.
+ */
 export function ActivityList({
-  activities,
+  upcoming,
+  past,
   emptyText,
   showContact = true,
   contactId,
   creating = false,
   onCreated,
   onCancelCreate,
+  hasMorePast = false,
+  loadingMorePast = false,
+  onLoadMorePast,
 }: {
-  activities: readonly Activity[]
+  /** Everything ahead, nearest first — fetched whole. */
+  upcoming: readonly Activity[]
+  /** Everything behind, newest first — one page at a time. */
+  past: readonly Activity[]
   emptyText?: string
   /** False inside a contact, where the name would repeat on every row. */
   showContact?: boolean
@@ -64,22 +83,48 @@ export function ActivityList({
   creating?: boolean
   onCreated?: () => void
   onCancelCreate?: () => void
+  hasMorePast?: boolean
+  loadingMorePast?: boolean
+  onLoadMorePast?: () => void
 }) {
   const types = useQuery(activityTypeListQueryOptions(true))
   const detail = useInlineDetail()
 
-  const now = Date.now()
-  const upcoming = activities
-    .filter((entry) => Date.parse(entry.occurredAt) >= now)
-    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
-  const past = activities
-    .filter((entry) => Date.parse(entry.occurredAt) < now)
-    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+  /**
+   * The activity just written, until it has been seen (L3).
+   *
+   * A new one can belong anywhere — an appointment next week, or a session
+   * five years back that is being documented late. Where it lands is decided
+   * here rather than asked of the server: everything ahead is loaded, so a
+   * future one is always among the rows; a past one either falls inside what
+   * has been fetched or it does not, and that is the whole question.
+   */
+  const [created, setCreated] = useState<Activity | null>(null)
+  const placed = created !== null && [...upcoming, ...past].some((row) => row.id === created.id)
+  const row = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * Why it is not on screen — and the two answers are told apart without
+   * asking the server, because everything needed is already here.
+   *
+   * Ahead of now, `upcoming` is complete, so missing means it does not belong
+   * to this selection at all. Behind it, missing means either that or that it
+   * lies past what has been fetched, and `hasMorePast` is exactly that
+   * difference: with nothing left to fetch, the selection is complete too.
+   */
+  const belowTheLoaded =
+    created !== null && !placed && Date.parse(created.occurredAt) < Date.now() && hasMorePast
+
+  useEffect(() => {
+    if (created && placed) row.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [created, placed])
 
   const sections = [
-    { label: strings.activity.sectionUpcoming, rows: upcoming },
-    { label: strings.activity.sectionPast, rows: past },
+    { label: strings.activity.sectionUpcoming, rows: upcoming, past: false },
+    { label: strings.activity.sectionPast, rows: past, past: true },
   ].filter((section) => section.rows.length > 0)
+
+  const activities = [...upcoming, ...past]
 
   return (
     <div className="space-y-2">
@@ -88,7 +133,10 @@ export function ActivityList({
           <p className="mb-4 font-semibold">{strings.activity.createTitle}</p>
           <ActivityForm
             {...(contactId ? { contactId } : {})}
-            onSaved={() => onCreated?.()}
+            onSaved={(saved) => {
+              setCreated(saved)
+              onCreated?.()
+            }}
             onCancel={() => onCancelCreate?.()}
           />
         </section>
@@ -96,6 +144,21 @@ export function ActivityList({
 
       {activities.length === 0 && !creating && (
         <p className="text-muted-foreground text-sm">{emptyText ?? strings.activity.empty}</p>
+      )}
+
+      {/* Written, but not where it can be seen: the strip says where it went
+          rather than leaving the impression that nothing was saved. */}
+      {created && !placed && (
+        <p className="mb-2 flex flex-wrap items-center gap-2 rounded-[10px] border border-primary bg-muted/45 px-4 py-3 text-sm">
+          <span>
+            {belowTheLoaded
+              ? strings.activity.createdElsewhere(formatBerlinDateLong(created.occurredAt))
+              : strings.activity.createdOutsideFilter(formatBerlinDateLong(created.occurredAt))}
+          </span>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setCreated(null)}>
+            {strings.actions.close}
+          </Button>
+        </p>
       )}
 
       {sections.map((section) => (
@@ -108,12 +171,16 @@ export function ActivityList({
             const typeLabel = activityTypeLabel(types.data, activity.type)
             const billable = sumItems(activity.items, { billableOnly: true })
 
+            const isNew = created?.id === activity.id
+
             return (
               <div
                 key={activity.id}
+                ref={isNew ? row : null}
                 className={cn(
                   'mb-2 overflow-hidden rounded-[10px] border bg-card',
                   open && 'border-primary',
+                  isNew && 'ring-2 ring-primary',
                 )}
               >
                 <button
@@ -211,6 +278,14 @@ export function ActivityList({
               </div>
             )
           })}
+
+          {section.past && (
+            <InfiniteSentinel
+              hasMore={hasMorePast}
+              loading={loadingMorePast}
+              onReach={() => onLoadMorePast?.()}
+            />
+          )}
         </div>
       ))}
     </div>

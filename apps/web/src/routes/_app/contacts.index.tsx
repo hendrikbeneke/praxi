@@ -1,15 +1,12 @@
 import {
   type ContactListItem,
   type ContactSortField,
-  contactListOrderSchema,
   contactSortFieldSchema,
   formatBerlinDate,
-  formatBerlinDayTime,
   formatContactNameSorted,
-  formatRelativeDayBerlin,
   sortDirectionSchema,
 } from '@praxi/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createColumnHelper, flexRender, tableFeatures, useTable } from '@tanstack/react-table'
 import { ChevronDown, Plus, Search } from 'lucide-react'
@@ -17,6 +14,7 @@ import { useDeferredValue, useState } from 'react'
 import { z } from 'zod'
 import { listTabClass } from '@/components/chip'
 import { type ColumnDefinition, ColumnPicker } from '@/components/column-picker'
+import { InfiniteSentinel } from '@/components/infinite-sentinel'
 import { PageHeader } from '@/components/page-header'
 import { SortableColumnHeader } from '@/components/sortable-column-header'
 import { Badge } from '@/components/ui/badge'
@@ -46,7 +44,6 @@ import { cn } from '@/lib/utils'
 /** `role` absent means the default tab — the first role flagged as one. `all`
  *  is the explicit choice, and the two have to stay distinguishable. */
 const ALL_ROLES = 'all'
-const PAGE_SIZE = 50
 
 /**
  * Every column the picker offers, in the order a fresh preference falls back
@@ -78,13 +75,8 @@ const searchSchema = z.object({
   // so it may live in the URL — a uuid there is ugly and nothing more, and a
   // second anchor kept only for the address bar would be the code again.
   role: z.string().optional(),
-  /**
-   * The screen starts on `current` — opening the contact list is how the day's
-   * documentation begins, and the question then is who was just here. The API
-   * defaults to `alpha` instead, so the request always names the order rather
-   * than relying on the other end's idea of a default.
-   */
-  order: contactListOrderSchema.default('current'),
+  /** One plain sort. The `current` order and its switch went with L3 — it
+   *  filtered to a window of fourteen days while claiming to sort. */
   sort: contactSortFieldSchema.default('name'),
   dir: sortDirectionSchema.default('asc'),
   archived: z.boolean().optional(),
@@ -109,11 +101,7 @@ type ColumnOptions = {
   roleLabels: Map<string, string>
   /** Which columns to show and in what order — the picker's answer. */
   visibleColumns: string[]
-  /** Only the `current` order has an appointment to show, and only there does
-   *  the column explain anything. */
-  showAppointment: boolean
   sortHeader: (field: ContactSortField, label: string, align?: 'end') => React.ReactNode
-  now: Date
 }
 
 /**
@@ -180,14 +168,14 @@ function contactColumns(options: ColumnOptions) {
     {
       key: 'city',
       def: column.accessor('city', {
-        header: strings.contact.columns.city,
+        header: () => options.sortHeader('city', strings.contact.columns.city),
         cell: (info) => info.getValue() ?? '—',
       }),
     },
     {
       key: 'dateOfBirth',
       def: column.accessor('dateOfBirth', {
-        header: strings.contact.columns.dateOfBirth,
+        header: () => options.sortHeader('dateOfBirth', strings.contact.columns.dateOfBirth),
         cell: (info) => {
           const date = info.getValue()
           // A plain date rendered through the Berlin formatter needs an instant;
@@ -207,40 +195,14 @@ function contactColumns(options: ColumnOptions) {
     .map((key) => byKey.get(key))
     .filter((def): def is (typeof definitions)[number]['def'] => def !== undefined)
 
-  return column.columns([
-    ...ordered,
-    /**
-     * Deliberately not one of `definitions` above, and so never offered by
-     * `ColumnPicker`: this column's visibility already follows the
-     * Aktuell/A–Z view (`showAppointment`), not a stored preference. Letting
-     * both the picker and the view decide the same column would leave it
-     * unclear which of the two is actually in charge (D6).
-     */
-    ...(options.showAppointment
-      ? [
-          column.accessor('appointmentAt', {
-            header: strings.contact.columns.appointment,
-            cell: (info) => {
-              const at = info.getValue()
-              if (!at) return '—'
-              /* One line, and the two halves say different things: the day and
-                 the time, then how far off that is. Until K6 this was
-                 `formatBerlinDateTime` over `formatRelativeBerlin`, and beyond
-                 a day the second one falls back to a date itself — so the cell
-                 printed the same instant twice, absolutely. */
-              return (
-                <span className="flex items-baseline gap-2 whitespace-nowrap">
-                  <span className="tabular-nums">{formatBerlinDayTime(at)}</span>
-                  <span className="text-[12.5px] text-muted-foreground">
-                    {formatRelativeDayBerlin(at, options.now)}
-                  </span>
-                </span>
-              )
-            },
-          }),
-        ]
-      : []),
-  ])
+  /**
+   * The appointment column stood here until L3 and is gone with the order that
+   * explained it. It is not a property of a contact but of the calendar, it
+   * cost a join on every read of this list, and whether the practice needs it
+   * here at all is not decided — learning that first is cheaper than carrying
+   * it meanwhile.
+   */
+  return column.columns(ordered)
 }
 
 function ContactListPage() {
@@ -280,39 +242,38 @@ function ContactListPage() {
   const otherRole = otherTypes.find((type) => type.id === activeRole)
 
   /**
-   * The search beats both filters: while something is typed, the whole card
-   * index is searched, regardless of role and of the time window. This is a
-   * rule of this screen, not of the API — hence here and not in the domain.
+   * The search beats the role filter: while something is typed, the whole card
+   * index is searched. This is a rule of this screen, not of the API — hence
+   * here and not in the domain.
+   *
+   * It no longer touches the sort. Until L3 typing forced the alphabetical
+   * order, because the other one filtered to a fortnight and would have hidden
+   * most of what was searched for; with one plain sort there is nothing left
+   * to override.
    */
-  const contacts = useQuery(
+  const contacts = useInfiniteQuery(
     contactListQueryOptions({
       q: deferredTerm.trim() || undefined,
       roleTypeId: searching || activeRole === ALL_ROLES ? undefined : activeRole,
-      order: searching ? 'alpha' : search.order,
       sort: search.sort,
       dir: search.dir,
       includeArchived: search.archived ?? false,
-      limit: PAGE_SIZE,
       // The role types decide what the default tab is, so asking before they
       // arrive would query the wrong list and then correct itself on screen.
       enabled: !roleTypes.isPending,
     }),
   )
 
-  const rows = contacts.data?.items ?? []
-  const total = contacts.data?.total ?? 0
-
-  /** One instant per render, so two rows of the same table cannot disagree
-   *  about what "now" is. */
-  const now = new Date()
+  const rows = contacts.data?.pages.flatMap((page) => page.items) ?? []
+  /** Counted once, with the first page — see `listContacts`. */
+  const total = contacts.data?.pages[0]?.total ?? 0
 
   const setSearch = (next: Partial<z.infer<typeof searchSchema>>) =>
     void navigate({ search: (previous) => ({ ...previous, ...next }) })
 
-  /** Clicking a heading sorts — and pulls the view over to A–Z, because in the
-   *  `current` order the sort would have nowhere to take effect. */
+  /** Clicking a heading sorts. Nothing else moves with it anymore. */
   const sortHeader = (field: ContactSortField, label: string, align?: 'end') => {
-    const activeHere = search.order === 'alpha' && search.sort === field && !searching
+    const activeHere = search.sort === field
     return (
       <SortableColumnHeader
         label={label}
@@ -320,17 +281,11 @@ function ContactListPage() {
         active={activeHere}
         direction={search.dir}
         onClick={() =>
-          setSearch({
-            order: 'alpha',
-            sort: field,
-            dir: activeHere && search.dir === 'asc' ? 'desc' : 'asc',
-          })
+          setSearch({ sort: field, dir: activeHere && search.dir === 'asc' ? 'desc' : 'asc' })
         }
       />
     )
   }
-
-  const showAppointment = search.order === 'current' && !searching
 
   // Rebuilt on every render rather than memoized: the labels, the visible
   // columns and the sort arrows all depend on state that changes here, and the
@@ -338,9 +293,7 @@ function ContactListPage() {
   const columns = contactColumns({
     roleLabels: new Map(types.map((type) => [type.id, type.label])),
     visibleColumns,
-    showAppointment,
     sortHeader,
-    now,
   })
 
   const table = useTable({ features, columns, data: rows })
@@ -460,25 +413,6 @@ function ContactListPage() {
             {strings.contact.showArchived}
           </Label>
 
-          <span className="h-[26px] w-px shrink-0 bg-border" />
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className={listTabClass(search.order === 'current')}
-              onClick={() => setSearch({ order: 'current' })}
-            >
-              {strings.contact.orderCurrent}
-            </button>
-            <button
-              type="button"
-              className={listTabClass(search.order === 'alpha')}
-              onClick={() => setSearch({ order: 'alpha' })}
-            >
-              {strings.contact.orderAlpha}
-            </button>
-          </div>
-
           <ColumnPicker
             columns={COLUMN_DEFINITIONS}
             visible={visibleColumns}
@@ -511,9 +445,7 @@ function ContactListPage() {
                   <EmptyMessage
                     pending={contacts.isPending}
                     searching={searching}
-                    order={search.order}
                     filtered={activeRole !== ALL_ROLES}
-                    onShowAll={() => setSearch({ order: 'alpha', role: ALL_ROLES })}
                   />
                 </TableCell>
               </TableRow>
@@ -541,45 +473,35 @@ function ContactListPage() {
         </Table>
       </div>
 
-      {/* Only when the list is actually cut short — and then it names the page
-          size, because "why 50 of 214" is the next question (K3). */}
-      {total > rows.length && (
+      {/* The list runs on as it is scrolled; the count says how far along it
+          is rather than how much was withheld. */}
+      {total > 0 && (
         <p className="mt-3 text-[13px] text-muted-foreground tabular-nums">
-          {strings.contact.countOf(rows.length, total, PAGE_SIZE)}
+          {strings.contact.countLoaded(rows.length, total)}
         </p>
       )}
+
+      <InfiniteSentinel
+        hasMore={contacts.hasNextPage}
+        loading={contacts.isFetchingNextPage}
+        onReach={() => void contacts.fetchNextPage()}
+      />
     </>
   )
 }
 
-/** An empty `current` list is the normal state on a quiet day, so it says what
- *  it means and offers the way out rather than reading like a dead end. */
+/** Three states, and they are told apart because the way out differs: nothing
+ *  yet, nothing matching what was typed, nothing in this role. */
 function EmptyMessage({
   pending,
   searching,
-  order,
   filtered,
-  onShowAll,
 }: {
   pending: boolean
   searching: boolean
-  order: 'current' | 'alpha'
   filtered: boolean
-  onShowAll: () => void
 }) {
   if (pending) return <>{strings.status.loading}</>
   if (searching) return <>{strings.contact.emptyFiltered}</>
-
-  if (order === 'current') {
-    return (
-      <span className="flex flex-wrap items-center gap-2">
-        {strings.contact.emptyCurrent}
-        <Button variant="link" className="h-auto p-0" onClick={onShowAll}>
-          {strings.contact.emptyCurrentAction}
-        </Button>
-      </span>
-    )
-  }
-
   return <>{filtered ? strings.contact.emptyFiltered : strings.contact.empty}</>
 }

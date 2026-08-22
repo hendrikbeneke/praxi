@@ -8,9 +8,10 @@ import type {
   ActivitySummaryQuery,
   Appointment,
   AppointmentDraft,
+  Page,
 } from '@praxi/shared'
 import { formatContactNameSorted } from '@praxi/shared'
-import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import {
   activity,
@@ -24,6 +25,7 @@ import {
 import { newId } from '../id.js'
 import { billingStateOf, blockingInvoiceLines, unbilledCentsInRange } from './billable.js'
 import { enqueueDelete, enqueueUpsert } from './google-sync.js'
+import { afterCursor, cursorOrder, decodeCursor, InvalidCursorError, takePage } from './keyset.js'
 
 /**
  * Activities, their positions, and the calendar entry that usually comes with
@@ -570,11 +572,33 @@ export async function deleteActivity(
   })
 }
 
+/**
+ * One page of the activity list.
+ *
+ * **The two halves have different rules, and that is the point.** The future
+ * is finite — a practice has as many appointments booked as it has booked —
+ * so `upcoming` is fetched whole, ascending, with the next one on top. The
+ * past is not finite, so `past` is paged by cursor, newest first.
+ *
+ * There is deliberately **no cap on `upcoming`**. A cap that is reached drops
+ * rows without saying so; an uncapped list that ever grows unwieldy says so by
+ * being slow, which is a failure one can see and act on.
+ *
+ * Until L3 the split happened in the browser, on whatever rows had been
+ * fetched. That was fine while a single request returned everything and wrong
+ * the moment it stopped: a second page would have carried rows belonging above
+ * ones already drawn. The order is the server's now, and the screen only draws
+ * the line where the halves meet.
+ *
+ * Without `part` the whole range comes back, newest first, paged — what a
+ * picker asks for, which does not care which side of now a row is on.
+ */
 export async function listActivities(
   database: Database,
   tenantId: string,
   query: ActivityListQuery,
-): Promise<Activity[]> {
+  now: Date = new Date(),
+): Promise<Page<Activity>> {
   const filters = [eq(activity.tenantId, tenantId)]
   if (query.contactId) filters.push(eq(activity.contactId, query.contactId))
   if (query.from) filters.push(gte(activity.occurredAt, new Date(query.from)))
@@ -582,16 +606,42 @@ export async function listActivities(
   if (query.status) filters.push(eq(activity.status, query.status))
   if (query.type) filters.push(eq(activity.type, query.type))
 
-  const rows = await database
-    .select({ id: activity.id })
+  // The line between the halves is an instant, not a day: at ten in the
+  // morning the nine o'clock session has happened, and a list that still calls
+  // it upcoming is wrong about the one thing the split is for.
+  if (query.part === 'upcoming') filters.push(gte(activity.occurredAt, now))
+  if (query.part === 'past') filters.push(lt(activity.occurredAt, now))
+
+  const direction = query.part === 'upcoming' ? 'asc' : 'desc'
+
+  if (query.cursor && query.part !== 'upcoming') {
+    const cursor = decodeCursor(query.cursor)
+    if (!cursor) throw new InvalidCursorError()
+    filters.push(afterCursor(activity.occurredAt, activity.id, direction, cursor))
+  }
+
+  const ordered = database
+    .select({ id: activity.id, occurredAt: activity.occurredAt })
     .from(activity)
     .where(and(...filters))
-    .orderBy(desc(activity.occurredAt))
-    .limit(query.limit)
-    .offset(query.offset)
+    .orderBy(...cursorOrder(activity.occurredAt, activity.id, direction))
 
-  const loaded = await Promise.all(rows.map((row) => loadActivity(database, tenantId, row.id)))
-  return loaded.filter((item): item is Activity => item !== null)
+  // Whole, or one row more than asked for — see `takePage`.
+  const rows = await (query.part === 'upcoming' ? ordered : ordered.limit(query.limit + 1))
+
+  const page =
+    query.part === 'upcoming'
+      ? { items: rows, nextCursor: null }
+      : takePage(rows, query.limit, (row) => ({ k: row.occurredAt.toISOString(), i: row.id }))
+
+  const loaded = await Promise.all(
+    page.items.map((row) => loadActivity(database, tenantId, row.id)),
+  )
+
+  return {
+    items: loaded.filter((item): item is Activity => item !== null),
+    nextCursor: page.nextCursor,
+  }
 }
 
 /**

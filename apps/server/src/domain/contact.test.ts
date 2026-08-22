@@ -1,16 +1,10 @@
-import type {
-  ActivityStatus,
-  AppointmentStatus,
-  ContactInput,
-  ContactListQuery,
-} from '@praxi/shared'
+import type { ContactInput, ContactListQuery } from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { contact, contactRole } from '../db/schema.js'
 import { newId } from '../id.js'
 import { createTenant, genderId, roleTypeId, salutationId } from '../test/fixtures.js'
-import { createActivity } from './activity.js'
 import {
   ContactKindChangeError,
   createContact,
@@ -20,6 +14,7 @@ import {
   setContactRoles,
   updateContact,
 } from './contact.js'
+import { InvalidCursorError } from './keyset.js'
 
 let tenantId: string
 /** The seeded role types, looked up by label: a role has no code since
@@ -37,11 +32,9 @@ beforeEach(async () => {
 
 const query = (overrides: Partial<ContactListQuery> = {}): ContactListQuery => ({
   includeArchived: false,
-  order: 'alpha',
   sort: 'name',
   dir: 'asc',
   limit: 50,
-  offset: 0,
   ...overrides,
 })
 
@@ -423,15 +416,22 @@ describe('listContacts', () => {
     expect((await listContacts(db(), tenantId, query({ includeArchived: true }))).total).toBe(4)
   })
 
-  it('reports the total independently of the page size', async () => {
+  it('reports the total independently of the page size, and only once', async () => {
     const page = await listContacts(db(), tenantId, query({ limit: 2 }))
 
     expect(page.items).toHaveLength(2)
     expect(page.total).toBe(4)
+    expect(page.nextCursor).not.toBeNull()
 
-    const second = await listContacts(db(), tenantId, query({ limit: 2, offset: 2 }))
-    expect(second.items).toHaveLength(2)
+    // Counting it again on every page would pay for an answer already given.
+    const second = await listContacts(
+      db(),
+      tenantId,
+      query({ limit: 2, cursor: page.nextCursor ?? '' }),
+    )
+    expect(second.total).toBeUndefined()
     expect(second.items[0]?.lastName).toBe('Özdemir')
+    expect(second.nextCursor).toBeNull()
   })
 
   it('shows only its own tenant', async () => {
@@ -469,129 +469,7 @@ describe('listContacts', () => {
   })
 })
 
-/**
- * The everyday order (`current`): who was here in the last two weeks or is
- * coming in the next, nearest to now first.
- *
- * `now` is handed in rather than read from the clock, so the window has fixed
- * edges and the test does not drift with the day it runs on.
- */
-describe('listContacts, ordered by what is current', () => {
-  const NOW = new Date('2026-08-24T08:00:00.000Z')
-
-  const hoursFromNow = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000).toISOString()
-
-  async function book(
-    contactId: string,
-    startsAt: string,
-    options: { status?: AppointmentStatus; activityStatus?: ActivityStatus } = {},
-  ) {
-    await createActivity(db(), tenantId, {
-      contactId,
-      type: 'session',
-      status: options.activityStatus ?? 'planned',
-      occurredAt: startsAt,
-      durationMin: null,
-      title: null,
-      internalNote: null,
-      items: [],
-      appointment: {
-        startsAt,
-        endsAt: new Date(new Date(startsAt).getTime() + 3_600_000).toISOString(),
-        status: options.status ?? 'planned',
-        title: null,
-        note: null,
-      },
-    })
-  }
-
-  const current = (overrides: Partial<ContactListQuery> = {}) =>
-    listContacts(db(), tenantId, query({ order: 'current', ...overrides }), NOW)
-
-  it('sorts by distance from now, in both directions', async () => {
-    const soon = await createContact(db(), tenantId, person({ lastName: 'Baldda' }))
-    const earlier = await createContact(db(), tenantId, person({ lastName: 'Warda' }))
-    const later = await createContact(db(), tenantId, person({ lastName: 'Spaeter' }))
-
-    await book(soon.id, hoursFromNow(1))
-    await book(earlier.id, hoursFromNow(-2))
-    await book(later.id, hoursFromNow(30))
-
-    const { items } = await current()
-    expect(items.map((item) => item.lastName)).toEqual(['Baldda', 'Warda', 'Spaeter'])
-  })
-
-  it('leaves out everyone without an appointment in the window', async () => {
-    const inside = await createContact(db(), tenantId, person({ lastName: 'Drinnen' }))
-    const outside = await createContact(db(), tenantId, person({ lastName: 'Draussen' }))
-
-    await book(inside.id, hoursFromNow(24))
-    await book(outside.id, hoursFromNow(24 * 15))
-
-    const { items, total } = await current()
-    expect(items.map((item) => item.lastName)).toEqual(['Drinnen'])
-    expect(total).toBe(1)
-  })
-
-  it('shows a contact once, with the appointment nearest to now', async () => {
-    const created = await createContact(db(), tenantId, person({ lastName: 'Mehrfach' }))
-
-    await book(created.id, hoursFromNow(-48))
-    await book(created.id, hoursFromNow(3))
-    await book(created.id, hoursFromNow(72))
-
-    const { items } = await current()
-    expect(items).toHaveLength(1)
-    expect(items[0]?.appointmentAt).toBe(hoursFromNow(3))
-  })
-
-  /**
-   * A cancellation is the answer "not this one"; a no-show still happened and
-   * is a reason to open the record. Same distinction the overlap constraint
-   * makes — and since slice 7.5 it is also the difference between the two
-   * status columns: the cancellation is on the appointment, the no-show on the
-   * activity, and the "Aktuell" order reads only the appointment.
-   */
-  it('ignores cancelled appointments but keeps a no-show', async () => {
-    const cancelled = await createContact(db(), tenantId, person({ lastName: 'Abgesagt' }))
-    const noShow = await createContact(db(), tenantId, person({ lastName: 'Nichtda' }))
-
-    await book(cancelled.id, hoursFromNow(2), { status: 'cancelled' })
-    await book(noShow.id, hoursFromNow(4), { activityStatus: 'no_show' })
-
-    const { items } = await current()
-    expect(items.map((item) => item.lastName)).toEqual(['Nichtda'])
-  })
-
-  it('still applies the role filter and the archive rule', async () => {
-    const patient = await createContact(
-      db(),
-      tenantId,
-      person({ lastName: 'Patientin', roles: [{ roleTypeId: patientRole, since: null }] }),
-    )
-    const other = await createContact(db(), tenantId, person({ lastName: 'Ohnerolle' }))
-
-    await book(patient.id, hoursFromNow(1))
-    await book(other.id, hoursFromNow(2))
-
-    expect((await current({ roleTypeId: patientRole })).items.map((item) => item.lastName)).toEqual(
-      ['Patientin'],
-    )
-
-    await setContactArchived(db(), tenantId, patient.id, true)
-    expect((await current()).items.map((item) => item.lastName)).toEqual(['Ohnerolle'])
-  })
-
-  it('leaves the appointment out of the alphabetical order', async () => {
-    const created = await createContact(db(), tenantId, person({ lastName: 'Egal' }))
-    await book(created.id, hoursFromNow(1))
-
-    const { items } = await listContacts(db(), tenantId, query(), NOW)
-    expect(items[0]?.appointmentAt).toBeNull()
-  })
-})
-
-describe('listContacts, ordered alphabetically', () => {
+describe('sorting and paging', () => {
   beforeEach(async () => {
     await createContact(db(), tenantId, person({ lastName: 'Musterfrau' }))
     await createContact(db(), tenantId, person({ lastName: 'Zimmermann' }))
@@ -605,6 +483,53 @@ describe('listContacts, ordered alphabetically', () => {
   it('sorts by contact number when asked', async () => {
     const { items } = await listContacts(db(), tenantId, query({ sort: 'number', dir: 'desc' }))
     expect(items.map((item) => item.contactNumber)).toEqual([2, 1])
+  })
+
+  /** Nulls last in both directions: a contact without a city has no place on
+   *  a scale of cities, and jumping to the top when the arrow is clicked would
+   *  be worse than useless. */
+  it('sorts by a column that may be empty, and keeps the empties last', async () => {
+    await createContact(db(), tenantId, person({ lastName: 'Ohnestadt', city: null }))
+    await createContact(db(), tenantId, person({ lastName: 'Aachener', city: 'Aachen' }))
+
+    for (const dir of ['asc', 'desc'] as const) {
+      const { items } = await listContacts(db(), tenantId, query({ sort: 'city', dir }))
+      expect(items.at(-1)?.city).toBeNull()
+    }
+  })
+
+  /**
+   * The reason the id is the second sort key. Without it these two have no
+   * order of their own, and the page after the first would repeat one of them
+   * and drop the other — the failure that arrives with the first scroll and
+   * with nothing before it.
+   */
+  it('pages through rows that share a sort value without losing one', async () => {
+    for (let index = 0; index < 5; index += 1) {
+      await createContact(db(), tenantId, person({ lastName: 'Gleich', city: null }))
+    }
+
+    const seen: string[] = []
+    let cursor: string | undefined
+    for (let page = 0; page < 10; page += 1) {
+      const result = await listContacts(
+        db(),
+        tenantId,
+        query({ limit: 2, ...(cursor ? { cursor } : {}) }),
+      )
+      seen.push(...result.items.map((item) => item.id))
+      if (!result.nextCursor) break
+      cursor = result.nextCursor
+    }
+
+    expect(new Set(seen).size).toBe(seen.length)
+    expect(seen).toHaveLength(7)
+  })
+
+  it('refuses a cursor it did not write', async () => {
+    await expect(
+      listContacts(db(), tenantId, query({ cursor: 'nonsense' })),
+    ).rejects.toBeInstanceOf(InvalidCursorError)
   })
 })
 

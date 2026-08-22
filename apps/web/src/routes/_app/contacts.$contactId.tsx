@@ -15,7 +15,7 @@ import {
   type PaymentState,
   toBerlinDate,
 } from '@praxi/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Pencil, Plus, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
@@ -46,7 +46,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
-import { activityListQueryOptions } from '@/lib/activities'
+import {
+  activityListQueryOptions,
+  pastActivitiesQueryOptions,
+  upcomingActivitiesQueryOptions,
+} from '@/lib/activities'
 import { ApiError } from '@/lib/api'
 import {
   contactQueryOptions,
@@ -271,11 +275,17 @@ function ContactDetailPage() {
  * this page.
  */
 function ContactActivities({ contactId }: { contactId: string }) {
-  const activities = useQuery(activityListQueryOptions({ contactId }))
+  /* Two queries, two rules (L3) — see `activityListPartSchema`. The chips
+     below still count and filter what has been loaded, which is what they did
+     before; L7 decides whether they move to the server with the rest. */
+  const upcoming = useQuery(upcomingActivitiesQueryOptions({ contactId }))
+  const past = useInfiniteQuery(pastActivitiesQueryOptions({ contactId }))
   const [creating, setCreating] = useState(false)
   const [filter, setFilter] = useState<string | undefined>()
 
-  const rows = activities.data ?? []
+  const upcomingRows = upcoming.data ?? []
+  const pastRows = past.data?.pages.flatMap((page) => page.items) ?? []
+  const rows = [...upcomingRows, ...pastRows]
   const now = new Date().toISOString()
 
   /** Each chip carries the test it filters by, so the count and the narrowing
@@ -304,7 +314,8 @@ function ContactActivities({ contactId }: { contactId: string }) {
   ]
 
   const active = activityChips.find((chip) => chip.id === filter)
-  const shown = active ? rows.filter(active.matches) : rows
+  const shownUpcoming = active ? upcomingRows.filter(active.matches) : upcomingRows
+  const shownPast = active ? pastRows.filter(active.matches) : pastRows
 
   return (
     <>
@@ -329,13 +340,19 @@ function ContactActivities({ contactId }: { contactId: string }) {
       </div>
 
       <ActivityList
-        activities={shown}
-        emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
+        upcoming={shownUpcoming}
+        past={shownPast}
+        emptyText={
+          upcoming.isPending || past.isPending ? strings.status.loading : strings.activity.empty
+        }
         showContact={false}
         contactId={contactId}
         creating={creating}
         onCreated={() => setCreating(false)}
         onCancelCreate={() => setCreating(false)}
+        hasMorePast={past.hasNextPage}
+        loadingMorePast={past.isFetchingNextPage}
+        onLoadMorePast={() => void past.fetchNextPage()}
       />
     </>
   )

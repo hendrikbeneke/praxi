@@ -28,6 +28,7 @@ import {
   UnknownRelationTypeError,
 } from '../domain/contact-relation.js'
 import { MissingNumberRangeError } from '../domain/counter.js'
+import { InvalidCursorError } from '../domain/keyset.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
@@ -45,6 +46,9 @@ function notFound(): never {
  * reach the client.
  */
 function translate(error: unknown): never {
+  if (error instanceof InvalidCursorError) {
+    throw new HTTPException(400, { message: messages.list.badCursor })
+  }
   if (error instanceof ContactKindChangeError) {
     throw new HTTPException(409, { message: messages.contact.kindImmutable })
   }
@@ -81,7 +85,7 @@ export const contactsRoute = new Hono<AppEnv>()
   .use('*', requireAuth, withTenant)
 
   .get('/', validate('query', contactListQuerySchema), async (c) => {
-    const result = await listContacts(db(), tenantId(c), c.req.valid('query'))
+    const result = await listContacts(db(), tenantId(c), c.req.valid('query')).catch(translate)
     return c.json(result)
   })
 

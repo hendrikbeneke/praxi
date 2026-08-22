@@ -249,6 +249,12 @@ The activity is the source of truth and the primary place to make corrections. I
 
 **`activity.billingState`** (`none` | `open` | `billed`) is derived on read by `billingStateOf()` and never stored, like `paidCents`. `none` means there is nothing to bill, not that nothing has been billed. It shares the `claimedByAnActiveInvoice` condition with the billable list, and that sharing *is* the design: cancelling an invoice frees its items again, so an activity has to fall back from `billed` to `open` with nothing kept in step. A column or a second, simpler query would pass every easy case and break exactly there — which is what the cancellation test in `invoice.test.ts` guards, and it says so in as many words.
 
+**The activity list has two halves, and they get different rules** (L3). `upcoming` — everything from now on — is fetched whole, ascending, because the future is finite: a practice has as many appointments booked as it has booked. `past` is paged, newest first, because the past is not. There is deliberately no cap on the first: a cap that is reached drops rows silently, while an uncapped list that ever grows unwieldy says so by being slow, and that is a failure one can act on. The line between them is an **instant**, not a day — at ten in the morning the nine o'clock session has happened.
+
+The split used to happen in the browser, over whatever rows had been fetched. That was fine while one request returned everything and wrong the moment it stopped: a second page would have carried rows belonging above ones already drawn.
+
+**Where a newly written activity belongs is decided on the screen, not by the server.** It may be dated anywhere — next week, or five years back if it is being documented late. Everything ahead is loaded, so a future one is always among the rows; a past one either falls inside what has been fetched or it does not. Missing and *nothing left to fetch* means it does not match the current filter, missing and *more to fetch* means it lies further back — the two say different things and the screen says which. No endpoint answers this, because nothing needs asking.
+
 **The billable list shows `activity.status` and cannot filter on it.** There is no status parameter in `billableQuerySchema`, in the route, or in the query. Billability does not depend on a status, so a filter could only ever hide work that is still owed — and a past activity still standing on `planned` is exactly the row worth noticing. Not expressible beats not allowed: nobody has to remember the rule.
 
 ### 7. Notes: locking, hash chain, addenda, files
@@ -611,7 +617,11 @@ contact               tenant_id uuid not null -> tenant(id),
                       unique (tenant_id, contact_number),
                       unique (id, tenant_id)                    -- for the FK
                       index on (tenant_id, sort_name)           -- the list's
-                        -- ORDER BY. No index for the search: it is a leading
+                        -- default ORDER BY, and the key a page of it is cut
+                        -- along; every sorted column is paired with `id` as a
+                        -- second key, because none of them is unique and a
+                        -- keyset needs a total order (L3).
+                        -- No index for the search: it is a leading
                         -- wildcard ILIKE, which no btree can serve.
                       foreign key (salutation_id, tenant_id)
                         -> salutation (id, tenant_id),
@@ -1869,5 +1879,15 @@ Defaults in a *creation* form are not this mistake, as long as the screen says p
 **Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_type_id`, `contact.salutation_id`, `contact.gender_id`, `contact.country_id`, `contact_relation.relation_code`, `note.note_type_id` and `activity.type` point at a catalogue table through a composite foreign key (rules 4, 6 and 7). `contact.gender` was the check-constraint case in this very sentence until D-R3 and is a catalogue now, and `note.type` stood beside it until L1 — the second and third time that has happened. `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 
 **`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
+
+**Lists are paged by cursor, never by offset** (L3, `domain/keyset.ts`). Offset paging trusts that nothing above the window moved; when something did, the next page starts one row too late and a row is skipped without a trace. A cursor says "everything after this row in this order" instead.
+
+That only works over a **total** order, so every paged query sorts by its column **and then by `id`**. None of the columns sorted on is unique — two contacts called "Müller, Anna" have no order of their own, and Postgres may return them either way round between two queries. Every list query written before L3 lacked that tie-break, and nothing noticed, because nothing paged; it would have arrived with the first scroll, as a repeated row and a missing one.
+
+**Nulls sort last in both directions.** A contact without a city has no place on a scale of cities, and having it jump to the top when the arrow is clicked would be worse than useless. Postgres puts nulls first on `desc` by default, so both the order and the cursor predicate name it explicitly.
+
+`total` travels with the **first** page only: it does not change while scrolling, and counting the whole selection again on every fetch pays for an answer already given. A cursor the server did not write is refused with a 400 rather than answered with the first page, which would look like a list that jumps back to the top on its own.
+
+**What is *not* shared is the queries.** One helper builds the cursor and the predicate; each list writes its own filters and its own order. A generic "list engine" over two callers is an abstraction the third would contradict.
 
 **Database collation.** The cluster is initialised with the ICU provider and locale `de-DE`, so `ORDER BY` puts umlauts where a German card index does. Migration `0002` asserts this and fails with instructions if it is missing. Check `datlocprovider`/`datlocale`, never `datcollate` — under the ICU provider `datcollate` still shows the libc locale the cluster was built with and says nothing about how text sorts.

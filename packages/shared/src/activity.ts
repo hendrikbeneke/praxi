@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { appointmentDraftSchema, appointmentSchema } from './appointment.js'
 import { optionalText, requiredText } from './field.js'
+import { cursorSchema, PAGE_SIZE } from './list.js'
 import { typeCodeSchema } from './type-code.js'
 
 /**
@@ -180,6 +181,28 @@ export type CalendarEntry = z.infer<typeof calendarEntrySchema>
 
 /** Either by contact or by date range; the route requires at least one, so a
  *  bare call cannot walk the whole history. */
+/**
+ * Which half of the list is being asked for (L3).
+ *
+ * The two halves get **different rules**, not one order with a break in it,
+ * because they are different in kind: the future is finite and the past is
+ * not.
+ *
+ * - `upcoming` — everything from now on, ascending, **unpaged**. A practice
+ *   has as many future appointments as it has booked, which is a number a
+ *   screen can hold. There is deliberately no cap: a cap that is reached
+ *   drops rows silently, while an uncapped list that ever grows unwieldy says
+ *   so by being slow, and that is the failure one can act on.
+ * - `past` — everything before now, newest first, paged.
+ *
+ * Absent means neither: the whole range, newest first, paged. That is what a
+ * picker asks for — the note dialog choosing an activity does not care which
+ * side of now it is on.
+ */
+export const activityListParts = ['upcoming', 'past'] as const
+export const activityListPartSchema = z.enum(activityListParts)
+export type ActivityListPart = z.infer<typeof activityListPartSchema>
+
 export const activityListQuerySchema = z
   .object({
     contactId: z.uuid().optional(),
@@ -189,8 +212,10 @@ export const activityListQuerySchema = z
     /** The `code` of an `activity_type` (D8). Filtered on the server like the
      *  status, and for the same reason: the list is paged. */
     type: typeCodeSchema.optional(),
-    limit: z.coerce.number().int().min(1).max(200).default(50),
-    offset: z.coerce.number().int().min(0).default(0),
+    part: activityListPartSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(PAGE_SIZE),
+    /** Absent means the first page. Ignored for `upcoming`, which has none. */
+    cursor: cursorSchema.optional(),
   })
   .refine((query) => query.contactId !== undefined || query.from !== undefined, {
     message: 'contactId or from is required',

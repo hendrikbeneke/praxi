@@ -5,7 +5,7 @@ import {
   fromBerlinDateTimeLocal,
   typeCodeSchema,
 } from '@praxi/shared'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
@@ -24,7 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { activityListQueryOptions, activitySummaryQueryOptions } from '@/lib/activities'
+import {
+  activitySummaryQueryOptions,
+  pastActivitiesQueryOptions,
+  upcomingActivitiesQueryOptions,
+} from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { strings } from '@/lib/strings'
 
@@ -75,13 +79,16 @@ function ActivitiesPage() {
   }
 
   const types = useQuery(activityTypeListQueryOptions(true))
-  const activities = useQuery(
-    activityListQueryOptions({
-      ...window,
-      ...(search.status ? { status: search.status } : {}),
-      ...(search.type ? { type: search.type } : {}),
-    }),
-  )
+
+  /** Two queries, two rules (L3): the future is finite and comes whole, the
+   *  past is not and comes fifty at a time. */
+  const listParams = {
+    ...window,
+    ...(search.status ? { status: search.status } : {}),
+    ...(search.type ? { type: search.type } : {}),
+  }
+  const upcoming = useQuery(upcomingActivitiesQueryOptions(listParams))
+  const past = useInfiniteQuery(pastActivitiesQueryOptions(listParams))
   /**
    * Its own request, unlike D7's invoice list, which counts the 200 rows it
    * loaded. The reason is the data, not a change of mind: the default window
@@ -219,11 +226,17 @@ function ActivitiesPage() {
             which is what carries its full-width rule (K1). */}
         <ContentWidth max={1180}>
           <ActivityList
-            activities={activities.data ?? []}
-            emptyText={activities.isPending ? strings.status.loading : strings.activity.empty}
+            upcoming={upcoming.data ?? []}
+            past={past.data?.pages.flatMap((page) => page.items) ?? []}
+            emptyText={
+              upcoming.isPending || past.isPending ? strings.status.loading : strings.activity.empty
+            }
             creating={creating}
             onCreated={() => setCreating(false)}
             onCancelCreate={() => setCreating(false)}
+            hasMorePast={past.hasNextPage}
+            loadingMorePast={past.isFetchingNextPage}
+            onLoadMorePast={() => void past.fetchNextPage()}
           />
         </ContentWidth>
       </div>

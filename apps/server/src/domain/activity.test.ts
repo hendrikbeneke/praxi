@@ -740,9 +740,8 @@ describe('listing', () => {
     const byContact = await listActivities(db(), tenantId, {
       contactId,
       limit: 50,
-      offset: 0,
     })
-    expect(byContact.map((item) => item.occurredAt)).toEqual([
+    expect(byContact.items.map((item) => item.occurredAt)).toEqual([
       AT('2026-05-01T08:00:00Z'),
       AT('2026-03-01T08:00:00Z'),
     ])
@@ -751,9 +750,8 @@ describe('listing', () => {
       from: AT('2026-04-01T00:00:00Z'),
       to: AT('2026-06-01T00:00:00Z'),
       limit: 50,
-      offset: 0,
     })
-    expect(byRange).toHaveLength(2)
+    expect(byRange.items).toHaveLength(2)
   })
 
   it('filters by status', async () => {
@@ -768,9 +766,8 @@ describe('listing', () => {
       contactId,
       status: 'no_show',
       limit: 50,
-      offset: 0,
     })
-    expect(noShows.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
+    expect(noShows.items.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
   })
 
   /** D8: the practice-wide list has a filter for the activity type, and it is
@@ -788,9 +785,8 @@ describe('listing', () => {
       contactId,
       type: 'initial',
       limit: 50,
-      offset: 0,
     })
-    expect(initial.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
+    expect(initial.items.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
   })
 
   /** D8: the practice-wide list is the only place the rows need telling apart
@@ -803,21 +799,89 @@ describe('listing', () => {
     const created = await createActivity(db(), tenantId, activityInput())
 
     expect(created).toMatchObject({ contactName: 'Musterfrau, Erika', contactNumber: 1 })
-    const [listed] = await listActivities(db(), tenantId, { contactId, limit: 50, offset: 0 })
+    const { items } = await listActivities(db(), tenantId, { contactId, limit: 50 })
+    const listed = items[0]
     expect(listed?.contactName).toBe('Musterfrau, Erika')
+  })
+
+  /**
+   * The two halves get different rules, because they differ in kind: the
+   * future is finite, the past is not. `upcoming` comes whole and ascending;
+   * `past` is paged, newest first.
+   *
+   * `now` is handed in rather than read from the clock, so the line between
+   * them sits where the test put it.
+   */
+  describe('the two halves', () => {
+    const NOW = new Date('2026-09-15T12:00:00.000Z')
+
+    beforeEach(async () => {
+      for (const at of [
+        '2026-09-10T08:00:00Z',
+        '2026-09-14T08:00:00Z',
+        '2026-09-16T08:00:00Z',
+        '2026-09-20T08:00:00Z',
+        '2026-09-25T08:00:00Z',
+      ]) {
+        await createActivity(db(), tenantId, activityInput({ occurredAt: AT(at) }))
+      }
+    })
+
+    it('hands out everything ahead, nearest first, in one go', async () => {
+      const { items, nextCursor } = await listActivities(
+        db(),
+        tenantId,
+        { contactId, part: 'upcoming', limit: 2 },
+        NOW,
+      )
+
+      // Three of them, despite a limit of two: `upcoming` is not paged.
+      expect(items.map((item) => item.occurredAt)).toEqual([
+        AT('2026-09-16T08:00:00Z'),
+        AT('2026-09-20T08:00:00Z'),
+        AT('2026-09-25T08:00:00Z'),
+      ])
+      expect(nextCursor).toBeNull()
+    })
+
+    it('pages what is behind, newest first', async () => {
+      const first = await listActivities(db(), tenantId, { contactId, part: 'past', limit: 1 }, NOW)
+      expect(first.items.map((item) => item.occurredAt)).toEqual([AT('2026-09-14T08:00:00Z')])
+      expect(first.nextCursor).not.toBeNull()
+
+      const second = await listActivities(
+        db(),
+        tenantId,
+        { contactId, part: 'past', limit: 1, cursor: first.nextCursor ?? '' },
+        NOW,
+      )
+      expect(second.items.map((item) => item.occurredAt)).toEqual([AT('2026-09-10T08:00:00Z')])
+      expect(second.nextCursor).toBeNull()
+    })
+
+    /** The line is an instant, not a day: at ten in the morning the nine
+     *  o'clock session has happened. */
+    it('puts an activity earlier today behind, not ahead', async () => {
+      const past = await listActivities(db(), tenantId, { contactId, part: 'past', limit: 50 }, NOW)
+      expect(past.items.map((item) => item.occurredAt)).toContain(AT('2026-09-14T08:00:00Z'))
+    })
+
+    /** Without `part` the whole range comes back — what a picker asks for. */
+    it('gives both halves at once when no part is named', async () => {
+      const { items } = await listActivities(db(), tenantId, { contactId, limit: 50 }, NOW)
+      expect(items).toHaveLength(5)
+    })
   })
 
   it('shows only its own tenant', async () => {
     const otherTenant = await createTenant(db())
     await createActivity(db(), tenantId, activityInput())
 
-    expect(
-      await listActivities(db(), otherTenant, {
-        from: AT('2020-01-01T00:00:00Z'),
-        limit: 50,
-        offset: 0,
-      }),
-    ).toEqual([])
+    const { items } = await listActivities(db(), otherTenant, {
+      from: AT('2020-01-01T00:00:00Z'),
+      limit: 50,
+    })
+    expect(items).toEqual([])
   })
 })
 

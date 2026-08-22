@@ -21,6 +21,7 @@ import {
   UnknownServiceGroupError,
   updateActivity,
 } from '../domain/activity.js'
+import { InvalidCursorError } from '../domain/keyset.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { tenantId, withTenant } from '../middleware/tenant.js'
@@ -35,6 +36,9 @@ function notFound(): never {
 /** The rules live in `domain/activity.ts`; this only decides how they reach
  *  the client. */
 function translate(error: unknown): never {
+  if (error instanceof InvalidCursorError) {
+    throw new HTTPException(400, { message: messages.list.badCursor })
+  }
   if (error instanceof BilledItemError) {
     throw new HTTPException(409, {
       message: messages.invoice.billedItemBlocksDelete(error.itemDescription, error.invoiceNumber),
@@ -61,7 +65,7 @@ export const activitiesRoute = new Hono<AppEnv>()
   .use('*', requireAuth, withTenant)
 
   .get('/', validate('query', activityListQuerySchema), async (c) => {
-    return c.json(await listActivities(db(), tenantId(c), c.req.valid('query')))
+    return c.json(await listActivities(db(), tenantId(c), c.req.valid('query')).catch(translate))
   })
 
   /** Registered before `/:activityId`, which is validated as a uuid — so the

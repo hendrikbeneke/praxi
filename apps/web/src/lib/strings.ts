@@ -294,10 +294,11 @@ export const strings = {
     emptyFiltered: 'Kein Kontakt passt zu dieser Suche.',
     /** The page size travels with it: the line only appears when the list is
      *  truncated, and then "why 50 of 214" is the next question. */
-    countOf: (shown: number, total: number, pageSize?: number) =>
-      pageSize === undefined
-        ? `${shown} von ${total} angezeigt`
-        : `${shown} von ${total} angezeigt · Seitengröße ${pageSize}`,
+    countOf: (shown: number, total: number) => `${shown} von ${total} angezeigt`,
+    /** The list runs on as it is scrolled, so this says how far along it is —
+     *  not how much was withheld, which is what "50 von 214" implied. */
+    countLoaded: (shown: number, total: number) =>
+      shown >= total ? `${total} Kontakte` : `${shown} von ${total} geladen`,
     archivedBadge: 'Archiviert',
 
     kindLabel: 'Art',
@@ -318,11 +319,7 @@ export const strings = {
       'welchen Listen er auftaucht. Anlegen können Sie sie in den Einstellungen unter ' +
       'Kontaktarten.',
     moreRoles: 'Weitere',
-    orderCurrent: 'Aktuell',
-    orderAlpha: 'A–Z',
-    searchAll: 'Die Suche geht über alle Kontakte — unabhängig von Rolle und Zeitfenster.',
-    emptyCurrent: 'In den letzten und nächsten zwei Wochen hat niemand einen Termin.',
-    emptyCurrentAction: 'Alle Kontakte anzeigen',
+    searchAll: 'Die Suche geht über alle Kontakte — unabhängig von der Rolle.',
     allRolesTab: 'Alle',
     noRoles: 'Keine Rolle zugewiesen',
 
@@ -350,7 +347,6 @@ export const strings = {
       roles: 'Rollen',
       city: 'Ort',
       dateOfBirth: 'Geburtsdatum',
-      appointment: 'Termin',
     },
 
     sectionName: 'Name',
@@ -591,6 +587,15 @@ export const strings = {
     summary: (total: number, upcoming: number, unbilled: string) =>
       `${total} ${total === 1 ? 'Vorgang' : 'Vorgänge'} · ${upcoming} kommend · ` +
       `${unbilled} noch nicht abgerechnet`,
+    /** A new activity can belong anywhere — a session five years back that is
+     *  being documented late lands below everything that has been loaded. The
+     *  strip says where it went, so nothing reads as "not saved". */
+    createdElsewhere: (date: string) => `Neu angelegt — steht in der Liste beim ${date}.`,
+    /** The other reason it is not on screen: it does not match what the list
+     *  is currently showing. Saying so beats a strip that points into a list
+     *  the row is not in. */
+    createdOutsideFilter: (date: string) =>
+      `Neu angelegt zum ${date} — gehört nicht in die aktuelle Auswahl.`,
     sectionUpcoming: 'Kommend',
     sectionPast: 'Bisher',
     /** What the dialog says instead of quietly overwriting. */

@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { contactListQueryOptions, contactQueryOptions } from '@/lib/contacts'
+import { contactQueryOptions, contactSuggestionsQueryOptions } from '@/lib/contacts'
 import { strings } from '@/lib/strings'
 
 const SUGGESTION_LIMIT = 8
@@ -45,11 +45,8 @@ export function ContactPicker({
   })
 
   const results = useQuery({
-    ...contactListQueryOptions({
+    ...contactSuggestionsQueryOptions({
       q: deferredTerm.trim() || undefined,
-      // Archived contacts are never offered — an archived contact is one you
-      // are done with, and a new activity for them starts by unarchiving.
-      includeArchived: false,
       limit: SUGGESTION_LIMIT,
     }),
     enabled: value === null && deferredTerm.trim() !== '',
@@ -97,7 +94,7 @@ export function ContactPicker({
    * form said was a list nobody had asked for. A search field that answers
    * once it is asked is also what "Name suchen" promises.
    */
-  const items = term.trim() === '' ? [] : (results.data?.items ?? [])
+  const items = term.trim() === '' ? [] : (results.data ?? [])
   const activeIndex = items.length === 0 ? -1 : Math.min(active, items.length - 1)
 
   function choose(contact: ContactListItem) {

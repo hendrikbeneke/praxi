@@ -2,60 +2,86 @@ import type {
   Contact,
   ContactInput,
   ContactListItem,
-  ContactListOrder,
   ContactRoleInput,
   ContactSortField,
   ContactUpdate,
+  Page,
   SortDirection,
 } from '@praxi/shared'
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
 export type ContactListParams = {
   q?: string | undefined
   roleTypeId?: string | undefined
-  order?: ContactListOrder
   sort?: ContactSortField
   dir?: SortDirection
   includeArchived?: boolean
-  limit?: number
-  offset?: number
   /** Held back until the role catalogue has arrived: it decides which tab is
    *  the default, so asking earlier would show the wrong list and then correct
    *  itself on screen. */
   enabled?: boolean
 }
 
-export type ContactListResult = { items: ContactListItem[]; total: number }
-
 /**
+ * The contact list, one page at a time (L3).
+ *
  * `q` is part of the query key but never of the router's search params — see
  * the note on `contactListQuerySchema`. React Query caches per term all the
- * same, so paging back and forth costs nothing.
+ * same, so going back to a term already scrolled costs nothing.
+ *
+ * The cursor is opaque: whatever the last page answered with goes back
+ * unread.
  */
 export const contactListQueryOptions = ({ enabled = true, ...params }: ContactListParams) =>
-  queryOptions({
+  infiniteQueryOptions({
     // `enabled` is destructured out first: it says when to ask, not what is
     // asked for, and in the key it would file one answer under two names.
     queryKey: ['contacts', 'list', params],
-    queryFn: async (): Promise<ContactListResult> => {
+    queryFn: async ({ pageParam }): Promise<Page<ContactListItem>> => {
       const res = await api.api.contacts.$get({
         query: {
           ...(params.q ? { q: params.q } : {}),
           ...(params.roleTypeId ? { roleTypeId: params.roleTypeId } : {}),
-          ...(params.order ? { order: params.order } : {}),
           ...(params.sort ? { sort: params.sort } : {}),
           ...(params.dir ? { dir: params.dir } : {}),
           includeArchived: params.includeArchived ? 'true' : 'false',
-          ...(params.limit === undefined ? {} : { limit: String(params.limit) }),
-          ...(params.offset === undefined ? {} : { offset: String(params.offset) }),
+          ...(pageParam ? { cursor: pageParam } : {}),
         },
       })
       if (!res.ok) throw await apiError(res)
       return res.json()
     },
+    initialPageParam: '',
+    getNextPageParam: (last) => last.nextCursor,
     enabled,
     placeholderData: (previous) => previous,
+  })
+
+/**
+ * The first handful of matches for a *picker*, unpaged.
+ *
+ * Its own option rather than the first page of the list above: a picker does
+ * not scroll, it narrows — one types more of the name instead of loading more
+ * rows — and an infinite query in a dropdown would carry paging machinery
+ * nothing there uses.
+ */
+export const contactSuggestionsQueryOptions = (params: { q?: string | undefined; limit: number }) =>
+  queryOptions({
+    queryKey: ['contacts', 'suggestions', params],
+    queryFn: async (): Promise<ContactListItem[]> => {
+      const res = await api.api.contacts.$get({
+        query: {
+          ...(params.q ? { q: params.q } : {}),
+          // An archived contact is one you are done with; a new activity for
+          // them starts by unarchiving.
+          includeArchived: 'false',
+          limit: String(params.limit),
+        },
+      })
+      if (!res.ok) throw await apiError(res)
+      return (await res.json()).items
+    },
   })
 
 export const contactQueryOptions = (contactId: string) =>
