@@ -39,10 +39,10 @@ export const userPreferencesSchema = z.object({
   startPage: startPageSchema.optional(),
   sidebarCollapsed: z.boolean().optional(),
   /** Column keys, visible ones in display order — membership is visibility,
-   *  array order is column order (D6, `ColumnPicker`). The appointment
-   *  column is deliberately not part of this list: its visibility already
-   *  follows the Aktuell/A–Z view, and letting a preference override that
-   *  too would mean two mechanisms fighting over one column. */
+   *  array order is column order (D6, `ColumnPicker`). Every column the list
+   *  offers is in here and nothing decides visibility beside it; the note
+   *  that used to stand here, exempting the appointment column because the
+   *  Aktuell/A–Z view owned it, went with that view in L3. */
   contactListColumns: z.array(z.string()).optional(),
   /** The same shape for the invoice list under Zahlungen (D7) — its own flat
    *  key, never nested with the one above; see the paragraph on the merge. */

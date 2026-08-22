@@ -526,6 +526,51 @@ describe('sorting and paging', () => {
     expect(seen).toHaveLength(7)
   })
 
+  /** Every column the list offers can be sorted, except the two where sorting
+   *  would mean inventing a rule (L4) — the mechanism is one map entry per
+   *  field, and these are the shapes it has to carry: a plain text column, an
+   *  enum, and a timestamp that is usually null. */
+  it('sorts by the other columns the list offers', async () => {
+    const archived = await createContact(db(), tenantId, person({ lastName: 'Weggeräumt' }))
+    await setContactArchived(db(), tenantId, archived.id, true)
+    await createContact(db(), tenantId, organization({ companyName: 'Zeta GmbH' }))
+
+    /* Ascending puts the organizations first — sorted as text, which is what
+       the German labels do too ("Organisation" before "Person"). Left as the
+       enum it is, Postgres would sort by the order the values were declared
+       and put the persons there instead. */
+    const byKind = await listContacts(
+      db(),
+      tenantId,
+      query({ sort: 'kind', dir: 'asc', includeArchived: true }),
+    )
+    expect(byKind.items[0]?.kind).toBe('organization')
+
+    const byArchived = await listContacts(
+      db(),
+      tenantId,
+      query({ sort: 'archived', dir: 'asc', includeArchived: true }),
+    )
+    // Nulls last in both directions: "never archived" has no place on a scale
+    // of dates.
+    expect(byArchived.items[0]?.id).toBe(archived.id)
+    expect(byArchived.items.at(-1)?.archivedAt).toBeNull()
+  })
+
+  /** Free text about a patient that no column shows and every row carried.
+   *  The diagnosis was never in this payload for the same reason (rule 12). */
+  it('leaves the internal note out of the list', async () => {
+    await createContact(db(), tenantId, person({ lastName: 'Vermerkt', internalNote: 'privat' }))
+
+    const { items } = await listContacts(db(), tenantId, query({ q: 'Vermerkt' }))
+    const row = items[0]
+    if (!row) throw new Error('fixture missing')
+    expect('internalNote' in row).toBe(false)
+
+    const loaded = await getContact(db(), tenantId, row.id)
+    expect(loaded?.internalNote).toBe('privat')
+  })
+
   it('refuses a cursor it did not write', async () => {
     await expect(
       listContacts(db(), tenantId, query({ cursor: 'nonsense' })),

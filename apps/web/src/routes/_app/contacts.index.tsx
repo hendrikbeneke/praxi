@@ -2,6 +2,7 @@ import {
   type ContactListItem,
   type ContactSortField,
   contactSortFieldSchema,
+  countryName,
   formatBerlinDate,
   formatContactNameSorted,
   sortDirectionSchema,
@@ -40,24 +41,52 @@ import {
   userPreferencesQueryOptions,
 } from '@/lib/user-preferences'
 import { cn } from '@/lib/utils'
+import { countryListQueryOptions } from '@/lib/value-lists'
 
 /** `role` absent means the default tab — the first role flagged as one. `all`
  *  is the explicit choice, and the two have to stay distinguishable. */
 const ALL_ROLES = 'all'
 
 /**
- * Every column the picker offers, in the order a fresh preference falls back
- * to. Deliberately not the appointment column — see the comment on
- * `contactColumns` for why that one stays out of the picker entirely.
+ * Everything the picker offers (L4). **Broad on offer, narrow by default** —
+ * what a practice wants to see in a card index is its own business, so the
+ * list carries every field a contact has that reads in a table cell.
+ *
+ * Four are deliberately absent:
+ *
+ * - **Diagnose** is a health datum and never leaves the record for a list; it
+ *   is not even in the payload (rule 12).
+ * - **Interne Notiz** is prose, and prose in a table cell is unreadable — it
+ *   left the payload with L4 for the same reason the diagnosis never entered
+ *   it.
+ * - **Geburtsort, Titel, Anrede, Geschlecht, USt-IdNr., Ansprechpartner**: one
+ *   is never scanned for, one belongs to the name, two would cost a join each
+ *   for something nobody sorts a card index by, and the last two are filled
+ *   only on organizations and empty on every other row.
+ *
+ * The order here is what a fresh preference with no stored order falls back
+ * to for the columns it does contain.
  */
 const COLUMN_DEFINITIONS: ColumnDefinition[] = [
   { key: 'number', label: strings.contact.columns.number },
   { key: 'name', label: strings.contact.columns.name, locked: true },
   { key: 'roles', label: strings.contact.columns.roles },
+  { key: 'street', label: strings.contact.columns.street },
+  { key: 'houseNumber', label: strings.contact.columns.houseNumber },
+  { key: 'postalCode', label: strings.contact.columns.postalCode },
   { key: 'city', label: strings.contact.columns.city },
+  { key: 'country', label: strings.contact.columns.country },
+  { key: 'email', label: strings.contact.columns.email },
+  { key: 'phoneMobile', label: strings.contact.columns.phoneMobile },
+  { key: 'phoneLandline', label: strings.contact.columns.phoneLandline },
   { key: 'dateOfBirth', label: strings.contact.columns.dateOfBirth },
+  { key: 'kind', label: strings.contact.columns.kind },
+  { key: 'archived', label: strings.contact.columns.archived },
 ]
-const DEFAULT_COLUMNS = COLUMN_DEFINITIONS.map((entry) => entry.key)
+
+/** What is on before anybody chooses — the five the design shows. A list that
+ *  opens with fourteen columns answers a question nobody asked. */
+const DEFAULT_COLUMNS = ['number', 'name', 'roles', 'city', 'dateOfBirth']
 
 /** The one column the design gives a fixed width, so the digits stay a block
  *  of their own however many of them there are. Applied to `th` and `td` alike
@@ -99,6 +128,9 @@ const column = createColumnHelper<typeof features, ContactListItem>()
 
 type ColumnOptions = {
   roleLabels: Map<string, string>
+  /** Country id to ISO code; the *name* is resolved from the code by
+   *  `countryName()`, which is where a country's name lives (D-R3). */
+  countryCodes: Map<string, string>
   /** Which columns to show and in what order — the picker's answer. */
   visibleColumns: string[]
   sortHeader: (field: ContactSortField, label: string, align?: 'end') => React.ReactNode
@@ -113,6 +145,27 @@ type ColumnOptions = {
  * them to a single one and stop type-checking the cells.
  */
 function contactColumns(options: ColumnOptions) {
+  /** The columns that are a line of text and nothing else. Written once
+   *  rather than six times: an empty cell is a dash everywhere, and six copies
+   *  of that would be six chances to write a different one. */
+  const text = (
+    key: string,
+    field:
+      | 'street'
+      | 'houseNumber'
+      | 'postalCode'
+      | 'city'
+      | 'email'
+      | 'phoneMobile'
+      | 'phoneLandline',
+  ) => ({
+    key,
+    def: column.accessor(field, {
+      header: () => options.sortHeader(field, strings.contact.columns[field]),
+      cell: (info) => info.getValue() ?? '—',
+    }),
+  })
+
   const definitions = [
     {
       key: 'number',
@@ -165,13 +218,28 @@ function contactColumns(options: ColumnOptions) {
         },
       }),
     },
+    text('street', 'street'),
+    text('houseNumber', 'houseNumber'),
+    text('postalCode', 'postalCode'),
+    text('city', 'city'),
     {
-      key: 'city',
-      def: column.accessor('city', {
-        header: () => options.sortHeader('city', strings.contact.columns.city),
-        cell: (info) => info.getValue() ?? '—',
+      key: 'country',
+      def: column.accessor('countryId', {
+        /* No sorting: the cell shows a name resolved in the browser from the
+           ISO code, so a database sorting the code would put "Österreich"
+           before "Deutschland" while the column says otherwise. Rather no
+           arrow than one that visibly does something else. */
+        header: strings.contact.columns.country,
+        cell: (info) => {
+          const isoCode =
+            info.getValue() === null ? null : options.countryCodes.get(info.getValue() ?? '')
+          return isoCode ? countryName(isoCode) : '—'
+        },
       }),
     },
+    text('email', 'email'),
+    text('phoneMobile', 'phoneMobile'),
+    text('phoneLandline', 'phoneLandline'),
     {
       key: 'dateOfBirth',
       def: column.accessor('dateOfBirth', {
@@ -185,6 +253,23 @@ function contactColumns(options: ColumnOptions) {
           ) : (
             '—'
           )
+        },
+      }),
+    },
+    {
+      key: 'kind',
+      def: column.accessor('kind', {
+        header: () => options.sortHeader('kind', strings.contact.columns.kind),
+        cell: (info) => strings.contact.kind[info.getValue()],
+      }),
+    },
+    {
+      key: 'archived',
+      def: column.accessor('archivedAt', {
+        header: () => options.sortHeader('archived', strings.contact.columns.archived),
+        cell: (info) => {
+          const at = info.getValue()
+          return at ? <span className="tabular-nums">{formatBerlinDate(at)}</span> : '—'
         },
       }),
     },
@@ -218,6 +303,9 @@ function ContactListPage() {
   const searching = deferredTerm.trim() !== ''
 
   const roleTypes = useQuery(roleTypeListQueryOptions)
+  /** Only for the country column, and only to turn its id into the ISO code
+   *  `countryName()` reads. Cached like every other catalogue. */
+  const countries = useQuery(countryListQueryOptions)
   const types = roleTypes.data ?? []
   const tabTypes = types.filter((type) => type.showAsTab)
   const otherTypes = types.filter((type) => !type.showAsTab)
@@ -292,6 +380,7 @@ function ContactListPage() {
   // table holds no state of its own that recreating them could disturb.
   const columns = contactColumns({
     roleLabels: new Map(types.map((type) => [type.id, type.label])),
+    countryCodes: new Map((countries.data ?? []).map((entry) => [entry.id, entry.isoCode])),
     visibleColumns,
     sortHeader,
   })
@@ -299,194 +388,227 @@ function ContactListPage() {
   const table = useTable({ features, columns, data: rows })
 
   return (
-    <>
-      <PageHeader
-        title={strings.contact.title}
-        description={strings.contact.description}
-        actions={
-          <Button asChild>
-            <Link to="/contacts/new">
-              <Plus className="size-4" aria-hidden />
-              {strings.contact.create}
-            </Link>
-          </Button>
-        }
-      />
+    /* The screen owns the window's height and the table scrolls inside it
+       (L4): the head and the filter band stay put, and the card runs to the
+       bottom edge whether it holds seven rows or seven hundred. The route
+       therefore takes `p-0` from `page-chrome` and pads its own blocks. */
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="px-8 pt-[26px]">
+        <PageHeader
+          title={strings.contact.title}
+          description={strings.contact.description}
+          actions={
+            <Button asChild>
+              <Link to="/contacts/new">
+                <Plus className="size-4" aria-hidden />
+                {strings.contact.create}
+              </Link>
+            </Button>
+          }
+        />
 
-      {/* One card, one row — search, the role tabs, and on the right what is
-          shown *how*: archived, the order, the columns. The design's own split
-          (K6): picking who is listed happens on the left, everything about the
-          presentation on the right. */}
-      <div className="mb-[18px] flex flex-wrap items-center gap-3 rounded-[10px] border bg-card px-[14px] py-3">
-        <div className="relative min-w-[250px] max-w-[380px] flex-[1_1_300px]">
-          <Search
-            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-[11px] size-[15px] text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            id="contact-search"
-            aria-label={strings.contact.search}
-            className="pl-9"
-            placeholder={strings.contact.searchPlaceholder}
-            value={term}
-            onChange={(event) => setTerm(event.target.value)}
-          />
-        </div>
+        {/* One row on the page itself, not in a card, with the rule under it
+          running the full width — the same band Vorgänge carries. Search and
+          the role tabs on the left, on the right what is shown *how*:
+          archived and the columns. */}
+        <div className="flex flex-wrap items-center gap-3 pb-3">
+          <div className="relative min-w-[250px] max-w-[380px] flex-[1_1_300px]">
+            <Search
+              className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-[11px] size-[15px] text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              id="contact-search"
+              aria-label={strings.contact.search}
+              className="pl-9"
+              placeholder={strings.contact.searchPlaceholder}
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+            />
+          </div>
 
-        <span className="h-[26px] w-px shrink-0 bg-border" />
+          <span className="h-[26px] w-px shrink-0 bg-border" />
 
-        {/* The tabs are the roles flagged `show_as_tab`; everything else stays
+          {/* The tabs are the roles flagged `show_as_tab`; everything else stays
             reachable behind "Weitere", so no role is unfilterable and the bar
             stays short. Relations never appear here — they are not a property
             of a single contact. */}
-        <div className="flex flex-wrap items-center gap-1">
-          {tabTypes.map((type) => (
-            <button
-              key={type.id}
-              type="button"
-              className={listTabClass(activeRole === type.id)}
-              onClick={() => setSearch({ role: type.id })}
-            >
-              {type.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={listTabClass(activeRole === ALL_ROLES)}
-            onClick={() => setSearch({ role: ALL_ROLES })}
-          >
-            {strings.contact.allRolesTab}
-          </button>
-
-          {otherTypes.length > 0 && (
-            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-              <PopoverTrigger asChild>
-                {/* Named after what is chosen once something is, so the bar
-                    says which filter is on without a second line. */}
-                <button
-                  type="button"
-                  aria-label={strings.contact.moreRolesMenu}
-                  className={listTabClass(otherRole !== undefined)}
-                >
-                  {otherRole?.label ?? strings.contact.moreRoles}
-                  <ChevronDown className="size-[13px]" aria-hidden />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[246px] p-1.5">
-                <div className="flex flex-col gap-px">
-                  {otherTypes.map((type) => (
-                    <button
-                      key={type.id}
-                      type="button"
-                      className={cn(
-                        'rounded-md px-[9px] py-[7px] text-left text-[13.5px] transition-colors',
-                        activeRole === type.id
-                          ? 'bg-primary font-semibold text-primary-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                      )}
-                      onClick={() => {
-                        setMoreOpen(false)
-                        setSearch({ role: type.id })
-                      }}
-                    >
-                      {type.label}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
-
-        <div className="ml-auto flex items-center gap-3">
-          <Label
-            htmlFor="show-archived"
-            className="cursor-pointer gap-2 whitespace-nowrap font-normal text-[13.5px] text-muted-foreground"
-          >
-            <Checkbox
-              id="show-archived"
-              checked={search.archived ?? false}
-              onCheckedChange={(checked) =>
-                setSearch({ archived: checked === true ? true : undefined })
-              }
-            />
-            {strings.contact.showArchived}
-          </Label>
-
-          <ColumnPicker
-            columns={COLUMN_DEFINITIONS}
-            visible={visibleColumns}
-            onChange={(next) => saveColumns.mutate(next)}
-          />
-        </div>
-      </div>
-
-      {searching && (
-        <p className="mb-3 text-muted-foreground text-sm">{strings.contact.searchAll}</p>
-      )}
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className={COLUMN_CLASS[header.column.id]}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
+          <div className="flex flex-wrap items-center gap-1">
+            {tabTypes.map((type) => (
+              <button
+                key={type.id}
+                type="button"
+                className={listTabClass(activeRole === type.id)}
+                onClick={() => setSearch({ role: type.id })}
+              >
+                {type.label}
+              </button>
             ))}
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="text-muted-foreground">
-                  <EmptyMessage
-                    pending={contacts.isPending}
-                    searching={searching}
-                    filtered={activeRole !== ALL_ROLES}
-                  />
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="cursor-pointer"
-                  onClick={() =>
-                    void navigate({
-                      to: '/contacts/$contactId',
-                      params: { contactId: row.original.id },
-                    })
-                  }
-                >
-                  {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id} className={COLUMN_CLASS[cell.column.id]}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+            <button
+              type="button"
+              className={listTabClass(activeRole === ALL_ROLES)}
+              onClick={() => setSearch({ role: ALL_ROLES })}
+            >
+              {strings.contact.allRolesTab}
+            </button>
+
+            {otherTypes.length > 0 && (
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <PopoverTrigger asChild>
+                  {/* Named after what is chosen once something is, so the bar
+                    says which filter is on without a second line. */}
+                  <button
+                    type="button"
+                    aria-label={strings.contact.moreRolesMenu}
+                    className={listTabClass(otherRole !== undefined)}
+                  >
+                    {otherRole?.label ?? strings.contact.moreRoles}
+                    <ChevronDown className="size-[13px]" aria-hidden />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[246px] p-1.5">
+                  <div className="flex flex-col gap-px">
+                    {otherTypes.map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        className={cn(
+                          'rounded-md px-[9px] py-[7px] text-left text-[13.5px] transition-colors',
+                          activeRole === type.id
+                            ? 'bg-primary font-semibold text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                        )}
+                        onClick={() => {
+                          setMoreOpen(false)
+                          setSearch({ role: type.id })
+                        }}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
-          </TableBody>
-        </Table>
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <Label
+              htmlFor="show-archived"
+              className="cursor-pointer gap-2 whitespace-nowrap font-normal text-[13.5px] text-muted-foreground"
+            >
+              <Checkbox
+                id="show-archived"
+                checked={search.archived ?? false}
+                onCheckedChange={(checked) =>
+                  setSearch({ archived: checked === true ? true : undefined })
+                }
+              />
+              {strings.contact.showArchived}
+            </Label>
+
+            <ColumnPicker
+              columns={COLUMN_DEFINITIONS}
+              visible={visibleColumns}
+              onChange={(next) => saveColumns.mutate(next)}
+            />
+          </div>
+        </div>
+
+        {/* Under the field it belongs to, not above the table: it explains
+            what the typing did. */}
+        {searching && (
+          <p className="pb-3 text-muted-foreground text-sm">{strings.contact.searchAll}</p>
+        )}
       </div>
 
-      {/* The list runs on as it is scrolled; the count says how far along it
-          is rather than how much was withheld. */}
-      {total > 0 && (
-        <p className="mt-3 text-[13px] text-muted-foreground tabular-nums">
-          {strings.contact.countLoaded(rows.length, total)}
-        </p>
-      )}
+      <div className="border-b" />
 
-      <InfiniteSentinel
-        hasMore={contacts.hasNextPage}
-        loading={contacts.isFetchingNextPage}
-        onReach={() => void contacts.fetchNextPage()}
-      />
-    </>
+      <div className="flex min-h-0 flex-1 flex-col px-8 pt-[18px] pb-6">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border bg-card">
+          <div className="min-h-0 flex-1 overflow-auto">
+            {/* The scrolling happens in the box above, in both axes: the
+                wrapper stays out of the way so the header can stick to it.
+                `min-w-max` lets the table grow past the box when many columns
+                are on — squeezed to fit, a heading is simply cut off. */}
+            <Table containerClassName="overflow-visible" className="min-w-max">
+              {/* Stays put while the rows scroll under it, and carries the page's
+              own tone rather than the card's — measured off the design, where
+              the heading band is the background colour and the rows are
+              lighter. Opaque, or the rows would show through. */}
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        className={cn(
+                          // The design's heading: small, spaced capitals in the
+                          // quiet colour, so the row reads as a label and not as
+                          // the first line of data.
+                          'font-medium text-[11.5px] text-muted-foreground uppercase tracking-[0.06em]',
+                          COLUMN_CLASS[header.column.id],
+                        )}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={columns.length} className="text-muted-foreground">
+                      <EmptyMessage
+                        pending={contacts.isPending}
+                        searching={searching}
+                        filtered={activeRole !== ALL_ROLES}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      className="cursor-pointer"
+                      onClick={() =>
+                        void navigate({
+                          to: '/contacts/$contactId',
+                          params: { contactId: row.original.id },
+                        })
+                      }
+                    >
+                      {row.getAllCells().map((cell) => (
+                        <TableCell key={cell.id} className={COLUMN_CLASS[cell.column.id]}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+
+            {/* Inside the scroller, or it would never come into view: the
+                window does not scroll on this screen. */}
+            <InfiniteSentinel
+              hasMore={contacts.hasNextPage}
+              loading={contacts.isFetchingNextPage}
+              onReach={() => void contacts.fetchNextPage()}
+            />
+          </div>
+        </div>
+
+        {/* The list runs on as it is scrolled; the count says how far along it
+            is rather than how much was withheld. */}
+        {total > 0 && (
+          <p className="mt-3 text-[13px] text-muted-foreground tabular-nums">
+            {strings.contact.countLoaded(rows.length, total)}
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 

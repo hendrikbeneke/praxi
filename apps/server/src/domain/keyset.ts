@@ -48,6 +48,13 @@ export class InvalidCursorError extends Error {
   }
 }
 
+/**
+ * What a list sorts by: usually a column, sometimes an expression over one.
+ * `contact.kind` is the case that needed it — a `pgEnum` sorts by the order
+ * its values were *declared*, not by the alphabet, so it is compared as text.
+ */
+export type SortExpression = AnyColumn | SQL
+
 const cursorPayloadSchema = z.object({
   /** The sort column's value on the last row of the previous page. */
   k: z.union([z.string(), z.number(), z.null()]),
@@ -83,7 +90,7 @@ export function decodeCursor(raw: string): Cursor | null {
  * quietly drop every row without a value.
  */
 export function afterCursor(
-  column: AnyColumn,
+  column: SortExpression,
   id: AnyColumn,
   direction: 'asc' | 'desc',
   cursor: Cursor,
@@ -100,7 +107,11 @@ export function afterCursor(
 
 /** The matching `ORDER BY`. It has to mirror `afterCursor` exactly — an order
  *  and a predicate that disagree page past each other. */
-export function cursorOrder(column: AnyColumn, id: AnyColumn, direction: 'asc' | 'desc'): SQL[] {
+export function cursorOrder(
+  column: SortExpression,
+  id: AnyColumn,
+  direction: 'asc' | 'desc',
+): SQL[] {
   return [
     direction === 'asc' ? sql`${column} asc nulls last` : sql`${column} desc nulls last`,
     sql`${id} asc`,

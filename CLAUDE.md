@@ -604,6 +604,11 @@ contact               tenant_id uuid not null -> tenant(id),
                         -- response schema alone to keep it out (rule 12).
                         -- Appears only in master data, the invoice draft
                         -- (invoice.diagnosis, prefilled from here) and the PDF.
+                        -- `internal_note` joined it outside listColumns in L4,
+                        -- for the reason it was always kept out of: free text
+                        -- about a patient that no list column shows and every
+                        -- row of every page carried. What is not shown is not
+                        -- sent.
                       archived_at timestamptz                   (soft delete;
                         -- there is no hard delete path)
                       sort_name text generated always as (
@@ -1837,6 +1842,12 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
   so three typed paragraphs are unrecoverable after one toolbar click. Deprecated for a decade
   with no successor. Do not "modernize" that call site.
 - Conventional Commits, in English, one commit per slice — made before the report goes out (see "How we work"), not after.
+
+**A list offers broadly and starts narrow.** The contact list carries fourteen columns and shows five; what a practice wants in its card index is its own business, and a list that opens with everything answers a question nobody asked. Which columns are on, and in what order, is one flat key in `app_user.preferences` per list (`contactListColumns`), reordered by dragging the row's grip — **and by the arrow keys on that grip**, because dragging alone is not a feature for everyone who has to use it.
+
+What a column may *not* be is anything that would put clinical content in a table: the diagnosis is not in the payload at all, and the internal note left it in L4. Prose is unreadable in a cell anyway, which is the same answer arrived at from the other side.
+
+**A column is sortable unless sorting it would mean inventing a rule.** Two on the contact list are not: roles, because a contact holds a *set* and a set has no order, and country, because the cell shows a name resolved in the browser from an ISO code — sorted by what is stored, "Österreich" would come before "Deutschland" while the column says otherwise. Rather no arrow than one that visibly does something else. Where the stored value and the shown one happen to share an order, the stored one is sorted: `contact.kind` is compared as text, because a `pgEnum` otherwise sorts by the order its values were declared.
 
 **Read mode first.** Detail views and dialogs open in read mode. Editing is a deliberate step: the user presses "Bearbeiten", the fields become editable, and "Speichern" / "Abbrechen" appear. Never open a record with editable fields. The exception is creating a new record — there is nothing to read yet, so the form is editable from the start.
 

@@ -8,12 +8,12 @@ import type {
   ContactUpdate,
   Page,
 } from '@praxi/shared'
-import type { AnyColumn } from 'drizzle-orm'
 import { and, asc, count, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import { contact, contactRole, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
 import { nextNumber } from './counter.js'
+import type { SortExpression } from './keyset.js'
 import { afterCursor, cursorOrder, decodeCursor, InvalidCursorError, takePage } from './keyset.js'
 
 /** `kind` is structural and decides which fields apply, so it cannot change
@@ -52,7 +52,6 @@ const listColumns = {
   email: contact.email,
   phoneMobile: contact.phoneMobile,
   phoneLandline: contact.phoneLandline,
-  internalNote: contact.internalNote,
   archivedAt: contact.archivedAt,
 }
 
@@ -68,6 +67,7 @@ const listColumns = {
  */
 const detailColumns = {
   ...listColumns,
+  internalNote: contact.internalNote,
   diagnosis: contact.diagnosis,
 }
 
@@ -256,20 +256,40 @@ function escapeLikePattern(value: string): string {
 const SORT_COLUMNS = {
   name: contact.sortName,
   number: contact.contactNumber,
+  street: contact.street,
+  houseNumber: contact.houseNumber,
+  postalCode: contact.postalCode,
   city: contact.city,
+  email: contact.email,
+  phoneMobile: contact.phoneMobile,
+  phoneLandline: contact.phoneLandline,
   dateOfBirth: contact.dateOfBirth,
-} as const satisfies Record<ContactSortField, AnyColumn>
+  /**
+   * Cast, and not for tidiness: a `pgEnum` sorts by the order its values were
+   * *declared*, so `kind` would come back person-then-organization however the
+   * arrow points. As text it sorts by the stored words — and those happen to
+   * carry the same order as the German labels on screen ("Organisation" before
+   * "Person"), which is the whole requirement: the arrow must not visibly do
+   * something other than what the column shows.
+   */
+  kind: sql`${contact.kind}::text`,
+  archived: contact.archivedAt,
+} as const satisfies Record<ContactSortField, SortExpression>
 
 /** The same value, read off the fetched row for the cursor. Kept beside the
  *  map above so a new sort field cannot be added to one and forgotten in the
  *  other. */
 function sortValueOf(row: ContactListRow, field: ContactSortField): string | number | null {
   if (field === 'number') return row.contactNumber
-  if (field === 'city') return row.city
-  if (field === 'dateOfBirth') return row.dateOfBirth
-  // `sort_name` is generated, so it is not among the selected columns —
-  // recomposed here exactly as the database defines it.
-  return row.companyName ?? `${row.lastName ?? ''} ${row.firstName ?? ''}`.trim()
+  // A timestamp, unlike every other key here — sent as the ISO string the
+  // column compares against.
+  if (field === 'archived') return row.archivedAt?.toISOString() ?? null
+  if (field === 'name') {
+    // `sort_name` is generated, so it is not among the selected columns —
+    // recomposed here exactly as the database defines it.
+    return row.companyName ?? `${row.lastName ?? ''} ${row.firstName ?? ''}`.trim()
+  }
+  return row[field]
 }
 
 /**

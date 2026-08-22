@@ -2,9 +2,25 @@ import type * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+/**
+ * `containerClassName` reaches the wrapper around the table, and the one
+ * reason it exists is worth stating: the wrapper is `overflow-x-auto`, and an
+ * element that scrolls in one axis is a **scrollport in both** — so a `sticky`
+ * header inside it anchors to this wrapper rather than to whatever box the
+ * screen actually scrolls. A list that scrolls in a container of its own
+ * therefore passes `overflow-visible` here and lets that container do both
+ * axes (L4, the contact list).
+ */
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<'table'> & { containerClassName?: string }) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div
+      data-slot="table-container"
+      className={cn('relative w-full overflow-x-auto', containerClassName)}
+    >
       <table
         data-slot="table"
         className={cn('w-full caption-bottom text-sm', className)}

@@ -195,8 +195,16 @@ export type Contact = z.infer<typeof contactSchema>
  * is not a property of a contact but of the calendar, it cost a join on every
  * sort, and whether the practice needs it in this list at all is not decided
  * — learning that first is cheaper than carrying it meanwhile.
+ *
+ * **`internalNote` went the same way in L4**, for the reason the diagnosis was
+ * never here: it is free text about a patient, no column offers it — prose is
+ * unreadable in a table cell — and it travelled in every row of every page
+ * regardless. What is not shown is not sent (rule 12).
  */
-export const contactListItemSchema = contactSchema.omit({ diagnosis: true })
+export const contactListItemSchema = contactSchema.omit({
+  diagnosis: true,
+  internalNote: true,
+})
 
 export type ContactListItem = z.infer<typeof contactListItemSchema>
 
@@ -209,17 +217,33 @@ export type ContactListItem = z.infer<typeof contactListItemSchema>
  * "Aktuell" showed five contacts where "Alle" showed a hundred. The window,
  * the filtering and the switch are gone together.
  *
- * **Roles are deliberately not here.** A contact holds a set of them, and a
- * set has no order; sorting would need an invented rule — "the alphabetically
- * first role" — which for a contact with two roles is a coin toss. The same
- * goes for the three catalogue-backed fields (salutation, gender, country):
- * the row holds an id, and sorting by that is meaningless, while sorting by
- * the catalogue's own order needs a join. Say the word and either becomes one.
+ * Every column the list offers is here **except two**, and both are left out
+ * for the same reason: sorting them would mean inventing a rule.
  *
- * Which of these the list *offers* is L4's decision; the mechanism takes a new
- * field in one line.
+ * - **Roles.** A contact holds a *set* of them, and a set has no order. "The
+ *   alphabetically first role" is a coin toss for anyone holding two.
+ * - **Country.** The cell shows a name resolved from the ISO code by
+ *   `countryName()`, in the browser. Sorted by what is stored, `AT` would come
+ *   before `DE` while "Österreich" stands under "Deutschland" — an arrow that
+ *   visibly does something other than what the column shows. No database can
+ *   sort a name that only exists after rendering.
+ *
+ * Rather no sorting than a wrong one; both headings carry no arrow at all.
  */
-export const contactSortFields = ['name', 'number', 'city', 'dateOfBirth'] as const
+export const contactSortFields = [
+  'name',
+  'number',
+  'street',
+  'houseNumber',
+  'postalCode',
+  'city',
+  'email',
+  'phoneMobile',
+  'phoneLandline',
+  'dateOfBirth',
+  'kind',
+  'archived',
+] as const
 export const contactSortFieldSchema = z.enum(contactSortFields)
 export type ContactSortField = z.infer<typeof contactSortFieldSchema>
 

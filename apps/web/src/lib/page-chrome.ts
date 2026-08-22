@@ -21,7 +21,10 @@ const DEFAULT = 'px-8 pt-[22px] pb-10'
 
 const byRouteId: Record<string, string> = {
   '/_app/': DEFAULT,
-  '/_app/contacts/': 'px-8 pt-[26px] pb-6',
+  // Its table runs to the bottom edge of the window and scrolls inside
+  // itself, so the screen owns the height and pads its own blocks (L4) — the
+  // same reason Vorgänge and the contact record take none.
+  '/_app/contacts/': 'p-0',
   // Both contact screens carry a full-bleed header strip in card colour with
   // a rule under it — the tab underline on the record runs along that rule —
   // so they set their own inset below it and get none from the shell (K6).

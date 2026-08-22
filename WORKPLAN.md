@@ -2595,6 +2595,35 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   dort niemand benutzt.
 
 
+**L4, as built** — *Kontaktliste* (keine Migration):
+
+- **Vierzehn Spalten im Angebot, fünf voreingestellt.** Nr., Name, Rollen,
+  Straße, Hausnummer, PLZ, Ort, Land, E-Mail, Mobil, Festnetz, Geburtsdatum,
+  Art, Archiviert. Straße und Hausnummer getrennt, wie im Modell.
+- **Nicht sortierbar sind zwei**, und beide, weil Sortieren eine Regel erfinden
+  hieße: Rollen (eine Menge) und Land (der Name entsteht erst im Browser aus
+  dem ISO-Code). `contact.kind` wird als Text verglichen — ein `pgEnum` sortiert
+  sonst nach Deklarationsreihenfolge und stellte „Person" vor „Organisation",
+  egal wohin der Pfeil zeigt.
+- **Die interne Notiz ist aus `listColumns` heraus**, aus demselben Grund, aus
+  dem die Diagnose nie darin war: Freitext über einen Patienten, den keine
+  Spalte zeigt und jede Zeile jeder Seite mitschleppte.
+- **Die Tabelle endet am Fensterrand** und scrollt in sich, die Kopfzeile bleibt
+  stehen. Dafür brauchte `ui/table.tsx` einen Weg an seinen Container: dessen
+  `overflow-x-auto` ist ein Scrollport in *beiden* Achsen, und ein `sticky`
+  Kopf hätte sich daran verankert statt an der Fläche, die wirklich scrollt.
+- **Filterband ohne Karte**, mit Trennlinie über die volle Breite; der
+  Suchhinweis steht unter dem Feld, das ihn auslöst. Kopfzeile in Versalien —
+  die Schriftgröße steht auch am Sortierknopf, weil ein `button`
+  `text-transform` nicht erbt.
+- **Der Spaltenwähler wird gezogen**, wie im Bild, und ist zusätzlich mit den
+  Pfeiltasten am Griff bedienbar. Der gezogene Schlüssel kommt aus der
+  Nutzlast des Drag-Vorgangs, nicht aus React-State: `dragstart` fordert nur
+  ein Rendern an, ein sehr schneller Drop läse den State sonst als leer.
+- **Überstimmt:** D2, wo die Pfeile gegen das Ziehen gewonnen hatten. Die
+  Bilder stehen darüber.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

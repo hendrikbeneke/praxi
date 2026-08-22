@@ -341,12 +341,23 @@ export const strings = {
     relationNoTypes:
       'Es sind keine Beziehungsarten hinterlegt. Sie legen sie in den Einstellungen an.',
 
+    /** The fourteen the list offers (L4). Broad on offer, narrow by default —
+     *  what a practice wants in its card index is its own business. */
     columns: {
       number: 'Nr.',
       name: 'Name',
       roles: 'Rollen',
+      street: 'Straße',
+      houseNumber: 'Hausnummer',
+      postalCode: 'PLZ',
       city: 'Ort',
+      country: 'Land',
+      email: 'E-Mail',
+      phoneMobile: 'Mobil',
+      phoneLandline: 'Festnetz',
       dateOfBirth: 'Geburtsdatum',
+      kind: 'Art',
+      archived: 'Archiviert',
     },
 
     sectionName: 'Name',
@@ -1515,6 +1526,8 @@ export const strings = {
     moveUp: 'Nach oben',
     moveDown: 'Nach unten',
     columns: 'Spalten',
+    dragToOrder: 'Zum Sortieren ziehen.',
+    moveColumn: (label: string) => `${label} verschieben`,
     visibleColumns: 'Sichtbare Spalten',
   },
   status: {

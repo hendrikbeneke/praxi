@@ -38,6 +38,12 @@ export function SortableColumnHeader({
       type="button"
       className={cn(
         '-mx-2 flex items-center gap-1 rounded px-2 py-1 hover:bg-muted',
+        /* The heading's typography is repeated here rather than inherited
+           from the `th`: a `button` does not inherit `text-transform` —
+           normalize, and Tailwind's preflight with it, sets `text-transform:
+           none` on form elements — so a heading that sorts would come out in
+           sentence case beside one that does not. */
+        'text-[11.5px] uppercase tracking-[0.06em]',
         // The negative margin has to be paid back in the width, or the label
         // ends 16px short of the digits it is supposed to sit over.
         align === 'end' && 'w-[calc(100%+1rem)] justify-end',
