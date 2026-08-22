@@ -19,8 +19,15 @@ import { cn } from '@/lib/utils'
  * `children`.
  */
 
-export function useInlineDetail() {
-  const [openId, setOpenId] = useState<string | null>(null)
+/**
+ * `initialOpenId` opens one row on the first render and never again — a
+ * *starting* state, not a controlled one. The contact's overview links into
+ * the Vorgänge tab with a Vorgang named (L5), and from that moment on clicking
+ * another row has to behave exactly as it does everywhere else. Feeding the
+ * value back in on every render would fight the toggle instead.
+ */
+export function useInlineDetail(initialOpenId?: string | undefined) {
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null)
   const [editing, setEditing] = useState(false)
 
   return {

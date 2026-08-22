@@ -64,6 +64,7 @@ export function ActivityList({
   emptyText,
   showContact = true,
   contactId,
+  openActivityId,
   creating = false,
   onCreated,
   onCancelCreate,
@@ -80,6 +81,11 @@ export function ActivityList({
   showContact?: boolean
   /** Fixed on the create form when the list stands inside a contact. */
   contactId?: string | undefined
+  /** Opened in read mode on arrival, and scrolled to — the contact's overview
+   *  links here from "Letzte Vorgänge" (L5). A *starting* state, not a
+   *  controlled one: clicking another row from here on is the ordinary
+   *  toggle, and the URL is not rewritten behind the practitioner's back. */
+  openActivityId?: string | undefined
   creating?: boolean
   onCreated?: () => void
   onCancelCreate?: () => void
@@ -88,7 +94,7 @@ export function ActivityList({
   onLoadMorePast?: () => void
 }) {
   const types = useQuery(activityTypeListQueryOptions(true))
-  const detail = useInlineDetail()
+  const detail = useInlineDetail(openActivityId)
 
   /**
    * The activity just written, until it has been seen (L3).
@@ -118,6 +124,16 @@ export function ActivityList({
   useEffect(() => {
     if (created && placed) row.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [created, placed])
+
+  /** The row linked to from the overview, once its page has arrived. Same
+   *  `ref` as the freshly written one: only one of the two can be in play. */
+  const linked =
+    openActivityId !== undefined &&
+    [...upcoming, ...past].some((entry) => entry.id === openActivityId)
+
+  useEffect(() => {
+    if (linked) row.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [linked])
 
   const sections = [
     { label: strings.activity.sectionUpcoming, rows: upcoming, past: false },
@@ -176,7 +192,7 @@ export function ActivityList({
             return (
               <div
                 key={activity.id}
-                ref={isNew ? row : null}
+                ref={isNew || activity.id === openActivityId ? row : null}
                 className={cn(
                   'mb-2 overflow-hidden rounded-[10px] border bg-card',
                   open && 'border-primary',

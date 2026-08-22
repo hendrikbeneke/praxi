@@ -24,6 +24,7 @@ export function ContactPicker({
   inputId,
   value,
   locked,
+  compact = false,
   onChange,
 }: {
   inputId: string
@@ -31,6 +32,11 @@ export function ContactPicker({
   /** The contact of an existing activity never changes, and neither does the
    *  one the dialog was opened from. */
   locked: boolean
+  /** A chosen contact as the L5 images draw it inside the relation form: the
+   *  name and a bare ✕ at the right, no contact number and no word on the
+   *  button. The dialogs keep the labelled version — there the field stands
+   *  alone and the number is worth the space. */
+  compact?: boolean
   onChange: (contactId: string | null) => void
 }) {
   const [term, setTerm] = useState('')
@@ -58,7 +64,7 @@ export function ContactPicker({
         <span className="truncate text-sm">
           {selected.data ? formatContactNameSorted(selected.data) : strings.status.loading}
         </span>
-        {selected.data && (
+        {selected.data && !compact && (
           <span className="whitespace-nowrap text-muted-foreground text-xs tabular-nums">
             {strings.contact.contactNumber} {selected.data.contactNumber}
           </span>
@@ -71,8 +77,9 @@ export function ContactPicker({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size={compact ? 'icon' : 'sm'}
             className="ml-auto"
+            aria-label={compact ? strings.activity.contactChange : undefined}
             onClick={() => {
               setTerm('')
               setActive(0)
@@ -80,7 +87,7 @@ export function ContactPicker({
             }}
           >
             <X className="size-4" aria-hidden />
-            {strings.activity.contactChange}
+            {!compact && strings.activity.contactChange}
           </Button>
         )}
       </div>

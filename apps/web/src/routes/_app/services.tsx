@@ -40,7 +40,7 @@ function ServicesPage() {
   return (
     // The whole page is capped, header included — where the prototype
     // puts it on the three list screens (K1).
-    <ContentWidth max={1180}>
+    <ContentWidth>
       {/* The explanation and the "Neu" button live in the page header, where the
           design puts them — the third slot came with K1. Before that they had
           moved into the list card, which gave that card a title bar the design

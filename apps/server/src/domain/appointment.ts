@@ -1,6 +1,6 @@
 import type { Appointment, AppointmentCreate, AppointmentPatch, CalendarEntry } from '@praxi/shared'
-import { formatContactName } from '@praxi/shared'
-import { and, asc, eq, gte, lt } from 'drizzle-orm'
+import { formatContactName, SLOT_RELEASING_STATUSES } from '@praxi/shared'
+import { and, asc, eq, gte, inArray, lt, not } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { activity, appointment, contact } from '../db/schema.js'
 import { newId } from '../id.js'
@@ -22,19 +22,17 @@ import { enqueueDelete, enqueueUpsert } from './google-sync.js'
  */
 
 /**
- * Everything in `[from, to)`, with just enough of the contact to paint a
- * calendar without a second round trip.
+ * One shape for every way a calendar entry is asked for — by date range for
+ * the calendar, by contact for the record — because they differ in nothing but
+ * their `WHERE` and their order. Two spellings of one join is how the four
+ * activity columns end up meaning something slightly different in one of them.
  *
- * Cancelled entries come along: the calendar has to be able to show them
- * greyed out, and hiding them would make a slot look free while the record of
- * the cancellation is what the practitioner is looking for.
+ * Both joins are left, not inner: an appointment without a contact is a
+ * calendar entry like any other, and an inner join would drop every blocker
+ * silently — the worst kind of wrong, because the time still looks free.
  */
-export async function listCalendarEntries(
-  database: Database,
-  tenantId: string,
-  range: { from: string; to: string },
-): Promise<CalendarEntry[]> {
-  const rows = await database
+function entryQuery(database: Database) {
+  return database
     .select({
       id: appointment.id,
       contactId: appointment.contactId,
@@ -46,6 +44,7 @@ export async function listCalendarEntries(
       activityId: activity.id,
       activityType: activity.type,
       activityStatus: activity.status,
+      activityTitle: activity.title,
       contactNumber: contact.contactNumber,
       kind: contact.kind,
       title_: contact.title,
@@ -54,22 +53,14 @@ export async function listCalendarEntries(
       companyName: contact.companyName,
     })
     .from(appointment)
-    // Left, not inner: an appointment without a contact is a calendar entry
-    // like any other, and an inner join would drop every blocker from the
-    // calendar silently — the worst kind of wrong, because the time still
-    // looks free.
     .leftJoin(contact, eq(contact.id, appointment.contactId))
     .leftJoin(activity, eq(activity.appointmentId, appointment.id))
-    .where(
-      and(
-        eq(appointment.tenantId, tenantId),
-        gte(appointment.startsAt, new Date(range.from)),
-        lt(appointment.startsAt, new Date(range.to)),
-      ),
-    )
-    .orderBy(asc(appointment.startsAt))
+}
 
-  return rows.map((row) => ({
+type EntryRow = Awaited<ReturnType<typeof entryQuery>>[number]
+
+function toEntry(row: EntryRow): CalendarEntry {
+  return {
     id: row.id,
     contactId: row.contactId,
     startsAt: row.startsAt.toISOString(),
@@ -82,6 +73,7 @@ export async function listCalendarEntries(
     // from the catalogue it has loaded anyway.
     activityType: row.activityType,
     activityStatus: row.activityStatus,
+    activityTitle: row.activityTitle,
     contactNumber: row.contactNumber,
     // One implementation of the name, shared with the client and with the
     // invoice snapshot in slice 6. Null where there is nobody to name — the
@@ -96,7 +88,98 @@ export async function listCalendarEntries(
             lastName: row.lastName,
             companyName: row.companyName,
           }),
-  }))
+  }
+}
+
+/**
+ * Everything in `[from, to)`, with just enough of the contact to paint a
+ * calendar without a second round trip.
+ *
+ * Cancelled entries come along: the calendar has to be able to show them
+ * greyed out, and hiding them would make a slot look free while the record of
+ * the cancellation is what the practitioner is looking for.
+ */
+export async function listCalendarEntries(
+  database: Database,
+  tenantId: string,
+  range: { from: string; to: string },
+): Promise<CalendarEntry[]> {
+  const rows = await entryQuery(database)
+    .where(
+      and(
+        eq(appointment.tenantId, tenantId),
+        gte(appointment.startsAt, new Date(range.from)),
+        lt(appointment.startsAt, new Date(range.to)),
+      ),
+    )
+    .orderBy(asc(appointment.startsAt))
+
+  return rows.map(toEntry)
+}
+
+/**
+ * Every appointment of one contact, for the Termine tab of their record (L5).
+ *
+ * **Read from `appointment`, not from the contact's activities.** That is the
+ * whole point of the query: the tab used to derive its rows from the Vorgang
+ * list and keep the ones that had a Termin, so an appointment belonging to
+ * this contact but to no activity — possible since D-K1 — was missing from the
+ * one screen that claims to list them.
+ *
+ * Ordered the way the Vorgang list is (L3): what is still ahead first and
+ * ascending, what is behind after it and descending. Unpaged, unlike that
+ * list — the tab has never paged and nothing here changes that.
+ */
+export async function listContactAppointments(
+  database: Database,
+  tenantId: string,
+  contactId: string,
+  now: Date,
+): Promise<CalendarEntry[]> {
+  const rows = await entryQuery(database)
+    .where(and(eq(appointment.tenantId, tenantId), eq(appointment.contactId, contactId)))
+    .orderBy(asc(appointment.startsAt))
+
+  const entries = rows.map(toEntry)
+  const iso = now.toISOString()
+  const upcoming = entries.filter((entry) => entry.startsAt >= iso)
+  const past = entries.filter((entry) => entry.startsAt < iso).reverse()
+
+  return [...upcoming, ...past]
+}
+
+/**
+ * The contact's next appointment, or null — the number the record's overview
+ * is opened for.
+ *
+ * **A released slot is not the next appointment.** `SLOT_RELEASING_STATUSES`
+ * decides that, the same list the free-slot finder and the calendar's
+ * strike-through read; a cancelled entry stays visible in the calendar and in
+ * the Termine tab, because there the question is what happened, and it is
+ * skipped here, because here the question is when this person is next in.
+ *
+ * Its own query rather than the first row of `listContactAppointments`: the
+ * overview would otherwise pull a whole treatment history to name one date.
+ */
+export async function nextContactAppointment(
+  database: Database,
+  tenantId: string,
+  contactId: string,
+  now: Date,
+): Promise<CalendarEntry | null> {
+  const [row] = await entryQuery(database)
+    .where(
+      and(
+        eq(appointment.tenantId, tenantId),
+        eq(appointment.contactId, contactId),
+        gte(appointment.startsAt, now),
+        not(inArray(appointment.status, [...SLOT_RELEASING_STATUSES])),
+      ),
+    )
+    .orderBy(asc(appointment.startsAt))
+    .limit(1)
+
+  return row ? toEntry(row) : null
 }
 
 /** The appointment as it is stored — what the create and patch calls answer

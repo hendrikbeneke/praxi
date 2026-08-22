@@ -54,7 +54,7 @@ function NewContactPage() {
       <div className="px-8 pt-6 pb-11">
         {/* Creating is the one place roles travel with the master data: nothing
             else can be editing them yet, so there is nothing to overwrite. */}
-        <ContentWidth max={1100}>
+        <ContentWidth>
           <ContactForm
             onSubmit={(input, roles) => mutation.mutate({ ...input, roles })}
             onCancel={() => void navigate({ to: '/contacts' })}

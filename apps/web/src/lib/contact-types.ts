@@ -130,6 +130,21 @@ export async function addRelation(
   return res.json()
 }
 
+/** The complete statement again, not a patch: the kind and the counterpart
+ *  together are the relation — see `contactRelationInputSchema`. */
+export async function saveRelation(
+  contactId: string,
+  relationId: string,
+  input: ContactRelationInput,
+): Promise<ContactRelation> {
+  const res = await api.api.contacts[':contactId'].relations[':relationId'].$put({
+    param: { contactId, relationId },
+    json: input,
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
 export async function removeRelation(contactId: string, relationId: string): Promise<void> {
   const res = await api.api.contacts[':contactId'].relations[':relationId'].$delete({
     param: { contactId, relationId },

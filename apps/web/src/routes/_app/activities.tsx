@@ -224,7 +224,7 @@ function ActivitiesPage() {
       <div className="px-8 pt-[18px] pb-12">
         {/* Only the list is capped; the band above runs to the window edge,
             which is what carries its full-width rule (K1). */}
-        <ContentWidth max={1180}>
+        <ContentWidth>
           <ActivityList
             upcoming={upcoming.data ?? []}
             past={past.data?.pages.flatMap((page) => page.items) ?? []}

@@ -6,10 +6,12 @@
  * eight screens the design caps a block **inside** the page rather than the
  * page itself. Vorgänge caps its list but lets the filter band run to the
  * window edge — which is what puts that full-width rule under it — and
- * Kontaktdetail caps the tab content but not the header and tab row, which is
+ * Kontaktdetail caps its tab content but not the header and tab row, which is
  * what lets the tab underline span the whole field. A single number per route
- * would have quietly taken both away. The cap is `ContentWidth` instead, used
- * where the design puts it.
+ * would have quietly taken both away, and L5 added a third reason: the cap on
+ * Kontaktdetail differs **per tab**, because the Übersicht spreads its cards
+ * over the whole field while every other tab is a column of text. The cap is
+ * `ContentWidth` instead, used where the design puts it.
  *
  * Values measured in the prototype, not read off the handoff README: the
  * README of `docs/design-abgleich/` had them wrong, because they came out of a

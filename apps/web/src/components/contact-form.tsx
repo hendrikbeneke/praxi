@@ -9,6 +9,7 @@ import {
   formatBerlinDate,
 } from '@praxi/shared'
 import { useQuery } from '@tanstack/react-query'
+import { type LucideIcon, Mail, Phone } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { DateField } from '@/components/date-field'
@@ -171,10 +172,10 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
  * The master data of a contact — one card of titled sections, as the design
  * lays it out on the record and on the create screen alike.
  *
- * Roles are part of it on both, in read mode as badges with a line naming the
- * ones this contact does *not* hold. Until K6 they lived in a pencil popover in
- * the page header, which was a second way to the same data and is gone.
- * Relations never belong here — they are on the overview.
+ * Roles are part of it on both, as badges in read mode and as checkboxes in
+ * edit mode. Until K6 they lived in a pencil popover in the page header, which
+ * was a second way to the same data and is gone. Relations never belong here —
+ * they are on the overview.
  *
  * `editing` is false by default on an existing contact: the record is read
  * first and changed rarely, and a page full of live inputs invites a stray
@@ -221,7 +222,6 @@ export function ContactForm({
   }))
 
   const chosen = new Set(roles.map((entry) => entry.roleTypeId))
-  const unassigned = roleTypes.filter((type) => !chosen.has(type.id))
 
   const toggleRole = (typeId: string, checked: boolean) => {
     // "seit" is recorded but not shown: on the day a role is ticked, today is
@@ -357,7 +357,14 @@ export function ContactForm({
         >
           <SectionField>
             {!editing ? (
-              <>
+              /* The badges, and where there are none a sentence. The line
+                 naming the roles this contact does *not* hold went in L5: it
+                 stands in the design image and was not wanted — it listed the
+                 whole catalogue minus one under every record, and read as a
+                 reproach rather than as an answer. */
+              chosen.size === 0 ? (
+                <p className="text-[13px] text-muted-foreground">{strings.contact.rolesNone}</p>
+              ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   {roleTypes
                     .filter((type) => chosen.has(type.id))
@@ -367,17 +374,7 @@ export function ContactForm({
                       </Badge>
                     ))}
                 </div>
-                {/* Which roles this contact does not hold is worth a line: it
-                    is the difference between "not a patient" and "nobody has
-                    got round to ticking it". */}
-                <p className="mt-2 text-[13px] text-muted-foreground">
-                  {chosen.size === 0
-                    ? strings.contact.rolesNone
-                    : unassigned.length > 0
-                      ? strings.contact.rolesUnassigned(unassigned.map((type) => type.label))
-                      : ''}
-                </p>
-              </>
+              )
             ) : (
               /* Three fixed columns, not `auto-fit`: the record prototype sets
                  them, and at this width `auto-fit` happens to give three too —
@@ -555,12 +552,21 @@ export function ContactForm({
           title={strings.contact.sectionContact}
           hint={strings.contact.sectionContactHint}
         >
+          {/* The symbol at the right of each of the three is the click target
+              (L5) — `mailto:` and `tel:`, not the value itself: an address one
+              means to select and copy must not open a mail client on the way.
+              It appears only where there is something to reach. */}
           <Field
             span={6}
             className="sm:col-start-1"
             id="email"
             editing={editing}
             readValue={contact?.email}
+            readAction={
+              contact?.email
+                ? { href: `mailto:${contact.email}`, icon: Mail, label: strings.contact.writeMail }
+                : undefined
+            }
             type="email"
             label={strings.contact.email}
             error={errors.email && strings.validation.email}
@@ -571,6 +577,15 @@ export function ContactForm({
             id="phoneMobile"
             editing={editing}
             readValue={contact?.phoneMobile}
+            readAction={
+              contact?.phoneMobile
+                ? {
+                    href: `tel:${contact.phoneMobile}`,
+                    icon: Phone,
+                    label: strings.contact.callNumber,
+                  }
+                : undefined
+            }
             type="tel"
             label={strings.contact.phoneMobile}
             {...form.register('phoneMobile')}
@@ -580,6 +595,15 @@ export function ContactForm({
             id="phoneLandline"
             editing={editing}
             readValue={contact?.phoneLandline}
+            readAction={
+              contact?.phoneLandline
+                ? {
+                    href: `tel:${contact.phoneLandline}`,
+                    icon: Phone,
+                    label: strings.contact.callNumber,
+                  }
+                : undefined
+            }
             type="tel"
             label={strings.contact.phoneLandline}
             {...form.register('phoneLandline')}
@@ -701,6 +725,10 @@ type FieldProps = React.ComponentProps<typeof Input> & {
   error?: string | undefined
   editing: boolean
   readValue?: string | null | undefined
+  /** A way to *use* the value, drawn as a symbol at the right of the column in
+   *  read mode only — writing to an address, calling a number. Reading is
+   *  allowed in read mode; this changes nothing about the record. */
+  readAction?: { href: string; icon: LucideIcon; label: string } | undefined
   span?: 3 | 4 | 5 | 6 | 7 | 9 | 12
   className?: string
   /** Draws the asterisk the design puts on the two fields the check
@@ -722,9 +750,12 @@ function Field({
   className,
   editing,
   readValue,
+  readAction,
   required,
   ...input
 }: FieldProps) {
+  const ActionIcon = readAction?.icon
+
   return (
     <SectionField span={span} className={className}>
       <Label htmlFor={editing ? id : undefined}>
@@ -737,7 +768,19 @@ function Field({
           {error && <p className="mt-1 text-destructive text-sm">{error}</p>}
         </>
       ) : (
-        <ReadValue>{readValue}</ReadValue>
+        <div className="flex items-center gap-3">
+          <ReadValue className="min-w-0 flex-1 break-words">{readValue}</ReadValue>
+          {readAction && ActionIcon && (
+            <a
+              className="mt-2 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              href={readAction.href}
+              aria-label={readAction.label}
+              title={readAction.label}
+            >
+              <ActionIcon className="size-4" aria-hidden />
+            </a>
+          )}
+        </div>
       )}
     </SectionField>
   )

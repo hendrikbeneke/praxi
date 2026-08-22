@@ -47,7 +47,7 @@ function PaymentsPage() {
   return (
     // The whole page is capped, header included — where the prototype
     // puts it on the three list screens (K1).
-    <ContentWidth max={1180}>
+    <ContentWidth>
       <Tabs
         value={tab}
         onValueChange={(value) =>

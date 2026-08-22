@@ -162,15 +162,20 @@ export type Activity = z.infer<typeof activitySchema>
  *
  * The activity's type travels as its `code`, not as a label and not as a
  * colour — the client has the catalogue loaded for the filter anyway, and
- * resolving it there keeps one source for both. Both activity columns are null
- * only for an appointment without an activity, which the application cannot
- * produce today (every appointment comes into being with its activity) but the
- * left join admits.
+ * resolving it there keeps one source for both. All four activity columns are
+ * null on a free-standing appointment — a blocker, documentation time, a team
+ * meeting, which `POST /api/appointments` has produced since D-K1.
  */
 export const calendarEntrySchema = appointmentSchema.extend({
   activityId: z.uuid().nullable(),
   activityType: z.string().nullable(),
   activityStatus: activityStatusSchema.nullable(),
+  /** The Vorgang's own title, which is a different column from the
+   *  appointment's `title` above: an appointment created together with its
+   *  activity carries none of its own. Read by the contact's overview, which
+   *  names the next appointment the way every other screen names a Vorgang —
+   *  `activityLabel()`, title before type label. */
+  activityTitle: z.string().nullable(),
   /** Both null on an appointment that belongs to nobody. What the block then
    *  shows is its title — which is why a bare appointment has one. */
   contactNumber: z.number().int().nullable(),

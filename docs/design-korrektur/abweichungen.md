@@ -340,3 +340,26 @@ geschrieben, sondern als `color-mix` gegen die Token — `primary 8 %` in der Ko
 `primary 3 %` in der Spalte, `muted 55 %` außerhalb der Öffnungszeiten. Der Grund ist das
 dunkle Thema: eine Deckkraft auf einem hellen Grund ergibt dort einen hellen Fleck, eine
 Mischung mit `--card` nicht.
+
+---
+
+## L5 — Die Diagnose steht in den Stammdaten, im Bild steht sie nicht
+
+Die vier Stammdaten-Bilder aus `docs/design-korrektur-2/02 - Kontakte/` haben keinen Abschnitt
+„Diagnose" — weder im Lese- noch im Bearbeitungsmodus, und beide reichen bis ans Ende der Karte,
+„Intern" ist darunter zu sehen. Gebaut steht der Abschnitt trotzdem da, zwischen „Kontakt" und
+„Intern".
+
+**Der Grund ist nicht Optik, sondern die Kette dahinter.** `contact.diagnosis` ist der Ort, an
+dem die Diagnose *gepflegt* wird; `invoice.diagnosis` wird beim Anlegen eines Entwurfs von dort
+vorbelegt und ist danach für diese eine Rechnung frei. Ohne den Abschnitt gäbe es keinen Weg
+mehr, den Wert am Kontakt zu setzen, und die Vorbelegung liefe dauerhaft ins Leere. Das Design
+ist an dieser Stelle älter als das Feld (D1).
+
+Eigener Abschnitt und nicht in „Intern" gefaltet: ein Gesundheitsdatum nach Art. 9 DSGVO darf
+nicht zwischen internen Notizen verschwinden. Es erscheint weiterhin nur hier, im
+Rechnungsentwurf und auf der Rechnung — nie in einer Liste, nie im Log (Regel 12).
+
+**Zurückdrehen heißt:** den `!creating &&`-Block mit `strings.contact.diagnosis` aus
+`components/contact-form.tsx` entfernen. Das Feld selbst und `invoice.diagnosis` bleiben davon
+unberührt — dann aber ohne Pflegeort.

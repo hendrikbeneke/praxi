@@ -186,6 +186,8 @@ Both sets are **configurable**. `contact_role_type` and `contact_relation_type` 
 
 **Direction of a relation**: `from` is the contact in whose record the fact is a property *of that contact*, `to` is the counterpart. A child is the `from` of `guardian`, a patient is the `from` of `billing_recipient`. This is not cosmetic — `is_exclusive` is enforced per `from_contact_id`, so with the convention exclusivity always reads as "this contact has at most one X", and the next exclusive type needs no fresh thinking. `parent_of` is the deliberate exception: with kinship neither side owns the fact, and "Elternteil von / Kind von" is the more common reading direction.
 
+**A relation is changed by rewriting it, in one transaction** (`updateRelation`, L5). Not by an UPDATE: which two contacts hold the row and in which order depends on the type — a symmetric one is normalized, a directed one takes the side `direction` names — so an edit can move every column at once. The transaction is what makes the swap safe on an exclusive type: the old billing recipient is gone and the new one is there, or neither happened. `contactRelationInputSchema` therefore carries no `replace` flag and no partial patch; adding and changing send the same complete statement, because the type and the counterpart together *are* the relation.
+
 `label_forward` is what the `from` contact's record says about the `to` contact, `label_inverse` the other way round. A symmetric type has no inverse label and reads the same from both sides; it is still stored once, with the ends in a fixed order so the reverse duplicate collides.
 
 Every contact gets a sequential `contact_number` on creation, regardless of role. There is no separate patient number.

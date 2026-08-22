@@ -9,6 +9,8 @@ import {
   createAppointment,
   deleteAppointment,
   listCalendarEntries,
+  listContactAppointments,
+  nextContactAppointment,
   updateAppointment,
 } from './appointment.js'
 import { createContact } from './contact.js'
@@ -467,5 +469,109 @@ describe('the calendar view', () => {
         to: AT('2026-09-07T00:00:00Z'),
       }),
     ).toEqual([])
+  })
+})
+
+/**
+ * The two queries the contact's record asks (L5). Both read `appointment` and
+ * neither goes through the activity list — which is exactly the bug they exist
+ * to close: an appointment that belongs to this contact but to no Vorgang was
+ * invisible on both screens.
+ */
+describe('the appointments of one contact', () => {
+  const NOW = new Date('2026-09-05T12:00:00Z')
+
+  it('carry the free-standing ones too, and the Vorgang title with them', async () => {
+    await createActivity(db(), tenantId, {
+      ...booking('2026-09-10T08:00:00Z', '2026-09-10T09:00:00Z'),
+      title: 'Anamnese und Zielklärung',
+    })
+    await createAppointment(db(), tenantId, {
+      contactId,
+      startsAt: AT('2026-09-12T08:00:00Z'),
+      endsAt: AT('2026-09-12T09:00:00Z'),
+      status: 'planned',
+      title: 'Rückruf',
+      note: null,
+    })
+
+    const entries = await listContactAppointments(db(), tenantId, contactId, NOW)
+
+    expect(entries).toHaveLength(2)
+    expect(entries[0]?.activityTitle).toBe('Anamnese und Zielklärung')
+    expect(entries[1]).toMatchObject({ activityId: null, activityTitle: null, title: 'Rückruf' })
+  })
+
+  it('come back ahead-ascending and behind-descending, like the Vorgang list', async () => {
+    await createActivity(db(), tenantId, booking('2026-09-20T08:00:00Z', '2026-09-20T09:00:00Z'))
+    await createActivity(db(), tenantId, booking('2026-09-10T08:00:00Z', '2026-09-10T09:00:00Z'))
+    await createActivity(db(), tenantId, booking('2026-08-20T08:00:00Z', '2026-08-20T09:00:00Z'))
+    await createActivity(db(), tenantId, booking('2026-08-30T08:00:00Z', '2026-08-30T09:00:00Z'))
+
+    const entries = await listContactAppointments(db(), tenantId, contactId, NOW)
+
+    expect(entries.map((entry) => entry.startsAt.slice(0, 10))).toEqual([
+      '2026-09-10',
+      '2026-09-20',
+      '2026-08-30',
+      '2026-08-20',
+    ])
+  })
+
+  it('leave another contact out', async () => {
+    const other = (await createContact(db(), tenantId, person({ lastName: 'Testzweit' }))).id
+    await createActivity(
+      db(),
+      tenantId,
+      booking('2026-09-10T08:00:00Z', '2026-09-10T09:00:00Z', { contactId: other }),
+    )
+
+    expect(await listContactAppointments(db(), tenantId, contactId, NOW)).toEqual([])
+  })
+})
+
+describe('the next appointment of one contact', () => {
+  const NOW = new Date('2026-09-05T12:00:00Z')
+
+  it('is the nearest one still ahead, free-standing or not', async () => {
+    await createActivity(db(), tenantId, booking('2026-09-20T08:00:00Z', '2026-09-20T09:00:00Z'))
+    await createAppointment(db(), tenantId, {
+      contactId,
+      startsAt: AT('2026-09-08T08:00:00Z'),
+      endsAt: AT('2026-09-08T09:00:00Z'),
+      status: 'planned',
+      title: 'Rückruf',
+      note: null,
+    })
+
+    const next = await nextContactAppointment(db(), tenantId, contactId, NOW)
+    expect(next).toMatchObject({ title: 'Rückruf', activityId: null })
+  })
+
+  /** A released slot is not the next appointment — the one place where the
+   *  contact's record and the calendar deliberately answer differently. */
+  it('skips a cancelled slot and takes the one behind it', async () => {
+    await createActivity(
+      db(),
+      tenantId,
+      booking('2026-09-08T08:00:00Z', '2026-09-08T09:00:00Z', { status: 'cancelled' }),
+    )
+    await createActivity(db(), tenantId, booking('2026-09-20T08:00:00Z', '2026-09-20T09:00:00Z'))
+
+    const next = await nextContactAppointment(db(), tenantId, contactId, NOW)
+    expect(next?.startsAt.slice(0, 10)).toBe('2026-09-20')
+  })
+
+  it('is null when everything lies behind', async () => {
+    await createActivity(db(), tenantId, booking('2026-08-20T08:00:00Z', '2026-08-20T09:00:00Z'))
+
+    expect(await nextContactAppointment(db(), tenantId, contactId, NOW)).toBeNull()
+  })
+
+  it('shows only its own tenant', async () => {
+    const otherTenant = await createTenant(db())
+    await createActivity(db(), tenantId, booking('2026-09-20T08:00:00Z', '2026-09-20T09:00:00Z'))
+
+    expect(await nextContactAppointment(db(), otherTenant, contactId, NOW)).toBeNull()
   })
 })

@@ -323,16 +323,22 @@ export const strings = {
     allRolesTab: 'Alle',
     noRoles: 'Keine Rolle zugewiesen',
 
-    relations: 'Beziehungen',
-    relationsEmpty: 'Keine Beziehungen hinterlegt.',
+    writeMail: 'E-Mail schreiben',
+    callNumber: 'Nummer anrufen',
+
+    relations: 'Verknüpfte Kontakte',
+    relationsEmpty: 'Keine verknüpften Kontakte hinterlegt.',
     relationAdd: 'Beziehung hinzufügen',
     relationKind: 'Art der Beziehung',
+    relationKindChoose: 'Bitte wählen',
     relationOther: 'Kontakt',
-    relationSave: 'Hinzufügen',
+    relationActions: 'Aktionen',
+    relationSave: 'Speichern',
+    relationEdit: 'Beziehung bearbeiten',
     relationAdded: 'Beziehung hinzugefügt.',
+    relationSaved: 'Beziehung gespeichert.',
     relationRemoved: 'Beziehung entfernt.',
     relationRemove: 'Entfernen',
-    relationReplace: 'Ersetzen',
     relationTaken: 'bereits gesetzt',
     relationRemoveTitle: 'Beziehung entfernen?',
     relationRemoveBody:
@@ -371,10 +377,10 @@ export const strings = {
     sectionPersonHint: 'Geburtsdatum und Geschlecht stehen auf Rezept und Abrechnung.',
     sectionTax: 'Steuer',
     sectionTaxHint: 'Erscheint auf Rechnungen an diesen Kontakt.',
-    /** Read mode of the roles section: which ones this contact does *not*
-     *  hold. Empty when it holds all of them — there is nothing to name. */
-    rolesUnassigned: (labels: string[]) => `Nicht zugeordnet: ${labels.join(', ')}`,
-    /** The second half is the point: "no role" reads as a shortcoming and is
+    /** The read mode of the roles section says only what is missing, and only
+     *  when everything is (L5). `rolesUnassigned`, which listed the catalogue
+     *  minus this contact's roles, went with the line it filled.
+     *  The second half is the point: "no role" reads as a shortcoming and is
      *  none, but it does have a visible consequence. */
     rolesNone: 'Keine Rolle zugeordnet — der Kontakt taucht dadurch nur unter „Alle" auf.',
     masterReadHint: 'Stammdaten werden erst nach „Bearbeiten" änderbar.',

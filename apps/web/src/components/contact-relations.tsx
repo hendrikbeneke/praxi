@@ -7,7 +7,7 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Plus, X } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ContactPicker } from '@/components/contact-picker'
@@ -38,33 +38,40 @@ import {
   relationListQueryOptions,
   relationTypeListQueryOptions,
   removeRelation,
+  saveRelation,
 } from '@/lib/contact-types'
 import { strings } from '@/lib/strings'
 
 /**
- * The contacts this one is linked to (CLAUDE.md rule 4).
+ * The contacts this one is linked to (CLAUDE.md rule 4), as the L5 images draw
+ * it: a table with a header row, a pencil and a bin per row, and
+ * "+ Beziehung hinzufügen" at the foot.
  *
  * Both records show the same row, each with its own label, so this component
- * is the same on either end. It acts immediately: adding and removing a link
- * are single decisions, not a form to fill in and submit.
+ * is the same on either end.
  *
- * The billing recipient is pulled to the top and set off by a rule. It is the
- * one relation with a consequence — the invoice will go to them — and it reads
- * differently from "this is the mother". What actually decides the position is
- * that the type is exclusive, which is the same thing said generally: a type
- * a contact can only hold once is a type something depends on.
+ * **Flat, in catalogue order.** The billing recipient used to be pulled to the
+ * top and set off by a rule, on the argument that the one relation with a
+ * consequence reads differently from "this is the mother". The images say
+ * otherwise and they are the Vorgabe (L5). What is not cosmetic survives: an
+ * exclusive type this contact already holds stays disabled in the menu, so the
+ * refusal is a sentence in the dropdown rather than a unique violation.
+ *
+ * **A row is editable, and that is what replaced "Ersetzen".** Swapping the
+ * billing recipient is now what it always was — a change to the row that
+ * stands — and `updateRelation` rewrites it in one transaction, which is the
+ * guarantee the old `replace` flag existed for.
  */
 export function ContactRelations({ contactId }: { contactId: string }) {
   const queryClient = useQueryClient()
   const relations = useQuery(relationListQueryOptions(contactId))
   const types = useQuery(relationTypeListQueryOptions(true))
 
-  const [adding, setAdding] = useState(false)
-  const [option, setOption] = useState('')
-  const [otherContactId, setOtherContactId] = useState<string | null>(null)
-  /** Set when the row was opened by "Ersetzen": the new relation takes the
-   *  place of the existing one in a single request. */
-  const [replacing, setReplacing] = useState(false)
+  /** Which row the form stands in: an id while editing, `'new'` while adding,
+   *  null while the table is just a table. One at a time — the design shows no
+   *  screen with two open forms, and two would raise the question of what the
+   *  second one is for. */
+  const [editing, setEditing] = useState<string | null>(null)
 
   // Every type for the labels — a relation entered before its type was
   // deactivated still has to read correctly — but only the active ones are
@@ -76,26 +83,29 @@ export function ContactRelations({ contactId }: { contactId: string }) {
     await queryClient.invalidateQueries({ queryKey: ['contacts', 'relations'] })
   }
 
-  const closeRow = () => {
-    setAdding(false)
-    setOption('')
-    setOtherContactId(null)
-    setReplacing(false)
-  }
-
-  const add = useMutation({
-    mutationFn: (input: { code: string; direction: RelationDirection; other: string }) =>
-      addRelation(contactId, {
+  const save = useMutation({
+    mutationFn: (input: {
+      relationId: string | null
+      code: string
+      direction: RelationDirection
+      other: string
+    }) => {
+      const payload = {
         relationCode: input.code,
         direction: input.direction,
         otherContactId: input.other,
         since: todayInBerlin(),
-        replace: replacing,
-      }),
-    onSuccess: async () => {
+      }
+      return input.relationId === null
+        ? addRelation(contactId, payload)
+        : saveRelation(contactId, input.relationId, payload)
+    },
+    onSuccess: async (_saved, input) => {
       await invalidate()
-      closeRow()
-      toast.success(strings.contact.relationAdded)
+      setEditing(null)
+      toast.success(
+        input.relationId === null ? strings.contact.relationAdded : strings.contact.relationSaved,
+      )
     },
     onError: (error) =>
       toast.error(error instanceof ApiError ? error.message : strings.contact.relationFailed),
@@ -112,206 +122,261 @@ export function ContactRelations({ contactId }: { contactId: string }) {
   })
 
   const rows = relations.data ?? []
-  const billing = rows.filter((row) => isOwnedExclusive(row, typesByCode))
-  const rest = rows.filter((row) => !isOwnedExclusive(row, typesByCode))
 
-  /** An exclusive type this contact already holds cannot be added a second
+  /** An exclusive type this contact already owns cannot be taken a second
    *  time — the menu says so instead of letting the database say it. */
-  const takenCodes = new Set(billing.map((row) => row.relationCode))
-
-  const chosen = options.find((entry) => optionKey(entry) === option)
-  const canAdd = chosen !== undefined && otherContactId !== null
-
-  const openRow = (code?: string, direction?: RelationDirection) => {
-    setAdding(true)
-    setReplacing(code !== undefined)
-    setOption(code && direction ? optionKey({ code, direction }) : '')
-    setOtherContactId(null)
-  }
+  const takenCodes = new Set(
+    rows
+      .filter(
+        (row) =>
+          row.direction === 'forward' && Boolean(typesByCode.get(row.relationCode)?.isExclusive),
+      )
+      .map((row) => row.relationCode),
+  )
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
+      <CardHeader>
         <CardTitle>{strings.contact.relations}</CardTitle>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={strings.contact.relationAdd}
-          onClick={() => (adding ? closeRow() : openRow())}
-        >
-          <Plus className="size-4" aria-hidden />
-        </Button>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {rows.length === 0 && !adding && (
-          <p className="text-muted-foreground text-sm">
+      <CardContent className="px-0">
+        {/* One grid, one column definition, shared by the header and every row
+            — so a heading can never stand over a different column than the
+            values under it. */}
+        <div className="px-6 pb-2 text-[13px] text-muted-foreground">
+          <div className={ROW_GRID}>
+            <span>{strings.contact.relationKind}</span>
+            <span>{strings.contact.relationOther}</span>
+            <span className="text-right">{strings.contact.relationActions}</span>
+          </div>
+        </div>
+
+        {rows.length === 0 && editing !== 'new' && (
+          <p className="border-t px-6 py-4 text-muted-foreground text-sm">
             {relations.isPending ? strings.status.loading : strings.contact.relationsEmpty}
           </p>
         )}
 
-        {rows.length > 0 && (
-          <ul className="-mx-2">
-            {billing.map((relation) => (
-              <RelationRow
-                key={relation.id}
-                relation={relation}
-                type={typesByCode.get(relation.relationCode)}
-                onReplace={() => openRow(relation.relationCode, relation.direction)}
-                onRemove={() => remove.mutate(relation.id)}
-              />
-            ))}
-            {billing.length > 0 && rest.length > 0 && <li className="my-2 border-t" />}
-            {rest.map((relation) => (
-              <RelationRow
-                key={relation.id}
-                relation={relation}
-                type={typesByCode.get(relation.relationCode)}
-                onRemove={() => remove.mutate(relation.id)}
-              />
-            ))}
-          </ul>
-        )}
-
-        {adding &&
-          (options.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{strings.contact.relationNoTypes}</p>
-          ) : (
-            <div className="flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3">
-              <div className="w-56">
-                <Label htmlFor="relation-kind">{strings.contact.relationKind}</Label>
-                <Select value={option} onValueChange={setOption}>
-                  <SelectTrigger id="relation-kind" className="mt-2 w-full">
-                    <SelectValue placeholder={strings.contact.relationKind} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {options.map((entry) => {
-                      // Only the side this contact would own can be taken:
-                      // exclusivity counts per `from` contact.
-                      const taken =
-                        entry.direction === 'forward' &&
-                        takenCodes.has(entry.code) &&
-                        !(replacing && optionKey(entry) === option)
-
-                      return (
-                        <SelectItem
-                          key={optionKey(entry)}
-                          value={optionKey(entry)}
-                          disabled={taken}
-                        >
-                          {entry.label}
-                          {taken && ` — ${strings.contact.relationTaken}`}
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="min-w-64 flex-1">
-                <Label htmlFor="relation-contact">{strings.contact.relationOther}</Label>
-                <ContactPicker
-                  inputId="relation-contact"
-                  value={otherContactId}
-                  locked={false}
-                  onChange={setOtherContactId}
+        <ul>
+          {rows.map((relation) =>
+            editing === relation.id ? (
+              <li key={relation.id} className="border-t bg-muted/30 px-6 py-4">
+                <RelationForm
+                  options={options}
+                  takenCodes={takenCodes}
+                  relation={relation}
+                  pending={save.isPending}
+                  onCancel={() => setEditing(null)}
+                  onSave={(code, direction, other) =>
+                    save.mutate({ relationId: relation.id, code, direction, other })
+                  }
                 />
-              </div>
+              </li>
+            ) : (
+              <RelationRow
+                key={relation.id}
+                relation={relation}
+                type={typesByCode.get(relation.relationCode)}
+                onEdit={() => setEditing(relation.id)}
+                onRemove={() => remove.mutate(relation.id)}
+              />
+            ),
+          )}
+        </ul>
 
-              <div className="mb-1 flex gap-2">
-                <Button variant="ghost" onClick={closeRow}>
-                  {strings.contact.cancel}
-                </Button>
-                <Button
-                  disabled={!canAdd || add.isPending}
-                  onClick={() => {
-                    if (!chosen || !otherContactId) return
-                    add.mutate({
-                      code: chosen.code,
-                      direction: chosen.direction,
-                      other: otherContactId,
-                    })
-                  }}
-                >
-                  {replacing ? strings.contact.relationReplace : strings.contact.relationSave}
-                </Button>
-              </div>
+        {editing === 'new' ? (
+          <div className="px-6 pt-4">
+            {/* The new row is an inset box below the table, the edit form takes
+                the place of its row — both as the images have them. */}
+            <div className="rounded-[10px] border bg-muted/30 px-4 py-4">
+              <RelationForm
+                options={options}
+                takenCodes={takenCodes}
+                pending={save.isPending}
+                onCancel={() => setEditing(null)}
+                onSave={(code, direction, other) =>
+                  save.mutate({ relationId: null, code, direction, other })
+                }
+              />
             </div>
-          ))}
+          </div>
+        ) : (
+          editing === null && (
+            <div className="border-t px-4 pt-3">
+              <Button variant="ghost" onClick={() => setEditing('new')}>
+                <Plus className="size-4" aria-hidden />
+                {strings.contact.relationAdd}
+              </Button>
+            </div>
+          )
+        )}
       </CardContent>
     </Card>
   )
 }
 
+/** Measured off the images: the counterpart starts at roughly two fifths of
+ *  the card's content, the actions take what they need at the right. */
+const ROW_GRID = 'grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-4'
+
 function RelationRow({
   relation,
   type,
-  onReplace,
+  onEdit,
   onRemove,
 }: {
   relation: ContactRelation
   type: ContactRelationType | undefined
-  onReplace?: () => void
+  onEdit: () => void
   onRemove: () => void
 }) {
   return (
-    <li className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent/50">
+    <li className={`border-t px-6 ${ROW_GRID} py-1`}>
+      <span className="truncate text-muted-foreground text-sm">
+        {/* An unknown code should not happen — a type in use cannot be
+            deleted — so it falls back to the code rather than to nothing. */}
+        {type ? relationLabel(type, relation.direction) : relation.relationCode}
+      </span>
+
+      {/* Reading is allowed everywhere: the name leads to that contact's own
+          record, edit mode or not. */}
       <Link
-        className="flex flex-1 flex-wrap items-baseline gap-x-3"
+        className="truncate text-sm hover:underline"
         to="/contacts/$contactId"
         params={{ contactId: relation.otherContactId }}
       >
-        <span className="w-48 shrink-0 text-muted-foreground text-sm">
-          {/* An unknown code should not happen — a type in use cannot be
-              deleted — so it falls back to the code rather than to nothing. */}
-          {type ? relationLabel(type, relation.direction) : relation.relationCode}
-        </span>
-        <span className="font-medium">{relation.otherContactName}</span>
-        <span className="text-muted-foreground text-xs tabular-nums">
-          {relation.otherContactNumber}
-        </span>
+        {relation.otherContactName}
       </Link>
 
-      {onReplace && (
-        <Button variant="ghost" size="sm" onClick={onReplace}>
-          {strings.contact.relationReplace}
+      <span className="flex items-center justify-end gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={strings.contact.relationEdit}
+          onClick={onEdit}
+        >
+          <Pencil className="size-4" aria-hidden />
         </Button>
-      )}
 
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={strings.contact.relationRemove}>
-            <X className="size-4" aria-hidden />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{strings.contact.relationRemoveTitle}</AlertDialogTitle>
-            <AlertDialogDescription>{strings.contact.relationRemoveBody}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{strings.contact.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={onRemove}>
-              {strings.contact.relationRemove}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={strings.contact.relationRemove}>
+              <Trash2 className="size-4" aria-hidden />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{strings.contact.relationRemoveTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{strings.contact.relationRemoveBody}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{strings.contact.cancel}</AlertDialogCancel>
+              <AlertDialogAction onClick={onRemove}>
+                {strings.contact.relationRemove}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </span>
     </li>
   )
 }
 
 /**
- * True for a relation of an exclusive type that this contact owns — it is the
- * `from` end, the side the exclusivity is enforced on. Read from the type, not
- * from the relation: the mirrored column on the row exists for the index, not
- * for the screen.
+ * The kind and the counterpart, side by side — the same two fields whether a
+ * relation is being added or changed, because a change is not a patch: the two
+ * together *are* the relation (see `contactRelationInputSchema`).
  */
-function isOwnedExclusive(
-  relation: ContactRelation,
-  types: Map<string, ContactRelationType>,
-): boolean {
-  return relation.direction === 'forward' && Boolean(types.get(relation.relationCode)?.isExclusive)
+function RelationForm({
+  options,
+  takenCodes,
+  relation,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  options: { code: string; direction: RelationDirection; label: string }[]
+  takenCodes: Set<string>
+  /** Absent while adding. */
+  relation?: ContactRelation
+  pending: boolean
+  onSave: (code: string, direction: RelationDirection, otherContactId: string) => void
+  onCancel: () => void
+}) {
+  const [option, setOption] = useState(
+    relation ? optionKey({ code: relation.relationCode, direction: relation.direction }) : '',
+  )
+  const [otherContactId, setOtherContactId] = useState<string | null>(
+    relation?.otherContactId ?? null,
+  )
+
+  const chosen = options.find((entry) => optionKey(entry) === option)
+  const canSave = chosen !== undefined && otherContactId !== null
+
+  if (options.length === 0) {
+    return <p className="text-muted-foreground text-sm">{strings.contact.relationNoTypes}</p>
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="w-56">
+        <Label htmlFor="relation-kind">{strings.contact.relationKind}</Label>
+        <Select value={option} onValueChange={setOption}>
+          <SelectTrigger id="relation-kind" className="mt-2 w-full">
+            <SelectValue placeholder={strings.contact.relationKindChoose} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((entry) => {
+              // Only the side this contact would own can be taken: exclusivity
+              // counts per `from` contact. The row being edited keeps its own
+              // value selectable, or it could not be saved unchanged.
+              const taken =
+                entry.direction === 'forward' &&
+                takenCodes.has(entry.code) &&
+                optionKey(entry) !==
+                  (relation
+                    ? optionKey({ code: relation.relationCode, direction: relation.direction })
+                    : '')
+
+              return (
+                <SelectItem key={optionKey(entry)} value={optionKey(entry)} disabled={taken}>
+                  {entry.label}
+                  {taken && ` — ${strings.contact.relationTaken}`}
+                </SelectItem>
+              )
+            })}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="min-w-64 flex-1">
+        <Label htmlFor="relation-contact">{strings.contact.relationOther}</Label>
+        <ContactPicker
+          inputId="relation-contact"
+          value={otherContactId}
+          locked={false}
+          compact
+          onChange={setOtherContactId}
+        />
+      </div>
+
+      <div className="mb-1 flex gap-2">
+        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+          {strings.contact.cancel}
+        </Button>
+        <Button
+          disabled={!canSave || pending}
+          onClick={() => {
+            if (!chosen || !otherContactId) return
+            onSave(chosen.code, chosen.direction, otherContactId)
+          }}
+        >
+          {strings.contact.relationSave}
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 /** One option per side, so the value has to carry both. */

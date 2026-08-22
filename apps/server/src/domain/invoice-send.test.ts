@@ -331,7 +331,6 @@ describe('the recipient', () => {
       direction: 'forward',
       otherContactId: payer.id,
       since: null,
-      replace: false,
     })
 
     const resolved = await resolveRecipient(db(), tenantId, contactId)

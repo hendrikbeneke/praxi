@@ -97,12 +97,20 @@ export async function listRelations(
  * fixed order — otherwise the same fact could be stored twice, once each way,
  * and `contact_relation_pair_key` would not notice.
  */
-export async function addRelation(
+/**
+ * Which two contacts the row gets, and in which order.
+ *
+ * The type has to be looked up for one reason only: a symmetric relation is
+ * stored with its ends in a fixed order, so that entering it from either
+ * record collides with the unique key instead of producing a second row
+ * saying the same thing.
+ */
+async function endsOf(
   database: Database,
   tenantId: string,
   contactId: string,
   input: ContactRelationInput,
-): Promise<ContactRelation | null> {
+): Promise<{ fromContactId: string; toContactId: string }> {
   if (input.otherContactId === contactId) throw new SelfRelationError()
 
   const [type] = await database
@@ -126,50 +134,103 @@ export async function addRelation(
     ;[fromContactId, toContactId] = [toContactId, fromContactId]
   }
 
-  const row = await database.transaction(async (tx) => {
-    if (input.replace) {
-      /**
-       * Take the place of whatever the exclusivity index would collide with:
-       * same `from` contact, same type, and flagged exclusive. One transaction,
-       * because remove-then-add from the client leaves the contact without a
-       * billing recipient when the second call fails.
-       *
-       * A type that is not exclusive has no such row — `exclusive` is false on
-       * all of its relations — so nothing is removed and this is a plain add.
-       */
-      await tx
-        .delete(contactRelation)
-        .where(
-          and(
-            eq(contactRelation.tenantId, tenantId),
-            eq(contactRelation.fromContactId, fromContactId),
-            eq(contactRelation.relationCode, input.relationCode),
-            eq(contactRelation.exclusive, true),
-          ),
-        )
-    }
+  return { fromContactId, toContactId }
+}
 
-    const [inserted] = await tx
+/** The freshly written row as the record on this end sees it. */
+async function readBack(
+  database: Database,
+  tenantId: string,
+  contactId: string,
+  id: string,
+): Promise<ContactRelation | null> {
+  const relations = await listRelations(database, tenantId, contactId)
+  return relations.find((relation) => relation.id === id) ?? null
+}
+
+export async function addRelation(
+  database: Database,
+  tenantId: string,
+  contactId: string,
+  input: ContactRelationInput,
+): Promise<ContactRelation | null> {
+  const ends = await endsOf(database, tenantId, contactId, input)
+
+  const [inserted] = await database
+    .insert(contactRelation)
+    .values({
+      id: newId(),
+      tenantId,
+      ...ends,
+      relationCode: input.relationCode,
+      since: input.since,
+      // `exclusive` is left at its default on purpose — the
+      // `contact_relation_exclusive` trigger fills it from the type.
+    })
+    .returning({ id: contactRelation.id })
+
+  if (!inserted) return null
+  return readBack(database, tenantId, contactId, inserted.id)
+}
+
+/**
+ * Change an existing relation: another type, another counterpart, or both.
+ *
+ * **Delete and insert, in one transaction, rather than an UPDATE.** Which two
+ * contacts hold the row and in which order depends on the type — a symmetric
+ * one is normalized, a directed one takes the side `direction` names — so an
+ * edit can move every column of the row at once, and writing it as one insert
+ * keeps that resolution in `endsOf` instead of spreading it over an update
+ * statement. The transaction is what makes the swap safe on an exclusive type:
+ * the old billing recipient is gone and the new one is there, or neither
+ * happened. That guarantee is why `contactRelationInputSchema.replace` could
+ * be dropped — this is the same promise, made where the edit actually is.
+ *
+ * Returns null when the id names no relation of this contact.
+ */
+export async function updateRelation(
+  database: Database,
+  tenantId: string,
+  contactId: string,
+  id: string,
+  input: ContactRelationInput,
+): Promise<ContactRelation | null> {
+  const ends = await endsOf(database, tenantId, contactId, input)
+
+  const inserted = await database.transaction(async (tx) => {
+    // Either end may edit it — it is one fact, and both records show it.
+    const [removed] = await tx
+      .delete(contactRelation)
+      .where(
+        and(
+          eq(contactRelation.tenantId, tenantId),
+          eq(contactRelation.id, id),
+          or(
+            eq(contactRelation.fromContactId, contactId),
+            eq(contactRelation.toContactId, contactId),
+          ),
+        ),
+      )
+      .returning({ id: contactRelation.id })
+
+    if (!removed) return null
+
+    const [row] = await tx
       .insert(contactRelation)
       .values({
         id: newId(),
         tenantId,
-        fromContactId,
-        toContactId,
+        ...ends,
         relationCode: input.relationCode,
         since: input.since,
-        // `exclusive` is left at its default on purpose — the
-        // `contact_relation_exclusive` trigger fills it from the type.
       })
       .returning({ id: contactRelation.id })
 
-    return inserted
+    return row ?? null
   })
 
-  if (!row) return null
-
-  const relations = await listRelations(database, tenantId, contactId)
-  return relations.find((relation) => relation.id === row.id) ?? null
+  if (!inserted) return null
+  return readBack(database, tenantId, contactId, inserted.id)
 }
 
 /** Either end may remove the relation — it is one fact, and both records show

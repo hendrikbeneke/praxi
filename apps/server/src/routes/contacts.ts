@@ -11,6 +11,7 @@ import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
+import { listContactAppointments, nextContactAppointment } from '../domain/appointment.js'
 import {
   ContactKindChangeError,
   createContact,
@@ -26,6 +27,7 @@ import {
   listRelations,
   SelfRelationError,
   UnknownRelationTypeError,
+  updateRelation,
 } from '../domain/contact-relation.js'
 import { MissingNumberRangeError } from '../domain/counter.js'
 import { InvalidCursorError } from '../domain/keyset.js'
@@ -188,6 +190,33 @@ export const contactsRoute = new Hono<AppEnv>()
     },
   )
 
+  /**
+   * Change an existing relation — another kind, another counterpart, or both.
+   *
+   * A `PUT` and not a `PATCH`: the kind and the counterpart together *are* the
+   * relation, so what is sent is the complete statement, exactly what the
+   * `POST` above takes. `domain/contact-relation.ts` rewrites the row in one
+   * transaction.
+   */
+  .put(
+    '/:contactId/relations/:relationId',
+    validate('param', contactParam.extend({ relationId: z.uuid() })),
+    validate('json', contactRelationInputSchema),
+    async (c) => {
+      const param = c.req.valid('param')
+      const saved = await updateRelation(
+        db(),
+        tenantId(c),
+        param.contactId,
+        param.relationId,
+        c.req.valid('json'),
+      ).catch(translate)
+
+      if (!saved) throw new HTTPException(404, { message: messages.contact.relationNotFound })
+      return c.json(saved)
+    },
+  )
+
   .delete(
     '/:contactId/relations/:relationId',
     validate('param', contactParam.extend({ relationId: z.uuid() })),
@@ -198,3 +227,31 @@ export const contactsRoute = new Hono<AppEnv>()
       return c.body(null, 204)
     },
   )
+
+  /**
+   * The contact's calendar entries — every one of them, including the ones
+   * that belong to no Vorgang (L5). Hangs off the contact for the same reason
+   * the relations do: it is a question asked *of a record*, and the calendar's
+   * own route answers by date range.
+   */
+  .get('/:contactId/appointments', validate('param', contactParam), async (c) => {
+    const entries = await listContactAppointments(
+      db(),
+      tenantId(c),
+      c.req.valid('param').contactId,
+      new Date(),
+    )
+    return c.json(entries)
+  })
+
+  /** The one entry the record's overview names, or null. Its own route rather
+   *  than the first row of the list above — see the domain function. */
+  .get('/:contactId/appointments/next', validate('param', contactParam), async (c) => {
+    const entry = await nextContactAppointment(
+      db(),
+      tenantId(c),
+      c.req.valid('param').contactId,
+      new Date(),
+    )
+    return c.json(entry)
+  })

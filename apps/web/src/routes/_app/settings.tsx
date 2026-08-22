@@ -117,7 +117,7 @@ function SettingsPage() {
   return (
     // The whole page is capped here, header included — that is where the
     // prototype puts it on the three list screens (K1).
-    <ContentWidth max={1180}>
+    <ContentWidth>
       <PageHeader
         title={strings.settings.pageTitle}
         description={strings.settings.pageDescription}

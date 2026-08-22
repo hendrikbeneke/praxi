@@ -2647,6 +2647,76 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   ist, gibt es keine Vorliebe; das ist kein Aufblitzen, sondern die Reihenfolge.
 
 
+**L5, as built** — *Übersicht und Stammdaten*. Keine Migration.
+
+- **Der nächste Termin ist ein Termin, kein Vorgang mit Termin.** Die Karte las
+  die Vorgangsliste und behielt daraus die mit Kalendereintrag — ein
+  freistehender Termin (seit D-K1 möglich) war damit nie „der nächste", wie
+  nah er auch stand. `nextContactAppointment` fragt `appointment`, überspringt
+  die freigegebenen Status (`SLOT_RELEASING_STATUSES`) und antwortet mit einem
+  `CalendarEntry` oder `null`.
+- **Der Termine-Reiter hatte denselben Fehler** und ist derselbe Griff:
+  `listContactAppointments` liest ebenfalls `appointment`, sortiert wie die
+  Vorgangsliste (kommend aufsteigend, dann bisher absteigend) und zeigt damit
+  auch die Termine ohne Vorgang. Der Reiter bleibt — er fehlt in den Bildern,
+  das war ein Versehen, keine Entscheidung.
+- **`calendarEntrySchema` bekam `activityTitle`.** Eine Spalte des Left Joins,
+  die es schon gab: die Übersicht benennt einen Termin so, wie jeder andere
+  Bildschirm einen Vorgang benennt — `activityLabel()`, Titel vor Typlabel —
+  und ohne Vorgang steht dort der Titel des Termins. Nicht `entryName()` aus
+  `lib/calendar-entry.ts`: das fällt auf den Kontaktnamen zurück, der in der
+  Akte dieses Kontakts nichts sagt.
+- **„Abrechenbar" bietet den Weg immer an, solange etwas offen ist.** Vorher
+  erschien der Link nur, wenn schon ein Entwurf existierte — also gerade im
+  einen Fall nicht, für den er da ist. Zwei Beschriftungen, weil ein
+  Bedienelement keinen Zustand behaupten darf, den es nicht gibt: mit Entwurf
+  „Zum Rechnungsentwurf", ohne „Rechnung erstellen", was einen anlegt und
+  öffnet. Ziel bleibt vorerst die Rechnungsseite; L8 verlegt den Editor in den
+  Reiter und dreht dieses eine Ziel an einer Stelle um.
+- **„Letzte Vorgänge" springt in den Vorgänge-Reiter** und öffnet den Vorgang
+  dort im Lesemodus. Der Suchparameter `activityId` trägt das Ziel, weil ein
+  Link den Zurück-Knopf überleben muss; `useInlineDetail(initialOpenId)` nimmt
+  ihn als *Startzustand*, nicht als gesteuerten Wert — ab da ist ein Klick auf
+  eine andere Zeile das gewohnte Umschalten.
+- **Die Übersicht holt keine Historie mehr.** Sie fragte die kompletten
+  Vorgänge des Kontakts ungepaged, für den letzten und fünf Zeilen. Jetzt die
+  erste Seite von `past` — dieselbe Anfrage, die der Vorgänge-Reiter ohnehin
+  macht.
+- **Verknüpfte Kontakte, neu nach den Bildern:** Tabelle mit Kopfzeile (Art der
+  Beziehung · Kontakt · Aktionen), Stift und Papierkorb je Zeile,
+  „+ Beziehung hinzufügen" am Fuß. Bearbeiten ersetzt die Zeile an Ort und
+  Stelle, Neuanlegen erscheint als eingerückter Kasten darunter.
+- **`updateRelation` ersetzt `replace`.** Löschen und Einfügen in *einer*
+  Transaktion, kein UPDATE: welche zwei Kontakte die Zeile halten und in
+  welcher Reihenfolge, hängt an der Art (symmetrische werden normalisiert), also
+  kann eine Änderung jede Spalte bewegen. Genau diese Transaktion war die
+  Zusage, für die es `contactRelationInputSchema.replace` gab — der Fall
+  („Rechnungsempfänger austauschen") ist jetzt das Bearbeiten der Zeile, die
+  dasteht. Zwei Wege für eine Sache sind einer zu viel.
+- **Überstimmt:** die K-Entscheidung, den Rechnungsempfänger nach oben zu ziehen
+  und mit einer Linie abzusetzen. Die Bilder zeigen eine flache Liste in
+  Katalogreihenfolge. Was keine Kosmetik war, bleibt: eine exklusive Art, die
+  der Kontakt schon hält, ist im Menü gesperrt und sagt warum.
+- **Rollen im Lesemodus** zeigen nur noch die Abzeichen; die Zeile „Nicht
+  zugeordnet: …" entfällt (sie stand im Bild und war nicht gewollt — sie
+  listete unter jeder Akte den Katalog minus einen Eintrag). Ohne Rolle steht
+  dort ein Satz.
+- **E-Mail und Telefon sind im Lesemodus über das Symbol klickbar**, rechts in
+  der jeweiligen Spalte, `mailto:` und `tel:` — nicht der Wert selbst: eine
+  Adresse, die man markieren und kopieren will, darf unterwegs kein
+  Mailprogramm öffnen.
+- **Eine einzige Kappung im Produkt: 1180**, und sie ist eine *Inhaltsbreite*.
+  `ContentWidth` hatte zwei Werte, die zwei verschiedene Dinge bedeuteten —
+  1180 einschließlich der Seiteneinrückung (also 1116 Inhalt), 1100 als Inhalt.
+  Gemessen an den L5-Bildern läuft die Stammdatenkarte bei 1728 px Fenster von
+  268 bis 1447, und 268 ist das Ende von `px-8`. Der Prop entfällt; ein
+  Bildschirm ist entweder auf 1180 gekappt oder läuft über die volle Breite.
+  Die **Übersicht der Kontaktakte ist der zweite Fall** (268..1696), jeder
+  andere Reiter der erste. Nebenwirkung, gewollt: Einstellungen, Leistungen,
+  Zahlungen und die Vorgangsliste haben 64 px mehr Inhalt als vorher,
+  `contacts/new` 80 px.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

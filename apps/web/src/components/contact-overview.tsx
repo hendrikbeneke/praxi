@@ -3,6 +3,7 @@ import {
   activityLabel,
   activityTypeLabel,
   ageInYears,
+  type CalendarEntry,
   type Contact,
   countryName,
   formatBerlinDate,
@@ -15,17 +16,20 @@ import {
   invoicePaymentState,
   toBerlinDate,
 } from '@praxi/shared'
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { FileText, TriangleAlert } from 'lucide-react'
+import { toast } from 'sonner'
 import { ContactRelations } from '@/components/contact-relations'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { activityListQueryOptions } from '@/lib/activities'
+import { pastActivitiesQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
+import { ApiError } from '@/lib/api'
 import { relationListQueryOptions } from '@/lib/contact-types'
-import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
+import { nextAppointmentQueryOptions } from '@/lib/contacts'
+import { billableQueryOptions, createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
 import { countryListQueryOptions } from '@/lib/value-lists'
@@ -44,9 +48,13 @@ const RECENT_ACTIVITIES = 5
 export function ContactOverview({
   contact,
   onDocument,
+  onOpenActivity,
 }: {
   contact: Contact
   onDocument: (activity: Activity) => void
+  /** Into the Vorgänge tab, with that Vorgang open in read mode (L5). The
+   *  route owns it, because the target is a search param of the record. */
+  onOpenActivity: (activityId: string) => void
 }) {
   /* Three rows, as the design lays them out: the three summaries side by side,
      then the contact's details beside the recent activities — which get the
@@ -65,7 +73,7 @@ export function ContactOverview({
 
       <div className="grid items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
         <ContactDetails contact={contact} />
-        <RecentActivities contactId={contact.id} />
+        <RecentActivities contactId={contact.id} onOpen={onOpenActivity} />
       </div>
 
       <ContactRelations contactId={contact.id} />
@@ -190,8 +198,22 @@ function useActivityLabel(): (activity: Activity) => string {
 }
 
 /**
- * The next appointment and the last activity, the two ends of the thread. The
- * button next to the last one opens the note dialog with that activity already
+ * The next appointment and the last activity — and they are two different
+ * questions, which is why they come from two places (L5).
+ *
+ * **The Termin, with or without a Vorgang.** This block used to read the
+ * activity list and keep the entries that had an appointment, so a
+ * free-standing one — a call back, a slot held for this person, possible since
+ * D-K1 — was never the "next appointment" however near it stood.
+ * `nextContactAppointment` asks `appointment` instead. A released slot is
+ * skipped there, not here: which statuses give a slot back is a rule and
+ * belongs next to the query.
+ *
+ * **The Vorgang, with or without a Termin.** The last one that has happened,
+ * from the first page of the past — the same request the Vorgänge tab makes,
+ * so opening the record costs one query rather than a whole treatment history.
+ *
+ * The button next to it opens the note dialog with that activity already
  * filled in — documenting is what this record is usually opened for.
  */
 function ActivitySummary({
@@ -201,20 +223,13 @@ function ActivitySummary({
   contactId: string
   onDocument: (activity: Activity) => void
 }) {
-  const activities = useQuery(activityListQueryOptions({ contactId }))
+  const next = useQuery(nextAppointmentQueryOptions(contactId))
+  const past = useInfiniteQuery(pastActivitiesQueryOptions({ contactId }))
   const activityLabelOf = useActivityLabel()
+  const entryLabelOf = useEntryLabel()
   const now = new Date()
 
-  const rows = activities.data ?? []
-  const upcoming = rows
-    .filter((activity) => activity.appointment && activity.appointment.startsAt > now.toISOString())
-    .sort((a, b) => (a.appointment?.startsAt ?? '').localeCompare(b.appointment?.startsAt ?? ''))
-  const past = rows
-    .filter((activity) => activity.occurredAt <= now.toISOString())
-    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-
-  const next = upcoming[0]
-  const last = past[0]
+  const last = past.data?.pages[0]?.items[0]
 
   return (
     <Card>
@@ -222,50 +237,70 @@ function ActivitySummary({
         <CardTitle>{strings.contact.overviewThread}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        {activities.isPending ? (
-          <Pending />
-        ) : (
-          <>
-            <div>
-              <p className="text-[13px] text-muted-foreground">{strings.contact.nextAppointment}</p>
-              {next?.appointment ? (
-                <>
-                  {/* The one number this card is opened for, so the design sets
-                      it large. The day carries no year and does not need one:
-                      the relative line beside it says which week is meant. */}
-                  <p className="mt-1 font-semibold text-[19px] tracking-[-0.015em] tabular-nums">
-                    {formatBerlinDayTime(next.appointment.startsAt)}
-                  </p>
-                  <p className="text-[13px] text-muted-foreground">
-                    {formatRelativeDayBerlin(next.appointment.startsAt, now)} ·{' '}
-                    {activityLabelOf(next)}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-1 text-muted-foreground">{strings.contact.noNextAppointment}</p>
-              )}
-            </div>
+        <div>
+          <p className="text-[13px] text-muted-foreground">{strings.contact.nextAppointment}</p>
+          {next.isPending ? (
+            <Pending />
+          ) : next.data ? (
+            <>
+              {/* The one number this card is opened for, so the design sets it
+                  large. The day carries no year and does not need one: the
+                  relative line beside it says which week is meant. */}
+              <p className="mt-1 font-semibold text-[19px] tracking-[-0.015em] tabular-nums">
+                {formatBerlinDayTime(next.data.startsAt)}
+              </p>
+              <p className="text-[13px] text-muted-foreground">
+                {formatRelativeDayBerlin(next.data.startsAt, now)} · {entryLabelOf(next.data)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 text-muted-foreground">{strings.contact.noNextAppointment}</p>
+          )}
+        </div>
 
-            <div className="border-t pt-3">
-              <p className="text-[13px] text-muted-foreground">{strings.contact.lastActivity}</p>
-              {last ? (
-                <>
-                  <p className="mt-[3px] tabular-nums">{formatBerlinDateTime(last.occurredAt)}</p>
-                  <p className="mb-3 text-[13px] text-muted-foreground">{activityLabelOf(last)}</p>
-                  <Button className="w-full" onClick={() => onDocument(last)}>
-                    <FileText className="size-4" aria-hidden />
-                    {strings.contact.document}
-                  </Button>
-                </>
-              ) : (
-                <p className="mt-1 text-muted-foreground">{strings.activity.empty}</p>
-              )}
-            </div>
-          </>
-        )}
+        <div className="border-t pt-3">
+          <p className="text-[13px] text-muted-foreground">{strings.contact.lastActivity}</p>
+          {past.isPending ? (
+            <Pending />
+          ) : last ? (
+            <>
+              <p className="mt-[3px] tabular-nums">{formatBerlinDateTime(last.occurredAt)}</p>
+              <p className="mb-3 text-[13px] text-muted-foreground">{activityLabelOf(last)}</p>
+              <Button className="w-full" onClick={() => onDocument(last)}>
+                <FileText className="size-4" aria-hidden />
+                {strings.contact.document}
+              </Button>
+            </>
+          ) : (
+            <p className="mt-1 text-muted-foreground">{strings.activity.empty}</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
+}
+
+/**
+ * What a calendar entry is called on this card.
+ *
+ * With a Vorgang it is named the way every other screen names one —
+ * `activityLabel()`, its title before the label of its type. Without one there
+ * is nothing but the appointment's own title, which is exactly why a
+ * free-standing appointment has one.
+ *
+ * Deliberately *not* `entryName()` from `lib/calendar-entry.ts`: that one falls
+ * back to the contact's name, which inside the contact's own record would say
+ * nothing at all.
+ */
+function useEntryLabel(): (entry: CalendarEntry) => string {
+  const types = useQuery(activityTypeListQueryOptions(true))
+  return (entry) =>
+    entry.activityType === null
+      ? (entry.title ?? strings.appointment.untitled)
+      : activityLabel(
+          { title: entry.activityTitle },
+          activityTypeLabel(types.data, entry.activityType),
+        )
 }
 
 /**
@@ -273,8 +308,18 @@ function ActivitySummary({
  * undocumented session is the thing this practice most needs to see, so it is
  * marked and not merely left blank.
  */
-function RecentActivities({ contactId }: { contactId: string }) {
-  const activities = useQuery(activityListQueryOptions({ contactId }))
+function RecentActivities({
+  contactId,
+  onOpen,
+}: {
+  contactId: string
+  onOpen: (activityId: string) => void
+}) {
+  /* The first page of the past, newest first — the same request the card above
+     makes and the same one the Vorgänge tab makes, so all three share one
+     answer. It used to be the contact's whole history, unpaged, for five
+     rows. */
+  const past = useInfiniteQuery(pastActivitiesQueryOptions({ contactId }))
   const notes = useQuery(noteListQueryOptions({ contactId }))
   const activityLabelOf = useActivityLabel()
 
@@ -284,9 +329,7 @@ function RecentActivities({ contactId }: { contactId: string }) {
       .filter((activityId): activityId is string => activityId !== null),
   )
 
-  const rows = [...(activities.data ?? [])]
-    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-    .slice(0, RECENT_ACTIVITIES)
+  const rows = (past.data?.pages[0]?.items ?? []).slice(0, RECENT_ACTIVITIES)
 
   return (
     <Card>
@@ -294,26 +337,33 @@ function RecentActivities({ contactId }: { contactId: string }) {
         <CardTitle>{strings.contact.recentActivities}</CardTitle>
       </CardHeader>
       <CardContent>
-        {activities.isPending || notes.isPending ? (
+        {past.isPending || notes.isPending ? (
           <Pending />
         ) : rows.length === 0 ? (
           <p className="text-muted-foreground text-sm">{strings.activity.empty}</p>
         ) : (
           <ul className="-mx-2">
             {rows.map((activity) => (
-              <li
-                key={activity.id}
-                className="flex flex-wrap items-center gap-x-4 border-t px-1 py-2.5 text-sm first:border-t-0"
-              >
-                <span className="w-[104px] shrink-0 text-muted-foreground tabular-nums">
-                  {formatBerlinDate(activity.occurredAt)}
-                </span>
-                <span className="flex-1">{activityLabelOf(activity)}</span>
-                {documented.has(activity.id) ? (
-                  <Badge variant="secondary">{strings.contact.documented}</Badge>
-                ) : (
-                  <Badge variant="destructive">{strings.contact.notDocumented}</Badge>
-                )}
+              <li key={activity.id} className="border-t first:border-t-0">
+                {/* A row leads into the Vorgänge tab and opens this one there,
+                    in read mode. A button and not a link: the target is a
+                    search param of the record this already is, and the route
+                    is the one that knows how to say it. */}
+                <button
+                  type="button"
+                  className="flex w-full flex-wrap items-center gap-x-4 rounded-md px-1 py-2.5 text-left text-sm hover:bg-accent/50"
+                  onClick={() => onOpen(activity.id)}
+                >
+                  <span className="w-[104px] shrink-0 text-muted-foreground tabular-nums">
+                    {formatBerlinDate(activity.occurredAt)}
+                  </span>
+                  <span className="flex-1">{activityLabelOf(activity)}</span>
+                  {documented.has(activity.id) ? (
+                    <Badge variant="secondary">{strings.contact.documented}</Badge>
+                  ) : (
+                    <Badge variant="destructive">{strings.contact.notDocumented}</Badge>
+                  )}
+                </button>
               </li>
             ))}
           </ul>
@@ -324,11 +374,24 @@ function RecentActivities({ contactId }: { contactId: string }) {
 }
 
 /**
- * What could go on an invoice today, and where it would go. An open draft is
- * linked directly; with none, the way there is the Rechnungen tab, which is
- * where a draft is started.
+ * What could go on an invoice today, and the way straight to billing it (L5).
+ *
+ * **The way is always offered while something is open**, which it was not
+ * before: the link appeared only when a draft already existed, so the one case
+ * it is needed in — work billed for the first time — led nowhere and the
+ * practitioner had to find the Rechnungen tab themselves.
+ *
+ * Two labels, because the control must not claim a state that does not exist
+ * (CLAUDE.md). With a draft it says "Zum Rechnungsentwurf" and goes there;
+ * without one it says "Rechnung erstellen", starts a draft and opens it. The
+ * draft is created empty — the billable picker lives on the invoice, where the
+ * lines are edited.
+ *
+ * The target is the invoice page for now. L8 moves the editor into the
+ * Rechnungen tab, and then this one destination changes in one place.
  */
 function BillableSummary({ contactId }: { contactId: string }) {
+  const navigate = useNavigate()
   const billable = useQuery(billableQueryOptions(contactId))
   // Same query key as the invoice card, so this costs no second request.
   const invoices = useQuery(invoiceListQueryOptions({ contactId }))
@@ -336,6 +399,21 @@ function BillableSummary({ contactId }: { contactId: string }) {
   const items = billable.data ?? []
   const total = items.reduce((sum, item) => sum + item.quantity * item.unitPriceCents, 0)
   const draft = (invoices.data ?? []).find((invoice) => invoice.status === 'draft')
+
+  const create = useMutation({
+    mutationFn: () =>
+      createInvoice({
+        contactId,
+        invoiceDate: toBerlinDate(new Date().toISOString()),
+        activityItemIds: [],
+      }),
+    onSuccess: (created) => {
+      toast.success(strings.invoice.created)
+      void navigate({ to: '/invoices/$invoiceId', params: { invoiceId: created.id } })
+    },
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed),
+  })
 
   return (
     <Card>
@@ -358,7 +436,7 @@ function BillableSummary({ contactId }: { contactId: string }) {
             <p className="mt-1 mb-3.5 text-muted-foreground">
               {strings.contact.billableCount(items.length)}
             </p>
-            {draft && (
+            {draft ? (
               <Link
                 className="text-primary hover:underline"
                 to="/invoices/$invoiceId"
@@ -366,6 +444,15 @@ function BillableSummary({ contactId }: { contactId: string }) {
               >
                 {strings.contact.openDraft}
               </Link>
+            ) : (
+              <button
+                type="button"
+                className="text-primary hover:underline disabled:opacity-60"
+                disabled={create.isPending}
+                onClick={() => create.mutate()}
+              >
+                {strings.invoice.createAction}
+              </button>
             )}
           </>
         )}

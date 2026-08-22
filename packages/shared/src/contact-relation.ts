@@ -16,25 +16,27 @@ export const relationDirectionSchema = z.enum(relationDirections)
 export type RelationDirection = z.infer<typeof relationDirectionSchema>
 
 /**
- * Adding a relation from one contact's record. `direction` says which end that
- * contact takes, so both sides of a directed type can be entered from either
- * record and produce the same row with the ends swapped.
+ * Adding *or* changing a relation from one contact's record. `direction` says
+ * which end that contact takes, so both sides of a directed type can be
+ * entered from either record and produce the same row with the ends swapped.
+ *
+ * One schema for both, because a change is not a patch: the type and the
+ * counterpart together *are* the relation, and altering either one rewrites
+ * the row. `updateRelation` therefore takes the same complete statement an add
+ * does, and the client sends whatever the row now says.
+ *
+ * **Deliberately absent since L5: `replace`.** It existed for "Ersetzen" on an
+ * exclusive type — take the place of the row the exclusivity index would
+ * collide with, in one transaction, so swapping the billing recipient could
+ * not leave the contact without one. With a relation editable in place that
+ * swap *is* an edit of that row, and `updateRelation` gives it the same
+ * single-transaction guarantee. Two ways to say one thing is one too many.
  */
 export const contactRelationInputSchema = z.object({
   relationCode: typeCodeSchema,
   direction: relationDirectionSchema,
   otherContactId: z.uuid(),
   since: z.iso.date().nullable().default(null),
-  /**
-   * Take the place of the relation the exclusivity index would collide with,
-   * in one transaction. This is what "Ersetzen" on an exclusive type sends —
-   * remove-then-add from the client would leave the contact without a billing
-   * recipient if the second call failed.
-   *
-   * A type that is not exclusive has no such relation, so nothing extra is
-   * removed and this is an ordinary add.
-   */
-  replace: z.boolean().default(false),
 })
 
 export type ContactRelationInput = z.infer<typeof contactRelationInputSchema>

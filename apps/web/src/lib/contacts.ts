@@ -1,4 +1,5 @@
 import type {
+  CalendarEntry,
   Contact,
   ContactInput,
   ContactListItem,
@@ -128,3 +129,33 @@ export async function setContactArchived(contactId: string, archived: boolean): 
   if (!res.ok) throw await apiError(res)
   return res.json()
 }
+
+/**
+ * The contact's calendar entries — **all** of them, including the ones that
+ * belong to no Vorgang (L5). The Termine tab used to derive its rows from the
+ * activity list and therefore could not see a free-standing appointment; this
+ * asks `appointment` directly.
+ */
+export const contactAppointmentsQueryOptions = (contactId: string) =>
+  queryOptions({
+    queryKey: ['contacts', 'appointments', contactId],
+    queryFn: async (): Promise<CalendarEntry[]> => {
+      const res = await api.api.contacts[':contactId'].appointments.$get({ param: { contactId } })
+      if (!res.ok) throw await apiError(res)
+      return res.json()
+    },
+  })
+
+/** Just the next one, for the overview — its own request rather than the first
+ *  row of the list above, which would pull a treatment history to name a date. */
+export const nextAppointmentQueryOptions = (contactId: string) =>
+  queryOptions({
+    queryKey: ['contacts', 'appointments', contactId, 'next'],
+    queryFn: async (): Promise<CalendarEntry | null> => {
+      const res = await api.api.contacts[':contactId'].appointments.next.$get({
+        param: { contactId },
+      })
+      if (!res.ok) throw await apiError(res)
+      return res.json()
+    },
+  })

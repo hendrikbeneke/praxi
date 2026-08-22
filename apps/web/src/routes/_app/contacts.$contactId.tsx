@@ -1,6 +1,8 @@
 import {
   type Activity,
+  activityLabel,
   activityStatuses,
+  activityTypeLabel,
   type ContactRoleInput,
   type ContactUpdate,
   dueDate,
@@ -46,13 +48,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
-import {
-  activityListQueryOptions,
-  pastActivitiesQueryOptions,
-  upcomingActivitiesQueryOptions,
-} from '@/lib/activities'
+import { pastActivitiesQueryOptions, upcomingActivitiesQueryOptions } from '@/lib/activities'
+import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import {
+  contactAppointmentsQueryOptions,
   contactQueryOptions,
   setContactArchived,
   setContactRoles,
@@ -72,6 +72,10 @@ const tabs = ['overview', 'master', 'notes', 'activities', 'appointments', 'invo
 
 const searchSchema = z.object({
   tab: z.enum(tabs).default('overview'),
+  /** Which Vorgang the Vorgänge tab opens on arrival, in read mode (L5).
+   *  It is in the URL for the same reason `tab` is: "Letzte Vorgänge" on the
+   *  overview links here, and a link has to survive the back button. */
+  activityId: z.uuid().optional(),
 })
 
 export const Route = createFileRoute('/_app/contacts/$contactId')({
@@ -83,7 +87,7 @@ export const Route = createFileRoute('/_app/contacts/$contactId')({
 
 function ContactDetailPage() {
   const { contactId } = Route.useParams()
-  const { tab } = Route.useSearch()
+  const { tab, activityId } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const queryClient = useQueryClient()
   const { data: contact } = useQuery(contactQueryOptions(contactId))
@@ -149,6 +153,8 @@ function ContactDetailPage() {
   return (
     <Tabs
       value={tab}
+      /* The deep-linked Vorgang goes with the tab it belongs to: leaving and
+         coming back would otherwise re-open a row nobody clicked. */
       onValueChange={(next) => void navigate({ search: { tab: next as (typeof tabs)[number] } })}
     >
       {/* The header strip runs the full width and carries the tab row, so the
@@ -203,14 +209,24 @@ function ContactDetailPage() {
         </RecordTabsList>
       </ContactHeader>
 
+      {/* The strip above runs to the edge; below it the cap is per tab, because
+          the design does not treat them alike (L5). The Übersicht spreads its
+          six cards over the whole field — measured at 268..1696 in a 1728 px
+          window, which is the page inset on both sides and nothing else —
+          while every other tab is a column of text and stops at 1180. */}
       <div className="px-8 pt-6 pb-11">
-        {/* Only the tab content is capped; the strip above runs to the edge. */}
-        <ContentWidth max={1100}>
-          <TabsContent value="overview">
-            <ContactOverview contact={contact} onDocument={setDocumenting} />
-          </TabsContent>
+        <TabsContent value="overview">
+          <ContactOverview
+            contact={contact}
+            onDocument={setDocumenting}
+            onOpenActivity={(activityId) =>
+              void navigate({ search: { tab: 'activities', activityId } })
+            }
+          />
+        </TabsContent>
 
-          <TabsContent value="master">
+        <TabsContent value="master">
+          <ContentWidth>
             {!editing && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-4">
                 <p className="text-[13.5px] text-muted-foreground">
@@ -234,24 +250,32 @@ function ContactDetailPage() {
               onCancel={() => setEditing(false)}
               pending={save.isPending}
             />
-          </TabsContent>
+          </ContentWidth>
+        </TabsContent>
 
-          <TabsContent value="activities">
-            <ContactActivities contactId={contactId} />
-          </TabsContent>
+        <TabsContent value="activities">
+          <ContentWidth>
+            <ContactActivities contactId={contactId} openActivityId={activityId} />
+          </ContentWidth>
+        </TabsContent>
 
-          <TabsContent value="appointments">
+        <TabsContent value="appointments">
+          <ContentWidth>
             <ContactAppointments contactId={contactId} />
-          </TabsContent>
+          </ContentWidth>
+        </TabsContent>
 
-          <TabsContent value="notes">
+        <TabsContent value="notes">
+          <ContentWidth>
             <ContactNotes contactId={contactId} />
-          </TabsContent>
+          </ContentWidth>
+        </TabsContent>
 
-          <TabsContent value="invoices">
+        <TabsContent value="invoices">
+          <ContentWidth>
             <ContactInvoices contactId={contactId} />
-          </TabsContent>
-        </ContentWidth>
+          </ContentWidth>
+        </TabsContent>
       </div>
 
       {/* Opened from the overview, so it lives here rather than in the notes
@@ -274,7 +298,15 @@ function ContactDetailPage() {
  * detail's rail: it would repeat on each row and its link would lead back to
  * this page.
  */
-function ContactActivities({ contactId }: { contactId: string }) {
+function ContactActivities({
+  contactId,
+  openActivityId,
+}: {
+  contactId: string
+  /** Arrived here from "Letzte Vorgänge" on the overview (L5) — that Vorgang
+   *  opens in read mode. */
+  openActivityId: string | undefined
+}) {
   /* Two queries, two rules (L3) — see `activityListPartSchema`. The chips
      below still count and filter what has been loaded, which is what they did
      before; L7 decides whether they move to the server with the rest. */
@@ -340,6 +372,7 @@ function ContactActivities({ contactId }: { contactId: string }) {
       </div>
 
       <ActivityList
+        openActivityId={openActivityId}
         upcoming={shownUpcoming}
         past={shownPast}
         emptyText={
@@ -694,14 +727,22 @@ function ContactNotes({ contactId }: { contactId: string }) {
  * The calendar entries of this contact, taken from their activities rather
  * than from a second endpoint — an appointment always belongs to one.
  */
+/**
+ * The contact's calendar entries — **all** of them (L5).
+ *
+ * It used to read the Vorgang list and keep the rows that had a Termin, which
+ * meant that an appointment belonging to this contact but to no Vorgang — a
+ * call back, a slot held for them, possible since D-K1 — was missing from the
+ * one screen that claims to list their appointments. The query now asks
+ * `appointment` directly and hands back what the calendar sees.
+ */
 function ContactAppointments({ contactId }: { contactId: string }) {
-  const activities = useQuery(activityListQueryOptions({ contactId }))
+  const appointments = useQuery(contactAppointmentsQueryOptions(contactId))
+  const types = useQuery(activityTypeListQueryOptions(true))
 
-  const entries = (activities.data ?? [])
-    .filter((activity) => activity.appointment !== null)
-    .map((activity) => ({ activity, appointment: activity.appointment }))
+  const entries = appointments.data ?? []
 
-  if (activities.isPending) {
+  if (appointments.isPending) {
     return <p className="text-muted-foreground text-sm">{strings.status.loading}</p>
   }
 
@@ -711,25 +752,31 @@ function ContactAppointments({ contactId }: { contactId: string }) {
 
   return (
     <ul className="space-y-2">
-      {entries.map(({ activity, appointment }) =>
-        appointment ? (
-          <li
-            key={appointment.id}
-            className="flex flex-wrap items-baseline gap-x-3 rounded-md border px-4 py-3"
-          >
-            <span className="font-medium">{formatBerlinDate(appointment.startsAt)}</span>
-            <span className="text-muted-foreground text-sm tabular-nums">
-              {formatBerlinTime(appointment.startsAt)}–{formatBerlinTime(appointment.endsAt)}
-            </span>
-            <Badge variant={occupiesSlot(appointment.status) ? 'outline' : 'secondary'}>
-              {strings.appointment.status[appointment.status]}
-            </Badge>
-            {activity.title && (
-              <span className="text-muted-foreground text-sm">{activity.title}</span>
-            )}
-          </li>
-        ) : null,
-      )}
+      {entries.map((entry) => (
+        <li
+          key={entry.id}
+          className="flex flex-wrap items-baseline gap-x-3 rounded-md border px-4 py-3"
+        >
+          <span className="font-medium">{formatBerlinDate(entry.startsAt)}</span>
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {formatBerlinTime(entry.startsAt)}–{formatBerlinTime(entry.endsAt)}
+          </span>
+          <Badge variant={occupiesSlot(entry.status) ? 'outline' : 'secondary'}>
+            {strings.appointment.status[entry.status]}
+          </Badge>
+          <span className="text-muted-foreground text-sm">
+            {/* The same two-part naming the calendar uses (D-K2), minus the
+                contact — inside their own record it would repeat on every
+                row. */}
+            {entry.activityType === null
+              ? (entry.title ?? strings.appointment.untitled)
+              : activityLabel(
+                  { title: entry.activityTitle },
+                  activityTypeLabel(types.data, entry.activityType),
+                )}
+          </span>
+        </li>
+      ))}
     </ul>
   )
 }
