@@ -10,18 +10,26 @@
   <body>
     <div id="root"></div>
     <script>
-      // Applies the cached theme before first paint, so a returning visitor
-      // never sees the default (schiefer) flash before their real theme
-      // takes over. Source of truth for the value set / option list is
-      // packages/shared/src/user-preferences.ts (themeOptions) — this list
-      // is duplicated here on purpose, because nothing can be imported this
-      // early; keep the two in sync by hand. Same key, same "absent means
-      // schiefer" convention as components/theme-picker.tsx.
+      // Paints the signed-in user's theme before the first byte is rendered.
+      //
+      // It reads a COOKIE, not localStorage, and that is the whole point: the
+      // theme is stored on the user, so a browser that has never run this
+      // application cannot know it — and asking the API means at least one
+      // request, which means a first paint in the wrong scheme. The server
+      // writes `praxi_theme` in the same response as the session cookie, so
+      // from the first load after signing in the answer is already here.
+      //
+      // Source of truth for the value set is
+      // packages/shared/src/user-preferences.ts (themeOptions) — duplicated
+      // here on purpose, because nothing can be imported this early; keep the
+      // two in sync by hand. Absent means schiefer, the same convention
+      // components/theme-picker.tsx and cookies.ts keep.
       ;(() => {
         var THEME_OPTIONS = ['blau', 'salbei', 'rose', 'nacht']
-        var cached = localStorage.getItem('praxi-theme')
-        if (cached && THEME_OPTIONS.indexOf(cached) !== -1) {
-          document.documentElement.dataset.theme = cached
+        var found = document.cookie.match(/(?:^|;\s*)praxi_theme=([^;]*)/)
+        var theme = found ? decodeURIComponent(found[1]) : null
+        if (theme && THEME_OPTIONS.indexOf(theme) !== -1) {
+          document.documentElement.dataset.theme = theme
         }
       })()
     </script>

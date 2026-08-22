@@ -1,6 +1,5 @@
 import { type Theme, themeOptions } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -10,28 +9,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { strings } from '@/lib/strings'
+import { applyTheme } from '@/lib/theme'
 import {
   updateUserPreferences,
   userPreferencesQueryKey,
   userPreferencesQueryOptions,
 } from '@/lib/user-preferences'
-
-const THEME_STORAGE_KEY = 'praxi-theme'
-
-/**
- * Applies the resolved theme to the document and caches it for the next
- * page load's inline script (index.html) — same key, same "absent means
- * schiefer" convention on both sides.
- */
-function applyTheme(theme: Theme | undefined): void {
-  if (theme && theme !== 'schiefer') {
-    document.documentElement.dataset.theme = theme
-    localStorage.setItem(THEME_STORAGE_KEY, theme)
-  } else {
-    delete document.documentElement.dataset.theme
-    localStorage.removeItem(THEME_STORAGE_KEY)
-  }
-}
 
 /**
  * A user preference, not a practice setting — see CLAUDE.md and
@@ -43,17 +26,15 @@ export function ThemePicker() {
   const { data } = useQuery(userPreferencesQueryOptions)
   const theme = data?.theme ?? 'schiefer'
 
-  // Re-applies whenever the server's answer changes — including the very
-  // first resolve, which reconciles the inline script's localStorage guess
-  // with what is actually stored.
-  useEffect(() => {
-    applyTheme(data?.theme)
-  }, [data?.theme])
-
   const mutation = useMutation({
     mutationFn: (value: Theme) => updateUserPreferences({ theme: value }),
     onSuccess: (preferences) => {
       queryClient.setQueryData(userPreferencesQueryKey, preferences)
+      // The picked theme takes effect here and now; the next load gets it
+      // from the cookie the server set in the same response. Applying it in
+      // an effect on this component was what kept the stored theme from ever
+      // reaching a page this picker is not on (L4).
+      applyTheme(preferences.theme)
     },
   })
 

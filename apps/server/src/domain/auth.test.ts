@@ -18,6 +18,7 @@ import {
   validateSession,
   verifyPassword,
 } from './auth.js'
+import { updateUserPreferences } from './user-preferences.js'
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -100,6 +101,22 @@ describe('login', () => {
     })
     expect(result?.tenantId).toBe(tenantId)
     expect(result?.expiresAt.getTime()).toBe(T0.getTime() + SESSION_TTL_MS)
+  })
+
+  /** The theme travels with the session so the response can prime the cookie
+   *  the inline script reads before first paint — a browser that has never run
+   *  this application cannot know it any other way, and asking the API means a
+   *  first paint in the wrong scheme. */
+  it('carries the stored theme, and nothing where there is none', async () => {
+    expect(
+      (await login(db(), { email: user.email, password: user.password }, T0))?.theme,
+    ).toBeUndefined()
+
+    await updateUserPreferences(db(), user.id, { theme: 'nacht' })
+
+    expect((await login(db(), { email: user.email, password: user.password }, T0))?.theme).toBe(
+      'nacht',
+    )
   })
 
   it('stores only the hash of the token, never the token', async () => {

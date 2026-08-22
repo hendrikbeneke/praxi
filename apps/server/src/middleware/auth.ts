@@ -2,10 +2,10 @@ import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from '../context.js'
+import { clearSessionCookie, readSessionCookie } from '../cookies.js'
 import { db } from '../db/client.js'
 import { validateSession } from '../domain/auth.js'
 import { messages } from '../messages.js'
-import { clearSessionCookie, readSessionCookie } from '../session-cookie.js'
 
 /**
  * Rejects anything without a valid session cookie and puts the user on the

@@ -2,13 +2,19 @@ import { type CurrentUser, loginSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from '../context.js'
+import {
+  clearSessionCookie,
+  clearThemeCookie,
+  readSessionCookie,
+  setSessionCookie,
+  setThemeCookie,
+} from '../cookies.js'
 import { db } from '../db/client.js'
 import { login, logout } from '../domain/auth.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
 import { requireAuth } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
-import { clearSessionCookie, readSessionCookie, setSessionCookie } from '../session-cookie.js'
 
 export const authRoute = new Hono<AppEnv>()
   .post('/login', validate('json', loginSchema), async (c) => {
@@ -22,6 +28,9 @@ export const authRoute = new Hono<AppEnv>()
     }
 
     setSessionCookie(c, result.token, result.expiresAt)
+    // In the same response as the session, so the next load of the page is
+    // painted in the right scheme before anything is fetched (`cookies.ts`).
+    setThemeCookie(c, result.theme)
     logger().info({ userId: result.user.id }, 'login')
 
     return c.json(result.user satisfies CurrentUser)
@@ -33,6 +42,8 @@ export const authRoute = new Hono<AppEnv>()
     const token = readSessionCookie(c)
     if (token) await logout(db(), token)
     clearSessionCookie(c)
+    // Or the next person's login screen would wear the last one's colours.
+    clearThemeCookie(c)
 
     return c.body(null, 204)
   })

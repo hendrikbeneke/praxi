@@ -2624,6 +2624,29 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   Bilder stehen darüber.
 
 
+**Nach L4** — *Das gespeicherte Thema greift beim ersten Laden*:
+
+- **Der Fund:** `applyTheme` hing in einem Effekt im `ThemePicker`, und der
+  montiert nur im Konto-Menü. Wer das nie öffnete, saß in einem frischen
+  Browser im hellen Schema, obwohl `nacht` gespeichert war — auf jeder Seite,
+  dauerhaft.
+- **Angewandt wird jetzt in `_app.beforeLoad`**, direkt nachdem die
+  Einstellungen geladen sind. Die lagen dort schon vor; nur angewandt hat sie
+  niemand. Das läuft vor dem ersten Rendern der Hülle.
+- **Gegen das Aufblitzen hilft das allein nicht**, denn davor liegen zwei
+  Anfragen. Deshalb schreibt der Server ein lesbares Cookie `praxi_theme` — in
+  derselben Antwort wie das Sitzungscookie, dazu bei jeder Änderung der
+  Einstellung, und beim Abmelden gelöscht. Das Inline-Script in `index.html`
+  liest es statt `localStorage`: Ein Browser, der die Anwendung nie ausgeführt
+  hat, kann das Thema nicht kennen, aber der Server kann es ihm mitgeben.
+  Gemessen: 120 ms nach dem Neuladen steht `data-theme="nacht"` und der Körper
+  ist bereits dunkel.
+- **`localStorage` entfällt** — zwei Zwischenspeicher für einen Wert, und nur
+  einer davon konnte vom Server befüllt werden.
+- Der Anmeldebildschirm bleibt im Standardschema. Bevor jemand sagt, wer er
+  ist, gibt es keine Vorliebe; das ist kein Aufblitzen, sondern die Reihenfolge.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { type Algorithm, hash as argonHash, verify as argonVerify } from '@node-rs/argon2'
-import type { CurrentUser } from '@praxi/shared'
+import type { CurrentUser, Theme } from '@praxi/shared'
+import { userPreferencesSchema } from '@praxi/shared'
 import { eq, lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { appUser, session } from '../db/schema.js'
@@ -103,6 +104,9 @@ export type LoginResult = {
   expiresAt: Date
   user: CurrentUser
   tenantId: string
+  /** Travels with the session so the response can prime the theme cookie —
+   *  see `cookies.ts`. Read off the row that was loaded anyway. */
+  theme: Theme | undefined
 }
 
 /**
@@ -153,6 +157,7 @@ export async function login(
     expiresAt,
     tenantId: user.tenantId,
     user: { id: user.id, email: user.email, name: user.name },
+    theme: userPreferencesSchema.parse(user.preferences ?? {}).theme,
   }
 }
 

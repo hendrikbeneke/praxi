@@ -4,6 +4,7 @@ import { AppTopbar } from '@/components/app-topbar'
 import { currentUserQueryOptions } from '@/lib/auth'
 import { pagePadding } from '@/lib/page-chrome'
 import { practiceSettingsQueryOptions } from '@/lib/settings'
+import { applyTheme } from '@/lib/theme'
 import { userPreferencesQueryOptions } from '@/lib/user-preferences'
 
 /**
@@ -23,10 +24,17 @@ export const Route = createFileRoute('/_app')({
     if (!user) {
       throw redirect({ to: '/login', search: { redirect: location.href } })
     }
-    await Promise.all([
+    const [, preferences] = await Promise.all([
       context.queryClient.ensureQueryData(practiceSettingsQueryOptions),
       context.queryClient.ensureQueryData(userPreferencesQueryOptions),
     ])
+
+    /* Here, and not in an effect inside the picker: this runs before the first
+       child renders, so the shell's first paint is already in the right
+       scheme. The cookie the inline script read is only a cache — what is
+       stored on the user decides, and every load reconciles the two. */
+    applyTheme(preferences.theme)
+
     return { user }
   },
   component: AppLayout,
