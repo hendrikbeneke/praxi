@@ -19,8 +19,15 @@ import {
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
 import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
-import { BilledItemError, createActivity, deleteActivity, updateActivity } from './activity.js'
-import { billingStateOf, listBillableItems, unbilledCentsInRange } from './billable.js'
+import {
+  activitySummary,
+  BilledItemError,
+  createActivity,
+  deleteActivity,
+  listActivities,
+  updateActivity,
+} from './activity.js'
+import { billingStateOf, listBillableItems, unbilledCentsOf } from './billable.js'
 import { cancelInvoice } from './cancel-invoice.js'
 import { FileStore } from './file-store.js'
 import { pdfPathFor } from './finalize-invoice.js'
@@ -887,6 +894,100 @@ describe('billingState', () => {
 })
 
 /**
+ * The two chips "Abgerechnet" and "Nicht abgerechnet" — the list filter and
+ * the counts beside it (L7). Tested here rather than in `activity.test.ts` for
+ * the reason `unbilledCentsOf` is: the case that decides anything needs a real
+ * invoice and a real cancellation.
+ *
+ * `activityBillingCondition` is the **fourth** reader of
+ * `claimedByAnActiveInvoice`, after the billable list, `billingStateOf` and
+ * the unbilled sum. All four have to answer alike, and a cancellation is the
+ * only situation in which it shows whether they do. That is why the condition
+ * is shared from `billable.ts` rather than written again next to the query
+ * that needs it.
+ */
+describe('filtering a list by billing state', () => {
+  const NOW = new Date('2026-08-20T12:00:00Z')
+  const listing = async (billing: 'billed' | 'open') =>
+    (await listActivities(db(), tenantId, { contactId, billing, limit: 50 }, NOW)).items.map(
+      (row) => row.id,
+    )
+
+  it('calls an activity open while a billable position is unclaimed', async () => {
+    const created = await makeActivityWithItem()
+
+    expect(await listing('open')).toEqual([created.id])
+    expect(await listing('billed')).toEqual([])
+    expect(await activitySummary(db(), tenantId, { contactId }, NOW)).toMatchObject({
+      billed: 0,
+      unbilled: 1,
+    })
+  })
+
+  it('calls it billed once the invoice is finalized', async () => {
+    const created = await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    await finalizeDocument(db(), tenantId, store, draft.id, render)
+
+    expect(await listing('billed')).toEqual([created.id])
+    expect(await listing('open')).toEqual([])
+    expect(await activitySummary(db(), tenantId, { contactId }, NOW)).toMatchObject({
+      billed: 1,
+      unbilled: 0,
+    })
+  })
+
+  /**
+   * **The case this exists for.** Cancelling frees the items again, so the row
+   * has to walk back from "Abgerechnet" to "Nicht abgerechnet" with nothing
+   * kept in step — no column, no flag, no second query that only asks whether
+   * an invoice line exists. A convenient reimplementation passes both tests
+   * above and falls over here.
+   */
+  it('walks back to open when the invoice is cancelled', async () => {
+    const created = await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    await finalizeDocument(db(), tenantId, store, draft.id, render)
+    await cancelInvoice(db(), tenantId, store, draft.id, render)
+
+    expect(await listing('open')).toEqual([created.id])
+    expect(await listing('billed')).toEqual([])
+    expect(await activitySummary(db(), tenantId, { contactId }, NOW)).toMatchObject({
+      billed: 0,
+      unbilled: 1,
+    })
+    // And the badge on the row says the same thing, which is the point.
+    expect(await billingStateOf(db(), tenantId, created.id)).toBe('open')
+  })
+
+  /** Neither chip catches it, and the row badges itself with nothing: there is
+   *  no third state to filter for, because "has no positions" is not a
+   *  question anybody asks a list. */
+  it('leaves an activity with nothing billable out of both', async () => {
+    const created = await createActivity(db(), tenantId, {
+      contactId,
+      type: 'session',
+      status: 'planned',
+      occurredAt: '2026-08-09T07:00:00.000Z',
+      durationMin: 90,
+      title: null,
+      internalNote: null,
+      items: [{ kind: 'service', serviceId, quantity: 1, billable: false }],
+      appointment: null,
+    })
+
+    expect(await listing('open')).toEqual([])
+    expect(await listing('billed')).toEqual([])
+    expect(await billingStateOf(db(), tenantId, created.id)).toBe('none')
+    expect(await activitySummary(db(), tenantId, { contactId }, NOW)).toMatchObject({
+      total: 1,
+      billed: 0,
+      unbilled: 0,
+    })
+  })
+})
+
+/**
  * The money figure in the Vorgänge summary line (D8), tested here rather than
  * in `activity.test.ts` because the interesting cases need real invoices.
  *
@@ -899,14 +1000,14 @@ describe('unbilled cents in a window', () => {
   it('adds up what no active invoice claims', async () => {
     await makeActivityWithItem()
 
-    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(13_500)
+    expect(await unbilledCentsOf(db(), tenantId, WINDOW)).toBe(13_500)
   })
 
   it('counts nothing outside the window', async () => {
     await makeActivityWithItem()
 
     expect(
-      await unbilledCentsInRange(db(), tenantId, {
+      await unbilledCentsOf(db(), tenantId, {
         from: new Date('2026-09-01T00:00:00Z'),
         to: new Date('2026-10-01T00:00:00Z'),
       }),
@@ -920,7 +1021,7 @@ describe('unbilled cents in a window', () => {
     await makeActivityWithItem()
     await draftFromBillable()
 
-    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(0)
+    expect(await unbilledCentsOf(db(), tenantId, WINDOW)).toBe(0)
   })
 
   /** The case that would break a second, simpler implementation, and the
@@ -930,11 +1031,11 @@ describe('unbilled cents in a window', () => {
     const draft = await draftFromBillable()
     await finalizeDocument(db(), tenantId, store, draft.id, render)
 
-    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(0)
+    expect(await unbilledCentsOf(db(), tenantId, WINDOW)).toBe(0)
 
     await cancelInvoice(db(), tenantId, store, draft.id, render)
 
-    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(13_500)
+    expect(await unbilledCentsOf(db(), tenantId, WINDOW)).toBe(13_500)
   })
 
   /** The summary line is meant to be checkable by adding the column up, so it
@@ -944,7 +1045,7 @@ describe('unbilled cents in a window', () => {
     const planned = await makeActivityWithItem()
 
     expect(await billingStateOf(db(), tenantId, planned.id)).toBe('open')
-    expect(await unbilledCentsInRange(db(), tenantId, WINDOW)).toBe(
+    expect(await unbilledCentsOf(db(), tenantId, WINDOW)).toBe(
       sumItems(planned.items, { billableOnly: true }),
     )
   })

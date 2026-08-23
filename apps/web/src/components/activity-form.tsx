@@ -8,6 +8,7 @@ import {
   activityStatuses,
   addMinutesToLocal,
   appointmentStatuses,
+  formatDateDE,
   formatEuro,
   formatEuroAmount,
   fromBerlinDateTimeLocal,
@@ -672,7 +673,10 @@ export function ActivityForm({
           </div>
 
           <div className="@xl:col-span-6">
-            <Label htmlFor={`${formId}-title`}>{strings.activity.activityTitle}</Label>
+            <Label htmlFor={`${formId}-title`}>
+              {strings.activity.activityTitle}{' '}
+              <span className="font-normal text-muted-foreground">{strings.activity.optional}</span>
+            </Label>
             <Input
               id={`${formId}-title`}
               className="mt-2"
@@ -684,7 +688,6 @@ export function ActivityForm({
 
         <section>
           <p className="font-medium text-sm">{strings.activity.items}</p>
-          <p className="mt-1 text-muted-foreground text-xs">{strings.activity.copyHint}</p>
 
           {items.length === 0 ? (
             <p className="mt-3 text-muted-foreground text-sm">{strings.activity.itemsEmpty}</p>
@@ -692,58 +695,59 @@ export function ActivityForm({
             <ul className="mt-3 space-y-2">
               {items.map((item, index) => (
                 <li key={item.key} className="rounded-md border p-3">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="w-16">
-                      <Label className="text-xs" htmlFor={`${item.key}-quantity`}>
-                        {strings.activity.itemQuantity}
-                      </Label>
-                      <Input
-                        id={`${item.key}-quantity`}
-                        type="number"
-                        min={1}
-                        className="mt-1"
-                        value={item.quantity}
-                        onChange={(event) =>
-                          patch(index, {
-                            quantity: Math.max(1, Number.parseInt(event.target.value, 10) || 1),
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="min-w-40 flex-1">
-                      <Label className="text-xs" htmlFor={`${item.key}-description`}>
-                        {strings.activity.itemDescription}
-                      </Label>
-                      <Input
-                        id={`${item.key}-description`}
-                        className="mt-1"
-                        value={item.description}
-                        onChange={(event) => edit(index, { description: event.target.value })}
-                      />
-                    </div>
-                    <div className="w-20">
-                      <Label className="text-xs" htmlFor={`${item.key}-fee`}>
-                        {strings.activity.itemFeeCode}
-                      </Label>
-                      <Input
-                        id={`${item.key}-fee`}
-                        className="mt-1"
-                        value={item.feeCode}
-                        onChange={(event) => edit(index, { feeCode: event.target.value })}
-                      />
-                    </div>
-                    <div className="w-24">
-                      <Label className="text-xs" htmlFor={`${item.key}-price`}>
-                        {strings.activity.itemPrice}
-                      </Label>
-                      <Input
-                        id={`${item.key}-price`}
-                        inputMode="decimal"
-                        className="mt-1 text-right tabular-nums"
-                        value={item.priceText}
-                        onChange={(event) => edit(index, { priceText: event.target.value })}
-                      />
-                    </div>
+                  {/* **No visible labels on a position row** (L7). Four of
+                      them repeated per row was a wall of small print; the
+                      design writes each field's name into the field instead,
+                      and what a row holds — a number, a description, a code, a
+                      price — is legible from the values themselves. The names
+                      are still there for anything that cannot see the shape:
+                      `aria-label` on every field, which is what a `<Label>`
+                      would have produced anyway. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      aria-label={strings.activity.itemQuantity}
+                      type="number"
+                      min={1}
+                      className="w-16"
+                      value={item.quantity}
+                      onChange={(event) =>
+                        patch(index, {
+                          quantity: Math.max(1, Number.parseInt(event.target.value, 10) || 1),
+                        })
+                      }
+                    />
+                    <Input
+                      aria-label={strings.activity.itemDescription}
+                      placeholder={strings.activity.itemDescription}
+                      className="min-w-40 flex-1"
+                      value={item.description}
+                      onChange={(event) => edit(index, { description: event.target.value })}
+                    />
+                    <Input
+                      aria-label={strings.activity.itemFeeCode}
+                      placeholder={strings.activity.itemFeeCode}
+                      className="w-20"
+                      value={item.feeCode}
+                      onChange={(event) => edit(index, { feeCode: event.target.value })}
+                    />
+                    <Input
+                      aria-label={strings.activity.itemPrice}
+                      inputMode="decimal"
+                      className="w-24 text-right tabular-nums"
+                      value={item.priceText}
+                      onChange={(event) => edit(index, { priceText: event.target.value })}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={strings.activity.itemRemove}
+                      onClick={() =>
+                        setItems((current) => current.filter((_, position) => position !== index))
+                      }
+                    >
+                      <X className="size-4" aria-hidden />
+                    </Button>
                   </div>
 
                   <div className="mt-2 flex flex-wrap items-center gap-4">
@@ -765,6 +769,10 @@ export function ActivityForm({
                       {formatEuro(draftPriceCents(item) * item.quantity)}
                     </span>
 
+                    {/* The arrows stay although no image shows them: the order
+                        of the positions is the order they read in on the
+                        invoice, and dragging is not a feature for everyone who
+                        has to use it. */}
                     <div className="ml-auto flex items-center gap-1">
                       <Button
                         type="button"
@@ -785,17 +793,6 @@ export function ActivityForm({
                         onClick={() => move(index, 1)}
                       >
                         <ArrowDown className="size-4" aria-hidden />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={strings.activity.itemRemove}
-                        onClick={() =>
-                          setItems((current) => current.filter((_, position) => position !== index))
-                        }
-                      >
-                        <X className="size-4" aria-hidden />
                       </Button>
                     </div>
                   </div>
@@ -821,28 +818,28 @@ export function ActivityForm({
               />
             </div>
 
+            <span className="text-muted-foreground text-sm">{strings.activity.addOr}</span>
+
             <Button type="button" variant="outline" onClick={addFreeItem}>
               {strings.activity.addFreeShort}
             </Button>
           </div>
-          <p className="mt-2 text-muted-foreground text-xs">{strings.activity.groupHint}</p>
+          <p className="mt-2 text-muted-foreground text-xs">{strings.activity.copyHint}</p>
 
-          {items.length > 0 && (
-            <div className="mt-4 space-y-1 border-t pt-3">
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="font-medium">{strings.activity.sumBillable}</span>
-                <span className="font-medium text-lg tabular-nums">
-                  {formatEuro(billableTotal)}
-                </span>
-              </div>
-              {grandTotal !== billableTotal && (
-                <div className="flex items-baseline justify-between gap-4 text-muted-foreground text-xs">
-                  <span>{strings.activity.sumTotalLong}</span>
-                  <span className="tabular-nums">{formatEuro(grandTotal)}</span>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Shown from the start, at nought — the figure is what the form is
+              being filled in for, and a total that appears only once there is
+              one to show reads as if it had been calculated late. */}
+          <div className="mt-4 space-y-1 text-right">
+            <p className="tabular-nums">
+              <span className="text-muted-foreground">{strings.activity.sumBillable}: </span>
+              <span className="font-semibold">{formatEuro(billableTotal)}</span>
+            </p>
+            {grandTotal !== billableTotal && (
+              <p className="text-muted-foreground text-xs tabular-nums">
+                {strings.activity.sumTotalLong} {formatEuro(grandTotal)}
+              </p>
+            )}
+          </div>
         </section>
 
         <section>
@@ -862,27 +859,22 @@ export function ActivityForm({
             <Label htmlFor={`${formId}-with-appointment`} className="font-normal">
               {strings.activity.withAppointment}
             </Label>
+            {/* What the slot would be, beside the switch that creates it —
+                where it stood as a labelled block of its own until L7. It is
+                not a field: it follows from the date, the time and the
+                duration above, so reading it back is all there is to do with
+                it. */}
+            {withAppointment && (
+              <span className="text-muted-foreground text-sm tabular-nums">
+                {endsAtLocal === null
+                  ? strings.activity.durationRequired
+                  : `${formatDateDE(occurredDate)} · ${occurredAtLocal.slice(11)}–${endsAtLocal.slice(11)}`}
+              </span>
+            )}
           </div>
-          {!appointmentFixed && (
-            <p className="mt-1 text-muted-foreground text-xs">
-              {strings.activity.withAppointmentHint}
-            </p>
-          )}
 
           {withAppointment && (
             <div className="mt-3 grid gap-4 @xl:grid-cols-12">
-              <div className="@xl:col-span-4">
-                <span className="font-medium text-sm">{strings.activity.appointmentRange}</span>
-                <p className="mt-2 text-sm tabular-nums">
-                  {endsAtLocal === null
-                    ? strings.activity.durationRequired
-                    : `${occurredAtLocal.slice(11)} – ${endsAtLocal.slice(11)}`}
-                </p>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  {strings.activity.appointmentRangeHint}
-                </p>
-              </div>
-
               {/* Only a cancellation releases the slot, so without this the
                   appointment could be made and never called off. */}
               <div className="@xl:col-span-4">

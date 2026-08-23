@@ -23,7 +23,12 @@ import {
   serviceGroupItem,
 } from '../db/schema.js'
 import { newId } from '../id.js'
-import { billingStateOf, blockingInvoiceLines, unbilledCentsInRange } from './billable.js'
+import {
+  activityBillingCondition,
+  billingStateOf,
+  blockingInvoiceLines,
+  unbilledCentsOf,
+} from './billable.js'
 import { enqueueDelete, enqueueUpsert } from './google-sync.js'
 import { afterCursor, cursorOrder, decodeCursor, InvalidCursorError, takePage } from './keyset.js'
 
@@ -605,6 +610,10 @@ export async function listActivities(
   if (query.to) filters.push(lt(activity.occurredAt, new Date(query.to)))
   if (query.status) filters.push(eq(activity.status, query.status))
   if (query.type) filters.push(eq(activity.type, query.type))
+  /* Shared with `billingStateOf` rather than written again here — see
+     `activityBillingCondition`. A second copy would answer differently on a
+     cancelled invoice, which is the one case that costs money. */
+  if (query.billing) filters.push(activityBillingCondition(query.billing))
 
   // The line between the halves is an instant, not a day: at ten in the
   // morning the nine o'clock session has happened, and a list that still calls
@@ -657,9 +666,15 @@ export async function listActivities(
  * a browser cannot count what it never fetched. The two screens differ because
  * their data does, not because one of them was built carelessly.
  *
- * The counts describe the **window, not the selection** — they are what the
+ * The counts describe the **selection, not the narrowing** — they are what the
  * filter chips carry, so picking a chip must not change the number written on
- * it. Only `type` narrows them, because that filter sits above the chips.
+ * it. `contactId` and `type` narrow them because those two are not chips: one
+ * is the page one is standing on, the other a control above the row.
+ *
+ * **Both bounds are optional** (L7). A contact's Vorgänge tab counts a whole
+ * history and passes neither; requiring a range there would have meant
+ * inventing one to count over, and the counts would then have described
+ * something the list beside them does not.
  */
 export async function activitySummary(
   database: Database,
@@ -667,15 +682,14 @@ export async function activitySummary(
   query: ActivitySummaryQuery,
   now: Date,
 ): Promise<ActivitySummary> {
-  const from = new Date(query.from)
-  const to = new Date(query.to)
+  const from = query.from ? new Date(query.from) : undefined
+  const to = query.to ? new Date(query.to) : undefined
 
-  const filters = [
-    eq(activity.tenantId, tenantId),
-    gte(activity.occurredAt, from),
-    lt(activity.occurredAt, to),
-  ]
+  const filters = [eq(activity.tenantId, tenantId)]
+  if (from) filters.push(gte(activity.occurredAt, from))
+  if (to) filters.push(lt(activity.occurredAt, to))
   if (query.type) filters.push(eq(activity.type, query.type))
+  if (query.contactId) filters.push(eq(activity.contactId, query.contactId))
 
   const counted = database
     .select({
@@ -695,13 +709,28 @@ export async function activitySummary(
       upcoming: sql<number>`count(*) filter (where ${gte(activity.occurredAt, now)})::int`.mapWith(
         Number,
       ),
+      // The same two conditions the list filters by and the row badges itself
+      // with, so a chip's number is the number of rows it produces.
+      billed:
+        sql<number>`count(*) filter (where ${activityBillingCondition('billed')})::int`.mapWith(
+          Number,
+        ),
+      unbilled:
+        sql<number>`count(*) filter (where ${activityBillingCondition('open')})::int`.mapWith(
+          Number,
+        ),
     })
     .from(activity)
     .where(and(...filters))
 
   const [counts, unbilledCents] = await Promise.all([
     counted,
-    unbilledCentsInRange(database, tenantId, { from, to, type: query.type }),
+    unbilledCentsOf(database, tenantId, {
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+      ...(query.type ? { type: query.type } : {}),
+      ...(query.contactId ? { contactId: query.contactId } : {}),
+    }),
   ])
 
   return {
@@ -711,5 +740,7 @@ export async function activitySummary(
     noShow: counts[0]?.noShow ?? 0,
     upcoming: counts[0]?.upcoming ?? 0,
     unbilledCents,
+    billed: counts[0]?.billed ?? 0,
+    unbilled: counts[0]?.unbilled ?? 0,
   }
 }

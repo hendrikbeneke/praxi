@@ -1,6 +1,6 @@
 import type { ActivityBillingState, BillableItem } from '@praxi/shared'
 import { formatContactNameSorted } from '@praxi/shared'
-import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, lt, type SQL, sql } from 'drizzle-orm'
 import type { DbReader } from '../db/client.js'
 import { activity, activityItem, contact, invoice, invoiceLine } from '../db/schema.js'
 
@@ -143,7 +143,44 @@ export async function billingStateOf(
 }
 
 /**
- * What the activities in a window still carry unclaimed — the money figure in
+ * The same question `billingStateOf` answers, asked of a *list* — a predicate
+ * over an `activity` row rather than a count for one id (L7).
+ *
+ * **It is here, beside `claimedByAnActiveInvoice`, and that is the whole
+ * point.** A second copy of that condition in `activity.ts` would agree on
+ * every easy case and disagree on exactly one: an invoice that was cancelled
+ * frees its items again, and the copy would keep counting them as claimed. So
+ * the filter and the badge on the row cannot drift apart — a list can never
+ * put a row under "Abgerechnet" that badges itself "Nicht abgerechnet".
+ *
+ * The two states are defined the way `billingStateOf` defines them, in the
+ * same order: something billable is *open* while any billable position is
+ * still unclaimed, and *billed* once none is. An activity with no billable
+ * position at all is neither, which is `none` and has no filter.
+ */
+export function activityBillingCondition(state: 'billed' | 'open'): SQL {
+  const anyBillable = sql`exists (
+    select 1
+      from ${activityItem}
+     where ${activityItem.activityId} = ${activity.id}
+       and ${activityItem.tenantId} = ${activity.tenantId}
+       and ${activityItem.billable}
+  )`
+
+  const anyOpen = sql`exists (
+    select 1
+      from ${activityItem}
+     where ${activityItem.activityId} = ${activity.id}
+       and ${activityItem.tenantId} = ${activity.tenantId}
+       and ${activityItem.billable}
+       and not ${claimedByAnActiveInvoice}
+  )`
+
+  return state === 'open' ? anyOpen : sql`${anyBillable} and not ${anyOpen}`
+}
+
+/**
+ * What the activities in a selection still carry unclaimed — the money figure in
  * the Vorgänge summary line (D8).
  *
  * It lives here rather than in `activity.ts` for the reason the docstring above
@@ -159,19 +196,25 @@ export async function billingStateOf(
  * beside `billingStateOf`, and rule 6 already refused to let a status decide
  * that.
  */
-export async function unbilledCentsInRange(
+export async function unbilledCentsOf(
   reader: DbReader,
   tenantId: string,
-  range: { from: Date; to: Date; type?: string | undefined },
+  selection: {
+    from?: Date | undefined
+    to?: Date | undefined
+    type?: string | undefined
+    contactId?: string | undefined
+  },
 ): Promise<number> {
   const filters = [
     eq(activityItem.tenantId, tenantId),
     eq(activityItem.billable, true),
-    gte(activity.occurredAt, range.from),
-    lt(activity.occurredAt, range.to),
     sql`not ${claimedByAnActiveInvoice}`,
   ]
-  if (range.type) filters.push(eq(activity.type, range.type))
+  if (selection.from) filters.push(gte(activity.occurredAt, selection.from))
+  if (selection.to) filters.push(lt(activity.occurredAt, selection.to))
+  if (selection.type) filters.push(eq(activity.type, selection.type))
+  if (selection.contactId) filters.push(eq(activity.contactId, selection.contactId))
 
   const [row] = await reader
     .select({

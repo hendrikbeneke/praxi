@@ -27,8 +27,16 @@ import { strings } from '@/lib/strings'
  * component does is narrower than that rule — it only says which of the two
  * kinds was chosen.
  *
- * Used in the calendar and, for now, only there. The invoice draft and the
- * activity type's presets keep their own controls until their screens come up.
+ * **Used wherever a Vorgang is entered**, which is one component in three
+ * containers: the calendar's panel, the Vorgänge page and the contact's
+ * Vorgänge tab all mount `ActivityForm`, and this sits inside it. This
+ * paragraph said "the calendar and, for now, only there" from D-K3 until L7,
+ * which was true of the *screen* it was built for and never of the code — the
+ * form had already been shared. Corrected rather than acted on: the reuse the
+ * sentence promised for later had happened before it was written.
+ *
+ * The invoice draft and the activity type's presets keep their own controls
+ * until their screens come up.
  */
 export function ServicePicker({
   services,

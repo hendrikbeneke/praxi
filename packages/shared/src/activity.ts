@@ -204,6 +204,20 @@ export type CalendarEntry = z.infer<typeof calendarEntrySchema>
  * picker asks for — the note dialog choosing an activity does not care which
  * side of now it is on.
  */
+/**
+ * Whether an activity still owes money or has been claimed, as a *filter*
+ * (L7). Two values and not three: `none` — nothing billable at all — is not
+ * something anybody narrows a list to, and offering it would put a chip on
+ * screen whose answer is "the rows without positions".
+ *
+ * It is the same statement `activity.billingState` makes on each row, and the
+ * server answers both from one condition; see `activityBillingCondition` in
+ * `domain/billable.ts`.
+ */
+export const activityBillingFilters = ['billed', 'open'] as const
+export const activityBillingFilterSchema = z.enum(activityBillingFilters)
+export type ActivityBillingFilter = z.infer<typeof activityBillingFilterSchema>
+
 export const activityListParts = ['upcoming', 'past'] as const
 export const activityListPartSchema = z.enum(activityListParts)
 export type ActivityListPart = z.infer<typeof activityListPartSchema>
@@ -217,6 +231,9 @@ export const activityListQuerySchema = z
     /** The `code` of an `activity_type` (D8). Filtered on the server like the
      *  status, and for the same reason: the list is paged. */
     type: typeCodeSchema.optional(),
+    /** Filtered on the server like the status, and for the same reason: the
+     *  list is paged, and a browser cannot narrow what it never fetched. */
+    billing: activityBillingFilterSchema.optional(),
     part: activityListPartSchema.optional(),
     limit: z.coerce.number().int().min(1).max(200).default(PAGE_SIZE),
     /** Absent means the first page. Ignored for `upcoming`, which has none. */
@@ -228,11 +245,25 @@ export const activityListQuerySchema = z
 
 export type ActivityListQuery = z.infer<typeof activityListQuerySchema>
 
-/** The same window the list is drawn for, without the paging — a summary is an
- *  aggregate over the whole range or it says nothing. */
+/**
+ * The same selection the list is drawn for, without the paging — a summary is
+ * an aggregate over the whole of it or it says nothing.
+ *
+ * **Every bound is optional** (L7). The Vorgänge page asks about a window and
+ * passes both; a contact's Vorgänge tab asks about a contact, whose whole
+ * history is the window, and passes neither. Requiring `from`/`to` there would
+ * have meant inventing a range to count over — and the counts would then have
+ * disagreed with the list, which has no range either.
+ *
+ * What the summary must **not** carry is the selection the chips make: the
+ * figures describe what there is, so picking a chip cannot change the number
+ * written on it. `type` is the exception and belongs here, because that filter
+ * sits above the chips rather than among them.
+ */
 export const activitySummaryQuerySchema = z.object({
-  from: z.iso.datetime(),
-  to: z.iso.datetime(),
+  contactId: z.uuid().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
   type: typeCodeSchema.optional(),
 })
 
@@ -260,6 +291,12 @@ export const activitySummarySchema = z.object({
   /** Rendered and not yet on a non-cancelled invoice. The one figure here that
    *  is money, and the reason the line is worth reading at all. */
   unbilledCents: z.number().int(),
+  /** How many activities are wholly claimed, and how many still owe something
+   *  (L7) — the two figures the last pair of chips carries. They do not add up
+   *  to `total`: an activity with no billable position at all is neither, and
+   *  that is `billingState === 'none'`. */
+  billed: z.number().int(),
+  unbilled: z.number().int(),
 })
 
 export type ActivitySummary = z.infer<typeof activitySummarySchema>

@@ -576,7 +576,10 @@ export const strings = {
     title: 'Vorgänge',
     description: 'Was wann für wen erbracht wurde.',
     create: 'Neuer Vorgang',
-    createTitle: 'Vorgang anlegen',
+    createTitle: 'Neuer Vorgang',
+    /** Beside the heading of the inline form, in the idiom L6b settled on for
+     *  a record that does not exist yet. */
+    createPending: 'wird noch angelegt',
     createHint: 'Was erbracht wurde, und ob ein Termin dazugehört.',
     editTitle: 'Vorgang bearbeiten',
     /** The calendar's dialog in read mode — it is not an editor until
@@ -586,15 +589,12 @@ export const strings = {
     empty: 'Noch keine Vorgänge.',
 
     type: 'Art',
-    statusLabel: 'Status des Vorgangs',
+    statusLabel: 'Status',
     statuses: {
       planned: 'Geplant',
       rendered: 'Stattgefunden',
       no_show: 'Nicht erschienen',
     },
-    /** Rule 6, said where it could be misread: the status is documentation,
-     *  not a switch. */
-    statusHint: 'Der Status ist nur Dokumentation und steuert die Abrechnung nicht.',
     allStatuses: 'Alle',
     allTypes: 'Alle Arten',
     rangeFrom: 'Von',
@@ -613,7 +613,9 @@ export const strings = {
      *  the row is not in. */
     createdOutsideFilter: (date: string) =>
       `Neu angelegt zum ${date} — gehört nicht in die aktuelle Auswahl.`,
-    sectionUpcoming: 'Kommend',
+    /** Not "Kommende Termine" (L7): these are Vorgänge, and one of them may
+     *  well have no Termin at all. */
+    sectionUpcoming: 'Anstehend',
     sectionPast: 'Bisher',
     /** What the dialog says instead of quietly overwriting. */
     presetsUnchanged: 'Dauer und Positionen bleiben unverändert.',
@@ -632,8 +634,9 @@ export const strings = {
     tabs: { activity: 'Vorgang mit Termin', appointment: 'Nur Termin' },
     occurredAt: 'Datum',
     occurredTime: 'Uhrzeit',
-    durationMin: 'Dauer in Minuten',
+    durationMin: 'Dauer (Min.)',
     activityTitle: 'Bezeichnung',
+    optional: '(optional)',
     internalNote: 'Interne Notiz',
     internalNoteHint: 'Nur intern sichtbar, erscheint auf keinem Dokument.',
 
@@ -642,17 +645,20 @@ export const strings = {
     addService: 'Leistung hinzufügen',
     addGroup: 'Leistungsgruppe einfügen',
     /** The one picker that replaced those two in the calendar (D-K3). */
-    addFromCatalogue: 'Aus dem Katalog',
+    addFromCatalogue: 'Aus dem Katalog hinzufügen',
     catalogueServices: 'Leistungen',
     catalogueGroups: 'Leistungsgruppen',
     groupSize: (count: number) => `${count} ${count === 1 ? 'Position' : 'Positionen'}`,
     addFree: 'Freie Position',
-    addFreeShort: 'Frei',
-    /** Rule 5, said plainly where it matters most. */
+    addFreeShort: 'Freie Position',
+    /** Between the picker and the button — one decision, two ways in. */
+    addOr: 'oder',
+    /** Rule 5 and rule 5 one level up, in one line under the picker — where
+     *  the copying is about to happen rather than above a list of what has
+     *  already been copied. */
     copyHint:
-      'Beim Hinzufügen werden Bezeichnung, Ziffer, Preis und Dauer aus dem Katalog kopiert. ' +
-      'Ab dann gehören sie zu diesem Vorgang und ändern sich nicht mehr mit.',
-    groupHint: 'Eine Gruppe wird sofort in einzelne Positionen aufgelöst.',
+      'Aus dem Katalog wird kopiert; die Vorbelegung kommt aus der Art. ' +
+      'Eine Gruppe wird sofort in einzelne Positionen aufgelöst.',
     itemDescription: 'Bezeichnung',
     itemFeeCode: 'Ziffer',
     itemQuantity: 'Menge',
@@ -675,13 +681,17 @@ export const strings = {
      *  status cannot be mistaken for the activity's own (K7). */
     appointmentBadge: (status: string) => `Termin ${status}`,
     openInCalendar: 'Im Kalender öffnen',
+    /** In the detail's rail, so the length is readable without doing the
+     *  subtraction. */
+    durationSuffix: (minutes: number) => `${minutes} Min.`,
+    /** The Notizen block of the detail (L7). Written and locked on the
+     *  Notizen tab, which is where the button leads. */
+    notesEmpty: 'Noch keine Notizen.',
+    notesAdd: 'Notiz hinzufügen',
+    close: 'Schließen',
 
-    withAppointment: 'Termin im Kalender anlegen',
-    withAppointmentHint:
-      'Ohne Termin wird der Vorgang nur dokumentiert und erscheint nicht im Kalender.',
+    withAppointment: 'Termin anlegen',
     appointmentTo: 'Ende',
-    appointmentRange: 'Zeitraum',
-    appointmentRangeHint: 'Ergibt sich aus Beginn und Dauer.',
     durationRequired: 'Für einen Termin wird eine Dauer gebraucht.',
     appointmentStatus: 'Status',
     appointmentNote: 'Notiz zum Termin',
@@ -1525,7 +1535,10 @@ export const strings = {
 
     /** On a single activity. */
     fromActivity: 'Rechnung erstellen',
-    stateOpen: 'Offen',
+    /** On a row and on a chip alike, and deliberately the same word in both
+     *  places (L7). It said "Offen" on the row and "Nicht abgerechnet" on the
+     *  chip beside it, which is one state under two names. */
+    stateOpen: 'Nicht abgerechnet',
     stateBilled: 'Abgerechnet',
   },
   actions: {
@@ -1549,7 +1562,6 @@ export const strings = {
       `${total} ${total === 1 ? 'Vorgang' : 'Vorgänge'} · ${upcoming} kommend`,
     activitiesBilled: 'Abgerechnet',
     activitiesUnbilled: 'Nicht abgerechnet',
-    activitiesNoAppointment: 'Ohne Termin',
     invoices: (n: number) => `${n} ${n === 1 ? 'Rechnung' : 'Rechnungen'}`,
     invoicesOpen: 'Offen',
     invoicesPaid: 'Bezahlt',

@@ -15,7 +15,10 @@ import type {
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { api, apiError } from './api'
 
-type ListParams = Pick<Partial<ActivityListQuery>, 'contactId' | 'from' | 'to' | 'status' | 'type'>
+type ListParams = Pick<
+  Partial<ActivityListQuery>,
+  'contactId' | 'from' | 'to' | 'status' | 'type' | 'billing'
+>
 
 function listQuery(params: ListParams, extra: Record<string, string> = {}) {
   return {
@@ -24,6 +27,7 @@ function listQuery(params: ListParams, extra: Record<string, string> = {}) {
     ...(params.to ? { to: params.to } : {}),
     ...(params.status ? { status: params.status } : {}),
     ...(params.type ? { type: params.type } : {}),
+    ...(params.billing ? { billing: params.billing } : {}),
     ...extra,
   }
 }
@@ -92,9 +96,10 @@ export const activitySummaryQueryOptions = (params: ActivitySummaryQuery) =>
     queryFn: async (): Promise<ActivitySummary> => {
       const res = await api.api.activities.summary.$get({
         query: {
-          from: params.from,
-          to: params.to,
+          ...(params.from ? { from: params.from } : {}),
+          ...(params.to ? { to: params.to } : {}),
           ...(params.type ? { type: params.type } : {}),
+          ...(params.contactId ? { contactId: params.contactId } : {}),
         },
       })
       if (!res.ok) throw await apiError(res)

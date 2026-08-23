@@ -959,7 +959,56 @@ describe('the summary above the list', () => {
       noShow: 0,
       upcoming: 0,
       unbilledCents: 0,
+      billed: 0,
+      unbilled: 0,
     })
+  })
+
+  /**
+   * A contact's Vorgänge tab counts a whole history, so it passes no range at
+   * all (L7). Both bounds are optional for that: requiring them would have
+   * meant inventing a window to count over, and the counts would then have
+   * described something other than the list beside them.
+   */
+  it('counts everything when no range is given', async () => {
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2019-03-04T08:00:00Z') }))
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2031-11-02T08:00:00Z') }))
+
+    expect((await activitySummary(db(), tenantId, {}, NOW)).total).toBe(2)
+    expect((await activitySummary(db(), tenantId, WINDOW, NOW)).total).toBe(0)
+  })
+
+  /** `contactId` narrows the counts the same way `type` does, and for the same
+   *  reason: it is not one of the chips. It is the page one is standing on. */
+  it('narrows by contact', async () => {
+    const other = await createContact(db(), tenantId, {
+      kind: 'organization',
+      salutationId: null,
+      companyName: 'Attrappen GmbH',
+      contactPerson: null,
+      vatId: null,
+      street: null,
+      houseNumber: null,
+      postalCode: null,
+      city: null,
+      countryId: null,
+      email: null,
+      phoneMobile: null,
+      phoneLandline: null,
+      internalNote: null,
+      diagnosis: null,
+      roles: [],
+    })
+
+    await createActivity(db(), tenantId, activityInput({ occurredAt: AT('2026-09-02T08:00:00Z') }))
+    await createActivity(
+      db(),
+      tenantId,
+      activityInput({ contactId: other.id, occurredAt: AT('2026-09-03T08:00:00Z') }),
+    )
+
+    expect((await activitySummary(db(), tenantId, { contactId }, NOW)).total).toBe(1)
+    expect((await activitySummary(db(), tenantId, {}, NOW)).total).toBe(2)
   })
 
   it('sums what is rendered and unclaimed', async () => {

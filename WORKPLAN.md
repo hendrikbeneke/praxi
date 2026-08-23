@@ -2829,6 +2829,51 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   negativer Rand über die Trennlinie zur Liste.
 
 
+**L7, as built** — *Vorgänge*. Keine Migration.
+
+- **Die Chips filtern und zählen auf dem Server.** Fünf statt sechs: „Ohne
+  Termin" fällt weg, denn der Reiter filtert Vorgänge und keine Termine. Der
+  Terminstatus bleibt als Kennzeichnung in jeder Zeile — ein abgesagter Termin
+  will beim Überfliegen gesehen werden, was etwas anderes ist als danach zu
+  filtern. Gemessen: jeder Chip liefert genau seine Zahl an Zeilen, und die
+  Zahlen stehen still, während man sie drückt.
+- **`activityBillingCondition` steht in `billable.ts`**, neben
+  `claimedByAnActiveInvoice`, und ist der vierte Leser dieser Bedingung. Eine
+  zweite Fassung in `activity.ts` hätte in jedem leichten Fall dasselbe gesagt
+  und bei einer stornierten Rechnung etwas anderes — der Test dazu storniert
+  und prüft, dass die Zeile von „Abgerechnet" zurück auf „Nicht abgerechnet"
+  fällt und die Kennzeichnung an der Zeile dasselbe sagt.
+- **`activitySummary` nimmt `contactId` und beide Grenzen optional.** Ein
+  Kontakt hat kein Fenster; eines zu verlangen hätte geheißen, eines zu
+  erfinden, und die Zahlen hätten dann etwas beschrieben, das die Liste
+  daneben nicht ist. Dazu zwei Zählungen, `billed` und `unbilled`, die sich
+  nicht zu `total` addieren — ein Vorgang ohne abrechenbare Position ist
+  keines von beidem.
+- **„Offen" heißt jetzt „Nicht abgerechnet"**, in der Zeile wie auf dem Chip.
+  Ein Zustand unter zwei Namen war das eigentliche Problem.
+- **Der Abschnitt heißt „Anstehend"**, nicht „Kommende Termine": es sind
+  Vorgänge, und einer davon hat womöglich gar keinen Termin.
+- **Ein Bauteil, zwei Füße.** Im aufgeklappten Detail „Schließen" und
+  „Bearbeiten", im Kalenderdialog „Absagen" und „Bearbeiten" — dieselbe
+  Komponente, `footerPortal` entscheidet. Dazu im Detail die interne Notiz im
+  Lesemodus und eine Terminleiste, die die Dauer nennt und sagt, ob der
+  Zeitraum belegt bleibt.
+- **„Notiz hinzufügen" schreibt nicht hier.** Es springt über
+  `?tab=notes&activityId=…` in den Notizen-Reiter — derselbe Weg wie
+  „Dokumentieren" auf der Übersicht. Ein zweiter Ort zum Schreiben hätte einen
+  zweiten Entwurf, fehlende Filterchips und eine eigene Antwort auf den
+  Nachtrag gebraucht; die zweite Ausprägung von `NoteForm` ist damit nicht
+  nötig geworden.
+- **Die Positionszeile verliert ihre vier Beschriftungen** und trägt sie als
+  `aria-label` weiter. Viermal Kleingedrucktes pro Zeile war eine Wand; was
+  eine Zeile hält, liest man an den Werten. Die Reihenfolge-Pfeile bleiben,
+  obwohl kein Bild sie zeigt.
+- **Der tote String `statusHint` ist weg**, der `COMMENT ON COLUMN` bleibt.
+  Der falsche Docstring in `service-picker.tsx` — „used in the calendar and,
+  for now, only there" — ist korrigiert: geteilt war das Formular schon, als
+  der Satz geschrieben wurde.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

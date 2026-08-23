@@ -146,7 +146,15 @@ export function ActivityList({
     <div className="space-y-2">
       {creating && (
         <section className="rounded-[10px] border border-primary bg-card p-4">
-          <p className="mb-4 font-semibold">{strings.activity.createTitle}</p>
+          {/* "Neuer Vorgang — wird noch angelegt", the same idiom the Notizen
+              tab uses for the row of a note being written (L6b): the heading
+              says what it is, the grey half says it is not stored. */}
+          <p className="mb-4 flex flex-wrap items-baseline gap-2">
+            <span className="font-semibold">{strings.activity.createTitle}</span>
+            <span className="text-[13px] text-muted-foreground">
+              {strings.activity.createPending}
+            </span>
+          </p>
           <ActivityForm
             {...(contactId ? { contactId } : {})}
             onSaved={(saved) => {
@@ -208,8 +216,15 @@ export function ActivityList({
                   )}
                 >
                   <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    {/* Date *and* start time in the line one reads first
+                        (L7). The range below repeats the start, and that is
+                        the design's own redundancy rather than an oversight:
+                        the second line is where the positions run, so a long
+                        one pushes the time out of sight exactly when the list
+                        is worth skimming. */}
                     <span className="w-[150px] shrink-0 text-muted-foreground tabular-nums">
-                      {formatBerlinDateLong(activity.occurredAt)}
+                      {formatBerlinDateLong(activity.occurredAt)},{' '}
+                      {formatBerlinTime(activity.appointment?.startsAt ?? activity.occurredAt)}
                     </span>
                     {showContact && <span className="font-semibold">{activity.contactName}</span>}
                     <span
@@ -247,8 +262,9 @@ export function ActivityList({
                       </Badge>
                     )}
                     {/* Derived on read from the invoice lines and never stored
-                        — a cancelled invoice puts this back to "Offen" on its
-                        own. `none` says there is nothing to bill here. */}
+                        — a cancelled invoice puts this back to "Nicht
+                        abgerechnet" on its own. `none` says there is nothing
+                        to bill here, and has no badge and no chip. */}
                     {activity.billingState !== 'none' && (
                       <Badge variant={activity.billingState === 'billed' ? 'secondary' : 'outline'}>
                         {activity.billingState === 'billed'
@@ -266,10 +282,13 @@ export function ActivityList({
                   </span>
 
                   <span className="mt-1 flex gap-3 text-muted-foreground text-xs">
+                    {/* Empty without a calendar entry rather than repeating
+                        the single time from the line above — the cell stays,
+                        so the positions of every row start at one x. */}
                     <span className="w-[150px] shrink-0 tabular-nums">
                       {activity.appointment
                         ? `${formatBerlinTime(activity.appointment.startsAt)}–${formatBerlinTime(activity.appointment.endsAt)}`
-                        : formatBerlinTime(activity.occurredAt)}
+                        : ''}
                     </span>
                     <span className="min-w-0">
                       {activity.items
@@ -287,6 +306,7 @@ export function ActivityList({
                       onStartEditing={detail.startEditing}
                       onStopEditing={detail.stopEditing}
                       onSaved={detail.close}
+                      onClose={detail.close}
                       showContact={showContact}
                     />
                   </div>

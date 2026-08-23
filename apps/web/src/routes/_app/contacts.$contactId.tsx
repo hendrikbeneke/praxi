@@ -1,7 +1,7 @@
 import {
-  type Activity,
+  type ActivityListQuery,
+  type ActivitySummary,
   activityLabel,
-  activityStatuses,
   activityTypeLabel,
   type ContactRoleInput,
   type ContactUpdate,
@@ -48,7 +48,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
-import { pastActivitiesQueryOptions, upcomingActivitiesQueryOptions } from '@/lib/activities'
+import {
+  activitySummaryQueryOptions,
+  pastActivitiesQueryOptions,
+  upcomingActivitiesQueryOptions,
+} from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import {
@@ -304,60 +308,39 @@ function ContactActivities({
    *  opens in read mode. */
   openActivityId: string | undefined
 }) {
-  /* Two queries, two rules (L3) — see `activityListPartSchema`. The chips
-     below still count and filter what has been loaded, which is what they did
-     before; L7 decides whether they move to the server with the rest. */
-  const upcoming = useQuery(upcomingActivitiesQueryOptions({ contactId }))
-  const past = useInfiniteQuery(pastActivitiesQueryOptions({ contactId }))
+  const [filter, setFilter] = useState<ActivityFilter | undefined>()
+
+  /**
+   * **The chips narrow on the server and count on the server** (L7). They
+   * counted and filtered what had been loaded until then, which was right for
+   * exactly as long as one request returned everything: with the past paged to
+   * fifty, "7 Geplant" was the number in the first page and not the number the
+   * contact has, and picking the chip produced whatever of those fifty
+   * matched.
+   *
+   * Two things follow, and they are why this needs three queries rather than
+   * one. The filter travels into both halves of the list, because both are
+   * narrowed the same way; the **counts do not**, because a chip's number has
+   * to hold still when the chip is pressed. So the summary asks about the
+   * contact and nothing else.
+   */
+  const params = { contactId, ...(filter ? activityFilters[filter] : {}) }
+  const upcoming = useQuery(upcomingActivitiesQueryOptions(params))
+  const past = useInfiniteQuery(pastActivitiesQueryOptions(params))
+  const counts = useQuery(activitySummaryQueryOptions({ contactId }))
   const [creating, setCreating] = useState(false)
-  const [filter, setFilter] = useState<string | undefined>()
 
-  const upcomingRows = upcoming.data ?? []
-  const pastRows = past.data?.pages.flatMap((page) => page.items) ?? []
-  const rows = [...upcomingRows, ...pastRows]
-  const now = new Date().toISOString()
-
-  /** Each chip carries the test it filters by, so the count and the narrowing
-   *  cannot say different things. */
-  const activityChips = [
-    ...activityStatuses.map((status) => ({
-      id: `status:${status}`,
-      label: strings.activity.statuses[status],
-      matches: (entry: Activity) => entry.status === status,
-    })),
-    {
-      id: 'billed',
-      label: strings.counts.activitiesBilled,
-      matches: (entry: Activity) => entry.billingState === 'billed',
-    },
-    {
-      id: 'unbilled',
-      label: strings.counts.activitiesUnbilled,
-      matches: (entry: Activity) => entry.billingState === 'open',
-    },
-    {
-      id: 'no-appointment',
-      label: strings.counts.activitiesNoAppointment,
-      matches: (entry: Activity) => entry.appointment === null,
-    },
-  ]
-
-  const active = activityChips.find((chip) => chip.id === filter)
-  const shownUpcoming = active ? upcomingRows.filter(active.matches) : upcomingRows
-  const shownPast = active ? pastRows.filter(active.matches) : pastRows
+  const summary = counts.data
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FilterRow
-          summary={strings.counts.activities(
-            rows.length,
-            rows.filter((entry) => entry.occurredAt > now).length,
-          )}
-          chips={activityChips.map((chip) => ({
-            id: chip.id,
-            label: chip.label,
-            count: rows.filter(chip.matches).length,
+          summary={strings.counts.activities(summary?.total ?? 0, summary?.upcoming ?? 0)}
+          chips={activityChipOrder.map((id) => ({
+            id,
+            label: activityChipLabel(id),
+            count: summary ? activityChipCount(summary, id) : 0,
           }))}
           active={filter}
           onChange={setFilter}
@@ -370,8 +353,8 @@ function ContactActivities({
 
       <ActivityList
         openActivityId={openActivityId}
-        upcoming={shownUpcoming}
-        past={shownPast}
+        upcoming={upcoming.data ?? []}
+        past={past.data?.pages.flatMap((page) => page.items) ?? []}
         emptyText={
           upcoming.isPending || past.isPending ? strings.status.loading : strings.activity.empty
         }
@@ -386,6 +369,47 @@ function ContactActivities({
       />
     </>
   )
+}
+
+/**
+ * The five chips of the Vorgänge tab, in the design's order (L7).
+ *
+ * **There is deliberately no chip for a Terminstatus**, and none for "Ohne
+ * Termin" either — the tab filters Vorgänge, not Termine. The appointment's
+ * status still stands in every row as a badge, because a cancelled slot is
+ * something one wants to see while skimming; being worth seeing and being
+ * worth filtering by are different questions.
+ *
+ * Each entry is a *query*, not a predicate: what narrows the list is what the
+ * server is asked, so a chip cannot mean one thing in the count and another in
+ * the rows.
+ */
+const activityFilters = {
+  planned: { status: 'planned' },
+  rendered: { status: 'rendered' },
+  no_show: { status: 'no_show' },
+  billed: { billing: 'billed' },
+  unbilled: { billing: 'open' },
+} as const satisfies Record<string, Pick<Partial<ActivityListQuery>, 'status' | 'billing'>>
+
+type ActivityFilter = keyof typeof activityFilters
+
+const activityChipOrder = ['planned', 'rendered', 'no_show', 'billed', 'unbilled'] as const
+
+function activityChipLabel(id: ActivityFilter): string {
+  if (id === 'billed') return strings.counts.activitiesBilled
+  if (id === 'unbilled') return strings.counts.activitiesUnbilled
+  return strings.activity.statuses[id]
+}
+
+/** The count is the summary's, field for field — a chip must never work its
+ *  own number out of the rows it happens to have. */
+function activityChipCount(summary: ActivitySummary, id: ActivityFilter): number {
+  if (id === 'planned') return summary.planned
+  if (id === 'rendered') return summary.rendered
+  if (id === 'no_show') return summary.noShow
+  if (id === 'billed') return summary.billed
+  return summary.unbilled
 }
 
 /**

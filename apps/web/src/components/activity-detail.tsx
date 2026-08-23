@@ -3,10 +3,10 @@ import {
   activityTypeColor,
   activityTypeLabel,
   formatBerlinDate,
-  formatBerlinDateTime,
   formatBerlinTime,
   formatEuro,
   invoicePaymentState,
+  minutesBetween,
   occupiesSlot,
   plainNoteText,
   sumItems,
@@ -14,12 +14,13 @@ import {
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { FileText } from 'lucide-react'
+import { FileText, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { ActivityForm } from '@/components/activity-form'
 import { CollectDialog, type CollectPlanEntry } from '@/components/collect-dialog'
+import { DASH } from '@/components/list-card'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ import { ApiError } from '@/lib/api'
 import { billableQueryOptions, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
  * One activity, read or edited, inline (D8).
@@ -50,6 +52,7 @@ export function ActivityDetail({
   onStartEditing,
   onStopEditing,
   onSaved,
+  onClose,
   showContact = true,
 }: {
   activity: Activity
@@ -64,6 +67,9 @@ export function ActivityDetail({
   onStartEditing: () => void
   onStopEditing: () => void
   onSaved: () => void
+  /** Only where the detail is expanded inside a row: the foot's left half is
+   *  "Schließen" there and "Absagen" in the calendar. */
+  onClose?: (() => void) | undefined
   showContact?: boolean
 }) {
   const types = useQuery(activityTypeListQueryOptions(true))
@@ -98,25 +104,24 @@ export function ActivityDetail({
      * also the honest reading of "one component, three containers".
      */
     <div className="@container">
-      {/* The calendar's footer: "Absagen" on the left because it acts on the
-          slot rather than on the record, "Bearbeiten" on the right where every
-          primary action sits. Deleting is deliberately not offered — a Vorgang
-          hangs on this appointment, and the server refuses it with a sentence
-          about cancelling instead (D-K1). */}
-      {footerPortal &&
-        createPortal(
-          <div className="flex items-center justify-between gap-2">
-            {activity.appointment && occupiesSlot(activity.appointment.status) ? (
-              <CancelAppointment appointmentId={activity.appointment.id} onDone={onSaved} />
-            ) : (
-              <span />
-            )}
-            <Button type="button" onClick={onStartEditing}>
-              {strings.actions.edit}
-            </Button>
-          </div>,
-          footerPortal,
-        )}
+      {/**
+       * **One component, two feet** (L7). "Bearbeiten" is the same on both
+       * sides; what differs is the left half, because the two containers put
+       * the reader in a different position.
+       *
+       * In the calendar the detail fills a dialog that closes itself, so the
+       * useful left-hand action is "Absagen" — it acts on the *slot* rather
+       * than on the record, which is why it sits opposite the primary action
+       * instead of beside it. Deleting is deliberately not offered anywhere:
+       * a Vorgang hangs on this appointment, and the server refuses with a
+       * sentence about cancelling instead (D-K1).
+       *
+       * Expanded inside a row there is nothing to close the card but the card
+       * itself, so the left half is "Schließen". Different labels and
+       * different logic, one component — which is the whole reason the
+       * activity never got a screen of its own.
+       */}
+      {footerPortal ? createPortal(<Foot />, footerPortal) : null}
 
       <div className="grid gap-8 @2xl:grid-cols-[minmax(0,1fr)_250px]">
         <div>
@@ -164,18 +169,17 @@ export function ActivityDetail({
             </div>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            {footerPortal === undefined || footerPortal === null ? (
-              <Button type="button" variant="outline" size="sm" onClick={onStartEditing}>
-                {strings.actions.edit}
-              </Button>
-            ) : null}
-            {/* Acts on what is stored, not on what is on screen — which is why
-                it is only offered while the activity is open for billing. */}
-            {activity.billingState === 'open' && <BillActivity activity={activity} />}
-          </div>
+          {/* Acts on what is stored, not on what is on screen — which is why
+              it is only offered while the activity is open for billing. */}
+          {activity.billingState === 'open' && (
+            <div className="mt-5">
+              <BillActivity activity={activity} />
+            </div>
+          )}
 
-          <ActivityNotes activityId={activity.id} />
+          <ActivityNotes activity={activity} />
+
+          <InternalNote text={activity.internalNote} />
         </div>
 
         <div className="flex flex-col gap-4 @2xl:border-l @2xl:pl-6">
@@ -198,12 +202,24 @@ export function ActivityDetail({
             {activity.appointment ? (
               <>
                 <span className="tabular-nums">
-                  {formatBerlinDateTime(activity.appointment.startsAt)}
+                  {formatBerlinDate(activity.appointment.startsAt)}
                 </span>
                 <span className="text-muted-foreground text-sm tabular-nums">
                   {formatBerlinTime(activity.appointment.startsAt)}–
                   {formatBerlinTime(activity.appointment.endsAt)} ·{' '}
-                  {strings.appointment.status[activity.appointment.status]}
+                  {strings.activity.durationSuffix(
+                    minutesBetween(activity.appointment.startsAt, activity.appointment.endsAt),
+                  )}
+                </span>
+                {/* Status on its own line, and under it what that status
+                    *does* — the practitioner reads this rail to find out
+                    whether the hour is still taken, and "Kurzfristig abgesagt"
+                    alone does not say. */}
+                <span>{strings.appointment.status[activity.appointment.status]}</span>
+                <span className="text-muted-foreground text-sm">
+                  {occupiesSlot(activity.appointment.status)
+                    ? strings.appointment.holdsSlot
+                    : strings.appointment.releasesSlot}
                 </span>
                 {/* The way back out of the activity and into the week it sits
                   in. The other direction — a calendar entry opening this — is
@@ -236,8 +252,36 @@ export function ActivityDetail({
           <ActivityInvoices activity={activity} />
         </div>
       </div>
+
+      {!footerPortal && (
+        <div className="mt-6 border-t pt-4">
+          <Foot />
+        </div>
+      )}
     </div>
   )
+
+  /** One definition, two containers — see the comment above. */
+  function Foot() {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        {footerPortal ? (
+          activity.appointment && occupiesSlot(activity.appointment.status) ? (
+            <CancelAppointment appointmentId={activity.appointment.id} onDone={onSaved} />
+          ) : (
+            <span />
+          )
+        ) : (
+          <Button type="button" variant="ghost" onClick={() => onClose?.()}>
+            {strings.activity.close}
+          </Button>
+        )}
+        <Button type="button" onClick={onStartEditing}>
+          {strings.actions.edit}
+        </Button>
+      </div>
+    )
+  }
 }
 
 /** One labelled block of the right-hand rail. */
@@ -339,27 +383,33 @@ function ActivityInvoices({ activity }: { activity: Activity }) {
 }
 
 /**
- * The documentation written for this activity, read-only.
+ * The documentation written for this activity — a reading list, and a way in
+ * (L7).
  *
- * Notes are written and locked on the contact's Notizen tab — this is here so
- * that opening a session shows what was recorded for it without hunting for
- * it. The D8 prototype offers "Notiz hinzufügen" here and it is still not
- * built — but the reason has expired: it was "a note editor inside a record
- * that is itself editable is the rich-text question, and that is D10", and
- * D10 came, then L6a and L6b. What is missing is only the wiring, and that
- * belongs to L7, which redraws this detail: `NoteForm` takes
- * `activityPicker={false}` and the Vorgang from its target, exactly for this
- * place.
+ * **The editor does not come here, and that is a decision rather than a gap.**
+ * The prototype draws a note form inside this detail, and L6b made one that
+ * would fit; what it would cost is a second place where notes are written,
+ * with its own draft, its own filter chips missing, and its own answer to what
+ * happens to an addendum. "Notiz hinzufügen" therefore *goes* to the Notizen
+ * tab with this Vorgang already chosen — the same `?tab=notes&activityId=…`
+ * that "Dokumentieren" on the overview uses, so there is one route into
+ * writing a note and it lands somewhere that can do all of it.
+ *
+ * The section is drawn even when it is empty, because "no documentation yet"
+ * is exactly what one opens a session to find out.
  */
-function ActivityNotes({ activityId }: { activityId: string }) {
-  const notes = useQuery(noteListQueryOptions({ activityId }))
+function ActivityNotes({ activity }: { activity: Activity }) {
+  const notes = useQuery(noteListQueryOptions({ activityId: activity.id }))
   const rows = notes.data ?? []
-
-  if (rows.length === 0) return null
 
   return (
     <section className="mt-6">
       <p className="font-medium text-sm">{strings.note.title}</p>
+
+      {rows.length === 0 && (
+        <p className="mt-2 text-muted-foreground text-sm">{strings.activity.notesEmpty}</p>
+      )}
+
       <ul className="mt-2 space-y-2">
         {rows.map((entry) => (
           <li key={entry.id} className="rounded-md border px-3 py-2">
@@ -384,6 +434,39 @@ function ActivityNotes({ activityId }: { activityId: string }) {
           </li>
         ))}
       </ul>
+
+      <Button asChild variant="outline" size="sm" className="mt-3">
+        <Link
+          to="/contacts/$contactId"
+          params={{ contactId: activity.contactId }}
+          search={{ tab: 'notes', activityId: activity.id }}
+        >
+          <Plus className="size-4" aria-hidden />
+          {strings.activity.notesAdd}
+        </Link>
+      </Button>
+    </section>
+  )
+}
+
+/**
+ * The internal note, read (L7).
+ *
+ * Read mode renders no field (K2): the text stands as text, and where there is
+ * none the same `—` every list uses. The sentence under it stays in read mode
+ * on purpose — what it says is not how to fill the box in but what becomes of
+ * what is in it, and that is worth knowing while reading.
+ */
+function InternalNote({ text }: { text: string | null }) {
+  return (
+    <section className="mt-6">
+      <p className="font-medium text-sm">{strings.activity.internalNote}</p>
+      <p
+        className={cn('mt-2 whitespace-pre-wrap text-sm', !text?.trim() && 'text-muted-foreground')}
+      >
+        {text?.trim() ? text : DASH}
+      </p>
+      <p className="mt-1 text-muted-foreground text-xs">{strings.activity.internalNoteHint}</p>
     </section>
   )
 }
