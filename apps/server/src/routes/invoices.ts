@@ -22,6 +22,7 @@ import {
 import { MissingNumberRangeError } from '../domain/counter.js'
 import { finalizeInvoice } from '../domain/finalize-invoice.js'
 import {
+  billingRecipientsOf,
   collectBillableItems,
   createInvoice,
   deleteInvoice,
@@ -31,6 +32,7 @@ import {
   InvoiceNotADraftError,
   ItemAlreadyBilledError,
   listInvoices,
+  UnknownRecipientError,
   updateInvoice,
 } from '../domain/invoice.js'
 import { NumberAlreadyIssuedError } from '../domain/number-range.js'
@@ -77,6 +79,9 @@ function translate(error: unknown): never {
   if (error instanceof ItemAlreadyBilledError) {
     throw new HTTPException(409, { message: messages.invoice.itemAlreadyBilled })
   }
+  if (error instanceof UnknownRecipientError) {
+    throw new HTTPException(409, { message: messages.invoice.unknownRecipient })
+  }
   if (error instanceof NumberAlreadyIssuedError) {
     throw new HTTPException(409, { message: messages.invoice.numberTaken })
   }
@@ -116,6 +121,15 @@ export const invoicesRoute = new Hono<AppEnv>()
   /** Static segment before `/:invoiceId`, which is validated as a uuid. */
   .get('/billable', validate('query', billableQuerySchema), async (c) => {
     return c.json(await listBillableItems(db(), tenantId(c), c.req.valid('query').contactId))
+  })
+
+  /** Who an invoice for this contact may be addressed to — the contact's
+   *  `billing_recipient` relations, and the same list the update validates
+   *  against. Static segment, like `/billable` above. */
+  .get('/recipients', validate('query', billableQuerySchema), async (c) => {
+    const contactId = c.req.valid('query').contactId
+    if (!contactId) return c.json([])
+    return c.json(await billingRecipientsOf(db(), tenantId(c), contactId))
   })
 
   .post('/', validate('json', invoiceCreateSchema), async (c) => {

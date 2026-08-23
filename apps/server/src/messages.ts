@@ -235,6 +235,12 @@ export const messages = {
       'Diese Rechnungsnummer ist bereits vergeben. Bitte korrigieren Sie den Nummernkreis ' +
       'in den Einstellungen.',
     itemAlreadyBilled: 'Mindestens eine der gewählten Positionen steht bereits auf einer Rechnung.',
+    /** The recipient is not free: only a contact the patient has a
+     *  `billing_recipient` relation to. Reachable by a request, not by the
+     *  screen, so it names the rule rather than what to click. */
+    unknownRecipient:
+      'Dieser Kontakt ist kein Rechnungsempfänger des Patienten. ' +
+      'Rechnungsempfänger werden in den Stammdaten unter „Verknüpfte Kontakte" festgelegt.',
     /** Names what is in the way — a bare "not possible" leaves the
      *  practitioner hunting for the invoice. */
     billedItemBlocksDelete: (item: string, invoiceNumber: string | null) =>

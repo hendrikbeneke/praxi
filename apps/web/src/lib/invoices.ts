@@ -43,6 +43,22 @@ export const invoiceQueryOptions = (invoiceId: string) =>
     },
   })
 
+/**
+ * Who an invoice for this contact may be addressed to (L8) — their
+ * `billing_recipient` relations, and the same list the server validates
+ * against. An empty answer means the invoice goes to the contact, which is the
+ * ordinary case and not an error.
+ */
+export const invoiceRecipientsQueryOptions = (contactId: string) =>
+  queryOptions({
+    queryKey: ['invoices', 'recipients', contactId],
+    queryFn: async (): Promise<{ id: string; name: string; relationLabel: string }[]> => {
+      const res = await api.api.invoices.recipients.$get({ query: { contactId } })
+      if (!res.ok) throw await apiError(res)
+      return res.json()
+    },
+  })
+
 /** Everything still open — for one contact, or for all of them when no
  *  contact is named. There is no status parameter, on purpose: see
  *  `billableQuerySchema`. */

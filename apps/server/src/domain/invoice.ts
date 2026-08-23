@@ -15,8 +15,11 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database, DbReader, Transaction } from '../db/client.js'
 import {
+  activity,
   activityItem,
   contact,
+  contactRelation,
+  contactRelationType,
   country,
   invoice,
   invoiceLine,
@@ -66,6 +69,7 @@ const invoiceColumns = {
   numberValue: invoice.numberValue,
   invoiceDate: invoice.invoiceDate,
   paymentTermDays: invoice.paymentTermDays,
+  recipientContactId: invoice.recipientContactId,
   recipientSnapshot: invoice.recipientSnapshot,
   introText: invoice.introText,
   outroText: invoice.outroText,
@@ -97,6 +101,9 @@ const lineColumns = {
    * Null on a free line typed by hand, which belongs to no activity.
    */
   activityId: activityItem.activityId,
+  activityOccurredAt: activity.occurredAt,
+  activityType: activity.type,
+  activityTitle: activity.title,
   description: invoiceLine.description,
   feeCode: invoiceLine.feeCode,
   dateOfService: invoiceLine.dateOfService,
@@ -111,6 +118,7 @@ type InvoiceRow = Omit<
   | 'lines'
   | 'contactName'
   | 'contactNumber'
+  | 'recipientName'
   | 'paidCents'
   | 'lastPaidOn'
   | 'lastSentAt'
@@ -161,20 +169,25 @@ async function loadLines(reader: DbReader, invoiceIds: readonly string[]) {
     // Left, not inner: a free line carries no `activity_item_id` at all and
     // must not fall out of the invoice it is on.
     .leftJoin(activityItem, eq(activityItem.id, invoiceLine.activityItemId))
+    .leftJoin(activity, eq(activity.id, activityItem.activityId))
     .where(inArray(invoiceLine.invoiceId, [...invoiceIds]))
     .orderBy(asc(invoiceLine.position))
 
   const byInvoice = new Map<string, InvoiceLine[]>()
-  for (const { invoiceId, ...line } of rows) {
+  for (const { invoiceId, activityOccurredAt, ...line } of rows) {
+    const entry: InvoiceLine = {
+      ...line,
+      activityOccurredAt: activityOccurredAt?.toISOString() ?? null,
+    }
     const list = byInvoice.get(invoiceId)
-    if (list) list.push(line)
-    else byInvoice.set(invoiceId, [line])
+    if (list) list.push(entry)
+    else byInvoice.set(invoiceId, [entry])
   }
   return byInvoice
 }
 
 function toInvoice(
-  row: InvoiceRow & { contactName: string; contactNumber: number },
+  row: InvoiceRow & { contactName: string; contactNumber: number; recipientName: string | null },
   lines: InvoiceLine[],
   payments: PaymentSummary | undefined,
   lastSend: LastSend,
@@ -197,6 +210,11 @@ function toInvoice(
   }
 }
 
+/** The chosen recipient, joined for their name alone — the same shape as
+ *  `contactName`, derived on read and stored nowhere. Null where the invoice
+ *  goes to the contact itself, which is most of them. */
+const recipientContact = alias(contact, 'recipient_contact')
+
 const withContact = {
   ...invoiceColumns,
   cancelsInvoiceNumber: cancels.number,
@@ -207,6 +225,32 @@ const withContact = {
   contactLastName: contact.lastName,
   contactCompanyName: contact.companyName,
   contactNumber: contact.contactNumber,
+  recipientKind: recipientContact.kind,
+  recipientTitle: recipientContact.title,
+  recipientFirstName: recipientContact.firstName,
+  recipientLastName: recipientContact.lastName,
+  recipientCompanyName: recipientContact.companyName,
+}
+
+/** The name of the chosen recipient, or null where there is none. Not the
+ *  snapshot's: this is what the *draft* is pointing at, and the snapshot is
+ *  what a finalized document was addressed to. */
+function recipientNameOf(row: {
+  recipientContactId: string | null
+  recipientKind: 'person' | 'organization' | null
+  recipientTitle: string | null
+  recipientFirstName: string | null
+  recipientLastName: string | null
+  recipientCompanyName: string | null
+}): string | null {
+  if (row.recipientContactId === null || row.recipientKind === null) return null
+  return formatContactName({
+    kind: row.recipientKind,
+    title: row.recipientTitle,
+    firstName: row.recipientFirstName,
+    lastName: row.recipientLastName,
+    companyName: row.recipientCompanyName,
+  })
 }
 
 /** The name shown in a list. For a finalized invoice the snapshot is what
@@ -242,6 +286,7 @@ export async function listInvoices(
     .select(withContact)
     .from(invoice)
     .innerJoin(contact, eq(contact.id, invoice.contactId))
+    .leftJoin(recipientContact, eq(recipientContact.id, invoice.recipientContactId))
     .leftJoin(cancels, eq(cancels.id, invoice.cancelsInvoiceId))
     .leftJoin(cancelledBy, eq(cancelledBy.id, invoice.cancelledByInvoiceId))
     .where(and(...filters))
@@ -258,7 +303,12 @@ export async function listInvoices(
 
   return rows.map((row) =>
     toInvoice(
-      { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
+      {
+        ...row,
+        contactName: displayName(row),
+        contactNumber: row.contactNumber,
+        recipientName: recipientNameOf(row),
+      },
       lines.get(row.id) ?? [],
       paid.get(row.id),
       sent.get(row.id),
@@ -275,6 +325,7 @@ export async function getInvoice(
     .select(withContact)
     .from(invoice)
     .innerJoin(contact, eq(contact.id, invoice.contactId))
+    .leftJoin(recipientContact, eq(recipientContact.id, invoice.recipientContactId))
     .leftJoin(cancels, eq(cancels.id, invoice.cancelsInvoiceId))
     .leftJoin(cancelledBy, eq(cancelledBy.id, invoice.cancelledByInvoiceId))
     .where(and(eq(invoice.tenantId, tenantId), eq(invoice.id, id)))
@@ -285,7 +336,12 @@ export async function getInvoice(
   const paid = await paymentSummaryByInvoice(reader, tenantId, [row.id])
   const sent = await lastSendByInvoice(reader, tenantId, [row.id])
   return toInvoice(
-    { ...row, contactName: displayName(row), contactNumber: row.contactNumber },
+    {
+      ...row,
+      contactName: displayName(row),
+      contactNumber: row.contactNumber,
+      recipientName: recipientNameOf(row),
+    },
     lines.get(row.id) ?? [],
     paid.get(row.id),
     sent.get(row.id),
@@ -336,11 +392,18 @@ async function insertDraft(
     return template?.body ?? null
   }
 
+  /* A new draft starts on the contact's billing recipient where there is one
+     — the child is the patient, the mother pays, and having to pick her on
+     every invoice would be the relation not being used. Exclusive, so there
+     is at most one to take. */
+  const [recipient] = await billingRecipientsOf(tx, tenantId, contactId)
+
   const invoiceId = newId()
   await tx.insert(invoice).values({
     id: invoiceId,
     tenantId,
     contactId,
+    recipientContactId: recipient?.id ?? null,
     invoiceDate,
     paymentTermDays: paymentTermDays ?? settings?.term ?? 14,
     introText: await defaultBody('intro'),
@@ -419,6 +482,69 @@ async function resolveBillable(
 }
 
 /** A new draft, optionally filled from the contact's billable items. */
+/**
+ * Who an invoice for this contact may be addressed to (L8).
+ *
+ * The `billing_recipient` relation, and nothing else. It is a system type with
+ * `is_exclusive`, so there is at most one — the list shape is deliberate all
+ * the same: the exclusivity is a rule about the *contact*, and a screen that
+ * offered a choice of one would still have to say which one.
+ *
+ * **The invoice itself is never a free choice.** Accepting any contact id
+ * would let one request address a patient's invoice to anybody in the card
+ * index, which is a disclosure and not a typo; so this is both what the picker
+ * is filled from and what `updateInvoice` validates against.
+ */
+export async function billingRecipientsOf(
+  reader: DbReader,
+  tenantId: string,
+  contactId: string,
+): Promise<{ id: string; name: string; relationLabel: string }[]> {
+  const rows = await reader
+    .select({
+      id: contact.id,
+      kind: contact.kind,
+      title: contact.title,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      companyName: contact.companyName,
+      relationLabel: contactRelationType.labelForward,
+    })
+    .from(contactRelation)
+    .innerJoin(contact, eq(contact.id, contactRelation.toContactId))
+    .innerJoin(
+      contactRelationType,
+      and(
+        eq(contactRelationType.tenantId, contactRelation.tenantId),
+        eq(contactRelationType.code, contactRelation.relationCode),
+      ),
+    )
+    .where(
+      and(
+        eq(contactRelation.tenantId, tenantId),
+        eq(contactRelation.fromContactId, contactId),
+        eq(contactRelation.relationCode, BILLING_RECIPIENT_CODE),
+      ),
+    )
+    .orderBy(asc(contact.sortName))
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: formatContactName(row),
+    relationLabel: row.relationLabel,
+  }))
+}
+
+/** The one relation code this file depends on. It is a system type, so it
+ *  cannot be renamed or deleted — that is what `is_system` is for (rule 4). */
+export const BILLING_RECIPIENT_CODE = 'billing_recipient'
+
+export class UnknownRecipientError extends Error {
+  constructor() {
+    super('recipient is not a billing recipient of this contact')
+  }
+}
+
 export async function createInvoice(
   database: Database,
   tenantId: string,
@@ -570,13 +696,22 @@ export async function updateInvoice(
 ): Promise<Invoice | null> {
   const found = await database.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ status: invoice.status })
+      .select({ status: invoice.status, contactId: invoice.contactId })
       .from(invoice)
       .where(and(eq(invoice.tenantId, tenantId), eq(invoice.id, id)))
       .limit(1)
 
     if (!existing) return false
     if (existing.status !== 'draft') throw new InvoiceNotADraftError()
+
+    /* Checked, not trusted: without this, one request could address a
+       patient's invoice to any contact in the card index. */
+    if (input.recipientContactId !== null) {
+      const allowed = await billingRecipientsOf(tx, tenantId, existing.contactId)
+      if (!allowed.some((entry) => entry.id === input.recipientContactId)) {
+        throw new UnknownRecipientError()
+      }
+    }
 
     await syncLines(tx, tenantId, id, input.lines)
 
@@ -585,6 +720,7 @@ export async function updateInvoice(
       .set({
         invoiceDate: input.invoiceDate,
         paymentTermDays: input.paymentTermDays,
+        recipientContactId: input.recipientContactId,
         introText: input.introText,
         outroText: input.outroText,
         diagnosis: input.diagnosis,

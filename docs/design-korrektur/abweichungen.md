@@ -249,6 +249,23 @@ Der Eintrag bleibt als Protokoll stehen, damit die Entscheidung nicht zweimal ge
 
 ---
 
+## L8 — Keine Nummernvorschau auf dem Entwurf
+
+**Das Bild** schreibt rechts oben in das Rechnungsformular „Nr. 2026-0043 nach dem
+Festschreiben". **Gebaut ist** an derselben Stelle: „Die Nummer wird beim Festschreiben
+vergeben."
+
+Die Zahl wäre eine Behauptung über die Zukunft, die falsch werden kann, ohne dass jemand etwas
+falsch macht: bei zwei offenen Entwürfen bekommt die zuerst festgeschriebene Rechnung die 0043,
+und die Vorschau des anderen war ab dem Moment falsch, in dem sie gezeichnet wurde. Der
+Nummernkreis hat genau das schon einmal getan — er zeigte `2026-0001` an, das nirgends stand,
+und die Lücke fiel beim Festschreiben auf.
+
+Der Satz sagt dasselbe: dass eine Nummer kommt und wann. Nur eben ohne die Ziffer, die man
+sich merkt.
+
+---
+
 ## K7 — „noch nicht abgerechnet" statt „seit der letzten Rechnung"
 
 **Design:** Die Karte über der Rechnungsliste sagt „3 Vorgänge seit der letzten Rechnung".

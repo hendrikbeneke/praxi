@@ -182,7 +182,7 @@ Both sets are **configurable**. `contact_role_type` and `contact_relation_type` 
 
 **A role is a label, and that is the whole of it** (migration 0035). It has no `code`, no `is_system` and no `active`: every entry is alike — creatable, renamable, deletable as long as no contact holds it, and the refusal says how many do. `contact_role` points at the type's `id`. The label is what a role is recognised by, so it is unique per tenant; two roles reading "Patient" would put two indistinguishable tabs in the contact list. `active` went with the rest deliberately — it raises four questions (is an inactive role shown while editing a contact that holds it, does it stay in the filter, and if not, how are those contacts found again) and prevents nothing. With `service` it is different: a service on a finalized invoice can never be removed, so there has to be a way to take it out of the selection. A role assignment is a row of its own with nothing hanging off it. Work, but never a dead end.
 
-**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. Everything about how they read stays editable: label, order, `active`. `is_system` appears in no input schema; only the seed sets it. A relation type's `code` is fixed for every entry, system or not: it is the handle other rows point at.
+**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. The first of those was a promise until L8: the code was seeded, flagged `is_system` and named in this sentence, and nothing outside a comment read it. `invoice.recipient_contact_id` is where it became true, and the shape it took is worth keeping in mind for the next such code — the relation is read **once**, when the document is finalized, and the address goes into `recipient_snapshot`; a relation dissolved next week cannot reach an invoice already posted. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. Everything about how they read stays editable: label, order, `active`. `is_system` appears in no input schema; only the seed sets it. A relation type's `code` is fixed for every entry, system or not: it is the handle other rows point at.
 
 **Direction of a relation**: `from` is the contact in whose record the fact is a property *of that contact*, `to` is the counterpart. A child is the `from` of `guardian`, a patient is the `from` of `billing_recipient`. This is not cosmetic — `is_exclusive` is enforced per `from_contact_id`, so with the convention exclusivity always reads as "this contact has at most one X", and the next exclusive type needs no fresh thinking. `parent_of` is the deliberate exception: with kinship neither side owns the fact, and "Elternteil von / Kind von" is the more common reading direction.
 
@@ -336,6 +336,14 @@ That keeps what this paragraph said with one rule before — an addendum appears
 Finalization is one transaction that assigns the number, copies each line's description, fee code and unit price into `invoice_line`, resolves the selected intro and outro text templates into `invoice.intro_text` and `invoice.outro_text`, stores `recipient_snapshot`, computes the total, renders the PDF to `data/invoices/{year}/{number}.pdf`, stores its SHA-256, and sets `status = 'finalized'`.
 
 Everything is snapshotted because everything else is editable afterwards: services, texts, contact addresses. A finalized invoice must render identically for the whole retention period, so the PDF is served from disk and never re-rendered on request.
+
+**Who it goes to is not always whose treatment it bills** (L8). `invoice.recipient_contact_id` is null for the ordinary case and holds a contact where the patient has a `billing_recipient` relation to one — the child is the patient, the mother pays. Three things make that safe rather than merely possible:
+
+- **The choice is not free.** The server accepts only a contact the patient actually has that relation to, checked in `updateInvoice`. Anything else would let one request address a patient's invoice to any contact in the card index, which is a disclosure and not a typo.
+- **A new draft starts on the relation** where there is one. Having to pick her on every invoice would be the relation not being used; it is exclusive, so there is at most one to take.
+- **The relation is read exactly once**, at finalization, and the address goes into `recipient_snapshot`. From then on the snapshot is what the document went to. A **cancellation copies the original's snapshot** rather than resolving the contact again — it takes back a specific document, and re-resolving would address it to the child. That was merely imprecise before this column existed (a moved patient got the new address) and is wrong about the person with it, which is why `cancelInvoice` no longer re-resolves at all.
+
+The snapshot's `contactNumber` is the *recipient's*, not the patient's, and the number on the PDF follows. That is the snapshot staying self-consistent: it holds one party, whole. What identifies the treatment on the document is the positions and the diagnosis.
 
 After finalization the invoice row is immutable except for `status` and `cancelled_by_invoice_id`, enforced by trigger. Payments live in their own table and never touch the invoice row.
 
@@ -1399,6 +1407,22 @@ invoice               tenant_id uuid not null -> tenant(id),
                       invoice_date date not null,
                       payment_term_days integer not null
                         check (between 0 and 365),
+                      recipient_contact_id uuid       (nullable, added in L8)
+                        -- Who the invoice is addressed to; NULL means the
+                        -- contact itself, which is what every row meant before
+                        -- the column existed and what most rows keep meaning.
+                        -- The candidates are the contact's `billing_recipient`
+                        -- relations and nothing else — `updateInvoice` checks,
+                        -- because a free choice would let one request address
+                        -- a patient's invoice to anybody in the card index.
+                        -- READ ONLY WHILE THE INVOICE IS A DRAFT: finalization
+                        -- copies the address into recipient_snapshot, and from
+                        -- then on the snapshot is what the document went to.
+                        -- Frozen by protect_finalized_invoice automatically,
+                        -- which diffs the whole row (0030).
+                      foreign key (recipient_contact_id, tenant_id)
+                        -> contact (id, tenant_id) on update/delete RESTRICT,
+                      index on (recipient_contact_id)
                       recipient_snapshot jsonb,       -- carries the
                         -- SALUTATION as text since D-R3, not a reference: a
                         -- later rename must not change a document printed long
@@ -1502,7 +1526,14 @@ invoice_line          tenant_id uuid not null -> tenant(id),
                       invoice_id uuid not null,
                       position integer not null,
                       activity_item_id uuid,          -- record of origin, null
-                        -- for a free line typed by hand
+                        -- for a free line typed by hand. The payload
+                        -- additionally carries activityId and, since L8,
+                        -- activityOccurredAt / activityType / activityTitle —
+                        -- joined on read and stored nowhere, like paidCents.
+                        -- The draft groups its positions by Vorgang, and a
+                        -- group header that can only say a date is a box with
+                        -- a date on it. Three columns on a join that already
+                        -- existed, against one request per invoice.
                       description text not null,      -- copied
                       fee_code text,                  -- copied
                       date_of_service date,
@@ -1912,6 +1943,7 @@ This is the same family as **read mode first**, and for the same reason: what is
 
 - **A number input cannot be empty.** It falls back to something, and whatever it falls back to is a value the record does not have. Where a field may legitimately be blank, hold it as text and parse on submit — that is why `NumberRangeForm` keeps `padding` and `nextValue` as strings.
 - **What the write answers must say as much as what the read answers.** A screen that replaces its cache with the response of a `PUT` will otherwise lose exactly the derived fields the `GET` had — which is why `invoiceTemplateSet` is filled in `getPracticeSettings` *and* `updatePracticeSettings`, and why there is a test that says so.
+- **A figure that would be true only if nothing else happened first is a claim too.** The design writes the number an invoice will get — "Nr. 2026-0043 nach dem Festschreiben" — and it is not built: with two drafts open, whichever is finalized first takes the value, so the other's preview was wrong from the moment it was drawn. The screen says *that the number is assigned on finalization* instead. The same information, without the figure one would go on to believe (L8).
 
 Defaults in a *creation* form are not this mistake, as long as the screen says plainly that nothing is stored yet: port 587 in an empty, explicitly unconfigured SMTP form is a suggestion, not a claim.
 

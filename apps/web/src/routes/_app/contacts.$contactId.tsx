@@ -18,7 +18,7 @@ import {
   toBerlinDate,
 } from '@praxi/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Pencil, Plus, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -29,6 +29,8 @@ import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
 import { ContentWidth } from '@/components/content-width'
+import { useInlineDetail } from '@/components/inline-detail-row'
+import { InvoiceDetail } from '@/components/invoice-detail'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteForm, type NoteFormTarget } from '@/components/note-form'
 import { NotePanel, NoteReader, orderNotes } from '@/components/note-panel'
@@ -66,6 +68,7 @@ import { billableQueryOptions, createInvoice, invoiceListQueryOptions } from '@/
 import { noteTypeListQueryOptions } from '@/lib/note-types'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
  * The tab lives in the URL so a record can be linked to on the tab that
@@ -418,20 +421,40 @@ function activityChipCount(summary: ActivitySummary, id: ActivityFilter): number
  * page — the billable picker lives there, where the lines are edited.
  */
 function ContactInvoices({ contactId }: { contactId: string }) {
-  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const invoices = useQuery(invoiceListQueryOptions({ contactId }))
+  const billable = useQuery(billableQueryOptions(contactId))
   const [filter, setFilter] = useState<string | undefined>()
+  const detail = useInlineDetail()
+  /** The draft just created, so it can open straight in edit mode — that way
+   *  in means "write an invoice", every other one means "read this one". */
+  const [created, setCreated] = useState<string | null>(null)
 
+  /**
+   * **"Rechnung erstellen" twice over, and they are not the same action.**
+   *
+   * The button beside the chips opens an empty draft: it means "I want to
+   * write an invoice", and what goes on it is the next decision. The one in
+   * the billable card means "bill what is standing there", so it hands the
+   * items over and they arrive ticked.
+   *
+   * Both land in the same place — a draft, open for editing, in the row at the
+   * top of the list — because there is one invoice editor and one way an
+   * invoice comes into being.
+   */
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (activityItemIds: string[]) =>
       createInvoice({
         contactId,
         invoiceDate: toBerlinDate(new Date().toISOString()),
-        activityItemIds: [],
+        activityItemIds,
       }),
-    onSuccess: (draft) => {
+    onSuccess: async (draft) => {
+      await queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      await queryClient.invalidateQueries({ queryKey: ['activities'] })
+      setCreated(draft.id)
+      detail.open(draft.id)
       toast.success(strings.invoice.created)
-      void navigate({ to: '/invoices/$invoiceId', params: { invoiceId: draft.id } })
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
@@ -478,13 +501,16 @@ function ContactInvoices({ contactId }: { contactId: string }) {
           active={filter}
           onChange={setFilter}
         />
-        <Button className="ml-auto" onClick={() => create.mutate()} disabled={create.isPending}>
+        <Button className="ml-auto" onClick={() => create.mutate([])} disabled={create.isPending}>
           <Plus className="size-4" aria-hidden />
           {strings.invoice.createAction}
         </Button>
       </div>
 
-      <BillableCard contactId={contactId} onCreate={() => create.mutate()} />
+      <BillableCard
+        contactId={contactId}
+        onCreate={() => create.mutate((billable.data ?? []).map((item) => item.id))}
+      />
 
       {shown.length === 0 ? (
         <p className="text-muted-foreground text-sm">
@@ -496,36 +522,51 @@ function ContactInvoices({ contactId }: { contactId: string }) {
         </p>
       ) : (
         <ul className="overflow-hidden rounded-[10px] border bg-card">
-          {shown.map(({ invoice: entry, state }) => (
-            <li key={entry.id} className="border-t first:border-t-0">
-              <Link
-                to="/invoices/$invoiceId"
-                params={{ invoiceId: entry.id }}
-                className="flex items-center gap-3.5 px-4 py-3 hover:bg-accent"
-              >
-                <span className="w-[84px] shrink-0 font-semibold tabular-nums">
-                  {entry.number ?? strings.invoice.statuses.draft}
-                </span>
-                <span className="w-[84px] shrink-0 text-[13.5px] text-muted-foreground tabular-nums">
-                  {formatBerlinDate(`${entry.invoiceDate}T12:00:00Z`)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground">
-                  {invoiceScope(entry)}
-                </span>
-                <span className="w-[84px] shrink-0 text-right tabular-nums">
-                  {formatEuro(entry.totalCents)}
-                </span>
-                {entry.status === 'draft' ? (
-                  <Badge variant="outline">{strings.invoice.statuses.draft}</Badge>
-                ) : (
-                  <PaymentStatusBadge state={state} withDays={false} />
+          {shown.map(({ invoice: entry, state }) => {
+            const open = detail.isOpen(entry.id)
+            return (
+              <li key={entry.id} className={cn('border-t first:border-t-0', open && 'bg-muted/25')}>
+                <button
+                  type="button"
+                  onClick={() => detail.toggle(entry.id)}
+                  className="flex w-full items-center gap-3.5 px-4 py-3 text-left hover:bg-accent"
+                >
+                  <span className="w-[84px] shrink-0 font-semibold tabular-nums">
+                    {entry.number ?? strings.invoice.statuses.draft}
+                  </span>
+                  <span className="w-[84px] shrink-0 text-[13.5px] text-muted-foreground tabular-nums">
+                    {formatBerlinDate(`${entry.invoiceDate}T12:00:00Z`)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground">
+                    {invoiceScope(entry)}
+                  </span>
+                  <span className="w-[84px] shrink-0 text-right tabular-nums">
+                    {formatEuro(entry.totalCents)}
+                  </span>
+                  {entry.status === 'draft' ? (
+                    <Badge variant="outline">{strings.invoice.statuses.draft}</Badge>
+                  ) : (
+                    <PaymentStatusBadge state={state} withDays={false} />
+                  )}
+                  <span className="shrink-0 whitespace-nowrap text-right text-[12.5px] text-muted-foreground tabular-nums">
+                    {invoiceHint(entry, state)}
+                  </span>
+                </button>
+
+                {open && (
+                  <div className="border-t bg-card px-4 py-5">
+                    <InvoiceDetail
+                      key={entry.id}
+                      invoice={entry}
+                      startEditing={created === entry.id}
+                      onClose={detail.close}
+                      onDiscarded={detail.close}
+                    />
+                  </div>
                 )}
-                <span className="shrink-0 whitespace-nowrap text-right text-[12.5px] text-muted-foreground tabular-nums">
-                  {invoiceHint(entry, state)}
-                </span>
-              </Link>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
     </>

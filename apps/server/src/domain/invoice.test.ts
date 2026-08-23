@@ -29,9 +29,11 @@ import {
 } from './activity.js'
 import { billingStateOf, listBillableItems, unbilledCentsOf } from './billable.js'
 import { cancelInvoice } from './cancel-invoice.js'
+import { addRelation, deleteRelation, listRelations } from './contact-relation.js'
 import { FileStore } from './file-store.js'
 import { pdfPathFor } from './finalize-invoice.js'
 import {
+  billingRecipientsOf,
   collectBillableItems,
   createInvoice,
   deleteInvoice,
@@ -39,6 +41,7 @@ import {
   InvoiceEmptyError,
   InvoiceNotADraftError,
   ItemAlreadyBilledError,
+  UnknownRecipientError,
   updateInvoice,
 } from './invoice.js'
 import { upsertNumberRange } from './number-range.js'
@@ -230,6 +233,7 @@ describe('drafts', () => {
     const updated = await updateInvoice(db(), tenantId, draft.id, {
       invoiceDate: INVOICE_DATE,
       paymentTermDays: 14,
+      recipientContactId: null,
       introText: null,
       outroText: null,
       diagnosis: 'Andere Diagnose',
@@ -261,6 +265,7 @@ describe('drafts', () => {
     const updated = await updateInvoice(db(), tenantId, draft.id, {
       invoiceDate: INVOICE_DATE,
       paymentTermDays: 14,
+      recipientContactId: null,
       introText: null,
       outroText: null,
       diagnosis: null,
@@ -298,6 +303,7 @@ describe('drafts', () => {
     const updated = await updateInvoice(db(), tenantId, draft.id, {
       invoiceDate: INVOICE_DATE,
       paymentTermDays: 14,
+      recipientContactId: null,
       introText: null,
       outroText: null,
       diagnosis: null,
@@ -623,6 +629,7 @@ describe('the database refuses on its own', () => {
       updateInvoice(db(), tenantId, finalized.id, {
         invoiceDate: INVOICE_DATE,
         paymentTermDays: 30,
+        recipientContactId: null,
         introText: null,
         outroText: null,
         diagnosis: null,
@@ -673,6 +680,140 @@ describe('an activity item that is on an invoice', () => {
     const error = await deleteActivity(db(), tenantId, activity.id).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(BilledItemError)
     expect((error as BilledItemError).invoiceNumber).toBe('RH-2026-001')
+  })
+})
+
+/**
+ * Who the invoice is addressed to (L8).
+ *
+ * `contact_relation_type.billing_recipient` has been a system entry since
+ * slice 6.5, and CLAUDE.md has said all along that it decides who an invoice
+ * goes to — while no line outside a comment read it. These are the tests that
+ * make it true, and the last two are the ones that matter: the relation may be
+ * dissolved, and a document already written has to keep saying who it went to.
+ */
+describe('the recipient of an invoice', () => {
+  /** Inserted directly, like the contact in `beforeEach` — `createContact`
+   *  would draw contact number 1 from the counter and collide with it. */
+  async function insertContact(
+    contactNumber: number,
+    values: Partial<typeof contact.$inferInsert>,
+  ): Promise<string> {
+    const id = newId()
+    await db()
+      .insert(contact)
+      .values({ id, tenantId, contactNumber, kind: 'person', ...values })
+    return id
+  }
+
+  async function motherOf(childId: string): Promise<string> {
+    const motherId = await insertContact(3, {
+      firstName: 'Anke',
+      lastName: 'Attrappe',
+      street: 'Musterweg',
+      houseNumber: '2',
+      postalCode: '28195',
+      city: 'Bremen',
+    })
+
+    await addRelation(db(), tenantId, childId, {
+      relationCode: 'billing_recipient',
+      direction: 'forward',
+      otherContactId: motherId,
+      since: null,
+    })
+
+    return motherId
+  }
+
+  const emptyDraft = () =>
+    createInvoice(db(), tenantId, { contactId, invoiceDate: INVOICE_DATE, activityItemIds: [] })
+
+  it('leaves a draft on the contact where there is no relation', async () => {
+    const draft = await emptyDraft()
+
+    expect(draft.recipientContactId).toBeNull()
+    expect(draft.recipientName).toBeNull()
+  })
+
+  /** Having to pick her on every invoice would be the relation not being
+   *  used. It is exclusive, so there is at most one to take. */
+  it('starts a new draft on the billing recipient where there is one', async () => {
+    const motherId = await motherOf(contactId)
+
+    const draft = await emptyDraft()
+
+    expect(draft.recipientContactId).toBe(motherId)
+    expect(draft.recipientName).toBe('Anke Attrappe')
+  })
+
+  /** Not a typo but a disclosure: without this check one request could address
+   *  a patient's invoice to any contact in the card index. */
+  it('refuses a recipient the contact has no relation to', async () => {
+    const stranger = await insertContact(4, { lastName: 'Fremdperson' })
+    const draft = await emptyDraft()
+
+    await expect(
+      updateInvoice(db(), tenantId, draft.id, {
+        invoiceDate: INVOICE_DATE,
+        paymentTermDays: 14,
+        recipientContactId: stranger,
+        introText: null,
+        outroText: null,
+        diagnosis: null,
+        lines: [],
+      }),
+    ).rejects.toBeInstanceOf(UnknownRecipientError)
+  })
+
+  it('prints the recipient into the snapshot, not the patient', async () => {
+    await motherOf(contactId)
+    await makeActivityWithItem()
+    const draft = await draftFromBillable()
+
+    const finalized = await finalizeDocument(db(), tenantId, store, draft.id, render)
+
+    expect(finalized?.recipientSnapshot?.name).toBe('Anke Attrappe')
+    expect(finalized?.recipientSnapshot?.street).toBe('Musterweg')
+  })
+
+  /**
+   * **The test this is really for.** The relation is read exactly once, at
+   * finalization; from then on the snapshot is what the document went to. An
+   * implementation that resolved the relation on read would rewrite an invoice
+   * that was printed and posted months ago.
+   */
+  it('keeps saying who it went to after the relation is dissolved', async () => {
+    const motherId = await motherOf(contactId)
+    await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    const finalized = await finalizeDocument(db(), tenantId, store, draft.id, render)
+    if (!finalized) throw new Error('not finalized')
+
+    const [relation] = await listRelations(db(), tenantId, contactId)
+    if (!relation) throw new Error('no relation')
+    await deleteRelation(db(), tenantId, contactId, relation.id)
+
+    expect(await billingRecipientsOf(db(), tenantId, contactId)).toEqual([])
+
+    const reread = await getInvoice(db(), tenantId, finalized.id)
+    expect(reread?.recipientSnapshot?.name).toBe('Anke Attrappe')
+    // The reference still stands, and it is not what the document says.
+    expect(reread?.recipientContactId).toBe(motherId)
+  })
+
+  /** A cancellation takes back a document, so it goes to whoever that document
+   *  went to. Resolving the contact afresh — which is what it did until L8 —
+   *  would address it to the child. */
+  it('addresses a cancellation to the original recipient', async () => {
+    await motherOf(contactId)
+    await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    await finalizeDocument(db(), tenantId, store, draft.id, render)
+
+    const cancellation = await cancelInvoice(db(), tenantId, store, draft.id, render)
+
+    expect(cancellation?.recipientSnapshot?.name).toBe('Anke Attrappe')
   })
 })
 

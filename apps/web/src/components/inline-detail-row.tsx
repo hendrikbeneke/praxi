@@ -41,6 +41,12 @@ export function useInlineDetail(initialOpenId?: string | undefined) {
       setEditing(false)
       setOpenId((current) => (current === id ? null : id))
     },
+    /** Opens a row outright rather than toggling — for a record that was just
+     *  created, where "toggle" would close it if the same id were open. */
+    open: (id: string) => {
+      setEditing(false)
+      setOpenId(id)
+    },
     close: () => {
       setEditing(false)
       setOpenId(null)

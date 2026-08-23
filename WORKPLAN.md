@@ -2874,6 +2874,54 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   der Satz geschrieben wurde.
 
 
+
+**L8, as built** — *Rechnungen*. Migration `0040_invoice_recipient`.
+
+- **`invoice.recipient_contact_id`**, nullable — NULL heißt: der Kontakt
+  selbst. Damit liest zum ersten Mal etwas den Beziehungstyp
+  `billing_recipient`, der seit Slice 6.5 als Systemeintrag steht und dem
+  `CLAUDE.md` seither zuschreibt, über den Empfänger zu entscheiden. Die Wahl
+  ist **nicht frei**: `updateInvoice` prüft gegen dieselbe Liste, aus der der
+  Picker gefüllt wird, sonst ließe sich eine Patientenrechnung per Request an
+  jeden Kontakt der Kartei adressieren.
+- **Einmal gelesen, beim Festschreiben.** Danach ist `recipient_snapshot`, was
+  das Dokument sagt. Der Test löst die Beziehung nach dem Festschreiben auf und
+  prüft, dass die Rechnung weiter sagt, an wen sie ging.
+- **Die Stornorechnung übernimmt den Snapshot des Originals**, statt den
+  Kontakt neu aufzulösen. Das war vorher bloß ungenau — ein umgezogener Patient
+  bekam die neue Adresse auf das Gegendokument — und wäre mit Empfängern falsch
+  über die *Person*: eine an die Mutter gerichtete Rechnung hätte ein an das
+  Kind gerichtetes Storno bekommen.
+- **Eine Positionsliste statt zwei Abschnitten.** Vorher standen die Zeilen der
+  Rechnung oben und eine Liste „Abrechenbar" zum Ankreuzen darunter — zwei
+  Stellen für eine Frage. Jetzt steht jede noch verfügbare Position einmal da,
+  unter ihrem Vorgang, angehakt wenn sie auf der Rechnung ist.
+- **Die Geste hängt an der Art der Position, in beiden Modi.** Checkbox für
+  Positionen aus Vorgängen, × für freie. Die Kopf-Checkbox am Vorgang ist ein
+  Helfer und keine Einheit: sie hakt alle offenen Positionen an und zeigt nur
+  dann voll, wenn jede es ist — dazwischen die dreiwertige Form aus D2.
+- **Abgehakt und noch nicht gespeichert bleibt sichtbar** (`GroupRow.detached`).
+  Sonst verschwindet die Zeile beim Abhaken und es gibt keinen Weg zurück, bevor
+  gespeichert wird; in der abrechenbaren Liste steht sie auch nicht, denn die
+  zählt sie bis zum Speichern als beansprucht.
+- **Ein `InvoiceDetail`, zwei Behälter.** Aufgeklappt in der Zeile des
+  Kontaktreiters, und `/invoices/$invoiceId` als dünne Seite darum — vier
+  Stellen verlinken dorthin. Der Lesemodus ist **kein Formular ohne Felder**,
+  sondern das Dokument mit einer Leiste daneben; die Seite hatte die K2-Runde
+  nie mitgemacht und zeigte jeden Wert in einem deaktivierten Eingabefeld.
+- **Keine Nummernvorschau** (Eintrag in `abweichungen.md`), stattdessen „Die
+  Nummer wird beim Festschreiben vergeben."
+- **Kein Leistungszeitraum.** Jeder Vorgang hat ein Datum, jede Position trägt
+  es mit, das PDF zeigt sie — die Information steht ohnehin da. Nachgesehen:
+  eine freie Position bekommt das **Rechnungsdatum** als Leistungsdatum, bleibt
+  aber änderbar; sie bleibt nicht leer.
+- **Der Leistungspicker auch hier**, und ein Katalogtreffer wird eine *freie*
+  Position: er hängt an keinem Vorgang.
+- `invoice_line` trägt jetzt `activityOccurredAt`, `activityType` und
+  `activityTitle` mit — drei Spalten auf einem Join, den es schon gab, gegen
+  eine Anfrage pro Rechnung.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

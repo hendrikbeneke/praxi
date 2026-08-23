@@ -1508,6 +1508,22 @@ export const invoice = pgTable(
     numberValue: integer(),
     invoiceDate: date({ mode: 'string' }).notNull(),
     paymentTermDays: integer().notNull(),
+    /**
+     * Who the invoice is addressed to, where that is not the contact whose
+     * treatment it bills (L8, migration 0040) — the child is the patient, the
+     * mother pays. NULL means the contact itself, which is what every row
+     * meant before this column existed and what most rows will keep meaning.
+     *
+     * The candidates come from `contact_relation` with the system type
+     * `billing_recipient`, which has carried that meaning in its label and in
+     * CLAUDE.md since slice 6.5 while nothing read it.
+     *
+     * **Read only while the invoice is a draft.** Finalization copies the
+     * address into `recipient_snapshot`, and from then on the snapshot is what
+     * the document was addressed to — the relation may be dissolved
+     * afterwards, and an invoice has to keep rendering what it rendered.
+     */
+    recipientContactId: uuid(),
     recipientSnapshot: jsonb().$type<RecipientSnapshot>(),
     introText: text(),
     outroText: text(),
@@ -1545,6 +1561,12 @@ export const invoice = pgTable(
       foreignColumns: [contact.id, contact.tenantId],
       name: 'invoice_contact_tenant_fk',
     }),
+    foreignKey({
+      columns: [t.recipientContactId, t.tenantId],
+      foreignColumns: [contact.id, contact.tenantId],
+      name: 'invoice_recipient_contact_fk',
+    }),
+    index('invoice_recipient_contact_idx').on(t.recipientContactId),
     foreignKey({
       columns: [t.cancelsInvoiceId, t.tenantId],
       foreignColumns: [t.id, t.tenantId],

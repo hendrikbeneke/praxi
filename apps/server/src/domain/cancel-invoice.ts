@@ -160,18 +160,35 @@ export async function cancelInvoice(
 
       if (lines.length > 0) await tx.insert(invoiceLine).values(lines)
 
+      /**
+       * **The cancellation goes to whoever the original went to** (L8).
+       *
+       * It used to resolve the contact again and take a fresh snapshot, which
+       * was merely imprecise while an invoice always went to its own contact —
+       * a moved patient got the new address on the counter-document. With
+       * `recipient_contact_id` it would be wrong about the *person*: an
+       * invoice addressed to the mother would be taken back by a document
+       * addressed to the child.
+       *
+       * A finalized invoice always carries a snapshot (`invoice_draft_fields`
+       * demands it), so the fallback below cannot fire; it stands because
+       * throwing here would abort a cancellation over a shape the database
+       * already forbids.
+       */
       const contactRow = await loadContactRow(tx, tenantId, original.contactId)
       if (!contactRow) throw new Error('invoice references a contact that does not exist')
 
       // 3 — the finished document, in memory. What is rendered is what is
       // stored, down to the recipient.
-      const recipientSnapshot = recipientSnapshotOf(contactRow)
+      const recipientSnapshot = original.recipientSnapshot ?? recipientSnapshotOf(contactRow)
       const finalizedAt = now
       const snapshot: Invoice = {
         id,
         contactId: original.contactId,
         contactName: recipientSnapshot.name,
         contactNumber: recipientSnapshot.contactNumber,
+        recipientContactId: original.recipientContactId,
+        recipientName: original.recipientName,
         type: 'cancellation_invoice',
         status: 'finalized',
         number: formatted,
@@ -204,8 +221,12 @@ export async function cancelInvoice(
           position: line.position,
           activityItemId: line.activityItemId,
           // A cancellation document's lines are copies of the original's and
-          // point at no activity of their own — nothing was rendered twice.
+          // point at no activity of their own — nothing was rendered twice, so
+          // there is no Vorgang to name either.
           activityId: null,
+          activityOccurredAt: null,
+          activityType: null,
+          activityTitle: null,
           description: line.description,
           feeCode: line.feeCode,
           dateOfService: line.dateOfService,

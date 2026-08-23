@@ -143,7 +143,19 @@ export async function finalizeInvoice(
       const formatted = formatNumber(prefix, range?.padding ?? 1, value)
       await assertNumberFree(tx, tenantId, formatted)
 
-      const contactRow = await loadContactRow(tx, tenantId, draft.contactId)
+      /**
+       * The address the document is printed with (L8). Not necessarily the
+       * contact's: an invoice may be addressed to whoever the patient has a
+       * `billing_recipient` relation to, and `recipient_contact_id` is where
+       * the draft remembered that choice.
+       *
+       * **This is the last moment the relation is read.** From here on the
+       * snapshot is what the document went to — the relation may be dissolved
+       * next week and the invoice still has to render what it rendered, which
+       * is the whole reason a snapshot exists (rule 9).
+       */
+      const addressed = draft.recipientContactId ?? draft.contactId
+      const contactRow = await loadContactRow(tx, tenantId, addressed)
       if (!contactRow) throw new Error('invoice references a contact that does not exist')
 
       /**

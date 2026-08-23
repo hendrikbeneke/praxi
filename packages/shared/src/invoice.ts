@@ -95,6 +95,19 @@ export const invoiceLineSchema = z.object({
    * one session, and counting lines answers a different question.
    */
   activityId: z.uuid().nullable(),
+  /**
+   * The three things a screen needs to *name* that Vorgang, joined in beside
+   * it and stored nowhere (L8): when it happened, what kind it was and what it
+   * was called. The draft groups its positions by Vorgang, and a group whose
+   * header can only say a date is a box with a date on it.
+   *
+   * They travel here rather than being fetched separately because the join
+   * that yields `activityId` already reaches the row — three columns on a join
+   * that exists, against one request per invoice.
+   */
+  activityOccurredAt: z.iso.datetime().nullable(),
+  activityType: z.string().nullable(),
+  activityTitle: z.string().nullable(),
   description: z.string(),
   feeCode: z.string().nullable(),
   dateOfService: z.iso.date().nullable(),
@@ -126,6 +139,17 @@ export type InvoiceCreate = z.infer<typeof invoiceCreateSchema>
 export const invoiceUpdateSchema = z.object({
   invoiceDate: z.iso.date(),
   paymentTermDays: z.number().int().min(0).max(365),
+  /**
+   * Who the invoice is addressed to (L8). **Null means the contact itself**,
+   * which is what every invoice meant before this existed — a bare id would
+   * have made "the usual case" indistinguishable from "somebody happened to
+   * pick the patient", and the two are not the same statement.
+   *
+   * The server accepts only a contact the patient actually has a
+   * `billing_recipient` relation to; a free choice would let an invoice be
+   * addressed to anyone in the card index by editing one request.
+   */
+  recipientContactId: z.uuid().nullable().default(null),
   introText: optionalText(4000),
   outroText: optionalText(4000),
   /** Prefilled from `contact.diagnosis` when the draft is created, then free
@@ -142,6 +166,11 @@ export const invoiceSchema = z.object({
   contactId: z.uuid(),
   contactName: z.string(),
   contactNumber: z.number().int(),
+  /** Null while the invoice goes to the contact itself — see the update
+   *  schema. The *name* travels beside it, joined on read like `contactName`,
+   *  so a row can say who it is addressed to without a second request. */
+  recipientContactId: z.uuid().nullable(),
+  recipientName: z.string().nullable(),
   type: invoiceTypeSchema,
   status: invoiceStatusSchema,
   number: z.string().nullable(),

@@ -1250,6 +1250,33 @@ export const strings = {
     lineDate: 'Datum',
     lineQuantity: 'Menge',
     lineUnitPrice: 'Einzelpreis',
+    /** One list instead of two (L8): what is on the invoice and what is still
+     *  open stand together, and the checkbox is the answer. */
+    /** Beside the heading of an unsaved draft, in the idiom L6b settled on. */
+    draftPending: 'Entwurf, noch nicht festgeschrieben',
+    /** What the design writes as "Nr. 2026-0043 nach dem Festschreiben" — the
+     *  same information without the figure one would go on to believe. Two
+     *  drafts make such a figure wrong, because whichever is finalized first
+     *  takes the value. */
+    numberOnFinalize: 'Die Nummer wird beim Festschreiben vergeben.',
+    recipient: 'Rechnungsempfänger',
+    totalLong: 'Rechnungsbetrag',
+    /** Under a position in read mode — where it came from, and a way there. */
+    fromActivity: (date: string) => `Vorgang ${date}`,
+    /** Said where the field would otherwise look broken: one name and no
+     *  dropdown. Names where a second option comes from — the relation, not a
+     *  free choice of contact. */
+    recipientHint:
+      'Ein anderer Empfänger lässt sich in den Stammdaten unter „Verknüpfte Kontakte" ' +
+      'als Rechnungsempfänger hinterlegen.',
+    paymentTermDaysValue: (days: number) => `${days} ${days === 1 ? 'Tag' : 'Tage'}`,
+    saveDraft: 'Als Entwurf sichern',
+    linesHint:
+      'Positionen aus Vorgängen werden an- und abgehakt; abgehakt sind sie wieder abrechenbar. ' +
+      'Freie Positionen gibt es nur auf dieser Rechnung und werden mit dem × entfernt.',
+    linesNothingOpen: 'Für diesen Kontakt ist nichts mehr abrechenbar.',
+    lineToggle: 'Auf diese Rechnung',
+    lineGroupToggle: 'Alle Positionen dieses Vorgangs',
     lineRemove: 'Position entfernen',
     lineMoveUp: 'Nach oben',
     lineMoveDown: 'Nach unten',
@@ -1514,8 +1541,11 @@ export const strings = {
     /** The design writes "seit der letzten Rechnung" here, which the data does
      *  not support: an item that was never billed can be older than the last
      *  invoice. See `docs/design-korrektur/abweichungen.md`. */
+    /** "3 Vorgänge seit der letzten Rechnung" — what the card is really about
+     *  is the gap since the last one was written, not a property of the rows
+     *  ("noch nicht abgerechnet" was what the chip beside it already says). */
     cardLine: (activities: number) =>
-      `${activities} ${activities === 1 ? 'Vorgang' : 'Vorgänge'}, noch nicht abgerechnet`,
+      `${activities} ${activities === 1 ? 'Vorgang' : 'Vorgänge'} seit der letzten Rechnung`,
     draftExists: 'Entwurf vorhanden',
     total: 'Summe:',
 
