@@ -98,22 +98,50 @@
  * same tokens as everything else, so both follow the chosen theme.
  */
 @layer components {
+  /*
+   * **The size belongs here and not to the caller.** It was `text-sm` on the
+   * reading pane and nothing on the editing surface, so a note was written at
+   * 16px and read back at 14 — and because almost everything below is sized in
+   * `em`, that one step pulled every construct apart with it: the block
+   * spacing, the inline code, the heading margins. Measured across the whole
+   * of `NOTE_MDAST_TYPES`; it was the only defect that touched all of them.
+   */
   .note-prose {
+    font-size: 0.875rem;
     line-height: 1.65;
   }
   .note-prose > * + * {
     margin-top: 0.75em;
   }
 
-  /* One look for all three levels: the design draws a single heading style,
-     and the level is stored because it is part of what was written — not
-     because it is meant to be read as three sizes. */
+  /*
+   * **Three levels, three sizes.** This said "one look for all three" until
+   * L8a and set every heading to `1em`: the level was stored because it is
+   * part of what was written, not because it was meant to be seen. That was
+   * wrong in the only way a heading can be — a document with three
+   * indistinguishable ones has no structure a reader can use, and somebody
+   * typing `###` has already said they mean something narrower than `#`.
+   *
+   * Modest steps rather than a web page's: this is a note in a record, not an
+   * article, and the third level has to stay clearly a heading rather than
+   * fading into the body it sits above. So the smallest is the body size in
+   * bold, and the two above it grow from there.
+   */
   .note-prose h1,
   .note-prose h2,
   .note-prose h3 {
     font-weight: 600;
-    font-size: 1em;
+    line-height: 1.3;
     margin-top: 1.4em;
+  }
+  .note-prose h1 {
+    font-size: 1.4em;
+  }
+  .note-prose h2 {
+    font-size: 1.15em;
+  }
+  .note-prose h3 {
+    font-size: 1em;
   }
   .note-prose > :first-child {
     margin-top: 0;
@@ -163,26 +191,45 @@
   .note-prose ul[data-task] > li > * {
     grid-column: 2;
   }
-  .note-prose li input[type="checkbox"] {
-    grid-column: 1;
-    grid-row: 1;
-    margin: 0.4em 0 0;
-    accent-color: var(--primary);
-  }
+  /*
+   * **One marker, described once, for two different elements** (L8a). The
+   * reading pane draws a real `<input type="checkbox">` and the editor a
+   * `::before` on the list item, and until L8a each looked like whatever its
+   * element defaulted to: a 13×17.5 native control with square corners beside
+   * an 11.9px rounded box, and the checked one had a tick on one side and a
+   * plain fill on the other. Two controls for one thing, on the two screens
+   * that are supposed to show the same note.
+   *
+   * So the box is a set of declarations both selectors share, the native
+   * appearance is switched off, and the tick is a background rather than a
+   * pseudo-element — an `<input>` is a replaced element and `::after` does not
+   * render inside one.
+   */
+  .note-prose li input[type="checkbox"],
   .note-prose li[data-item-type="task"]::before {
     content: "";
     grid-column: 1;
     grid-row: 1;
-    margin-top: 0.42em;
-    width: 0.85em;
-    height: 0.85em;
+    appearance: none;
+    box-sizing: border-box;
+    margin: 0.4em 0 0;
+    width: 0.95em;
+    height: 0.95em;
     border: 1px solid var(--border);
     border-radius: 3px;
+    background-color: var(--background);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 0.72em;
     cursor: pointer;
   }
+  .note-prose li input[type="checkbox"]:checked,
   .note-prose li[data-item-type="task"][data-checked="true"]::before {
-    background: var(--primary);
+    background-color: var(--primary);
     border-color: var(--primary);
+    /* A white tick. Inline rather than a file: it is two line segments, and an
+       asset request for that would outlive its usefulness. */
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 6.5 12 13 4.5"/></svg>');
   }
 
   .note-prose blockquote {
@@ -234,7 +281,12 @@
     background: color-mix(in oklch, var(--muted) 45%, transparent);
   }
   /* A wide table scrolls inside its own box; the page never scrolls sideways
-     (the same rule the contact list follows). */
+     (the same rule the contact list follows).
+     The wrapper exists only in the reading pane, so there the block margin
+     from `> * + *` lands on it rather than on the table — the gap above a
+     table is the same on both sides, it is just carried by a different
+     element. Measured: 11px each. Worth writing down, because a diff of
+     computed styles reports it as a difference and it is not one. */
   .note-prose-scroll {
     overflow-x: auto;
   }

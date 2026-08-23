@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils'
  */
 export function NoteText({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={cn('note-prose text-sm', className)}>
+    <div className={cn('note-prose', className)}>
       <Children node={noteMdast(text)} />
     </div>
   )
@@ -83,9 +83,12 @@ function Node({ node }: { node: Nodes }): ReactNode {
       )
 
     case 'heading': {
-      // Three levels, one look — the design draws a single heading style, and
-      // the level is kept because it is part of what was written, not because
-      // it is meant to be seen as three sizes.
+      /* Three levels and three sizes since L8a — `.note-prose` says which.
+         They looked alike until then, on the grounds that the level is stored
+         because it was written rather than because it is meant to be seen;
+         which left a note with three indistinguishable headings and no
+         structure a reader could use. Depths past three collapse onto `h3`,
+         because that is the deepest the editor offers. */
       const Tag = (['h1', 'h2', 'h3'] as const)[Math.min(node.depth, 3) - 1] ?? 'h3'
       return (
         <Tag>

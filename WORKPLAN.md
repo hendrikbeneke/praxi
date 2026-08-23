@@ -2922,6 +2922,40 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   eine Anfrage pro Rechnung.
 
 
+
+**L8a, as built** — *Überschriften und die Gleichheit von Editor und Leser*.
+Keine Migration, kein Schema.
+
+- **Alle drei Überschriftenebenen sahen gleich aus**, und das war Absicht
+  gewesen: `.note-prose` setzte h1 bis h3 auf `font-size: 1em`, mit der
+  Begründung, die Ebene werde gespeichert, weil sie geschrieben wurde, und
+  nicht, weil sie zu sehen sein soll. Falsch — wer `###` tippt, hat gesagt,
+  dass er etwas Engeres meint als `#`. Jetzt 1.4 / 1.15 / 1 em, in Schritten,
+  die zu einer Akte passen und nicht zu einem Artikel.
+- **Der eigentliche Fund war ein anderer:** der Editor stellte die Notiz in
+  16px dar, die Lesespalte in 14. Die Größe hing am Aufrufer (`text-sm` an der
+  einen Stelle, nichts an der anderen), und weil fast alles darunter in `em`
+  bemessen ist, zog dieser eine Schritt **jedes** Konstrukt auseinander:
+  Blockabstände, Inline-Code, Überschriftenränder. Die Größe steht jetzt in
+  `.note-prose` selbst.
+- **Das Häkchen der Aufgabenliste war zweierlei Steuerelement.** Die
+  Lesespalte zeichnet ein echtes `<input type="checkbox">`, der Editor ein
+  `::before` — 13×17,5 px mit eckigen Ecken neben 11,9 px mit runden, und der
+  angehakte Zustand einmal mit Haken und einmal ohne. Beide teilen sich jetzt
+  einen Satz Deklarationen; der Haken ist ein Hintergrundbild, weil ein
+  `<input>` ein ersetztes Element ist und `::after` darin nicht rendert.
+- **Nachgemessen statt geraten:** eine Notiz mit jedem Konstrukt aus
+  `NOTE_MDAST_TYPES`, dann beide Seiten Eigenschaft für Eigenschaft
+  verglichen. **19 von 20 messen jetzt identisch**; die zwanzigste ist der
+  Tabellen-Rand, den die Lesespalte an ihrem Scroll-Rahmen trägt — der
+  sichtbare Abstand ist auf beiden Seiten 11 px.
+- **Was nicht daneben lag:** Listen behalten ihre Aufzählungszeichen und ihre
+  Einrückung, Zitate ihren Balken, Code seinen Grund, Tabellen ihre Linien und
+  den grauen Kopf. `.note-prose` deckte das schon ab; die Sorge, Tailwinds
+  Preflight habe es abgeräumt, traf nur die Überschriften — und dort war es
+  unsere eigene Regel und nicht die von Tailwind.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
