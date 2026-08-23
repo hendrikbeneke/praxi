@@ -1043,6 +1043,16 @@ export const strings = {
     text: 'Text',
     activity: 'Zum Vorgang',
     activityNone: 'Kein Vorgang',
+    /** Named where it bites, and only there — see `activityChoicesQueryOptions`. */
+    activityCapped: (n: number) =>
+      `Nur die letzten ${n} Vorgänge werden geladen. Ältere finden Sie im Reiter Vorgänge und ` +
+      'schreiben die Notiz dort.',
+    /** The row the list shows while a note is being written. */
+    provisional: 'Neue Notiz — wird noch geschrieben',
+    /** What an addendum is headed with, in the row and in the reading pane —
+     *  where every other note says its type. `writeAddendum` is the button
+     *  that starts one; the same word, a different job. */
+    addendumLabel: 'Nachtrag',
 
     save: 'Speichern',
     saving: 'Wird gespeichert …',
@@ -1534,6 +1544,7 @@ export const strings = {
     notes: (n: number) => `${n} ${n === 1 ? 'Notiz' : 'Notizen'}`,
     notesLocked: 'Gesperrt',
     notesOpen: 'Offen',
+    notesAddendum: 'Nachtrag',
     activities: (total: number, upcoming: number) =>
       `${total} ${total === 1 ? 'Vorgang' : 'Vorgänge'} · ${upcoming} kommend`,
     activitiesBilled: 'Abgerechnet',

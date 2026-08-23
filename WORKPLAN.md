@@ -2783,6 +2783,52 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   getrennt prüfbar zu sein war der Sinn der Teilung.
 
 
+**L6b, as built** — *Der Notizen-Reiter*. Keine Migration.
+
+- **Geschrieben wird da, wo gelesen wird.** `note-dialog.tsx` ist gelöscht;
+  „Neue Notiz", „Bearbeiten" und „Nachtrag" stellen `NoteForm` in die rechte
+  Spalte. Das Formular nimmt kein `open` und kein `onOpenChange` mehr — es
+  existiert genau, solange es benutzt wird, und jeder Effekt, der auf `open`
+  hörte, ist ein State-Initialisierer geworden. **Von Anfang an
+  wiederverwendbar:** `activityPicker={false}` lässt die Vorgangs-Auswahl weg,
+  was der Vorgangs-Reiter in L7 braucht.
+- **Die vorläufige Zeile ist ein Prop, keine Notiz mit erfundener id.** Datum
+  und Art folgen dem Formular (`onMeta`, in `useCallback` und als No-op, wenn
+  sich nichts bewegt hat — sonst rendert der Melder sich selbst neu). Eine neue
+  Notiz steht oben, egal welches Datum sie trägt; ein Nachtrag steht eingerückt
+  unter seiner Elternnotiz, also da, wo er nach dem Speichern landet.
+- **Zählen und Filtern sind zwei Regeln** (Regel 7 nachgezogen). Gezählt
+  zeilenweise nach der eigenen Eigenschaft — ein Nachtrag unter „Nachtrag" und
+  unter nichts sonst; gefiltert mit Schließung in beide Richtungen bis zum
+  Fixpunkt. Im Browser geprüft: „Nachtrag" (1) zeigt 2 Zeilen, „Sitzung" (3)
+  zeigt 4, „Gesperrt" (3) zeigt genau die drei des Bildes.
+- **„Nachtrag" ist ein Chip und bleibt keine Notizart.** Er steht bei „Gesperrt"
+  und „Offen", vor dem Katalog. Das Bild zeichnet ihn zwischen die Arten, was
+  keine allgemeine Reihenfolge herstellen kann.
+- **Der Vorgang-Picker lädt 30 und sagt es.** Vorher fragte er die
+  Standardseite von 50 und schwieg über die 51. — eine stille Kappung liest
+  sich als „mehr gibt es nicht". Der Hinweis erscheint nur, wenn die Antwort
+  einen `nextCursor` trägt.
+- **`listNotes` sortiert absteigend.** Der Docstring behauptete das seit
+  Slice 5 und die Query tat das Gegenteil; die Liste war kurz genug, dass es
+  niemandem auffiel. Die Gruppierung der Nachträge unter ihre Elternnotiz ist
+  Sache des Bildschirms (`orderNotes`) — ein Nachtrag hat ein eigenes Datum und
+  stünde sonst weit weg von dem, was er ergänzt.
+- **„Dokumentieren" springt** über `?tab=notes&activityId=…` und verbraucht den
+  Parameter einmal, damit ein späterer Besuch des Reiters kein Formular öffnet,
+  nach dem niemand gefragt hat. Ein Parameter, weil es eine Tatsache ist —
+  welcher Vorgang gemeint ist —, und was sie bedeutet, entscheidet der Reiter.
+- **Der aktive Filterchip ist dunkel gefüllt** (`chip.tsx`), womit die
+  Begründung dort umgestoßen ist: eine *Reihe* von Chips ist keine Reihe von
+  Knöpfen, nur einer ist je gefüllt, und die helle Tönung war ein Zustand, den
+  man suchen musste. Trifft auch Vorgänge und Rechnungen — dieselbe
+  Formsprache, deren Bilder in L7 und L8 kommen.
+- **Bewusst hingenommen:** der Editortext steht 20 px weiter rechts als der
+  Lesetext, weil `note-editor-surface` links 2,75 rem für Plus und Griff
+  freihält. Weniger Rand ließe den Randstreifen über den Text laufen, ein
+  negativer Rand über die Trennlinie zur Liste.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

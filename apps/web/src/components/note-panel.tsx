@@ -1,7 +1,7 @@
 import { formatBerlinDate, formatBerlinDateTime, type Note, plainNoteText } from '@praxi/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Lock, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import { NoteText } from '@/components/note-text'
 import {
@@ -27,6 +27,70 @@ import { cn } from '@/lib/utils'
  *  a timezone boundary. */
 function formatNoteDate(noteDate: string): string {
   return formatBerlinDate(`${noteDate}T12:00:00Z`)
+}
+
+/**
+ * **What a row is headed with.** An addendum says "Nachtrag" where every other
+ * note says its type (L6b) — in the list and in the reading pane's header
+ * alike, which is why it is one function. The type is not lost, it is
+ * displaced: what one needs to know about this row is that it supplements the
+ * one above it, and the type it inherited from that note says nothing new.
+ */
+export function noteRowLabel(note: Note): string {
+  return note.correctsNoteId === null ? note.noteTypeLabel : strings.note.addendumLabel
+}
+
+/**
+ * **The reading order: newest first, and an addendum under the note it
+ * corrects.** Two rules rather than one sort, because they answer different
+ * questions — which note comes next, and where a supplement belongs.
+ *
+ * Sorting addenda in with everything else by date would scatter them: a
+ * Nachtrag written six weeks later would stand six weeks up the list, with
+ * nothing beside it to say what it corrects. So parents carry the order and
+ * their addenda follow them, oldest first, because supplements read forwards.
+ *
+ * The rows arrive newest first from the server; a parent's position is
+ * therefore the position of its own row, and an addendum whose parent is not
+ * in the list — which the tab’s filter cannot produce, see `shownFor` — keeps its
+ * place rather than disappearing.
+ */
+export function orderNotes(notes: readonly Note[]): Note[] {
+  const children = new Map<string, Note[]>()
+  for (const note of notes) {
+    if (note.correctsNoteId === null) continue
+    const list = children.get(note.correctsNoteId)
+    if (list) list.push(note)
+    else children.set(note.correctsNoteId, [note])
+  }
+  for (const list of children.values()) list.reverse()
+
+  const placed = new Set<string>()
+  const rows: Note[] = []
+  for (const note of notes) {
+    if (placed.has(note.id)) continue
+    if (note.correctsNoteId !== null && notes.some((other) => other.id === note.correctsNoteId)) {
+      continue
+    }
+    rows.push(note)
+    placed.add(note.id)
+    for (const child of children.get(note.id) ?? []) {
+      if (placed.has(child.id)) continue
+      rows.push(child)
+      placed.add(child.id)
+    }
+  }
+  return rows
+}
+
+/** The row the list shows while a note is being written and does not exist
+ *  yet. It carries what the form holds, so date and type follow the cursor. */
+export type ProvisionalRow = {
+  noteDate: string
+  typeLabel: string
+  /** Set while an addendum is being written: the row is indented under the
+   *  note it will supplement, which is where it lands once saved. */
+  correctsNoteId: string | null
 }
 
 /**
@@ -60,42 +124,57 @@ function formatNoteDate(noteDate: string): string {
 const PANEL_HEIGHT = 'h-[calc(100svh-300px)] min-h-[520px]'
 
 /**
- * The Notizen tab: a narrow list on the left, the chosen note read wide on the
- * right (K7). It replaced a flat stack in which every note stood fully
- * expanded, so a year of documentation was one endless column.
+ * The Notizen tab: a narrow list on the left, and on the right the chosen note
+ * — read, or written (K7, L6b). It replaced a flat stack in which every note
+ * stood fully expanded, so a year of documentation was one endless column.
  *
- * **The reading pane only reads.** The prototype writes and edits in the right
- * column, in a `contentEditable` with a formatting toolbar; CLAUDE.md bans
- * that outright for note text, because a field whose content is hashed and
- * locked must not be able to contain markup nobody typed. The prototype
- * carries a dialog with the same fields beside it, and that is the half we
- * build: "Neue Notiz", "Bearbeiten" and "Nachtrag" open `NoteDialog`.
- * Recorded in `docs/design-korrektur/abweichungen.md`.
+ * **Both halves of the right column live here.** Reading was all it did until
+ * L6b; writing happened in a dialog, on the grounds that a field whose content
+ * is hashed and locked must not be edited in a `contentEditable`. L6a settled
+ * that differently and for good — what a note may contain is a ProseMirror
+ * schema now, not a hope about markup — so the dialog had no argument left,
+ * and the design puts the form exactly where the note it replaces stood.
  *
- * Addenda are rows of their own, indented — they are separate notes with their
- * own date, and the design lists them that way rather than nesting them under
- * what they correct.
+ * The panel does not decide which of the two it is showing: it renders
+ * `children`, and the tab above knows whether something is being written. What
+ * the panel does own is the list, and that is why the provisional row is a
+ * prop rather than a note with a fake id — a row that is not a note must not
+ * be able to reach anything that takes a note.
  */
 export function NotePanel({
   notes,
+  provisional,
+  selectedId,
+  onSelect,
   emptyText,
-  onEdit,
-  onAddendum,
+  children,
 }: {
-  /** Already filtered by the chips above; the selection follows. */
+  /** Already filtered by the chips above, newest first. */
   notes: readonly Note[]
+  /** Set while a note is being written; the row is drawn and always
+   *  selected. */
+  provisional?: ProvisionalRow | undefined
+  selectedId: string | undefined
+  onSelect: (noteId: string) => void
   emptyText: string
-  onEdit: (note: Note) => void
-  onAddendum: (note: Note) => void
+  /** The reading pane, or the form standing in its place. */
+  children: ReactNode
 }) {
-  const [selectedId, setSelectedId] = useState<string | undefined>()
+  const rows = orderNotes(notes)
 
-  // The first note unless the chosen one is still in the list — which is what
-  // makes a filter usable: narrowing the list moves the reading pane with it
-  // instead of leaving it on something no longer shown.
-  const selected = notes.find((note) => note.id === selectedId) ?? notes[0]
+  if (rows.length === 0 && !provisional) {
+    return <p className="text-muted-foreground text-sm">{emptyText}</p>
+  }
 
-  if (notes.length === 0) return <p className="text-muted-foreground text-sm">{emptyText}</p>
+  /* A new note goes to the top whatever date it carries — it is the thing in
+     hand, not a row in a chronology yet. An addendum goes under its parent,
+     which is where it will be once it exists. */
+  const parentIndex =
+    provisional?.correctsNoteId != null
+      ? rows.findIndex((note) => note.id === provisional.correctsNoteId)
+      : -1
+
+  const provisionalAt = provisional ? (parentIndex >= 0 ? parentIndex + 1 : 0) : -1
 
   return (
     <div
@@ -105,19 +184,46 @@ export function NotePanel({
       )}
     >
       <div className="overflow-auto border-r bg-muted/45">
-        {notes.map((note) => (
-          <NoteRow
-            key={note.id}
-            note={note}
-            selected={note.id === selected?.id}
-            onSelect={() => setSelectedId(note.id)}
-          />
+        {rows.map((note, index) => (
+          <div key={note.id}>
+            {index === provisionalAt && provisional && <ProvisionalNoteRow row={provisional} />}
+            <NoteRow
+              note={note}
+              selected={provisional === undefined && note.id === selectedId}
+              onSelect={() => onSelect(note.id)}
+            />
+          </div>
         ))}
+        {provisional && provisionalAt >= rows.length && <ProvisionalNoteRow row={provisional} />}
       </div>
 
-      <div className="flex min-w-0 flex-col overflow-auto">
-        {selected && <NoteReader note={selected} onEdit={onEdit} onAddendum={onAddendum} />}
-      </div>
+      <div className="flex min-w-0 flex-col overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
+const ROW_BASE = 'block w-full border-b border-l-[3px] pt-[11px] pr-[14px] pb-3 text-left'
+
+function ProvisionalNoteRow({ row }: { row: ProvisionalRow }) {
+  return (
+    <div
+      className={cn(
+        ROW_BASE,
+        row.correctsNoteId === null ? 'pl-[14px]' : 'pl-[26px]',
+        'border-l-primary bg-card',
+      )}
+    >
+      <span className="flex items-center gap-2">
+        <span className="font-semibold text-[13.5px] tabular-nums">
+          {row.noteDate === '' ? '—' : formatNoteDate(row.noteDate)}
+        </span>
+        <span className="ml-auto text-[11.5px] text-muted-foreground">
+          {row.correctsNoteId === null ? row.typeLabel : strings.note.addendumLabel}
+        </span>
+      </span>
+      <span className="mt-1 block truncate text-[12.5px] text-muted-foreground italic">
+        {strings.note.provisional}
+      </span>
     </div>
   )
 }
@@ -138,7 +244,7 @@ function NoteRow({
       type="button"
       onClick={onSelect}
       className={cn(
-        'block w-full border-b border-l-[3px] pt-[11px] pr-[14px] pb-3 text-left',
+        ROW_BASE,
         note.correctsNoteId === null ? 'pl-[14px]' : 'pl-[26px]',
         selected ? 'border-l-primary bg-card' : 'border-l-transparent',
       )}
@@ -154,14 +260,14 @@ function NoteRow({
             {note.files.length}
           </span>
         )}
-        <span className="ml-auto text-[11.5px] text-muted-foreground">{note.noteTypeLabel}</span>
+        <span className="ml-auto text-[11.5px] text-muted-foreground">{noteRowLabel(note)}</span>
       </span>
       <span className="mt-1 block truncate text-[12.5px] text-muted-foreground">{excerpt}</span>
     </button>
   )
 }
 
-function NoteReader({
+export function NoteReader({
   note,
   onEdit,
   onAddendum,
@@ -203,12 +309,12 @@ function NoteReader({
     : note.createdByName
 
   return (
-    <>
+    <div className="flex min-h-0 flex-col overflow-auto">
       <div className="sticky top-0 z-2 flex flex-wrap items-center gap-3 border-b bg-card px-[22px] py-4">
         <span className="font-semibold text-[15px] tabular-nums">
           {formatNoteDate(note.noteDate)}
         </span>
-        <Badge variant="outline">{note.noteTypeLabel}</Badge>
+        <Badge variant="outline">{noteRowLabel(note)}</Badge>
         {locked ? (
           <Badge variant="secondary" className="gap-1">
             <Lock className="size-3" aria-hidden />
@@ -313,6 +419,6 @@ function NoteReader({
           </div>
         )}
       </div>
-    </>
+    </div>
   )
 }

@@ -219,7 +219,7 @@ gemacht hat, ist derselbe Fehler wie eine erfundene Rechnungsnummer — nur klei
 
 ---
 
-## ~~K7 — Die Lesespalte der Notizen liest, geschrieben wird im Dialog~~ → in L6a überstimmt
+## ~~K7 — Die Lesespalte der Notizen liest, geschrieben wird im Dialog~~ → in L6a und L6b überstimmt
 
 **Der Eintrag lautete:** Das Design macht die rechte Spalte des Notizen-Reiters zugleich zum
 Editor — ein `contentEditable` mit Formatleiste. Gebaut war: die Lesespalte liest, „Neue Notiz",
@@ -239,8 +239,11 @@ Die Sorge um den Hash bleibt richtig und ist beantwortet: `content_hash` entsteh
 und eine gesperrte Notiz landet nie wieder in einem Editor. Neu serialisiert wird nur, was offen
 ist.
 
-**Der Ort** — Dialog statt Lesespalte — wird mit L6b überstimmt. L6a hat den Editor gebaut und
-zunächst im Dialog gelassen, damit er für sich prüfbar blieb.
+**Der Ort** — Dialog statt Lesespalte — ist mit L6b überstimmt. L6a hat den Editor gebaut und
+zunächst im Dialog gelassen, damit er für sich prüfbar blieb; L6b hat `note-dialog.tsx` gelöscht.
+Das Formular steht jetzt da, wo die Notiz stand, die es ersetzt, und ist von Anfang an
+wiederverwendbar gebaut (`note-form.tsx`), weil der Vorgangs-Reiter in L7 dasselbe Formular
+zeigt — ohne die Vorgangs-Auswahl, weil der Datensatz drumherum den Vorgang schon nennt.
 
 Der Eintrag bleibt als Protokoll stehen, damit die Entscheidung nicht zweimal getroffen wird.
 

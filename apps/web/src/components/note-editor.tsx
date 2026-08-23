@@ -20,6 +20,7 @@ import { BlockMenu } from '@/components/note-editor-menu'
 import { NOTE_STRINGIFY_OPTIONS, noteEditorPlugins } from '@/components/note-editor-plugins'
 import { SelectionToolbar } from '@/components/note-editor-toolbar'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
  * The note field — Milkdown over ProseMirror, written as Markdown and stored
@@ -86,13 +87,16 @@ export function NoteEditor({
   id,
   value,
   onChange,
-  minHeight = 'min-h-64',
+  className,
 }: {
   id: string
   /** Read **once**, at mount — see above. */
   value: string
   onChange: (next: string) => void
-  minHeight?: string
+  /** On the *wrapper*, which is what the floating menus are positioned
+   *  inside — so a caller that wants the editor to fill a pane says so here
+   *  and puts its own scrolling box around the whole thing (L6b). */
+  className?: string
 }) {
   const host = useRef<HTMLDivElement>(null)
   const [ctx, setCtx] = useState<Ctx | null>(null)
@@ -365,11 +369,8 @@ export function NoteEditor({
   }, [ctx, slots])
 
   return (
-    <div className="relative">
-      <div
-        ref={host}
-        className={`note-editor-host rounded-md border bg-transparent ${minHeight}`}
-      />
+    <div className={cn('relative', className)}>
+      <div ref={host} className="note-editor-host min-h-full bg-transparent" />
 
       {createPortal(<SelectionToolbar ctx={ctx} state={state} />, slots.toolbar)}
 

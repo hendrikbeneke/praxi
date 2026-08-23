@@ -20,7 +20,7 @@ import {
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Pencil, Plus, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { ActivityList } from '@/components/activity-list'
@@ -30,8 +30,8 @@ import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
 import { ContentWidth } from '@/components/content-width'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
-import { NoteDialog } from '@/components/note-dialog'
-import { NotePanel } from '@/components/note-panel'
+import { NoteForm, type NoteFormTarget } from '@/components/note-form'
+import { NotePanel, NoteReader, orderNotes } from '@/components/note-panel'
 import { PaymentStatusBadge } from '@/components/payment-status'
 import { RecordTab, RecordTabsList } from '@/components/record-tabs'
 import {
@@ -72,9 +72,14 @@ const tabs = ['overview', 'master', 'notes', 'activities', 'appointments', 'invo
 
 const searchSchema = z.object({
   tab: z.enum(tabs).default('overview'),
-  /** Which Vorgang the Vorgänge tab opens on arrival, in read mode (L5).
-   *  It is in the URL for the same reason `tab` is: "Letzte Vorgänge" on the
-   *  overview links here, and a link has to survive the back button. */
+  /**
+   * The Vorgang this page was opened for, and what that means is the tab's
+   * business: the Vorgänge tab opens it in read mode ("Letzte Vorgänge" on
+   * the overview, L5), the Notizen tab starts a note about it
+   * ("Dokumentieren", L6b). One parameter, because it is one fact — which
+   * Vorgang is in question — and it is in the URL for the same reason `tab`
+   * is: a link has to survive the back button.
+   */
   activityId: z.uuid().optional(),
 })
 
@@ -95,9 +100,6 @@ function ContactDetailPage() {
   /** Master data is read far more often than it is changed, so the page starts
    *  read-only and a stray keystroke cannot land in a field nobody opened. */
   const [editing, setEditing] = useState(false)
-  /** The activity the "Dokumentieren" button on the overview points at. */
-  const [documenting, setDocumenting] = useState<Activity | undefined>()
-
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['contacts'] })
 
   /**
@@ -218,7 +220,9 @@ function ContactDetailPage() {
         <TabsContent value="overview">
           <ContactOverview
             contact={contact}
-            onDocument={setDocumenting}
+            onDocument={(activity) =>
+              void navigate({ search: { tab: 'notes', activityId: activity.id } })
+            }
             onOpenActivity={(activityId) =>
               void navigate({ search: { tab: 'activities', activityId } })
             }
@@ -267,7 +271,11 @@ function ContactDetailPage() {
 
         <TabsContent value="notes">
           <ContentWidth>
-            <ContactNotes contactId={contactId} />
+            <ContactNotes
+              contactId={contactId}
+              documentActivityId={tab === 'notes' ? activityId : undefined}
+              onFormOpened={() => void navigate({ search: { tab: 'notes' }, replace: true })}
+            />
           </ContentWidth>
         </TabsContent>
 
@@ -277,17 +285,6 @@ function ContactDetailPage() {
           </ContentWidth>
         </TabsContent>
       </div>
-
-      {/* Opened from the overview, so it lives here rather than in the notes
-          tab — the point is to document without going looking for the tab. */}
-      {documenting && (
-        <NoteDialog
-          contactId={contactId}
-          activityId={documenting.id}
-          open
-          onOpenChange={(next) => !next && setDocumenting(undefined)}
-        />
-      )}
     </Tabs>
   )
 }
@@ -594,17 +591,33 @@ function BillableCard({ contactId, onCreate }: { contactId: string; onCreate: ()
   )
 }
 
-function ContactNotes({ contactId }: { contactId: string }) {
+function ContactNotes({
+  contactId,
+  documentActivityId,
+  onFormOpened,
+}: {
+  contactId: string
+  /** A Vorgang handed over by "Dokumentieren" on the overview — the form
+   *  opens on it once, and the parameter is dropped again so that going back
+   *  to this tab later does not re-open a form nobody asked for. */
+  documentActivityId?: string | undefined
+  onFormOpened: () => void
+}) {
   const notes = useQuery(noteListQueryOptions({ contactId }))
   const noteTypes = useQuery(noteTypeListQueryOptions)
   const noteRows = notes.data ?? []
   const [filter, setFilter] = useState<string | undefined>()
 
-  /* Locked state first, then one chip per type flagged `show_as_tab` — the
-     flag alone decides it, so a chip appears even where the count is zero: at
-     a filter a zero is an answer (K7), and which types are worth a chip is the
-     practitioner's call rather than a consequence of what this contact happens
-     to have. */
+  /* Locked state first, then the addendum, then one chip per type flagged
+     `show_as_tab` — the flag alone decides that last group, so a chip appears
+     even where the count is zero: at a filter a zero is an answer (K7), and
+     which types are worth a chip is the practitioner's call rather than a
+     consequence of what this contact happens to have.
+
+     "Nachtrag" stands with Gesperrt and Offen rather than among the types,
+     because that is what it is: a property of the note itself. It is not a
+     note type and never becomes one (L1) — the design draws it between the
+     types, which no general order can reproduce. */
   const noteChips = [
     {
       id: 'locked',
@@ -616,52 +629,89 @@ function ContactNotes({ contactId }: { contactId: string }) {
       label: strings.counts.notesOpen,
       matches: (note: Note) => note.lockedAt === null,
     },
+    {
+      id: 'addendum',
+      label: strings.counts.notesAddendum,
+      matches: (note: Note) => note.correctsNoteId !== null,
+    },
     ...(noteTypes.data ?? [])
       .filter((type) => type.showAsTab)
+      /* An addendum is deliberately not counted under its type. It carries
+         one — it starts on its parent's — but "Nachtrag" displaces it
+         everywhere it is shown, in the row and in the reading pane's header,
+         and a count that said otherwise would not add up against the rows. */
       .map((type) => ({
         id: `type:${type.id}`,
         label: type.label,
-        matches: (note: Note) => note.noteTypeId === type.id,
+        matches: (note: Note) => note.correctsNoteId === null && note.noteTypeId === type.id,
       })),
   ]
 
   /**
-   * **Every filter is judged on the parent note.** An addendum appears with the
-   * note it supplements or not at all — alone in the list it would sit there
-   * without anything to say what it corrects, and the panel renders it
-   * indented under exactly that note. So an addendum is shown whenever its
-   * parent matches, whatever its own type or lock state says.
+   * **Counting and filtering are two rules, not one** (L6b).
    *
-   * The walk goes up rather than one step, because nothing in the database
-   * forbids an addendum to an addendum — only the screen does.
+   * - **Counted** row by row, on the row's own property: an addendum counts
+   *   under "Nachtrag" and under nothing else.
+   * - **Filtered** with closure in both directions: a matching note brings its
+   *   addenda along, and a matching addendum brings its note along.
+   *
+   * The rule from L1 survives that unchanged — an addendum never stands alone,
+   * because alone in a filtered list it would sit there with nothing to say
+   * what it corrects, while the panel renders it indented under exactly that
+   * note. What follows is that a chip reading "2 Sitzung" can produce three
+   * rows, and that is the lesser evil: a number beside a word reads as "there
+   * are this many", not as "this many rows are coming".
    */
-  const byId = new Map(noteRows.map((note) => [note.id, note]))
-  function parentOf(note: Note): Note {
-    let current = note
-    const seen = new Set<string>([current.id])
-    while (current.correctsNoteId !== null) {
-      const parent = byId.get(current.correctsNoteId)
-      if (!parent || seen.has(parent.id)) return current
-      seen.add(parent.id)
-      current = parent
+  const shownFor = (matches: (note: Note) => boolean): Note[] => {
+    const keep = new Set(noteRows.filter(matches).map((note) => note.id))
+
+    // Both directions, to a fixed point — the screen only ever nests one level
+    // deep, but nothing in the database says an addendum may not have one.
+    for (let pass = 0; pass <= noteRows.length; pass++) {
+      let grew = false
+      for (const note of noteRows) {
+        if (note.correctsNoteId === null) continue
+        const linked = keep.has(note.id) !== keep.has(note.correctsNoteId)
+        if (!linked) continue
+        keep.add(note.id)
+        keep.add(note.correctsNoteId)
+        grew = true
+      }
+      if (!grew) break
     }
-    return current
+
+    return noteRows.filter((note) => keep.has(note.id))
   }
 
   const active = noteChips.find((chip) => chip.id === filter)
-  const shown = active ? noteRows.filter((note) => active.matches(parentOf(note))) : noteRows
+  const shown = active ? shownFor(active.matches) : noteRows
   const noTypes = noteTypes.data?.length === 0
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [edited, setEdited] = useState<Note | undefined>()
-  const [corrects, setCorrects] = useState<Note | undefined>()
+  const [form, setForm] = useState<NoteFormTarget | null>(null)
+  const [meta, setMeta] = useState({ noteDate: '', typeLabel: '' })
+  const [selectedId, setSelectedId] = useState<string | undefined>()
   const [chainOpen, setChainOpen] = useState(false)
 
-  function open(note?: Note, addendumTo?: Note) {
-    setEdited(note)
-    setCorrects(addendumTo)
-    setDialogOpen(true)
-  }
+  /** Stable, and a no-op when nothing moved: the form reports its date and
+   *  type on every change so the provisional row can follow, and an
+   *  unconditional setState here would re-render the form that reported. */
+  const takeMeta = useCallback((next: { noteDate: string; typeLabel: string }) => {
+    setMeta((current) =>
+      current.noteDate === next.noteDate && current.typeLabel === next.typeLabel ? current : next,
+    )
+  }, [])
+
+  useEffect(() => {
+    if (!documentActivityId) return
+    setForm({ kind: 'create', activityId: documentActivityId })
+    onFormOpened()
+  }, [documentActivityId, onFormOpened])
+
+  // The first note unless the chosen one is still in the list — which is what
+  // makes a filter usable: narrowing the list moves the reading pane with it
+  // instead of leaving it on something no longer shown.
+  const ordered = orderNotes(shown)
+  const selected = ordered.find((note) => note.id === selectedId) ?? ordered[0]
 
   return (
     <>
@@ -671,9 +721,7 @@ function ContactNotes({ contactId }: { contactId: string }) {
           chips={noteChips.map((chip) => ({
             id: chip.id,
             label: chip.label,
-            /* What the chip will show, addenda included — a count that
-               promises fewer rows than appear is worse than no count. */
-            count: noteRows.filter((note) => chip.matches(parentOf(note))).length,
+            count: noteRows.filter(chip.matches).length,
           }))}
           active={filter}
           onChange={setFilter}
@@ -684,7 +732,7 @@ function ContactNotes({ contactId }: { contactId: string }) {
         </Button>
         {/* Without a note type nothing can be saved, so the button says so
             instead of opening a form that cannot be submitted. */}
-        <Button onClick={() => open()} disabled={noTypes}>
+        <Button onClick={() => setForm({ kind: 'create' })} disabled={noTypes}>
           <Plus className="size-4" aria-hidden />
           {strings.note.create}
         </Button>
@@ -699,24 +747,57 @@ function ContactNotes({ contactId }: { contactId: string }) {
 
       <NotePanel
         notes={shown}
-        emptyText={notes.isPending ? strings.status.loading : strings.note.empty}
-        onEdit={(note) => open(note)}
-        onAddendum={(note) => open(undefined, note)}
-      />
-
-      <NoteDialog
-        contactId={contactId}
-        note={edited}
-        correctsNote={corrects}
-        open={dialogOpen}
-        onOpenChange={(next) => {
-          setDialogOpen(next)
-          if (!next) {
-            setEdited(undefined)
-            setCorrects(undefined)
-          }
+        provisional={
+          form === null || form.kind === 'edit'
+            ? undefined
+            : {
+                noteDate: meta.noteDate,
+                typeLabel: meta.typeLabel,
+                correctsNoteId: form.kind === 'addendum' ? form.correctsNote.id : null,
+              }
+        }
+        selectedId={form?.kind === 'edit' ? form.note.id : selected?.id}
+        /* Picking another note leaves the form the way "Abbrechen" does —
+           flushed by the form itself on unmount of nothing, so what was typed
+           stays as a draft and is offered again. Reading must always be one
+           click away. */
+        onSelect={(noteId) => {
+          setSelectedId(noteId)
+          setForm(null)
         }}
-      />
+        emptyText={notes.isPending ? strings.status.loading : strings.note.empty}
+      >
+        {form ? (
+          <NoteForm
+            /* A different target is a different form: the key is what resets
+               every field, the editor included, without an effect to keep in
+               step with the props. */
+            key={
+              form.kind === 'edit'
+                ? `edit:${form.note.id}`
+                : form.kind === 'addendum'
+                  ? `addendum:${form.correctsNote.id}`
+                  : `create:${form.activityId ?? ''}`
+            }
+            contactId={contactId}
+            target={form}
+            onMeta={takeMeta}
+            onSaved={(saved) => {
+              setForm(null)
+              setSelectedId(saved.id)
+            }}
+            onCancel={() => setForm(null)}
+          />
+        ) : (
+          selected && (
+            <NoteReader
+              note={selected}
+              onEdit={(note) => setForm({ kind: 'edit', note })}
+              onAddendum={(note) => setForm({ kind: 'addendum', correctsNote: note })}
+            />
+          )
+        )}
+      </NotePanel>
 
       <NoteChainDialog contactId={contactId} open={chainOpen} onOpenChange={setChainOpen} />
     </>

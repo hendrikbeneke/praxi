@@ -1,5 +1,5 @@
 import type { Note, NoteFile, NoteInput, NoteListQuery, NoteUpdate } from '@praxi/shared'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import type { Database, DbReader } from '../db/client.js'
 import { appUser, note, noteFile, noteType } from '../db/schema.js'
 import { newId } from '../id.js'
@@ -165,10 +165,15 @@ async function decorate(reader: DbReader, rows: NoteRow[]): Promise<Note[]> {
 }
 
 /**
- * Chronological, newest first — the order the practitioner reads in. Addenda
- * come back in the same list; nesting them under the note they correct is the
- * UI's job, because an addendum has its own date and must stay visible as a
- * separate, later entry.
+ * Chronological, **newest first** — the order the practitioner reads in, and
+ * the order the design draws (L6b). The docstring said so from slice 5
+ * onwards while the query sorted the other way round; the list was short
+ * enough that nobody looked twice.
+ *
+ * Addenda come back in the same list, in the same order. Grouping one under
+ * the note it corrects is the UI's job: an addendum has its own date and would
+ * sit far from its parent in a plain sort, and where it belongs is a question
+ * about a screen rather than about the rows.
  */
 export async function listNotes(
   database: Database,
@@ -183,7 +188,7 @@ export async function listNotes(
     .select(noteColumns)
     .from(note)
     .where(and(...filters))
-    .orderBy(asc(note.noteDate), asc(note.createdAt))
+    .orderBy(desc(note.noteDate), desc(note.createdAt))
 
   return decorate(database, rows)
 }

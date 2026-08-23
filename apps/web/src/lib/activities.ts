@@ -28,21 +28,33 @@ function listQuery(params: ListParams, extra: Record<string, string> = {}) {
   }
 }
 
+/** How many Vorgänge the note form offers. */
+export const ACTIVITY_CHOICES = 30
+
 /**
- * Both halves at once, unpaged — what a *picker* asks for. The note dialog
- * choosing an activity does not care which side of now it is on, and it shows
- * what one request returns.
+ * What a *picker* asks for: both halves at once, newest first, capped at
+ * thirty (L6b). The note form choosing a Vorgang does not care which side of
+ * now it is on.
+ *
+ * **The cap is shown, not hidden.** This asked for the default page before,
+ * which is fifty and says nothing about the fifty-first — a silent truncation
+ * reads as "that is all there is". The page carries `nextCursor`, so the
+ * picker can say in a line that it is a cap. There is no paging behind it and
+ * no search field on purpose: whoever has to go further back opens the
+ * Vorgänge tab, where the list is paged, and writes the note from there.
  *
  * The two halves of the list proper are below, and they have different rules:
  * see `activityListPartSchema`.
  */
-export const activityListQueryOptions = (params: ListParams) =>
+export const activityChoicesQueryOptions = (contactId: string) =>
   queryOptions({
-    queryKey: ['activities', 'list', params],
-    queryFn: async (): Promise<Activity[]> => {
-      const res = await api.api.activities.$get({ query: listQuery(params) })
+    queryKey: ['activities', 'list', 'choices', contactId],
+    queryFn: async (): Promise<Page<Activity>> => {
+      const res = await api.api.activities.$get({
+        query: { contactId, limit: String(ACTIVITY_CHOICES) },
+      })
       if (!res.ok) throw await apiError(res)
-      return (await res.json()).items
+      return res.json()
     },
   })
 

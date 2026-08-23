@@ -27,15 +27,20 @@ import { cn } from '@/lib/utils'
 /**
  * A chip that *does* filter, so it stays a button — the classes only.
  *
- * The active state is a light primary tint with a primary border, not the dark
- * fill `Button variant="default"` gives: on a row of six, a filled pill reads as
- * the primary action of the screen rather than as "this one is selected".
+ * **The active one is filled dark**, and that overturns what stood here (L6b).
+ * The reasoning was that on a row of six a filled pill reads as the primary
+ * action of the screen rather than as "this one is selected", so the active
+ * state was a light primary tint. The design draws it filled, and it is right
+ * for a reason the argument missed: a *row* of chips is not a row of buttons.
+ * Only one of them is ever filled, the primary action of the screen sits at
+ * the other end of the same line, and a tint that light is a state one has to
+ * look for. Rangfolge — the images decide the look.
  */
 export function filterChipClass(active: boolean): string {
   return cn(
     'inline-flex h-7 items-center gap-1.5 rounded-full border px-[11px] text-[12.5px] transition-colors',
     active
-      ? 'border-primary bg-primary/12 font-semibold text-foreground'
+      ? 'border-primary bg-primary font-semibold text-primary-foreground'
       : 'border-border bg-card text-muted-foreground hover:bg-accent',
   )
 }

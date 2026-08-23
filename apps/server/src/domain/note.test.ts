@@ -110,12 +110,15 @@ describe('notes while unlocked', () => {
     expect(updated?.noteDate).toBe('2026-08-10')
   })
 
-  it('lists by contact in chronological order', async () => {
-    await createNote(db(), tenantId, user.id, draft({ noteDate: '2026-08-10', text: 'zweite' }))
+  /* Newest first, which is what `listNotes` always claimed in its docstring
+     and did not do until L6b. Written oldest first on purpose, so the
+     assertion fails if the query ever falls back to insertion order. */
+  it('lists by contact newest first', async () => {
     await createNote(db(), tenantId, user.id, draft({ noteDate: '2026-08-09', text: 'erste' }))
+    await createNote(db(), tenantId, user.id, draft({ noteDate: '2026-08-10', text: 'zweite' }))
 
     const rows = await listNotes(db(), tenantId, { contactId })
-    expect(rows.map((row) => row.text)).toEqual(['erste', 'zweite'])
+    expect(rows.map((row) => row.text)).toEqual(['zweite', 'erste'])
   })
 
   it('deletes and takes the files with it', async () => {

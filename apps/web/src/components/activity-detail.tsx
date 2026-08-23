@@ -343,9 +343,13 @@ function ActivityInvoices({ activity }: { activity: Activity }) {
  *
  * Notes are written and locked on the contact's Notizen tab — this is here so
  * that opening a session shows what was recorded for it without hunting for
- * it. The D8 prototype offers "Notiz hinzufügen" here; that is deliberately
- * not built, because a note editor inside a record that is itself editable is
- * the rich-text question, and that is D10.
+ * it. The D8 prototype offers "Notiz hinzufügen" here and it is still not
+ * built — but the reason has expired: it was "a note editor inside a record
+ * that is itself editable is the rich-text question, and that is D10", and
+ * D10 came, then L6a and L6b. What is missing is only the wiring, and that
+ * belongs to L7, which redraws this detail: `NoteForm` takes
+ * `activityPicker={false}` and the Vorgang from its target, exactly for this
+ * place.
  */
 function ActivityNotes({ activityId }: { activityId: string }) {
   const notes = useQuery(noteListQueryOptions({ activityId }))
