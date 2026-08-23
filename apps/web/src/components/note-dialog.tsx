@@ -94,13 +94,16 @@ export function NoteDialog({
    *  on. */
   const noTypes = noteTypes.data?.length === 0
 
-  /** One opens this dialog to write, not to look — reading happens in the
-   *  panel behind it (K7) — so the preview starts off. */
-  const [previewing, setPreviewing] = useState(false)
+  /**
+   * Bumped whenever the text is replaced from outside — opening the dialog, or
+   * taking over a draft. The editor reads its value once, at mount (see
+   * `note-editor.tsx`), so a new generation is how it is told to start again.
+   */
+  const [generation, setGeneration] = useState(0)
 
   useEffect(() => {
     if (!open) return
-    setPreviewing(false)
+    setGeneration((current) => current + 1)
 
     if (note) {
       setNoteDate(note.noteDate)
@@ -158,6 +161,7 @@ export function NoteDialog({
 
   function acceptDraft() {
     if (!offered) return
+    setGeneration((current) => current + 1)
     setNoteDate(offered.noteDate ?? '')
     setNoteTypeId(offered.noteTypeId ?? '')
     setText(offered.text)
@@ -301,13 +305,7 @@ export function NoteDialog({
           <div>
             <Label htmlFor={`${formId}-text`}>{strings.note.text}</Label>
             <div className="mt-2">
-              <NoteEditor
-                id={`${formId}-text`}
-                value={text}
-                onChange={setText}
-                previewing={previewing}
-                onTogglePreview={() => setPreviewing((current) => !current)}
-              />
+              <NoteEditor key={generation} id={`${formId}-text`} value={text} onChange={setText} />
             </div>
           </div>
 

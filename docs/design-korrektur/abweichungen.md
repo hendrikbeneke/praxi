@@ -219,24 +219,30 @@ gemacht hat, ist derselbe Fehler wie eine erfundene Rechnungsnummer — nur klei
 
 ---
 
-## K7 — Die Lesespalte der Notizen liest, geschrieben wird im Dialog
+## ~~K7 — Die Lesespalte der Notizen liest, geschrieben wird im Dialog~~ → in L6a überstimmt
 
-**Design:** Die rechte Spalte des Notizen-Reiters ist zugleich der Editor — ein
-`contentEditable` mit Formatleiste, in dem eine Notiz angelegt und bearbeitet wird.
+**Der Eintrag lautete:** Das Design macht die rechte Spalte des Notizen-Reiters zugleich zum
+Editor — ein `contentEditable` mit Formatleiste. Gebaut war: die Lesespalte liest, „Neue Notiz",
+„Bearbeiten" und „Nachtrag" öffnen den Dialog, den der Prototyp selbst danebenstellt. Begründet
+damit, dass CLAUDE.md `contentEditable` für Notiztext verbietet — weil es Markup erzeugt, das
+niemand geschrieben hat, je nach Browser anderes, und **genau dieser Text gehasht und gesperrt
+wird** (§ 630f BGB, `note.content_hash`).
 
-**Gebaut:** Die Lesespalte liest. „Neue Notiz", „Bearbeiten" und „Nachtrag" öffnen den Dialog —
-den der Prototyp **selbst danebenstellt**, mit denselben Feldern (Datum, Art, Zum Vorgang, Text).
-Wir bauen also die zweite Hälfte des Prototyps, nicht etwas Drittes.
+**Gilt nicht mehr, und die Begründung war die schwächere Hälfte.** Sie trifft *rohes*
+`contentEditable`. ProseMirror hat ein Schema: was nicht darin steht, kann nicht entstehen —
+egal, was jemand einfügt. Die Liste steht in `packages/shared/src/note-mdast.ts` und wird gegen
+die Plugin-Liste des Editors geprüft. Der Anspruch aus § 630f ist damit nicht umgangen, sondern
+zum ersten Mal *durchgesetzt*: vorher hätte ein Rundlauf durch die Textarea alles enthalten
+können, was jemand hineinschrieb.
 
-**Warum:** CLAUDE.md verbietet `contentEditable` für Notiztext ausdrücklich, und das ist hier
-keine Formalie. Ein `contentEditable` erzeugt Markup, das niemand geschrieben hat — je nach
-Browser anderes —, und **genau dieser Text wird gehasht und gesperrt**: § 630f BGB verlangt, dass
-die ursprüngliche Fassung erkennbar bleibt, und die Hash-Kette in `note.content_hash` steht dafür
-ein. Was in einem gesperrten Feld liegt, muss das sein, was die Behandlerin geschrieben hat.
+Die Sorge um den Hash bleibt richtig und ist beantwortet: `content_hash` entsteht beim Sperren,
+und eine gesperrte Notiz landet nie wieder in einem Editor. Neu serialisiert wird nur, was offen
+ist.
 
-**Falls doch:** dann nicht mit `contentEditable`, sondern mit der Textarea aus
-`components/note-editor.tsx` an der Stelle der Lesespalte. Die Regel bliebe gewahrt, es wäre nur
-mehr Arbeit als ein Dialog, den es schon gibt.
+**Der Ort** — Dialog statt Lesespalte — wird mit L6b überstimmt. L6a hat den Editor gebaut und
+zunächst im Dialog gelassen, damit er für sich prüfbar blieb.
+
+Der Eintrag bleibt als Protokoll stehen, damit die Entscheidung nicht zweimal getroffen wird.
 
 ---
 

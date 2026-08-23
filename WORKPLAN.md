@@ -2717,6 +2717,72 @@ Weitere die Vorgabe und stehen über den früheren Korrekturpaketen.
   `contacts/new` 80 px.
 
 
+**L6a, as built** — *Der Notiz-Editor*. Keine Migration.
+
+- **Milkdown über ProseMirror**, `@milkdown/kit` und `remark-breaks` — sonst nichts.
+  Nicht Crepe (886 KB gzip und eine fertige Oberfläche mit eigenem CSS), nicht
+  `@milkdown/react` (das zieht Crepe mit). Die Plugin-Liste ist **einzeln
+  zusammengesetzt**, konstruktweise; die Presets sind selbst nichts anderes als
+  solche Listen.
+- **`packages/shared/src/note-mdast.ts` ist die Definition**, was eine Notiz
+  enthalten darf: `NOTE_MDAST_TYPES`, achtzehn mdast-Typen. Die Regel ist
+  generisch statt eine Liste von Sonderfällen — Bekanntes weg, Unbekanntes
+  durch seine Kinder ersetzt oder durch seinen Text. Damit trägt sie ein
+  Konstrukt, das es noch nicht gibt; `==Hervorhebung==` wird eines Tages genau
+  das sein.
+- **Der Normalisierer ist kein Aufräumen, sondern tragend.** Gemessen in
+  Chrome 151: eine Notiz mit `![x](data:…)` durch die schmale Plugin-Liste
+  geladen wirft bei `create()`, und danach existiert **kein Editor** —
+  `document.querySelector('.ProseMirror')` ist `null`. Ein einmal aus einer
+  Mail eingefügtes Bild hätte diese Notiz für immer unöffenbar gemacht. Er
+  greift, weil `@milkdown/transformer` mit `remark.runSync(remark.parse(md))`
+  parst, ein `$remark`-Transformer den Baum also vor dem Parser-Walk sieht.
+- **Der Gleichheitstest** (`note-editor-plugins.test.ts`): `NOTE_SCHEMA_PLUGINS`
+  ist nach mdast-Typ verschlüsselt und die geladene Plugin-Liste wird daraus
+  *abgeleitet* — ein Schema-Plugin ohne Eintrag ist damit unmöglich. Der Test
+  schließt die andere Richtung. Die beiden Hälften versagen entgegengesetzt:
+  ein erlaubter Typ ohne Plugin nimmt den Editor mit, ein Plugin ohne Eintrag
+  löscht beim nächsten Öffnen still, was geschrieben wurde. **Bilder sind die
+  eine benannte Ausnahme**, `IMAGE_IS_DEFERRED`, damit das Bilder-Paket sie
+  bewusst aufhebt.
+- **Drei Wege, eine Liste** (`note-editor-commands.ts`): Auswahl-Leiste,
+  Slash-Menü, Plus im Randstreifen. **Jede Aktion, die sich einschalten lässt,
+  lässt sich ausschalten** — Milkdowns Mark-Kommandos sind Umschalter, die
+  Block-Kommandos nicht, also trägt jede Blockaktion ihr eigenes `isActive` und
+  fällt bei erneutem Druck auf einen Absatz zurück. Genau der Punkt, an dem
+  Crepe scheitert.
+- **Der Renderer ist ein mdast-Walker mit Element-Register**, kein
+  `react-markdown`: ein neuer Knotentyp kostet drei Einträge und keinen Umbau,
+  „kein HTML" ist eine Eigenschaft der Form statt einer Einstellung, und er
+  kostet **null Bytes** — Milkdown bringt remark-parse, remark-gfm und micromark
+  ohnehin mit (gemessen: Editor allein und Editor+Renderer sind gleich groß).
+- **Konfiguration:** `remark-breaks` über `$remark`; `remarkStringifyOptionsCtx`
+  mit `bullet: '-'` **und `rule: '-'`** — ohne das zweite schreibt der erste
+  Speichervorgang jede bestehende `---` zu `***` um; `handlers: { break: () =>
+  '\n' }`; `remarkPreserveEmptyLinePlugin`, `remarkHtmlTransformer`,
+  `remarkInlineLinkPlugin` und `remarkLineBreak` bleiben ungeladen. Der Text
+  geht über `defaultValueCtx` in den Ausgangszustand, nie per `replaceAll`.
+- **Vier Funde, alle im Browser gemessen:**
+  1. Die Fließlayer dürfen **nicht** `display: none` sein — floating-ui vermisst
+     das Element, und ein nicht dargestelltes meldet `offsetParent === null`;
+     der Griff landete 350 px unter seinem Block, im Dialog unter dem Overlay.
+  2. `dispatchTransaction` darf `view.dispatch` nicht zurückrufen — das ist der
+     Aufrufer, die Rekursion war unbegrenzt, und der Editor nahm still gar
+     keine Eingabe an.
+  3. Reacts doppelter Effekt in der Entwicklung: das `destroy` des ersten
+     Editors lief nach dem zweiten und nullte dessen Provider-Ref.
+  4. Das Blockmenü braucht zwei Zustände — per `/` geöffnet schließt es mit dem
+     Schrägstrich, per Plus geöffnet darf es das nicht.
+- **`apps/web` hat jetzt Vitest**, für genau eine Art Test: zwei Listen, die
+  übereinstimmen müssen. Bildschirme werden weiter im Browser geprüft.
+- **Bundle:** 1040 → 1512 KB roh, **328 → 470 KB gzip**.
+- Gelöscht: `note-markdown.ts` samt `parseNoteText`, `Block`, `Inline`,
+  `NOTE_MARKERS`, die Textarea, der Vorschau-Umschalter und die
+  `execCommand`-Aufrufstelle.
+- **Der Notizen-Reiter bleibt unverändert** — Dialog, Chips, Panel. Das ist L6b;
+  getrennt prüfbar zu sein war der Sinn der Teilung.
+
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

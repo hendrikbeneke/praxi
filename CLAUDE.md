@@ -1832,17 +1832,37 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
 - No realistic person names in seeds or fixtures. Use obviously fake test names.
 - **No test calls out to a service.** Not to an external host, not to `localhost`, not to a mail catcher — Google, SMTP, anything. The one deliberate exception is Postgres: the domain layer is tested against a real database because triggers and constraints *are* the rules being tested, and that is a local dependency the repository sets up itself. Everything else is a **parameter** — the shape `google/client.ts` established in slice 9: the transport is injected, and the tests assert on the *assembled request* rather than on what a mock chose to answer. A test that needs a service running somewhere is a test that fails for reasons that have nothing to do with the code.
 - **Addresses in tests, fixtures and seeds use `praxi.invalid`** — `beispiel.test` where a second domain is genuinely needed. Both TLDs are reserved by RFC 2606 and guaranteed never to resolve. Not `example.com`: it is reserved too and accepts no mail, but it *exists in the DNS*, and an address that takes a second thought to classify does not belong in a fixture. The same goes for URLs — `https://www.praxi.invalid`, not a domain that resolves.
-- **`document.execCommand` is banned for formatting, not for inserting text.** No
-  `contentEditable` editor and no `execCommand('bold' | 'insertHTML' | …)`: those *invent*
-  markup, browser by browser, and a field holding treatment documentation must not contain
-  HTML nobody wrote. `execCommand('insertText', false, plainString)` in a `<textarea>` is a
-  different thing and is **allowed, in `note-editor.tsx` and nowhere else**: the string is
-  entirely ours, the result is still plain text, and the only thing the API contributes is the
-  undo entry. It is the one API that does — measured in Chrome 151 against a real Cmd+Z
-  delivered through the input pipeline: a React-style controlled update, a plain
-  `el.value = …` and `setRangeText` all leave the undo stack **empty**, not merely unextended,
-  so three typed paragraphs are unrecoverable after one toolbar click. Deprecated for a decade
-  with no successor. Do not "modernize" that call site.
+- **What a note may contain is a schema, not a habit** (L6a). Note text is edited in
+  ProseMirror, through Milkdown, and that is `contentEditable` — which this list banned until
+  L6a. The ban was aimed at something else: *raw* `contentEditable`, where the browser invents
+  markup as one types, differently per browser, in a field that is hashed and locked.
+  ProseMirror is the opposite construction. It holds a schema, and a node that is not in the
+  schema cannot come into being, however it was typed or pasted. That schema is assembled
+  construct by construct in `apps/web/src/components/note-editor-plugins.ts`, and
+  `normalizeNoteMdast` in `packages/shared/src/note-mdast.ts` says the same thing on the way
+  in — **one list, `NOTE_MDAST_TYPES`**, with a test asserting that the editor's plugins and
+  the normalizer allow exactly it. Images are the one named exception, `IMAGE_IS_DEFERRED`,
+  because a pasted screenshot would otherwise land in `note.text` as a base64 blob instead of
+  in `note_file`, where rule 7 wants it.
+
+  Why the normalizer is load-bearing rather than tidy: Milkdown does not skip a construct it
+  has no plugin for, **it throws at editor creation** — measured, and the editor is then not
+  merely wrong but absent. One image pasted from a mail, once, and that note could never be
+  opened again.
+- **`document.execCommand` is banned, with no exception left.** There was one until L6a —
+  `execCommand('insertText', …)` into the `<textarea>` that used to be the note field, because
+  it was the only way to write into it that left the browser's undo stack intact. That
+  textarea is gone and ProseMirror keeps its own history, so the exception has no call site.
+  Nothing here may call `execCommand`.
+- **Re-serializing an open note is harmless, and that is a property of the order of events**
+  rather than of the editor. A document model rewrites what it re-serializes — list markers,
+  blank lines — and the old textarea existed to prevent exactly that. It was the wrong
+  conclusion from a right premise: `content_hash` is formed **when a note is locked**, and a
+  locked note never reaches an editor again (`protect_locked_note` makes the row immutable and
+  every screen refuses first). So the only note a serializer can touch is an open one, where a
+  changed bullet marker is a changed bullet marker and nothing more. Two such rewrites are
+  configured away anyway, because they would touch every note that already exists on its first
+  save: `bullet: '-'` and `rule: '-'` in `NOTE_STRINGIFY_OPTIONS`.
 - Conventional Commits, in English, one commit per slice — made before the report goes out (see "How we work"), not after.
 
 **A list offers broadly and starts narrow.** The contact list carries fourteen columns and shows five; what a practice wants in its card index is its own business, and a list that opens with everything answers a question nobody asked. Which columns are on, and in what order, is one flat key in `app_user.preferences` per list (`contactListColumns`), reordered by dragging the row's grip — **and by the arrow keys on that grip**, because dragging alone is not a feature for everyone who has to use it.

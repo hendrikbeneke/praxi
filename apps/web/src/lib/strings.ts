@@ -1097,14 +1097,35 @@ export const strings = {
     /** The small Markdown a note may carry (D10). Five constructs, and the
      *  hint names all of them — the syntax is typed faster than it is clicked
      *  once one knows it. */
+    /** The editor's own vocabulary (L6a) — one name per action, read by the
+     *  selection toolbar, the slash menu and the plus in the gutter alike, so
+     *  the three cannot call one thing three things. */
     formatBold: 'Fett',
-    formatHeading: 'Zwischenüberschrift',
-    formatBullets: 'Aufzählung',
-    formatNumbered: 'Nummerierte Liste',
-    formatHint: '**fett** · ## Überschrift · - Aufzählung · 1. Nummerierung',
-    previewOn: 'Vorschau',
-    previewOff: 'Bearbeiten',
-    previewEmpty: 'Noch kein Text.',
+    formatItalic: 'Kursiv',
+    formatStrike: 'Durchgestrichen',
+    formatCode: 'Code',
+    formatLink: 'Link',
+    linkAddress: 'Adresse',
+    linkApply: 'Übernehmen',
+    linkRemove: 'Link entfernen',
+    blockParagraph: 'Text',
+    blockHeading: (level: number) => `Überschrift ${level}`,
+    blockBullets: 'Aufzählung',
+    blockNumbered: 'Nummerierte Liste',
+    blockTasks: 'Aufgabenliste',
+    blockQuote: 'Zitat',
+    blockCode: 'Codeblock',
+    blockTable: 'Tabelle',
+    blockRule: 'Trennlinie',
+    blockMenu: 'Block einfügen',
+    blockMenuEmpty: 'Nichts gefunden.',
+    blockHandle: 'Zeile verschieben',
+    editorPlaceholder: 'Schreiben, oder „/" für einen Block.',
+    tableRowAfter: 'Zeile darunter',
+    tableRowBefore: 'Zeile darüber',
+    tableColAfter: 'Spalte rechts',
+    tableColBefore: 'Spalte links',
+    tableDelete: 'Auswahl löschen',
     filesAfterSave: 'Dateien lassen sich anhängen, sobald die Notiz gespeichert ist.',
 
     chainCheck: 'Dokumentation prüfen',

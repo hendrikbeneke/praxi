@@ -83,3 +83,211 @@
     border-radius: 999px;
   }
 }
+
+/*
+ * The note's typography — **one definition, both places** (L6a).
+ *
+ * `.note-prose` is on the ProseMirror surface inside the editor and on the
+ * rendered note in the reading pane, so what is written looks like what is
+ * read. Two stylesheets would drift the first time a heading changed size, and
+ * the whole point of the editor showing formatted text is that it shows what
+ * the record will show.
+ *
+ * Element selectors rather than utilities, because ProseMirror builds its DOM
+ * from the schema and there is no place to hang a class. Written against the
+ * same tokens as everything else, so both follow the chosen theme.
+ */
+@layer components {
+  .note-prose {
+    line-height: 1.65;
+  }
+  .note-prose > * + * {
+    margin-top: 0.75em;
+  }
+
+  /* One look for all three levels: the design draws a single heading style,
+     and the level is stored because it is part of what was written — not
+     because it is meant to be read as three sizes. */
+  .note-prose h1,
+  .note-prose h2,
+  .note-prose h3 {
+    font-weight: 600;
+    font-size: 1em;
+    margin-top: 1.4em;
+  }
+  .note-prose > :first-child {
+    margin-top: 0;
+  }
+
+  .note-prose ul,
+  .note-prose ol {
+    padding-left: 1.5rem;
+  }
+  .note-prose ul {
+    list-style: disc;
+  }
+  .note-prose ol {
+    list-style: decimal;
+  }
+  .note-prose li > * + * {
+    margin-top: 0.4em;
+  }
+  .note-prose li p {
+    margin: 0;
+  }
+  .note-prose li ul,
+  .note-prose li ol {
+    margin-top: 0.35em;
+  }
+
+  /*
+   * A task item carries its own box, so the bullet would be a second marker
+   * for the same line — and the box has to stand beside the first line rather
+   * than above it, which the block-level `<p>` inside the item would otherwise
+   * force. Two columns: the marker, then everything else.
+   *
+   * The reading pane draws a real `<input>`; the editor has none, because
+   * Milkdown's task item is an ordinary `li` carrying `data-checked`. There it
+   * is the `::before` below, and `handleDOMEvents.mousedown` in
+   * `note-editor.tsx` is what makes it tick.
+   */
+  .note-prose li[data-item-type="task"],
+  .note-prose ul[data-task] > li {
+    list-style: none;
+    margin-left: -1.1rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.5rem;
+  }
+  .note-prose li[data-item-type="task"] > *,
+  .note-prose ul[data-task] > li > * {
+    grid-column: 2;
+  }
+  .note-prose li input[type="checkbox"] {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0.4em 0 0;
+    accent-color: var(--primary);
+  }
+  .note-prose li[data-item-type="task"]::before {
+    content: "";
+    grid-column: 1;
+    grid-row: 1;
+    margin-top: 0.42em;
+    width: 0.85em;
+    height: 0.85em;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .note-prose li[data-item-type="task"][data-checked="true"]::before {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+
+  .note-prose blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 0.9rem;
+    color: var(--muted-foreground);
+  }
+
+  .note-prose code {
+    font-size: 0.9em;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklch, var(--muted) 70%, transparent);
+    padding: 0.1em 0.35em;
+  }
+  .note-prose pre {
+    border-radius: var(--radius-md);
+    background: color-mix(in oklch, var(--muted) 70%, transparent);
+    padding: 0.7rem 0.9rem;
+    overflow-x: auto;
+  }
+  .note-prose pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .note-prose a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .note-prose hr {
+    border-top: 1px solid var(--border);
+  }
+
+  .note-prose table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .note-prose th,
+  .note-prose td {
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  .note-prose th {
+    font-weight: 600;
+    background: color-mix(in oklch, var(--muted) 45%, transparent);
+  }
+  /* A wide table scrolls inside its own box; the page never scrolls sideways
+     (the same rule the contact list follows). */
+  .note-prose-scroll {
+    overflow-x: auto;
+  }
+
+  /* The editing surface itself: no focus ring on the box, because the caret is
+     the feedback and a bordered rectangle around a page of prose is noise. */
+  /*
+   * The gutter on the left is not decoration: `BlockProvider` puts the handle
+   * just outside the block's left edge, so without room for it the handle
+   * lands outside the editor — and inside a dialog that means underneath the
+   * modal overlay, where it cannot be clicked at all. Measured, not guessed.
+   */
+  .note-editor-surface {
+    outline: none;
+    padding: 0.75rem 1rem 0.75rem 2.75rem;
+    min-height: inherit;
+  }
+  .note-editor-host {
+    display: flex;
+    flex-direction: column;
+  }
+  .note-editor-host .milkdown,
+  .note-editor-host .ProseMirror {
+    flex: 1;
+    min-height: inherit;
+  }
+  .note-editor-host:focus-within {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 20%, transparent);
+  }
+
+  /* The three floating layers. Their providers position them absolutely
+     against the editor and switch them on with `data-show`, so the anchor has
+     to be positioned and the off state has to be hidden — both of which are
+     ours to say, because the providers ship no CSS at all. */
+  .note-editor-host .milkdown {
+    position: relative;
+  }
+  .note-float {
+    position: absolute;
+    z-index: 30;
+  }
+  /*
+   * Hidden with `visibility` and **never with `display: none`**, and that is
+   * not a preference: floating-ui measures the element to place it, and an
+   * element that is not displayed reports `offsetParent === null`. It then
+   * computes against the document instead of against `.milkdown`, and the
+   * handle lands a few hundred pixels below the block it belongs to — where,
+   * inside a dialog, it sits under the modal overlay and cannot be clicked at
+   * all. Measured, twice.
+   */
+  .note-float[data-show="false"] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}

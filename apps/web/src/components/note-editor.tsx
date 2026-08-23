@@ -1,227 +1,422 @@
-import { NOTE_MARKERS } from '@praxi/shared'
-import { Bold, Eye, Heading, List, ListOrdered, Pencil } from 'lucide-react'
-import { useRef } from 'react'
-import { NoteText } from '@/components/note-text'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import {
+  defaultValueCtx,
+  Editor,
+  editorViewCtx,
+  editorViewOptionsCtx,
+  remarkStringifyOptionsCtx,
+  rootCtx,
+} from '@milkdown/kit/core'
+import type { Ctx } from '@milkdown/kit/ctx'
+import { BlockProvider, block, blockSpec } from '@milkdown/kit/plugin/block'
+import { listenerCtx } from '@milkdown/kit/plugin/listener'
+import { SlashProvider, slashFactory } from '@milkdown/kit/plugin/slash'
+import { TooltipProvider, tooltipFactory } from '@milkdown/kit/plugin/tooltip'
+import { type EditorState, TextSelection } from '@milkdown/kit/prose/state'
+import { GripVertical, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type { NoteAction } from '@/components/note-editor-commands'
+import { BlockMenu } from '@/components/note-editor-menu'
+import { NOTE_STRINGIFY_OPTIONS, noteEditorPlugins } from '@/components/note-editor-plugins'
+import { SelectionToolbar } from '@/components/note-editor-toolbar'
 import { strings } from '@/lib/strings'
 
 /**
- * The note field: a plain `<textarea>` holding Markdown, a toolbar that writes
- * the markers, and a preview toggle (D10).
+ * The note field — Milkdown over ProseMirror, written as Markdown and stored
+ * as Markdown (L6a).
  *
- * **The text in the box *is* the stored string.** Nothing parses it on the way
- * in and nothing re-serializes it on the way out, which is the whole reason
- * this is not a ProseMirror editor: one of those holds a document model, so
- * opening a note and saving it without typing would rewrite list markers and
- * collapse blank lines — and for a note that is about to be locked, the hashed
- * text would not be the text that was typed. A normalization on the way *in*
- * is harmless while it is idempotent; one on the way *out of storage* is not.
- * See the note on `canonicalNote`.
+ * ## What replaced the textarea, and why the old warning no longer holds
  *
- * ## Why the toolbar uses `document.execCommand`
+ * Until L6a this was a `<textarea>` whose contents *were* the stored string,
+ * on the argument that a document model would rewrite a note on the way out of
+ * storage — list markers, blank lines — and that for a note about to be locked
+ * the hashed text would then not be the text that was typed.
  *
- * Because it is the only way that leaves the browser's undo stack intact, and
- * that was measured rather than assumed (Chrome 151, a real Cmd+Z through the
- * input pipeline):
+ * **The premise was right and the conclusion was wrong**, and the reason is
+ * the order of events: `content_hash` is formed **when the note is locked**,
+ * and a locked note is never opened in an editor again — `protect_locked_note`
+ * makes it immutable and every screen refuses first. So the only note this
+ * editor can re-serialize is an open one, where a rewritten bullet marker is
+ * a rewritten bullet marker and nothing more. What is hashed stays what was
+ * hashed.
  *
- * | how the toolbar writes | Cmd+Z afterwards |
- * | --- | --- |
- * | React-controlled update (native setter + `input` event) | nothing happens |
- * | `el.value = …` | nothing happens |
- * | `setRangeText` | nothing happens |
- * | `execCommand('insertText', …)` | restores the pre-toolbar text |
+ * Two of those rewrites were measured and are configured away rather than
+ * lived with, because they would touch every existing note on its first save:
+ * `bullet: '-'` (or every `-` becomes `*`) and `rule: '-'` (or every `---`
+ * becomes `***`). See `NOTE_STRINGIFY_OPTIONS`.
  *
- * "Nothing happens" is worse than it sounds: the programmatic assignment does
- * not merely fail to add an entry, it **empties the stack**. Three typed
- * paragraphs would be unrecoverable after one click on Fett — in a field
- * holding treatment documentation.
+ * ## contentEditable, and why the ban does not apply
  *
- * The project bans `execCommand` for *formatting* — `execCommand('bold')` in a
- * `contentEditable`, an API that invents markup browser by browser. This is
- * not that: it inserts a plain string we composed ourselves into a textarea,
- * the result is still plain text, and the only thing the API contributes is
- * the undo entry. It fires a normal `input` event, so the controlled value
- * updates like any keystroke. Deprecated for a decade with no successor —
- * **do not "modernize" this call site.** The convention in CLAUDE.md says the
- * same thing.
+ * CLAUDE.md forbids a `contentEditable` editor for note text. That rule is
+ * about *raw* contentEditable, where the browser invents markup as one types —
+ * different markup per browser — in a field that gets hashed and locked.
+ * ProseMirror is the opposite construction: it holds a schema, and a node that
+ * is not in the schema cannot come into being, however it was pasted. The
+ * schema here is assembled construct by construct in
+ * `note-editor-plugins.ts`, and `normalizeNoteMdast` in `packages/shared` says
+ * the same thing on the way in. The rule is met, not bypassed.
+ *
+ * ## The initial value goes in through `defaultValueCtx`
+ *
+ * Not through a `replaceAll` after creation. A transaction after the editor
+ * exists becomes an undo step, so the first Cmd+Z would step *behind* the load
+ * and empty the field — twenty minutes of writing, one keystroke. The value is
+ * therefore read once, at mount; a caller that replaces the text from outside
+ * (accepting a draft) remounts this component with a new `key`.
  */
+/**
+ * The `/query` under the caret, or null.
+ *
+ * A slash starts the menu and everything up to the caret narrows it; a space
+ * or a second slash ends it, because a slash in a sentence is a slash. One
+ * definition, read by the provider's `shouldShow` and by the reader that fills
+ * the menu — otherwise the menu could stand open over a query that no longer
+ * exists, or close over one that does.
+ */
+function slashQuery(state: EditorState): { from: number; query: string } | null {
+  const { $from, empty } = state.selection
+  if (!empty) return null
+  const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '\uFFFC')
+  const match = /\/([^/\s]*)$/.exec(before)
+  if (!match) return null
+  return { from: $from.pos - match[0].length, query: match[1] ?? '' }
+}
+
 export function NoteEditor({
   id,
   value,
   onChange,
-  previewing,
-  onTogglePreview,
-  rows = 10,
+  minHeight = 'min-h-64',
 }: {
   id: string
+  /** Read **once**, at mount — see above. */
   value: string
   onChange: (next: string) => void
-  previewing: boolean
-  onTogglePreview: () => void
-  rows?: number
+  minHeight?: string
 }) {
-  const field = useRef<HTMLTextAreaElement>(null)
-
-  /** Writes through the browser so the edit joins the undo history. Falls
-   *  back to the controlled value where `execCommand` is refused, because a
-   *  toolbar that silently does nothing is worse than one that costs an undo
-   *  step. */
-  function insert(text: string, selectionStart?: number, selectionEnd?: number) {
-    const element = field.current
-    if (!element) return
-
-    element.focus()
-    if (selectionStart !== undefined) {
-      element.setSelectionRange(selectionStart, selectionEnd ?? selectionStart)
-    }
-    if (!document.execCommand('insertText', false, text)) {
-      element.setRangeText(text, element.selectionStart, element.selectionEnd, 'end')
-      onChange(element.value)
-    }
-  }
-
-  /** Bold wraps the selection; with nothing selected it leaves the caret
-   *  between the markers, which is where the next character belongs. */
-  function toggleBold() {
-    const element = field.current
-    if (!element) return
-    const { selectionStart, selectionEnd } = element
-    const selected = element.value.slice(selectionStart, selectionEnd)
-
-    insert(`${NOTE_MARKERS.bold}${selected}${NOTE_MARKERS.bold}`)
-    if (selected === '') {
-      const caret = selectionStart + NOTE_MARKERS.bold.length
-      element.setSelectionRange(caret, caret)
-    }
-  }
+  const host = useRef<HTMLDivElement>(null)
+  const [ctx, setCtx] = useState<Ctx | null>(null)
+  /** The live editor state, mirrored into React so the toolbar can show what
+   *  is active. Held as state rather than read on render, because a
+   *  ProseMirror transaction is not something React knows happened. */
+  const [state, setState] = useState<EditorState | null>(null)
 
   /**
-   * A block marker goes in front of every line the selection touches, and
-   * comes off again when it is already there — pressing the button twice
-   * undoes it, which is what a toggle in a toolbar means.
+   * The block menu, and **which way it was opened**, because the two are not
+   * interchangeable. A menu opened by `/` closes when the slash is gone; a
+   * menu opened by the plus in the gutter must not, or the very transaction
+   * that made room for it would close it again — which is exactly what
+   * happened while this was one flat piece of state.
    */
-  function toggleBlock(marker: string) {
-    const element = field.current
-    if (!element) return
+  const [menu, setMenu] = useState<
+    | { from: 'slash'; query: string; at: number }
+    | { from: 'handle'; top: number; left: number }
+    | null
+  >(null)
 
-    const text = element.value
-    const from = text.lastIndexOf('\n', element.selectionStart - 1) + 1
-    const rawTo = text.indexOf('\n', element.selectionEnd)
-    const to = rawTo === -1 ? text.length : rawTo
+  /** The three floating layers. Each is a detached element the provider
+   *  positions and shows, and React renders into it through a portal — so the
+   *  menus are ordinary components with our tokens, in our tree, without a
+   *  second React root and without `@milkdown/react` (which would drag Crepe
+   *  in behind it). */
+  const [slots] = useState(() => {
+    const make = () => {
+      const element = document.createElement('div')
+      element.className = 'note-float'
+      element.dataset.show = 'false'
+      return element
+    }
+    return { toolbar: make(), slash: make(), handle: make() }
+  })
 
-    const lines = text.slice(from, to).split('\n')
-    // A numbered marker matches by shape, not literally: the line may read
-    // "3. " where the button writes "1. ".
-    const pattern = marker === NOTE_MARKERS.numbered ? /^\d+\.\s/ : null
-    const has = lines.every((line) => (pattern ? pattern.test(line) : line.startsWith(marker)))
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  const valueRef = useRef(value)
 
-    const next = lines
-      .map((line) => {
-        if (!has) return marker + (pattern ? line.replace(pattern, '') : stripMarkers(line))
-        return pattern ? line.replace(pattern, '') : line.slice(marker.length)
+  const blockProvider = useRef<BlockProvider | null>(null)
+
+  useEffect(() => {
+    const root = host.current
+    if (!root) return
+
+    let editor: Editor | undefined
+    let cancelled = false
+
+    const toolbar = tooltipFactory('NOTE_TOOLBAR')
+    const slash = slashFactory('NOTE_SLASH')
+
+    void Editor.make()
+      .config((editorCtx) => {
+        editorCtx.set(rootCtx, root)
+        editorCtx.set(defaultValueCtx, valueRef.current)
+        editorCtx.set(remarkStringifyOptionsCtx, NOTE_STRINGIFY_OPTIONS)
+        editorCtx.update(editorViewOptionsCtx, (prev) => ({
+          ...prev,
+          attributes: { class: 'note-prose note-editor-surface', id },
+          handleDOMEvents: {
+            ...prev.handleDOMEvents,
+            /**
+             * Ticking a task off.
+             *
+             * Milkdown's task item is an ordinary `list_item` with a `checked`
+             * attribute and no widget of its own; the box is the `::before` in
+             * `styles.css`. A click that lands on the `li` **itself** rather
+             * than on the paragraph inside it is a click on that box — the
+             * text is a child, so it never reports the item as its target.
+             */
+            mousedown: (currentView, event) => {
+              const target = event.target
+              if (!(target instanceof HTMLElement)) return false
+              if (target.tagName !== 'LI' || target.dataset.itemType !== 'task') return false
+
+              const $at = currentView.state.doc.resolve(currentView.posAtDOM(target, 0))
+              for (let depth = $at.depth; depth > 0; depth--) {
+                const item = $at.node(depth)
+                if (item.type.name !== 'list_item') continue
+
+                event.preventDefault()
+                currentView.dispatch(
+                  currentView.state.tr.setNodeMarkup($at.before(depth), undefined, {
+                    ...item.attrs,
+                    checked: item.attrs.checked !== true,
+                  }),
+                )
+                return true
+              }
+              return false
+            },
+          },
+        }))
+
+        editorCtx.get(listenerCtx).markdownUpdated((_c, markdown) => {
+          onChangeRef.current(markdown)
+        })
+
+        editorCtx.set(toolbar.key, {
+          view: (editorView) => {
+            const provider = new TooltipProvider({
+              content: slots.toolbar,
+              debounce: 20,
+              /* Only over a stretch of text that was actually selected.
+                 Milkdown's default also fires on a `NodeSelection`, and the
+                 block handle makes one on every mousedown — so pressing the
+                 plus in the gutter opened the formatting toolbar over a block
+                 nobody had selected. */
+              shouldShow: (currentView) => {
+                const { selection } = currentView.state
+                return (
+                  currentView.hasFocus() &&
+                  selection instanceof TextSelection &&
+                  !selection.empty &&
+                  currentView.state.doc.textBetween(selection.from, selection.to).trim() !== ''
+                )
+              },
+            })
+            provider.update(editorView)
+            return {
+              update: (updated, prev) => provider.update(updated, prev),
+              destroy: () => provider.destroy(),
+            }
+          },
+        })
+
+        editorCtx.set(slash.key, {
+          view: (editorView) => {
+            const provider = new SlashProvider({
+              content: slots.slash,
+              debounce: 0,
+              /* Milkdown's default only shows the menu on the keystroke that
+                 *is* the trigger, so the first letter typed to narrow the list
+                 closes it again. The menu has to stay up for as long as there
+                 is a `/query` under the caret, which is exactly what
+                 `slashQuery` answers — one test, used here and by the reader
+                 below, so the menu cannot be open with nothing to filter by. */
+              shouldShow: (currentView) => slashQuery(currentView.state) !== null,
+            })
+            provider.onHide = () =>
+              setMenu((current) => (current?.from === 'slash' ? null : current))
+            provider.update(editorView)
+            return {
+              update: (updated, prev) => {
+                provider.update(updated, prev)
+                readSlashQuery(updated.state)
+              },
+              destroy: () => provider.destroy(),
+            }
+          },
+        })
+
+        editorCtx.set(blockSpec.key, {
+          view: () => {
+            const provider = new BlockProvider({ ctx: editorCtx, content: slots.handle })
+            blockProvider.current = provider
+            return {
+              update: () => provider.update(),
+              destroy: () => {
+                provider.destroy()
+                /* Only if it is still ours. React runs the mount effect twice
+                   in development, and the first editor's `destroy` lands
+                   *after* the second one has already published its provider —
+                   nulling it there left the plus in the gutter doing nothing
+                   at all, with no error to show for it. */
+                if (blockProvider.current === provider) blockProvider.current = null
+              },
+            }
+          },
+        })
+
+        /* `blockConfig` is left at its default on purpose: it already excludes
+           nodes inside a table, so the handle points at the whole table rather
+           than at each cell. */
       })
-      .join('\n')
+      .use(noteEditorPlugins)
+      .use(block)
+      .use(toolbar)
+      .use(slash)
+      .create()
+      .then((created) => {
+        if (cancelled) {
+          void created.destroy()
+          return
+        }
+        editor = created
+        setCtx(created.ctx)
+        const editorView = created.ctx.get(editorViewCtx)
+        setState(editorView.state)
 
-    insert(next, from, to)
-  }
+        /* One place that keeps the mirrored state fresh — every transaction,
+           typed or programmatic. `updateState` and deliberately not
+           `view.dispatch`: dispatch is what *calls* this handler, so calling it
+           back from inside would be an unbounded recursion, and the editor
+           would silently accept no input at all. */
+        editorView.setProps({
+          dispatchTransaction: (transaction) => {
+            const next = editorView.state.apply(transaction)
+            editorView.updateState(next)
+            setState(next)
+          },
+        })
+      })
 
-  /** One block marker at a time: a line is a heading or a bullet, not both. */
-  function stripMarkers(line: string): string {
-    return line
-      .replace(/^\d+\.\s/, '')
-      .replace(/^## /, '')
-      .replace(/^- /, '')
-  }
+    function readSlashQuery(editorState: EditorState) {
+      const found = slashQuery(editorState)
+      if (!found) {
+        setMenu((current) => (current?.from === 'slash' ? null : current))
+        return
+      }
+      setMenu({ from: 'slash', query: found.query, at: found.from })
+    }
+
+    return () => {
+      cancelled = true
+      void editor?.destroy()
+      setCtx(null)
+      setState(null)
+    }
+  }, [id, slots])
+
+  /**
+   * Running a block action from the menu.
+   *
+   * The typed `/query` goes first, in its own transaction — otherwise the
+   * action would wrap the slash into whatever block was chosen and the writer
+   * would have to delete it out of a heading.
+   */
+  const pick = useCallback(
+    (action: NoteAction) => {
+      if (!ctx) return
+      const editorView = ctx.get(editorViewCtx)
+      if (menu?.from === 'slash') {
+        editorView.dispatch(editorView.state.tr.delete(menu.at, editorView.state.selection.from))
+      }
+      setMenu(null)
+      action.run(ctx)
+    },
+    [ctx, menu],
+  )
+
+  /** The plus in the gutter: a fresh empty paragraph under the block it points
+   *  at, the caret in it, and the same menu open over it — so the hovered
+   *  block is never the thing that gets transformed by accident. */
+  const openFromHandle = useCallback(() => {
+    if (!ctx) return
+    const active = blockProvider.current?.active
+    const editorView = ctx.get(editorViewCtx)
+    const paragraph = editorView.state.schema.nodes.paragraph
+    if (!active || !paragraph) return
+
+    const end = active.$pos.pos + active.node.nodeSize
+    const tr = editorView.state.tr.insert(end, paragraph.create())
+    // +1 to land inside the new paragraph rather than in front of it.
+    tr.setSelection(TextSelection.near(tr.doc.resolve(end + 1)))
+    editorView.dispatch(tr)
+    editorView.focus()
+
+    /* Where the handle stands, in the wrapper's coordinates — the menu opens
+       under the plus that was pressed rather than at a fixed corner. Read now
+       and not on render: the handle hides the moment the pointer leaves it. */
+    const wrapper = host.current?.parentElement?.getBoundingClientRect()
+    const gutter = slots.handle.getBoundingClientRect()
+    setMenu({
+      from: 'handle',
+      top: gutter.bottom - (wrapper?.top ?? 0) + 4,
+      left: gutter.left - (wrapper?.left ?? 0),
+    })
+  }, [ctx, slots])
 
   return (
-    <div>
-      <div className="mb-2 flex flex-wrap items-center gap-1">
-        <ToolButton label={strings.note.formatBold} onClick={toggleBold}>
-          <Bold className="size-4" aria-hidden />
-        </ToolButton>
-        <ToolButton
-          label={strings.note.formatHeading}
-          onClick={() => toggleBlock(NOTE_MARKERS.heading)}
-        >
-          <Heading className="size-4" aria-hidden />
-        </ToolButton>
-        <ToolButton
-          label={strings.note.formatBullets}
-          onClick={() => toggleBlock(NOTE_MARKERS.bullet)}
-        >
-          <List className="size-4" aria-hidden />
-        </ToolButton>
-        <ToolButton
-          label={strings.note.formatNumbered}
-          onClick={() => toggleBlock(NOTE_MARKERS.numbered)}
-        >
-          <ListOrdered className="size-4" aria-hidden />
-        </ToolButton>
+    <div className="relative">
+      <div
+        ref={host}
+        className={`note-editor-host rounded-md border bg-transparent ${minHeight}`}
+      />
 
-        <Button
-          type="button"
-          variant={previewing ? 'default' : 'ghost'}
-          size="sm"
-          className="ml-auto h-8"
-          onClick={onTogglePreview}
-        >
-          {previewing ? (
-            <Pencil className="size-4" aria-hidden />
-          ) : (
-            <Eye className="size-4" aria-hidden />
-          )}
-          {previewing ? strings.note.previewOff : strings.note.previewOn}
-        </Button>
-      </div>
+      {createPortal(<SelectionToolbar ctx={ctx} state={state} />, slots.toolbar)}
 
-      {/* The preview replaces the field rather than standing beside it: both
-          places a note is written are narrow, and two columns would halve the
-          writing area for something one looks at rarely. */}
-      {previewing ? (
-        <div className="min-h-[--rows] rounded-md border bg-muted/30 px-3 py-2">
-          {value.trim() === '' ? (
-            <p className="text-muted-foreground text-sm">{strings.note.previewEmpty}</p>
-          ) : (
-            <NoteText text={value} />
-          )}
-        </div>
-      ) : (
-        <Textarea
-          id={id}
-          ref={field}
-          rows={rows}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
+      {createPortal(
+        menu?.from === 'slash' ? (
+          <BlockMenu ctx={ctx} query={menu.query} onPick={pick} onClose={() => setMenu(null)} />
+        ) : null,
+        slots.slash,
       )}
 
-      {/* The syntax is typed faster than it is clicked once one knows it. */}
-      <p className="mt-1 text-muted-foreground text-xs">{strings.note.formatHint}</p>
-    </div>
-  )
-}
+      {createPortal(
+        <div className="flex items-center">
+          <button
+            type="button"
+            draggable={false}
+            aria-label={strings.note.blockMenu}
+            title={strings.note.blockMenu}
+            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              openFromHandle()
+            }}
+          >
+            <Plus className="size-4" aria-hidden />
+          </button>
+          {/* The grip itself is not interactive markup: the drag is bound by
+              `BlockProvider`, which makes the whole layer draggable — so this
+              is a picture of where to grab, and the plus above it opts out
+              with `draggable={false}`. */}
+          <span
+            title={strings.note.blockHandle}
+            className="cursor-grab rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <GripVertical className="size-4" aria-hidden />
+            <span className="sr-only">{strings.note.blockHandle}</span>
+          </span>
+        </div>,
+        slots.handle,
+      )}
 
-function ToolButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="size-8"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
+      {/* Opened by the plus rather than by typing: it has no slash to sit
+          under, so it is placed beside the handle. */}
+      {menu?.from === 'handle' && (
+        <div className="absolute z-20" style={{ top: menu.top, left: menu.left }}>
+          <BlockMenu ctx={ctx} query={null} onPick={pick} onClose={() => setMenu(null)} />
+        </div>
+      )}
+    </div>
   )
 }
