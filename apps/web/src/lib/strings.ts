@@ -434,6 +434,7 @@ export const strings = {
     phoneLandline: 'Festnetz',
     internalNote: 'Interne Notiz',
     internalNoteHint: 'Nur intern sichtbar, erscheint auf keinem Dokument.',
+    internalNotePlaceholder: 'Nur intern sichtbar',
     diagnosis: 'Diagnose',
     diagnosisHint: 'Vertraulich — erscheint nur hier, im Rechnungsentwurf und auf der Rechnung.',
     contactNumber: 'Kontaktnummer',

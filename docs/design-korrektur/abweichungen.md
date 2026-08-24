@@ -187,14 +187,21 @@ den Abschnitt „Steuer" entfernen. Ein Feld, kein Umbau.
 
 ## K6 — Rollen-Raster beim Anlegen: drei feste Spalten
 
-**Design:** *Kontakt anlegen* setzt `repeat(auto-fit, minmax(170px, 1fr))`, die Kontaktakte
-`repeat(3, minmax(150px, 220px))`.
+**Design:** der Handoff-Prototyp setzt auf *Kontakt anlegen*
+`repeat(auto-fit, minmax(170px, 1fr))`, in der Kontaktakte `repeat(3, minmax(150px, 220px))`.
 
 **Gebaut:** beide mit den drei festen Spalten der Kontaktakte.
 
 **Warum:** Bei der Breite dieser Seite liefert `auto-fit` ohnehin drei Spalten — dasselbe Bild
 in zwei Schreibweisen. Die feste Variante ist die, die es auch bei fünf oder acht Rollenarten
 bleibt.
+
+**Nachtrag L9.** Der Eintrag oben beschreibt den *Prototypen*. Die Bilder aus
+`docs/design-korrektur-2/` sind sich uneinig: `07 - Kontakt anlegen a` zeichnet vier Spalten,
+`03 - Kontaktdetail Stammdaten Edit Mode a` drei — und beide Bildschirme zeigen dieselbe
+Sektion mit demselben Katalog. Zwei Zahlen ohne erkennbaren Unterschied entscheiden nichts, also
+bleibt es bei drei, jetzt auf beiden Bildschirmen aus demselben Grund: dieselbe Maske, dieselbe
+Zahl.
 
 ---
 
@@ -389,3 +396,27 @@ Rechnungsentwurf und auf der Rechnung — nie in einer Liste, nie im Log (Regel 
 **Zurückdrehen heißt:** den `!creating &&`-Block mit `strings.contact.diagnosis` aus
 `components/contact-form.tsx` entfernen. Das Feld selbst und `invoice.diagnosis` bleiben davon
 unberührt — dann aber ohne Pflegeort.
+
+---
+
+## L5 — Der Reiter „Termine" fehlt im Design
+
+**Design:** die Kontaktakte hat in allen sieben Bildern von
+`docs/design-korrektur-2/02 - Kontakte/` fünf Reiter — Übersicht, Stammdaten, Notizen, Vorgänge,
+Rechnungen.
+
+**Gebaut:** sechs. „Termine" steht zwischen Vorgängen und Rechnungen.
+
+**Warum:** Das Fehlen im Design ist ein Versehen, kein Beschluss. Seit D-K1 steht ein
+`appointment` für sich — ein Blocker, Dokumentationszeit, eine Besprechung sind Kalendereinträge
+und sonst nichts, `appointment.contact_id` ist nullable und `activity.appointment_id` ist die
+Seite, die optional ist. Der Reiter wurde in L5 auf **alle** Termine eines Kontakts umgebaut, mit
+und ohne Vorgang. Ohne ihn hätte ein Termin, an dem kein Vorgang hängt, in der Akte keinen Ort:
+der Reiter „Vorgänge" zeigt Vorgänge, und der Kalender beantwortet die Frage „wann", nicht die
+Frage „was steht bei dieser Person an".
+
+Nachgetragen in L9 — der Reiter stand seit L5, der Eintrag hier fehlte.
+
+**Zurückdrehen heißt:** `RecordTab value="appointments"` samt `TabsContent` aus
+`routes/_app/contacts.$contactId.tsx` entfernen und den Wert aus `tabs` streichen. Die
+terminlosen Einträge sind danach nur noch über den Kalender erreichbar.

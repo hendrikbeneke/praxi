@@ -140,7 +140,10 @@ function todayInBerlin(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date())
 }
 
-function toFormValues(contact: Contact | undefined): ContactFormValues {
+function toFormValues(
+  contact: Contact | undefined,
+  defaultCountryId: string | undefined,
+): ContactFormValues {
   return {
     kind: contact?.kind ?? 'person',
     salutationId: contact?.salutationId ?? '',
@@ -157,7 +160,11 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
     houseNumber: contact?.houseNumber ?? '',
     postalCode: contact?.postalCode ?? '',
     city: contact?.city ?? '',
-    countryId: contact?.countryId ?? '',
+    // The suggestion applies to a contact that does not exist yet and to
+    // nothing else: on an existing one `countryId` is what is stored, and an
+    // empty column means "not recorded" rather than "fall back to the
+    // practice's own country". See `contacts.new.tsx` for where it comes from.
+    countryId: contact ? (contact.countryId ?? '') : (defaultCountryId ?? ''),
     email: contact?.email ?? '',
     phoneMobile: contact?.phoneMobile ?? '',
     phoneLandline: contact?.phoneLandline ?? '',
@@ -183,12 +190,17 @@ function toFormValues(contact: Contact | undefined): ContactFormValues {
  */
 export function ContactForm({
   contact,
+  defaultCountryId,
   editing = true,
   onSubmit,
   onCancel,
   pending,
 }: {
   contact?: Contact
+  /** Which country a *new* contact starts on — derived by the create route
+   *  from the practice's own country, `undefined` where the catalogue has no
+   *  entry for it. Ignored once `contact` is given. */
+  defaultCountryId?: string | undefined
   editing?: boolean
   onSubmit: (input: ContactUpdate, roles: ContactRoleInput[]) => void
   onCancel?: () => void
@@ -196,7 +208,7 @@ export function ContactForm({
 }) {
   const form = useForm<ContactFormValues, unknown, ContactFormOutput>({
     resolver: zodResolver(contactFormSchema),
-    defaultValues: toFormValues(contact),
+    defaultValues: toFormValues(contact, defaultCountryId),
   })
 
   const kind = form.watch('kind') as ContactKind
@@ -204,6 +216,24 @@ export function ContactForm({
   const errors = form.formState.errors
 
   const creating = contact === undefined
+
+  /*
+   * The one field the `contact_kind_fields` check constraint insists on — the
+   * one carrying the asterisk. Read from `watch`, so it follows what is being
+   * typed rather than what was loaded: the rule that a disabled button is
+   * derived from the *current* form state, the mistake the send dialog made
+   * (CLAUDE.md).
+   *
+   * It is not a substitute for the resolver. `superRefine` still refuses on
+   * submit, and everything else the schema checks — a malformed mail address,
+   * a name over 80 characters — leaves the button enabled and answers under
+   * the field. Disabling on every rule would leave the practitioner hunting a
+   * grey button with nothing on screen saying why.
+   */
+  const nameMissing =
+    kind === 'person'
+      ? form.watch('lastName').trim() === ''
+      : form.watch('companyName').trim() === ''
 
   // The whole catalogue: since migration 0035 there is no inactive half to
   // filter out and no role a contact could hold but not see.
@@ -681,6 +711,7 @@ export function ContactForm({
                 id="internalNote"
                 rows={4}
                 className="mt-2"
+                placeholder={strings.contact.internalNotePlaceholder}
                 {...form.register('internalNote')}
               />
             ) : (
@@ -705,7 +736,7 @@ export function ContactForm({
                 {strings.contact.cancel}
               </Button>
             )}
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || nameMissing}>
               {pending
                 ? strings.contact.saving
                 : creating
