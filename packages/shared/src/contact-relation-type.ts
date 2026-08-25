@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { optionalText, requiredText } from './field.js'
-import { typeCodeSchema } from './type-code.js'
 
 /**
  * The catalogue of relations between two contacts (CLAUDE.md rule 4).
@@ -58,11 +57,19 @@ export const contactRelationTypeInputSchema = z
 
 export type ContactRelationTypeInput = z.infer<typeof contactRelationTypeInputSchema>
 
-export const contactRelationTypeCreateSchema = z
-  .object({ code: typeCodeSchema, ...relationTypeFields })
-  .refine(symmetryRule.check, symmetryRule.options)
+/**
+ * Creating takes the same fields as editing since B1d: the `code` is derived
+ * from `labelForward` by `createRelationType`, never typed. There is no field
+ * for it on any screen, and a system entry — the only kind whose code carries
+ * meaning — cannot be created through this schema at all, because `is_system`
+ * is set by the seed and by nothing else.
+ *
+ * `ContactRelationTypeCreate` stays as an alias so the two intents still read
+ * differently at the call sites.
+ */
+export const contactRelationTypeCreateSchema = contactRelationTypeInputSchema
 
-export type ContactRelationTypeCreate = z.infer<typeof contactRelationTypeCreateSchema>
+export type ContactRelationTypeCreate = ContactRelationTypeInput
 
 export const contactRelationTypeSchema = z.object({
   id: z.uuid(),

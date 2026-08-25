@@ -170,13 +170,12 @@ export const strings = {
       'Der erste Kontakt ist der, in dessen Akte der Sachverhalt eine Eigenschaft dieses ' +
       'Kontakts ist — das Kind hat einen Sorgeberechtigten. Der zweite Kontakt ist das Gegenüber.',
 
+    /** Only ever a LABEL now (B1d): no screen offers a Kürzel to type, and it
+     *  is shown only on a system entry, where the software greps for it and
+     *  the read-only form says so. `codeHint` and `codeFixed` went with the
+     *  field — an own type's code is derived from its label and nobody sees
+     *  it. */
     code: 'Kürzel',
-    codeHint:
-      'Technisches Kürzel, klein geschrieben, ohne Leerzeichen. Es steht mit dem Anlegen fest ' +
-      'und lässt sich später nicht mehr ändern.',
-    /** Under the code of an EXISTING type, where there is no field to explain
-     *  — only a value and the reason it stands still (B1, C1). */
-    codeFixed: 'Daran hängen die bestehenden Beziehungen. Es lässt sich nicht mehr ändern.',
     direction: 'Richtung',
     /** Above the read-only form of a system entry (B1). Names the consequence
      *  rather than the rule: what a rename would break is that the record and

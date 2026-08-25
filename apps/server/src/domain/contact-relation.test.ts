@@ -65,9 +65,10 @@ beforeEach(async () => {
  * column and the partial index over it, which is a mechanism of every type —
  * so an ordinary one is the honest subject.
  */
-async function ownRelationType(code: string) {
+async function ownRelationType() {
+  // No code is passed: since B1d it is derived from the label — the tests
+  // therefore use what comes back rather than a name they chose.
   return createRelationType(db(), tenantId, {
-    code,
     labelForward: 'Betreut',
     labelInverse: 'Betreut von',
     isSymmetric: false,
@@ -279,16 +280,16 @@ describe('exclusive types', () => {
   })
 
   it('cannot be switched on while a contact already holds two', async () => {
-    const type = await ownRelationType('carer')
+    const type = await ownRelationType()
 
     await addRelation(db(), tenantId, child, {
-      relationCode: 'carer',
+      relationCode: type.code,
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
     await addRelation(db(), tenantId, child, {
-      relationCode: 'carer',
+      relationCode: type.code,
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -316,10 +317,10 @@ describe('exclusive types', () => {
   })
 
   it('propagate the switch onto existing relations', async () => {
-    const type = await ownRelationType('carer')
+    const type = await ownRelationType()
 
     await addRelation(db(), tenantId, child, {
-      relationCode: 'carer',
+      relationCode: type.code,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -340,7 +341,7 @@ describe('exclusive types', () => {
 
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: 'carer',
+        relationCode: type.code,
         direction: 'forward',
         otherContactId: father,
         since: null,

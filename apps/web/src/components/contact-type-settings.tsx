@@ -17,7 +17,6 @@ import {
 } from '@/components/catalogue-controls'
 import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
 import { DASH, ListCard, ListCardTitleBar } from '@/components/list-card'
-import { ReadValue } from '@/components/read-value'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -369,7 +368,13 @@ export function RelationTypeSettings() {
                   >
                     <TableCell>
                       <span className="font-medium">{type.labelForward}</span>
-                      <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
+                      {/* Only on a system entry (B1d). There the code is what
+                          the software greps for and is worth seeing; on an own
+                          type it is a slug nobody chose, and printing it in the
+                          list would invite someone to treat it as a name. */}
+                      {type.isSystem && (
+                        <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
+                      )}
                       {type.isExclusive && (
                         <Badge variant="outline" className="ml-2">
                           {strings.contactType.exclusiveBadge}
@@ -424,7 +429,9 @@ export function RelationTypeSettings() {
                       ) : (
                         <div className="space-y-4">
                           <dl className="flex flex-wrap gap-8">
-                            <DetailField label={strings.contactType.code} value={type.code} />
+                            {type.isSystem && (
+                              <DetailField label={strings.contactType.code} value={type.code} />
+                            )}
                             <DetailField
                               label={strings.contactType.labelInverse}
                               value={type.labelInverse ?? DASH}
@@ -464,7 +471,6 @@ export function RelationTypeSettings() {
 
 function toRelationValues(type: ContactRelationType): ContactRelationTypeCreate {
   return {
-    code: type.code,
     labelForward: type.labelForward,
     labelInverse: type.labelInverse,
     isSymmetric: type.isSymmetric,
@@ -489,7 +495,6 @@ function RelationTypeForm({
     type
       ? toRelationValues(type)
       : {
-          code: '',
           labelForward: '',
           labelInverse: '',
           isSymmetric: false,
@@ -500,7 +505,6 @@ function RelationTypeForm({
   )
 
   const complete =
-    values.code.trim() !== '' &&
     values.labelForward.trim() !== '' &&
     (values.isSymmetric || (values.labelInverse ?? '').trim() !== '')
 
@@ -565,35 +569,6 @@ function RelationTypeForm({
       <p className="text-muted-foreground text-sm">{strings.contactType.directionHint}</p>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          {/* On an existing type the code is TEXT, not a disabled input (B1,
-              C1). K2 settled this for read mode and the argument is the same
-              here: a grey box with a border promises an entry that cannot be
-              made, and the muted value inside it reads as a placeholder — the
-              field looked empty while `guardian` stood in it. The code is the
-              handle `contact_relation.relation_code` points at and every entry
-              keeps it for life, so what belongs here is the value and the
-              reason, not a control. */}
-          <Label htmlFor={type === undefined ? 'relation-code' : undefined}>
-            {strings.contactType.code}
-          </Label>
-          {type === undefined ? (
-            <>
-              <Input
-                id="relation-code"
-                className="mt-2"
-                value={values.code}
-                onChange={(event) => setValues({ ...values, code: event.target.value })}
-              />
-              <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.codeHint}</p>
-            </>
-          ) : (
-            <>
-              <ReadValue className="font-mono">{values.code}</ReadValue>
-              <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.codeFixed}</p>
-            </>
-          )}
-        </div>
         <div>
           <Label htmlFor="relation-forward">{strings.contactType.labelForward}</Label>
           <Input

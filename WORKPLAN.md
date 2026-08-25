@@ -3014,6 +3014,16 @@ each line names the reason, not the solution.
   der Parser in `packages/shared` und nicht im Frontend, und genau deshalb ist das Format auf
   fünf Konstrukte begrenzt: vier Blockarten im PDF nachzubauen ist ein Nachmittag, dreißig
   sind es nicht.
+- **Point `contact_relation` at the id instead of at the code.** It is the last
+  link in the schema that still references a catalogue by its `code`; the roles
+  went to the id in migration 0035 and the activity types in B1/0041. Three
+  tables, two patterns, for no reason anyone can name. Once it is done the code
+  can leave practitioner-made relation types altogether — B1d derives one from
+  the label today only because a foreign key cannot point at a NULL — and the
+  check constraint "`is_system` requires a code" becomes possible, which is
+  what would make an unanchored system entry unreachable rather than merely
+  unlikely.
+
 - **`themeOptions` (German: `schiefer`, `blau`, …) vs. `startPageOptions` (English:
   `overview`, `contacts`, …)** in `packages/shared/src/user-preferences.ts` — the same kind of
   enum, named two different ways, because `theme` predates identifiers being applied

@@ -5,8 +5,10 @@ import type {
   ContactRoleType,
   ContactRoleTypeInput,
 } from '@praxi/shared'
+import { relationTypeCodeFrom } from '@praxi/shared'
 import { and, asc, eq, sql } from 'drizzle-orm'
-import type { Database } from '../db/client.js'
+import type { Database, DbReader } from '../db/client.js'
+import { uniqueViolationConstraint } from '../db/errors.js'
 import { contactRelation, contactRelationType, contactRole, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
 import { moveInList } from './reorder.js'
@@ -209,18 +211,76 @@ export async function listRelationTypes(
     .orderBy(asc(contactRelationType.sortOrder), asc(contactRelationType.labelForward))
 }
 
+/**
+ * The code a new relation type gets — derived from its label, and free of the
+ * ones this tenant already uses (B1d).
+ *
+ * The practitioner never types one. `relationTypeCodeFrom` in
+ * `packages/shared` does the deriving and says why it is derived rather than
+ * random, and why a later rename leaves it alone; this half is only about
+ * making it unique, which needs the database.
+ *
+ * The suffix counts from 2 — "betreut_von", "betreut_von_2" — and the query
+ * sees **every** code the tenant has, system entries included, so an own type
+ * labelled "guardian" lands on `guardian_2` rather than colliding with the
+ * seeded one.
+ */
+async function freeRelationCode(
+  reader: DbReader,
+  tenantId: string,
+  labelForward: string,
+): Promise<string> {
+  const base = relationTypeCodeFrom(labelForward)
+
+  const taken = new Set(
+    (
+      await reader
+        .select({ code: contactRelationType.code })
+        .from(contactRelationType)
+        .where(eq(contactRelationType.tenantId, tenantId))
+    ).map((row) => row.code),
+  )
+
+  if (!taken.has(base)) return base
+
+  for (let n = 2; ; n += 1) {
+    const suffix = `_${n}`
+    // Re-derived with room reserved, so a long label is shortened rather than
+    // producing a code the column would refuse.
+    const candidate = `${relationTypeCodeFrom(labelForward, suffix.length)}${suffix}`
+    if (!taken.has(candidate)) return candidate
+  }
+}
+
 export async function createRelationType(
   database: Database,
   tenantId: string,
   input: ContactRelationTypeCreate,
 ): Promise<ContactRelationType> {
-  const [row] = await database
-    .insert(contactRelationType)
-    .values({ id: newId(), tenantId, ...input })
-    .returning(relationColumns)
+  /**
+   * Retried rather than reported. `freeRelationCode` reads the codes and then
+   * inserts, so two creations at the same instant could still land on the same
+   * one — and with the field gone from every screen, "Dieses Kürzel ist bereits
+   * vergeben" would be a message about something the practitioner cannot see or
+   * change. With one user this is theoretical; the cost of covering it is a
+   * loop.
+   */
+  for (let attempt = 0; ; attempt += 1) {
+    const code = await freeRelationCode(database, tenantId, input.labelForward)
 
-  if (!row) throw new Error('insert returned no row')
-  return row
+    try {
+      const [row] = await database
+        .insert(contactRelationType)
+        .values({ id: newId(), tenantId, code, ...input })
+        .returning(relationColumns)
+
+      if (!row) throw new Error('insert returned no row')
+      return row
+    } catch (error) {
+      const collided = uniqueViolationConstraint(error) === 'contact_relation_type_tenant_code_key'
+      if (!collided || attempt >= 4) throw error
+    }
+  }
 }
 
 export async function updateRelationType(

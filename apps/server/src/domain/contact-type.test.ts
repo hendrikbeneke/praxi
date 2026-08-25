@@ -8,6 +8,7 @@ import { newId } from '../id.js'
 import { createTenant, roleTypeId } from '../test/fixtures.js'
 import { createContact } from './contact.js'
 import {
+  createRelationType,
   createRoleType,
   deleteRelationType,
   deleteRoleType,
@@ -15,6 +16,7 @@ import {
   listRoleTypes,
   RoleTypeInUseError,
   SystemTypeError,
+  updateRelationType,
   updateRoleType,
 } from './contact-type.js'
 
@@ -263,5 +265,82 @@ describe('the symmetry rule', () => {
         isSymmetric: false,
       }),
     ).rejects.toThrow()
+  })
+})
+
+/**
+ * The code of a practitioner-made relation type is derived, never typed (B1d).
+ * The deriving itself is tested in `packages/shared/src/type-code.test.ts`;
+ * what needs a database is that the result is free, and that a rename leaves
+ * it alone.
+ */
+describe('the code of an own relation type', () => {
+  const own = (labelForward: string) =>
+    createRelationType(db(), tenantId, {
+      labelForward,
+      labelInverse: 'Gegenstück',
+      isSymmetric: false,
+      isExclusive: false,
+      sortOrder: 90,
+      active: true,
+    })
+
+  it('comes from the label', async () => {
+    expect((await own('Betreut von')).code).toBe('betreut_von')
+    expect((await own('Ärztin für')).code).toBe('aerztin_fuer')
+  })
+
+  it('counts up rather than colliding with an existing one', async () => {
+    expect((await own('Betreut von')).code).toBe('betreut_von')
+    expect((await own('Betreut von')).code).toBe('betreut_von_2')
+    expect((await own('Betreut von')).code).toBe('betreut_von_3')
+  })
+
+  /**
+   * The seeded system entries are in the same namespace, so the query that
+   * looks for a free code has to see them. An own type labelled "guardian"
+   * must not try to take the code the minor's notice reads.
+   */
+  it('gets out of the way of a system code', async () => {
+    const created = await own('guardian')
+
+    expect(created.code).toBe('guardian_2')
+
+    const [seeded] = await db()
+      .select({ isSystem: contactRelationType.isSystem })
+      .from(contactRelationType)
+      .where(
+        and(eq(contactRelationType.tenantId, tenantId), eq(contactRelationType.code, 'guardian')),
+      )
+    expect(seeded?.isSystem).toBe(true)
+  })
+
+  /**
+   * The one that matters most. `contact_relation.relation_code` points at this
+   * column, so following a rename would orphan every relation of the type —
+   * the foreign key's ON UPDATE RESTRICT refuses it outright. The label is what
+   * a human reads and is free to change; the code is where the type is nailed
+   * down.
+   */
+  it('stays as it is when the type is renamed', async () => {
+    const created = await own('Betreut von')
+
+    const renamed = await updateRelationType(db(), tenantId, created.id, {
+      labelForward: 'Bezugsperson',
+      labelInverse: 'Bezugsperson von',
+      isSymmetric: false,
+      isExclusive: false,
+      sortOrder: 90,
+      active: true,
+    })
+
+    expect(renamed?.labelForward).toBe('Bezugsperson')
+    expect(renamed?.code).toBe('betreut_von')
+  })
+
+  /** A label that yields nothing still produces a usable handle. */
+  it('falls back where a label slugs to nothing', async () => {
+    expect((await own('———')).code).toBe('relation')
+    expect((await own('!!!')).code).toBe('relation_2')
   })
 })
