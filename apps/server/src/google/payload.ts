@@ -1,5 +1,5 @@
-import type { AppointmentStatus } from '@praxi/shared'
-import { occupiesSlot } from '@praxi/shared'
+import type { AppointmentStatus, EventTitleValues } from '@praxi/shared'
+import { occupiesSlot, resolveEventTitle } from '@praxi/shared'
 import { messages } from '../messages.js'
 
 /**
@@ -14,35 +14,42 @@ import { messages } from '../messages.js'
  * discloses that this person is in psychotherapeutic treatment. Google signs
  * no Verpflichtungserklärung under § 203 Abs. 4.
  *
- * So the title is the contact number as a bare string of digits, with no
- * prefix. Every additional character is the place where somebody later "just
- * adds" the activity type.
+ * So the default title is the contact number as a bare string of digits, with
+ * no prefix.
  *
- * **The operator can switch it off** (`google_connection.pseudonymize`,
- * migration 0036), and then the title is the contact's name. Whether that is
- * lawful in their practice is their judgement to make and their
- * responsibility to carry; the setting says so in two sentences.
+ * **The operator decides what else goes** (`google_connection
+ * .event_title_template`, B1/0042). It is a template over a closed set of
+ * placeholders, so "42 — Erstgespräch" is one setting away and
+ * "{{diagnose}}" is not expressible at all: an unknown name is refused when
+ * the template is saved. Whether what they choose is lawful in their practice
+ * is their judgement to make and their responsibility to carry; the settings
+ * screen shows the sentence Google will receive, with made-up values, before
+ * anything is saved.
  *
- * What it is NOT is a rule derived from roles. "Pseudonymize the patients"
- * was considered and refused, twice over:
+ * The template governs **the title and nothing else**. No description, no
+ * participants, no invitations, no location — whatever it says. The payload
+ * type below lists every field, there is no spread from an appointment row
+ * anywhere in this file, and `payload.test.ts` asserts the key set across a
+ * matrix of templates including hostile ones.
+ *
+ * What this is NOT is a rule derived from roles. "Pseudonymize the patients"
+ * was considered and refused, twice over, and both reasons still hold for the
+ * template:
  *
  *   1. A rule without an exception can be tested as an absolute. With one it
  *      becomes an either-or, and a test that permits both branches no longer
- *      checks the property that matters. A switch keeps the absolute — it
- *      just has two settings, and each is testable on its own.
+ *      checks the property that matters. A setting keeps the absolute — the
+ *      *shape* of the payload is fixed however the title reads, and that is
+ *      what the test asserts.
  *
  *   2. Roles change retroactively, written events do not. A prospect becomes
  *      a patient. The appointments that went to Google under their real name
  *      while they were a prospect are still sitting there. Keying off a role
  *      would therefore need a mechanism that rewrites every past event — and
  *      that mechanism could never be complete, because the data has long
- *      since been cached on a phone. The switch has the same property, which
- *      is why it too only governs what is written from now on, and why the
- *      settings screen says that in as many words.
- *
- * The switch governs **the title and nothing else**. No description, no
- * participants, no invitations, no location, no hint of a service or an
- * activity type — in either setting.
+ *      since been cached on a phone. The template has the same property,
+ *      which is why it too only governs what is written from now on, and why
+ *      the settings screen says that in as many words.
  * ─────────────────────────────────────────────────────────────────────────
  */
 
@@ -61,20 +68,25 @@ export type GoogleEventPayload = {
 }
 
 /** What `buildEvent` is allowed to see. Deliberately not the appointment row:
- *  the type is the second lock next to the test. */
-export type EventSource = {
+ *  the type is the second lock next to the test. The five title fields are
+ *  exactly `EventTitleValues`, so the closed placeholder set and the query
+ *  that feeds it cannot drift apart. */
+export type EventSource = EventTitleValues & {
   appointmentId: string
-  /** Null on an appointment that belongs to nobody (0034) — see the summary
-   *  in `buildEvent`. */
-  contactNumber: number | null
-  /** Only ever used when `pseudonymize` is false. It is listed here rather
-   *  than resolved elsewhere so the whole decision stays in one function. */
-  contactName: string | null
-  /** `google_connection.pseudonymize`. True is the protected setting. */
-  pseudonymize: boolean
+  /** `google_connection.event_title_template`. */
+  titleTemplate: string
   startsAt: Date
   endsAt: Date
   status: AppointmentStatus
+}
+
+/** A template that came out empty for this appointment. Thrown rather than
+ *  sent — see `summaryFor`. */
+export class EmptyEventTitleError extends Error {
+  constructor() {
+    super('event title template resolved to nothing')
+    this.name = 'EmptyEventTitleError'
+  }
 }
 
 /**
@@ -138,17 +150,31 @@ export function buildEvent(source: EventSource): GoogleEventPayload {
 }
 
 /**
- * The title, and the only place the switch has any effect.
+ * The title, and the only place the template has any effect.
  *
- * The order of the three cases is the point. "No contact" is asked **first**,
- * in both settings: an appointment that belongs to nobody has no number and no
- * name, and what stands in for it is a **constant** — never the appointment's
- * own title. That title is typed by the practitioner, and "Rückruf Frau K." is
- * exactly the sentence rule 13 exists to keep out of Google. A busy block with
- * no content at all is all a projection owes anyone.
+ * **"No contact" is asked first, whatever the template says.** An appointment
+ * that belongs to nobody has no number and no name, and what stands in for it
+ * is a **constant** — never the appointment's own title. That title is typed
+ * by the practitioner at 200 characters, and "Rückruf Frau K." is exactly the
+ * sentence rule 13 exists to keep out of Google. A busy block with no content
+ * at all is all a projection owes anyone.
+ *
+ * **An empty result is a failure, not an empty title.** A template can be
+ * valid and still come out with nothing for one particular appointment —
+ * `{{activityTitle}}` where this one has none. Google would then draw the
+ * block as "(kein Titel)", which is a projection quietly saying nothing, and
+ * a quiet malfunction is the worst kind here: the practitioner sees a
+ * calendar that looks fine and would have to count the entries to notice.
+ * Throwing puts the row in the outbox with an error the settings screen shows,
+ * and the appointment is still in Google's way as soon as the template is
+ * mended.
  */
 function summaryFor(source: EventSource): string {
-  if (source.contactNumber === null) return messages.appointment.googleBusy
-  if (source.pseudonymize) return String(source.contactNumber)
-  return source.contactName ?? messages.appointment.googleBusy
+  if (source.contactNumber === null && source.contactName === null) {
+    return messages.appointment.googleBusy
+  }
+
+  const title = resolveEventTitle(source.titleTemplate, source)
+  if (title === '') throw new EmptyEventTitleError()
+  return title
 }

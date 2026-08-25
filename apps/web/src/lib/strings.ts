@@ -954,10 +954,16 @@ export const strings = {
   },
   google: {
     title: 'Google-Kalender',
+    /** Says what is fixed, not what the title happens to be (B1). It used to
+     *  promise "mit der Kontaktnummer statt mit dem Namen", which the template
+     *  below can now falsify — and a screen that states a rule the software no
+     *  longer keeps is worse than one that states none. What is still true of
+     *  every event whatever the template says is the shape: two times, one
+     *  status, one title. */
     description:
-      'Termine erscheinen im Google-Kalender mit der Kontaktnummer statt mit dem Namen — ' +
-      'ohne Leistung, ohne Vorgangsart. Die Praxisdatenbank bleibt das führende System; ' +
-      'der Google-Kalender ist eine Projektion.',
+      'Ein Eintrag im Google-Kalender trägt Anfang, Ende, ob er abgesagt ist — und einen ' +
+      'Titel, den Sie unten festlegen. Mehr wird nicht übertragen. Die Praxisdatenbank ' +
+      'bleibt das führende System; der Google-Kalender ist eine Projektion.',
     notConfigured:
       'Nicht eingerichtet. In der Umgebung fehlen GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ' +
       'oder ENCRYPTION_KEY.',
@@ -987,22 +993,70 @@ export const strings = {
       'Hierhin werden Termine geschrieben. Am besten ein eigener Kalender, kein privater.',
     practiceCalendarNone: 'Keiner — es wird nichts geschrieben',
     practiceCalendarReadOnly: 'nur lesbar',
-    /** Labelled as what ticking it DOES, not as "Pseudonymisieren" — nothing
-     *  here has to be inverted while reading. */
-    pseudonymizeOff: 'Namen statt Kontaktnummer übertragen',
-    pseudonymizeConsequence:
-      'Die Namen Ihrer Kontakte stehen dann im Klartext im Google-Kalender. Ob das in ' +
-      'Ihrem Fall zulässig ist, müssen Sie selbst beurteilen.',
+    /** The title template (B1). It replaced a checkbox that could say
+     *  "Kontaktnummer" or "Name" and nothing in between. */
+    eventTitle: 'Titel der Termine',
+    /** The sentence this whole section turns on: the title is not one field
+     *  among several, it is the entire content of the projection. */
+    eventTitleLead:
+      'Der Titel ist alles, was Google erfährt. Ein Eintrag trägt sonst nur Anfang, Ende und ' +
+      'ob er abgesagt ist — keine Beschreibung, keine Teilnehmer, keinen Ort.',
+    eventTitleTemplate: 'Vorlage',
+    eventTitlePreset: 'Vorlage wählen',
+    eventTitleCustom: 'Eigene Vorlage',
+    eventTitlePresets: [
+      { template: '{{contactNumber}}', label: 'Nur die Kontaktnummer' },
+      { template: '{{contactNumber}} — {{activityType}}', label: 'Kontaktnummer und Vorgangsart' },
+      { template: '{{contactName}}', label: 'Name des Kontakts' },
+      { template: '{{contactName}} — {{activityType}}', label: 'Name und Vorgangsart' },
+    ],
+    /** With made-up values, so nobody has to wonder whether the preview is
+     *  showing a real patient. */
+    eventTitlePreview: 'So steht es in Google:',
+    eventTitlePreviewHint: 'Beispielwerte — der echte Termin setzt seine eigenen ein.',
+    /** The preflight, said where it is refused. */
+    eventTitleEmpty:
+      'Diese Vorlage ergibt keinen Titel. Google würde „(kein Titel)" anzeigen, deshalb wird ' +
+      'sie nicht gespeichert.',
+    eventTitleUnknown: (names: string[]) =>
+      names.length === 1
+        ? `„{{${names[0]}}}" gibt es nicht. Unbekannte Platzhalter werden nicht gespeichert — ` +
+          'sie würden sonst wörtlich in Googles Kalender stehen.'
+        : `Diese Platzhalter gibt es nicht: ${names.map((name) => `{{${name}}}`).join(', ')}. ` +
+          'Unbekannte Platzhalter werden nicht gespeichert — sie würden sonst wörtlich in ' +
+          'Googles Kalender stehen.',
+    /** Fires when the template needs a Vorgang and the appointment has none —
+     *  which is a real state, not a hypothetical: a blocker with a contact on
+     *  it, or an appointment documented without one. */
+    eventTitleSometimesEmpty:
+      'Bei einem Termin ohne Vorgang ergibt diese Vorlage keinen Titel. Solche Termine gehen ' +
+      'dann nicht zu Google — sie bleiben in der Warteschlange stehen, bis die Vorlage etwas ' +
+      'ergibt.',
+    eventTitlePlaceholderList: [
+      { token: '{{contactNumber}}', meaning: 'Kontaktnummer' },
+      { token: '{{contactName}}', meaning: 'Name des Kontakts' },
+      { token: '{{activityType}}', meaning: 'Bezeichnung der Vorgangsart' },
+      { token: '{{activityTitle}}', meaning: 'Titel des Vorgangs' },
+      { token: '{{appointmentTitle}}', meaning: 'Titel des Termins' },
+    ],
+    /** The chain, which is not obvious from a list of names. */
+    eventTitleChainHint:
+      'Mit „{{activityTitle | appointmentTitle}}" wird der erste genommen, der einen Wert hat.',
     /** Rule 13: a rewrite of what already went out could never be complete —
      *  the data has long since been cached on a phone. */
-    pseudonymizeFuture:
-      'Die Einstellung gilt nur für künftige Termine. Was bereits in Google steht, bleibt ' +
+    eventTitleFuture:
+      'Die Vorlage gilt nur für künftige Termine. Was bereits in Google steht, bleibt ' +
       'unverändert.',
     /** Because the row holding it is deleted with the connection, and finding
-     *  the switch back on after reconnecting would otherwise be a puzzle. */
-    pseudonymizeReset:
-      'Beim Trennen der Verbindung wird die Einstellung zurückgesetzt — ein neuer Zugang ' +
-      'überträgt wieder Kontaktnummern.',
+     *  the setting back at the number after reconnecting would otherwise be a
+     *  puzzle. */
+    eventTitleReset:
+      'Beim Trennen der Verbindung wird die Vorlage zurückgesetzt — ein neuer Zugang ' +
+      'überträgt wieder nur Kontaktnummern.',
+    /** A contact-less appointment is asked before the template is looked at. */
+    eventTitleBare:
+      'Termine ohne Kontakt — Blocker, Dokumentationszeit, Besprechungen — gehen unabhängig ' +
+      'von der Vorlage als „Belegt" hinaus.',
     freebusyCalendars: 'Kalender für die Belegtzeiten',
     freebusyCalendarsHint:
       'Beim Planen werden aus diesen Kalendern nur die belegten Zeiträume abgefragt — ' +

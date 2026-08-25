@@ -1,13 +1,22 @@
-import { formatBerlinDateTime, formatRelativeBerlin } from '@praxi/shared'
+import {
+  EVENT_TITLE_PREVIEW,
+  EVENT_TITLE_PREVIEW_SPARSE,
+  formatBerlinDateTime,
+  formatRelativeBerlin,
+  isEmptyEventTitleTemplate,
+  resolveEventTitle,
+  unknownEventTitlePlaceholders,
+} from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Link2, Link2Off, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { DASH } from '@/components/list-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -24,7 +33,7 @@ import {
   googleStatusQueryOptions,
   setFreebusyCalendars,
   setGoogleCalendar,
-  setGooglePseudonymize,
+  setGoogleEventTitle,
   syncGoogleNow,
 } from '@/lib/google'
 import { strings } from '@/lib/strings'
@@ -179,7 +188,7 @@ export function GoogleSettings() {
             <CalendarPickers
               calendarId={data.calendarId}
               freebusyCalendarIds={data.freebusyCalendarIds}
-              pseudonymize={data.pseudonymize}
+              eventTitleTemplate={data.eventTitleTemplate}
               onSaved={invalidate}
             />
           </>
@@ -204,24 +213,15 @@ const NO_CALENDAR = '__none__'
 function CalendarPickers({
   calendarId,
   freebusyCalendarIds,
-  pseudonymize,
+  eventTitleTemplate,
   onSaved,
 }: {
   calendarId: string | null
   freebusyCalendarIds: string[]
-  pseudonymize: boolean
+  eventTitleTemplate: string
   onSaved: () => Promise<void> | void
 }) {
   const calendars = useQuery(googleCalendarsQueryOptions)
-
-  const savePseudonymize = useMutation({
-    mutationFn: (value: boolean) => setGooglePseudonymize(value),
-    onSuccess: async () => {
-      await onSaved()
-      toast.success(strings.google.saved)
-    },
-    onError: (error) => toast.error(message(error)),
-  })
 
   const saveCalendar = useMutation({
     mutationFn: (value: string | null) => setGoogleCalendar(value),
@@ -271,33 +271,9 @@ function CalendarPickers({
         </Select>
       </div>
 
-      {/* The switch stands under the calendar it writes to, because that is
-          what it governs — the title of the events going there. Ticked means
-          names go out, so nothing has to be inverted while reading, and the
-          two consequences stand under it rather than in a tooltip. */}
-      <div>
-        <div className="flex items-start gap-2">
-          <Checkbox
-            id="google-pseudonymize"
-            className="mt-0.5"
-            checked={!pseudonymize}
-            disabled={savePseudonymize.isPending}
-            onCheckedChange={(next) => savePseudonymize.mutate(next !== true)}
-          />
-          <div>
-            <Label htmlFor="google-pseudonymize" className="font-normal">
-              {strings.google.pseudonymizeOff}
-            </Label>
-            <p className="mt-1 max-w-prose text-muted-foreground text-xs">
-              {strings.google.pseudonymizeConsequence}
-            </p>
-            <p className="mt-1 max-w-prose text-muted-foreground text-xs">
-              {strings.google.pseudonymizeFuture}{' '}
-              {!pseudonymize && strings.google.pseudonymizeReset}
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* The title stands under the calendar it is written to, because that
+          is what it governs. */}
+      <EventTitleField template={eventTitleTemplate} onSaved={onSaved} />
 
       <div>
         <span className="font-medium text-sm">{strings.google.freebusyCalendars}</span>
@@ -417,3 +393,160 @@ function DisconnectButton({ onDone }: { onDone: () => Promise<void> | void }) {
     </>
   )
 }
+
+/**
+ * What an event's title is built from (B1) — a template over a closed set of
+ * placeholders, where a checkbox with two settings used to be.
+ *
+ * **This is the § 203 surface of the whole application**, so three things sit
+ * around the field rather than in a tooltip: the sentence that the title is
+ * all Google learns, a preview with made-up values so the practitioner reads
+ * the actual line before it exists, and the refusals — an unknown placeholder
+ * and a template that cannot produce a title are named here and cannot be
+ * saved. The server refuses the same two through
+ * `eventTitleTemplateSchema`; this is the readable half.
+ *
+ * The presets are a convenience and "Eigene Vorlage" is the escape from them.
+ * Which one is selected is *derived* from the stored template rather than
+ * remembered separately — two places holding "which preset" would eventually
+ * disagree with the text in the field.
+ */
+function EventTitleField({
+  template,
+  onSaved,
+}: {
+  template: string
+  onSaved: () => Promise<void> | void
+}) {
+  const [draft, setDraft] = useState(template)
+
+  // The stored value is the truth whenever it changes — after a save, and
+  // after a reconnect put it back to the contact number.
+  useEffect(() => setDraft(template), [template])
+
+  const save = useMutation({
+    mutationFn: (value: string) => setGoogleEventTitle(value),
+    onSuccess: async () => {
+      await onSaved()
+      toast.success(strings.google.saved)
+    },
+    onError: (error) => toast.error(message(error)),
+  })
+
+  const unknown = unknownEventTitlePlaceholders(draft)
+  const empty = isEmptyEventTitleTemplate(draft)
+  const preview = resolveEventTitle(draft, EVENT_TITLE_PREVIEW)
+  /** Saveable, but it needs a Vorgang — and an appointment can have none. The
+   *  push refuses an empty title rather than letting Google draw "(kein
+   *  Titel)", so this is worth knowing here rather than from a stuck row. */
+  const failsWithoutActivity =
+    !empty && unknown.length === 0 && resolveEventTitle(draft, EVENT_TITLE_PREVIEW_SPARSE) === ''
+  const preset = strings.google.eventTitlePresets.find((entry) => entry.template === draft)
+  const canSave = unknown.length === 0 && !empty && draft.trim() !== '' && draft !== template
+
+  return (
+    <div>
+      <span className="font-medium text-sm">{strings.google.eventTitle}</span>
+      <p className="mt-1 max-w-prose text-muted-foreground text-xs">
+        {strings.google.eventTitleLead}
+      </p>
+
+      <div className="mt-3 grid gap-3 sm:max-w-md">
+        <div>
+          <Label htmlFor="google-title-preset" className="font-normal text-xs">
+            {strings.google.eventTitlePreset}
+          </Label>
+          <Select
+            value={preset?.template ?? CUSTOM_TEMPLATE}
+            onValueChange={(value) => {
+              if (value !== CUSTOM_TEMPLATE) setDraft(value)
+            }}
+          >
+            <SelectTrigger id="google-title-preset" className="mt-1 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {strings.google.eventTitlePresets.map((entry) => (
+                <SelectItem key={entry.template} value={entry.template}>
+                  {entry.label}
+                </SelectItem>
+              ))}
+              {/* Last, and never a way *into* anything: picking it changes
+                  nothing, it is what the list says when the text below is
+                  none of the four. */}
+              <SelectItem value={CUSTOM_TEMPLATE}>{strings.google.eventTitleCustom}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="google-title-template" className="font-normal text-xs">
+            {strings.google.eventTitleTemplate}
+          </Label>
+          <Input
+            id="google-title-template"
+            className="mt-1 font-mono text-sm"
+            value={draft}
+            aria-invalid={unknown.length > 0 || empty ? true : undefined}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* The line Google will show, before it shows it. */}
+      <div className="mt-3 rounded-md border bg-muted/30 px-3 py-2 sm:max-w-md">
+        <p className="text-[11.5px] text-muted-foreground uppercase tracking-wide">
+          {strings.google.eventTitlePreview}
+        </p>
+        <p className="mt-1 font-medium text-sm">{preview}</p>
+        <p className="mt-1 text-muted-foreground text-xs">{strings.google.eventTitlePreviewHint}</p>
+      </div>
+
+      {failsWithoutActivity && (
+        <p className="mt-2 max-w-prose text-amber-700 text-xs dark:text-amber-500">
+          {strings.google.eventTitleSometimesEmpty}
+        </p>
+      )}
+
+      {unknown.length > 0 && (
+        <p className="mt-2 max-w-prose text-destructive text-xs">
+          {strings.google.eventTitleUnknown(unknown)}
+        </p>
+      )}
+      {empty && draft.trim() !== '' && (
+        <p className="mt-2 max-w-prose text-destructive text-xs">
+          {strings.google.eventTitleEmpty}
+        </p>
+      )}
+
+      <dl className="mt-3 sm:max-w-md">
+        {strings.google.eventTitlePlaceholderList.map((entry) => (
+          <div key={entry.token} className="grid grid-cols-[auto_1fr] items-baseline gap-3 py-0.5">
+            <dt className="font-mono text-muted-foreground text-xs">{entry.token}</dt>
+            <dd className="text-muted-foreground text-xs">{entry.meaning}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-1 max-w-prose text-muted-foreground text-xs">
+        {strings.google.eventTitleChainHint}
+      </p>
+
+      <div className="mt-3">
+        <Button size="sm" disabled={!canSave || save.isPending} onClick={() => save.mutate(draft)}>
+          {strings.settings.save}
+        </Button>
+      </div>
+
+      <p className="mt-3 max-w-prose text-muted-foreground text-xs">
+        {strings.google.eventTitleBare}
+      </p>
+      <p className="mt-1 max-w-prose text-muted-foreground text-xs">
+        {strings.google.eventTitleFuture} {strings.google.eventTitleReset}
+      </p>
+    </div>
+  )
+}
+
+/** The last entry of the preset list — a *label* for "none of the above",
+ *  never a value that gets stored. */
+const CUSTOM_TEMPLATE = '__custom__'

@@ -4,11 +4,12 @@ import type {
   SyncConflict,
   SyncConflictReason,
 } from '@praxi/shared'
-import { formatContactName, occupiesSlot } from '@praxi/shared'
+import { DEFAULT_EVENT_TITLE_TEMPLATE, formatContactName, occupiesSlot } from '@praxi/shared'
 import { and, asc, eq, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database, Transaction } from '../db/client.js'
 import {
   activity,
+  activityType,
   appointment,
   appointmentSyncConflict,
   contact,
@@ -178,7 +179,7 @@ async function pushRow(
   api: GoogleApi,
   row: QueueRow,
   now: Date,
-  pseudonymize: boolean,
+  titleTemplate: string,
 ): Promise<boolean> {
   try {
     if (row.operation === 'delete') {
@@ -189,7 +190,7 @@ async function pushRow(
         })
       }
     } else {
-      await pushUpsert(database, tenantId, api, row, now, pseudonymize)
+      await pushUpsert(database, tenantId, api, row, now, titleTemplate)
     }
 
     await database.delete(googleSyncQueue).where(eq(googleSyncQueue.id, row.id))
@@ -216,7 +217,7 @@ async function pushUpsert(
   api: GoogleApi,
   row: QueueRow,
   now: Date,
-  pseudonymize: boolean,
+  titleTemplate: string,
 ): Promise<void> {
   if (!row.appointmentId) return
 
@@ -227,18 +228,27 @@ async function pushUpsert(
       endsAt: appointment.endsAt,
       status: appointment.status,
       googleEventId: appointment.googleEventId,
+      appointmentTitle: appointment.title,
       contactNumber: contact.contactNumber,
-      // Only reaches the payload while `pseudonymize` is off; `buildEvent`
-      // decides, in the one function that documents why.
+      // What the title template MAY draw on — never what it does draw on.
+      // `buildEvent` decides, in the one function that documents why, and the
+      // placeholder set decides what is expressible at all.
       contactKind: contact.kind,
       firstName: contact.firstName,
       lastName: contact.lastName,
       companyName: contact.companyName,
+      activityTitle: activity.title,
+      activityType: activityType.label,
     })
     .from(appointment)
     // Left, not inner: an appointment without a contact is projected like any
     // other — as a busy interval called "Belegt", see buildEvent.
     .leftJoin(contact, eq(contact.id, appointment.contactId))
+    // Left as well, and for the sibling reason: an appointment can stand on
+    // its own since D-K1, with no Vorgang and therefore no type and no title
+    // of that kind. Both come out null and the template resolves around them.
+    .leftJoin(activity, eq(activity.appointmentId, appointment.id))
+    .leftJoin(activityType, eq(activityType.id, activity.activityTypeId))
     .where(and(eq(appointment.tenantId, tenantId), eq(appointment.id, row.appointmentId)))
     .limit(1)
 
@@ -262,7 +272,10 @@ async function pushUpsert(
             lastName: current.lastName,
             companyName: current.companyName,
           }),
-    pseudonymize,
+    activityType: current.activityType,
+    activityTitle: current.activityTitle,
+    appointmentTitle: current.appointmentTitle,
+    titleTemplate,
     startsAt: current.startsAt,
     endsAt: current.endsAt,
     status: current.status,
@@ -321,16 +334,16 @@ export async function pushQueue(
    * question from which name the connection is configured to send.
    */
   const [connection] = await database
-    .select({ pseudonymize: googleConnection.pseudonymize })
+    .select({ eventTitleTemplate: googleConnection.eventTitleTemplate })
     .from(googleConnection)
     .where(eq(googleConnection.tenantId, tenantId))
     .limit(1)
-  const pseudonymize = connection?.pseudonymize ?? true
+  const titleTemplate = connection?.eventTitleTemplate ?? DEFAULT_EVENT_TITLE_TEMPLATE
 
   let pushed = 0
   let failed = 0
   for (const row of rows) {
-    if (await pushRow(database, tenantId, api, row, now, pseudonymize)) pushed += 1
+    if (await pushRow(database, tenantId, api, row, now, titleTemplate)) pushed += 1
     else failed += 1
   }
 

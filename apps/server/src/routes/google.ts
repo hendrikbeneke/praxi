@@ -3,8 +3,8 @@ import {
   conflictResolutionSchema,
   googleCalendarSelectionSchema,
   googleDisconnectSchema,
+  googleEventTitleSchema,
   googleFreebusySelectionSchema,
-  googlePseudonymizeSchema,
 } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -18,8 +18,8 @@ import {
   saveConnection,
   setAccountEmail,
   setCalendar,
+  setEventTitleTemplate,
   setFreebusyCalendars,
-  setPseudonymize,
 } from '../domain/google-connection.js'
 import { listConflicts, resolveConflict } from '../domain/google-sync.js'
 import { openGoogleApi } from '../google/api.js'
@@ -180,10 +180,21 @@ export const googleRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
-  /** The pseudonymization switch (rule 13). Nothing is re-pushed: what stands
-   *  in Google keeps the title it went out with. */
-  .put('/pseudonymize', validate('json', googlePseudonymizeSchema), async (c) => {
-    const ok = await setPseudonymize(db(), tenantId(c), c.req.valid('json').pseudonymize)
+  /**
+   * What an event's title is built from (rule 13, B1). Nothing is re-pushed:
+   * what stands in Google keeps the title it went out with.
+   *
+   * `googleEventTitleSchema` is where an unknown placeholder is refused, and
+   * this is the only door the column has — which is what makes "nothing
+   * outside the closed set can reach Google" a property of the system rather
+   * than of the screen.
+   */
+  .put('/event-title', validate('json', googleEventTitleSchema), async (c) => {
+    const ok = await setEventTitleTemplate(
+      db(),
+      tenantId(c),
+      c.req.valid('json').eventTitleTemplate,
+    )
     if (!ok) throw new HTTPException(409, { message: messages.google.notConnected })
     return c.body(null, 204)
   })

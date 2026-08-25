@@ -25,6 +25,7 @@ import type {
   SyncConflictReason,
   TextTemplateKind,
 } from '@praxi/shared'
+import { DEFAULT_EVENT_TITLE_TEMPLATE } from '@praxi/shared'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -1786,18 +1787,24 @@ export const googleConnection = pgTable(
      *  the token carries `calendar.freebusy`, not `calendar.readonly`. */
     freebusyCalendarIds: jsonb().$type<string[]>().notNull().default([]),
     /**
-     * Whether an event's title is the contact number or the contact's name
-     * (rule 13, migration 0036). True by default: on connecting, the protected
-     * state is the right one, and switching it off is a deliberate act.
+     * What an event's title is built from (rule 13, B1/0042) — **and the title
+     * is all Google ever learns**, since the payload carries two times, one
+     * bit of status and nothing else.
+     *
+     * A template rather than the `pseudonymize` boolean of 0036, which could
+     * say "the contact number" or "the contact's name" and not "the number and
+     * what kind of appointment it is". The placeholders are a closed set
+     * (`eventTitlePlaceholders`), checked when the template is saved, so an
+     * unknown name is refused here rather than travelling to Google literally.
      *
      * It lives here and not on `practice_settings` because it means nothing
      * without a connection — and because disconnecting deletes this row, so
-     * the next connection starts pseudonymized again. That is the point rather
-     * than a side effect: a new grant can go to a different account.
+     * the next connection starts back at the contact number. That is the point
+     * rather than a side effect: a new grant can go to a different account.
      *
      * Read by `buildEvent()` and by nothing else.
      */
-    pseudonymize: boolean().notNull().default(true),
+    eventTitleTemplate: text().notNull().default(DEFAULT_EVENT_TITLE_TEMPLATE),
     /** Continuation token for `events.list`. Null forces a full pass, which is
      *  what Google asks for after it expires (410). */
     syncToken: text(),
@@ -1809,6 +1816,10 @@ export const googleConnection = pgTable(
   },
   (t) => [
     check('google_connection_fingerprint_shape', sql`${t.keyFingerprint} ~ '^[0-9a-f]{16}$'`),
+    check(
+      'google_connection_event_title_template_length',
+      sql`char_length(${t.eventTitleTemplate}) between 1 and 200`,
+    ),
   ],
 )
 

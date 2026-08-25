@@ -34,11 +34,12 @@ export const googleStatusSchema = z.object({
   /** The calendars queried for busy intervals while scheduling. */
   freebusyCalendarIds: z.array(z.string()),
   /**
-   * Whether an event's title is the contact number rather than the contact's
-   * name. True unless the practitioner turned it off; it resets to true when
-   * the connection is taken apart, because the row holding it goes with it.
+   * The template an event's title is built from (B1) — and the whole of what
+   * Google is told, since the payload carries nothing else. It resets to
+   * `{{contactNumber}}` when the connection is taken apart, because the row
+   * holding it goes with it.
    */
-  pseudonymize: z.boolean(),
+  eventTitleTemplate: z.string(),
   lastSyncAt: z.iso.datetime().nullable(),
   /** The last error from the API, as a sentence. Never a payload (rule 12). */
   lastError: z.string().nullable(),
@@ -132,14 +133,16 @@ export const googleFreebusySelectionSchema = z.object({
 })
 
 /**
- * Turning the pseudonymization off — and back on.
+ * Setting the event title template lives in `google-event-title.ts`, beside
+ * the placeholder set it validates against — `googleEventTitleSchema`.
  *
- * It only ever governs the *title* of an event; everything else rule 13 keeps
- * out stays out either way. And it only governs events written from now on:
- * what already stands in Google is not rewritten, because a rewrite could
- * never be complete — the data has long since been cached on a phone.
+ * What was here until B1 was `googlePseudonymizeSchema`, a boolean with two
+ * settings. The template replaces it, and the two properties that mattered
+ * about the boolean still hold: it governs the *title* and nothing else,
+ * everything rule 13 keeps out stays out whatever it says, and it governs
+ * events written from now on — what already stands in Google is not
+ * rewritten, because a rewrite could never be complete.
  */
-export const googlePseudonymizeSchema = z.object({ pseudonymize: z.boolean() })
 
 /**
  * Disconnecting. Whether the events in Google go with it is a decision only

@@ -1,33 +1,30 @@
+import { DEFAULT_EVENT_TITLE_TEMPLATE } from '@praxi/shared'
 import { describe, expect, it } from 'vitest'
-import { buildEvent, googleEventId } from './payload.js'
+import { buildEvent, EmptyEventTitleError, googleEventId } from './payload.js'
 
 /**
- * The pseudonymization promise, checked at the **assembled payload** and not
- * at whatever some mock chose to answer. If this file ever passes while a name
- * reaches Google under the pseudonymized setting, the test is worthless.
+ * What Google is told, checked at the **assembled payload** and not at
+ * whatever some mock chose to answer.
  *
- * Since migration 0036 the setting has two positions, so the promise is split
- * in two — and the **second half is the important one**: the switch may change
- * exactly one thing, the title, and nothing else about the payload may move
- * with it.
+ * B1 turned the title from a boolean — contact number or name — into a
+ * template, and this file changed shape with it. What it gave up is one
+ * sentence: it used to assert that the word "Erstgespräch" never appears
+ * anywhere in a payload, and the practice can now ask for exactly that. What
+ * it gained is three assertions that are harder to satisfy by accident:
+ *
+ *   1. **The template governs the title and nothing else.** Asserted across a
+ *      matrix of templates including hostile ones, by blanking `summary` and
+ *      demanding the rest be identical. That is the promise the boolean's
+ *      version made for two settings; it now holds for any string.
+ *   2. **The placeholder set is closed.** A test walks
+ *      `eventTitlePlaceholders` and pins each to the field it draws from, so a
+ *      new placeholder without an entry here fails. And an unknown name
+ *      resolves to nothing rather than reaching for a field by luck.
+ *   3. **The default is the contact number.** A practice that connects and
+ *      configures nothing sends digits.
  */
 
 const APPOINTMENT_ID = '01927b3c-4d5e-7f80-9abc-def012345678'
-
-/** Names. Out of the payload while pseudonymizing, in the title and nowhere
- *  else once that is off. */
-const NAMES = ['Testperson', 'Erika', 'Musterfirma']
-
-/** What has no business in a Google event in **either** setting. Deliberately
- *  spelled out as strings, so the assertion is the promise and not a
- *  paraphrase of it. */
-const NEVER = [
-  'Erstgespräch',
-  'Einzelsitzung',
-  'Psychotherapie',
-  'Gesprächstherapie',
-  'Ausfallhonorar',
-]
 
 /** Exactly these keys, no more. A new field on the payload type has to be
  *  added here on purpose, which is the point. */
@@ -37,83 +34,154 @@ const source = {
   appointmentId: APPOINTMENT_ID,
   contactNumber: 42,
   contactName: 'Erika Testperson',
-  pseudonymize: true,
+  activityType: 'Erstgespräch',
+  activityTitle: 'Verlaufsgespräch',
+  appointmentTitle: 'Rückruf Frau K.',
+  titleTemplate: DEFAULT_EVENT_TITLE_TEMPLATE,
   startsAt: new Date('2026-09-01T08:00:00.000Z'),
   endsAt: new Date('2026-09-01T09:00:00.000Z'),
   status: 'planned' as const,
 }
 
-describe('buildEvent, pseudonymized', () => {
-  it('carries the contact number as the title and nothing else', () => {
-    const event = buildEvent(source)
+/**
+ * The templates every structural assertion runs over — the harmless, the
+ * maximal, and one that asks for everything at once. If a payload property is
+ * supposed to hold "whatever the practice configures", it has to hold for the
+ * worst thing the practice can configure.
+ */
+const TEMPLATES = [
+  DEFAULT_EVENT_TITLE_TEMPLATE,
+  '{{contactName}}',
+  '{{contactNumber}} — {{activityType}}',
+  '{{contactName}} — {{activityType}} — {{activityTitle}}',
+  '{{activityTitle | appointmentTitle}}',
+  'Praxis {{contactNumber}}/{{contactName}}/{{activityType}}/{{appointmentTitle}}',
+]
 
-    expect(event.summary).toBe('42')
+describe('the default', () => {
+  /** A practice that connects and never opens the setting sends digits. */
+  it('is the contact number and nothing else', () => {
+    expect(buildEvent(source).summary).toBe('42')
+  })
+})
+
+describe('the template governs the title and nothing else', () => {
+  it.each(TEMPLATES)('leaves the rest of the payload untouched: %s', (titleTemplate) => {
+    const event = buildEvent({ ...source, titleTemplate })
+
     expect(Object.keys(event).sort()).toEqual(KEYS)
+    // The one assertion that carries the whole promise: blank the title and
+    // every template produces the identical event.
+    expect({ ...event, summary: '' }).toEqual({ ...buildEvent(source), summary: '' })
   })
 
-  it('contains no name, no service and no activity type', () => {
-    const serialized = JSON.stringify(buildEvent(source))
+  it.each(TEMPLATES)('carries no field a title could hide in: %s', (titleTemplate) => {
+    const serialized = JSON.stringify(buildEvent({ ...source, titleTemplate }))
 
-    for (const word of [...NAMES, ...NEVER]) {
-      expect(serialized).not.toContain(word)
-    }
-    // Nor the fields those things would travel in.
     expect(serialized).not.toContain('description')
     expect(serialized).not.toContain('attendees')
     expect(serialized).not.toContain('location')
+    expect(serialized).not.toContain('conferenceData')
   })
 })
 
 /**
- * The operator turned it off and carries the consequence. What is tested here
- * is not that the name goes out — that is one line — but that **only** the
- * name goes out: same keys, still no service, still no activity type, still no
- * description, and a contact-less appointment still says "Belegt".
+ * The set is closed, and this is what makes that a property rather than a
+ * hope: every placeholder is pinned to the field it draws from, so adding one
+ * to `eventTitlePlaceholders` without adding it here fails the suite.
  */
-describe('buildEvent, with names', () => {
-  const named = { ...source, pseudonymize: false }
+describe('the placeholders', () => {
+  const cases: [string, string][] = [
+    ['{{contactNumber}}', '42'],
+    ['{{contactName}}', 'Erika Testperson'],
+    ['{{activityType}}', 'Erstgespräch'],
+    ['{{activityTitle}}', 'Verlaufsgespräch'],
+    ['{{appointmentTitle}}', 'Rückruf Frau K.'],
+  ]
 
-  it('puts the contact name in the title', () => {
-    expect(buildEvent(named).summary).toBe('Erika Testperson')
+  it.each(cases)('%s resolves to its own field', (titleTemplate, expected) => {
+    expect(buildEvent({ ...source, titleTemplate }).summary).toBe(expected)
   })
 
-  it('changes nothing else about the payload', () => {
-    const event = buildEvent(named)
-    const serialized = JSON.stringify(event)
+  /**
+   * A name outside the set reaches nothing. It cannot arrive here — the route
+   * refuses it when the template is saved — and this asserts the second lock:
+   * even if one did, it resolves to emptiness rather than to a field it
+   * happens to resemble.
+   */
+  it('resolve nothing for a name outside the set', () => {
+    expect(() => buildEvent({ ...source, titleTemplate: '{{diagnose}}' })).toThrow(
+      EmptyEventTitleError,
+    )
+    expect(buildEvent({ ...source, titleTemplate: '{{contactNumber}} {{diagnose}}' }).summary).toBe(
+      '42',
+    )
+  })
 
+  /** The chain: first name with a value wins, and a Vorgang's own title beats
+   *  the appointment's where both exist. */
+  it('take the first of a chain that has a value', () => {
+    const chain = '{{activityTitle | appointmentTitle}}'
+
+    expect(buildEvent({ ...source, titleTemplate: chain }).summary).toBe('Verlaufsgespräch')
+    expect(buildEvent({ ...source, titleTemplate: chain, activityTitle: null }).summary).toBe(
+      'Rückruf Frau K.',
+    )
+  })
+})
+
+describe('an appointment that belongs to nobody', () => {
+  const bare = {
+    ...source,
+    contactNumber: null,
+    contactName: null,
+    activityType: null,
+    activityTitle: null,
+    appointmentTitle: 'Teambesprechung mit Frau K.',
+  }
+
+  /**
+   * A constant, whatever the template says — asked before the template is
+   * looked at. The appointment's own title is typed by the practitioner at 200
+   * characters, and "Rückruf Frau K." is exactly the sentence rule 13 exists
+   * to keep out of Google. A busy block with no content at all is all a
+   * projection owes anyone.
+   */
+  it.each(TEMPLATES)('says "Belegt" and nothing of its own: %s', (titleTemplate) => {
+    const event = buildEvent({ ...bare, titleTemplate })
+
+    expect(event.summary).toBe('Belegt')
+    expect(JSON.stringify(event)).not.toContain('Teambesprechung')
+    expect(JSON.stringify(event)).not.toContain('Frau K.')
     expect(Object.keys(event).sort()).toEqual(KEYS)
-    for (const word of NEVER) {
-      expect(serialized).not.toContain(word)
-    }
-    expect(serialized).not.toContain('description')
-    expect(serialized).not.toContain('attendees')
-    expect(serialized).not.toContain('location')
+  })
+})
 
-    // The switch touches the title and nothing beside it.
-    expect({ ...event, summary: '' }).toEqual({ ...buildEvent(source), summary: '' })
+/**
+ * A template can be valid and still come out with nothing for one particular
+ * appointment. Google would then draw the block as "(kein Titel)" — a
+ * projection quietly saying nothing, which is the worst failure here because
+ * the calendar still looks fine. Throwing puts the row in the outbox with an
+ * error the settings screen shows.
+ */
+describe('a title that comes out empty', () => {
+  it('refuses to send rather than sending nothing', () => {
+    expect(() =>
+      buildEvent({ ...source, titleTemplate: '{{activityTitle}}', activityTitle: null }),
+    ).toThrow(EmptyEventTitleError)
+  })
+
+  /** Separators alone are not a title either — "42 — " must not go out as a
+   *  dangling dash, and where the number is there it must. */
+  it('drops separators left dangling by a missing value', () => {
+    const titleTemplate = '{{contactNumber}} — {{activityType}}'
+
+    expect(buildEvent({ ...source, titleTemplate }).summary).toBe('42 — Erstgespräch')
+    expect(buildEvent({ ...source, titleTemplate, activityType: null }).summary).toBe('42')
   })
 })
 
 describe('buildEvent', () => {
-  /**
-   * An appointment that belongs to nobody has no contact number and no name,
-   * and what goes out instead is a constant — never its own title.
-   * "Teambesprechung" is harmless, "Rückruf Frau K." is not, and the
-   * difference is typed by hand at 200 characters, so the payload must not be
-   * able to tell them apart. This holds in **both** settings, which is why the
-   * switch is asked second in `summaryFor`.
-   */
-  it.each([true, false])(
-    'sends a constant for an appointment that belongs to nobody (pseudonymize: %s)',
-    (pseudonymize) => {
-      const event = buildEvent({ ...source, contactNumber: null, contactName: null, pseudonymize })
-
-      expect(event.summary).toBe('Belegt')
-      expect(JSON.stringify(event)).not.toContain('Teambesprechung')
-      expect(Object.keys(event).sort()).toEqual(KEYS)
-    },
-  )
-
   it('says confirmed while the slot is occupied and cancelled once it is free', () => {
     expect(buildEvent({ ...source, status: 'planned' }).status).toBe('confirmed')
     expect(buildEvent({ ...source, status: 'confirmed' }).status).toBe('confirmed')

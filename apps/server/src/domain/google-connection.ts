@@ -1,4 +1,5 @@
 import type { BusyInterval, GoogleDisconnectResult, GoogleStatus } from '@praxi/shared'
+import { DEFAULT_EVENT_TITLE_TEMPLATE } from '@praxi/shared'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import {
@@ -91,9 +92,9 @@ export async function getStatus(database: Database, tenantId: string): Promise<G
     accountEmail: row?.accountEmail ?? null,
     calendarId: row?.calendarId ?? null,
     freebusyCalendarIds: row?.freebusyCalendarIds ?? [],
-    // True with no connection at all: nothing is written then, and the safe
-    // answer is the one a screen should show while it waits.
-    pseudonymize: row?.pseudonymize ?? true,
+    // The contact number with no connection at all: nothing is written then,
+    // and the safe answer is the one a screen should show while it waits.
+    eventTitleTemplate: row?.eventTitleTemplate ?? DEFAULT_EVENT_TITLE_TEMPLATE,
     lastSyncAt: row?.lastSyncAt?.toISOString() ?? null,
     lastError: row?.lastError ?? null,
     queuePending: queue.pending,
@@ -139,21 +140,27 @@ export async function setCalendar(
 }
 
 /**
- * Turning the pseudonymization off, or back on.
+ * Setting what an event's title is built from.
  *
  * Nothing else happens — no re-push, no rewrite. What already stands in Google
  * keeps the title it went out with, and the settings screen says so, because a
  * rewrite could never be complete: the data has long since been cached on a
  * phone.
+ *
+ * The template is validated by `eventTitleTemplateSchema` at the route, which
+ * is where an unknown placeholder is refused. That refusal is the reason it is
+ * checked on the way *in* rather than on the way out: a `{{diagnose}}` that
+ * survived to push time would go to Google as those literal characters, and
+ * the point of a closed set is that nothing outside it can be expressed.
  */
-export async function setPseudonymize(
+export async function setEventTitleTemplate(
   database: Database,
   tenantId: string,
-  pseudonymize: boolean,
+  eventTitleTemplate: string,
 ): Promise<boolean> {
   const [row] = await database
     .update(googleConnection)
-    .set({ pseudonymize })
+    .set({ eventTitleTemplate })
     .where(eq(googleConnection.tenantId, tenantId))
     .returning({ id: googleConnection.id })
 

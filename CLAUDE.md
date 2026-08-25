@@ -391,15 +391,19 @@ Health data falls under Art. 9 GDPR and professional confidentiality under § 20
 
 The local database is the system of record. Google Calendar holds *when* the practitioner is occupied and nothing else, and it never feeds anything back except three fields.
 
-**By default, Google receives no data identifying a patient.** An event carries the contact number as its title, the two times, and one bit of status. An appointment that belongs to nobody has no number, and what stands in for it is the **constant "Belegt"** — never the appointment's own title, which the practitioner types and where "Rückruf Frau K." is exactly the sentence this rule exists to keep out. No description, no participants, no invitations, no location, no hint of a service or an activity type. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set — so a new column on `appointment` cannot leak into a payload by being spread.
+**An event carries two times, one bit of status, and a title — and the title is all Google ever learns.** No description, no participants, no invitations, no location. `buildEvent()` in `google/payload.ts` is the only place an event is assembled, its return type lists every field explicitly, and the test asserts the key set across a matrix of title templates — so a new column on `appointment` cannot leak into a payload by being spread. An appointment that belongs to nobody is answered **before the title is even looked at**, with the constant **"Belegt"** — never the appointment's own title, which the practitioner types and where "Rückruf Frau K." is exactly the sentence this rule exists to keep out.
+
+**By default it is the contact number and nothing else.** `google_connection.event_title_template` starts at `{{contactNumber}}`, which is what the `pseudonymize` boolean of migration 0036 produced in its protected position, and it resets there on disconnecting because the row holding it goes with the connection — the point rather than a side effect, since a new grant can go to a different account and "send names" is not something a new access should inherit in silence.
 
 The reason is § 203 StGB, not data-protection cosmetics: "Erstgespräch — Maria Schulz" in the calendar of a Heilpraktiker für Psychotherapie discloses that this person is in psychotherapeutic treatment, and Google signs no Verpflichtungserklärung under § 203 Abs. 4.
 
-**The operator can switch it off**, and then the title is the contact's name — `google_connection.pseudonymize`, migration 0036, a checkbox in the Google settings labelled as what ticking it *does* rather than as "pseudonymize", so nothing has to be inverted while reading. Two sentences stand under it: that the names then travel in clear, and that judging whether that is lawful in this practice is the operator's own; and that the setting governs *future* events, because what already stands in Google is not rewritten. It is off by default and it resets on disconnecting, since the row holding it goes with the connection — which is the point rather than a side effect, because a new grant can go to a different account and "send names" is not something a new access should inherit in silence.
+**The operator decides what else goes, out of a closed set** (B1, migration 0042). The title is a template over `eventTitlePlaceholders` in `packages/shared/src/google-event-title.ts` — contact number, contact name, activity type, activity title, appointment title, with `{{a | b}}` taking the first that has a value. "42 — Erstgespräch" is one setting away; `{{diagnose}}` is not expressible at all, because **an unknown name is refused when the template is saved** rather than travelling to Google as those literal characters. That refusal is on the way *in* on purpose, and it is where this differs from the mail templates, which leave an unknown placeholder standing for the sender to notice: a mail is read once before it goes, a calendar title is written by a background worker to a third party and never read again.
 
-**The switch governs the title and nothing else**, in either position. Everything the paragraph above keeps out stays out both ways, and the test says so: two describes, and the second is the one that matters — same key set, still no service, still no activity type, still no description, and a contact-less appointment still says "Belegt".
+Two more things sit around the field, because this is the § 203 surface of the whole application: the sentence that the title is all Google learns, and a **preview with made-up values** — one full, one for an appointment with no Vorgang, so a template that needs one is flagged before a queue row gets stuck on it. A resolved title that comes out **empty is a failure, not an empty title**: Google would draw "(kein Titel)", which is a projection quietly saying nothing, and a quiet malfunction is the worst kind here because the calendar still looks right. `buildEvent` throws, the outbox keeps the row, the settings screen shows the error.
 
-**What this is not is a rule derived from roles.** "Pseudonymize the patients" was refused twice over, and the second reason is the stronger one: a rule without an exception can be tested as an absolute — a switch keeps that, it simply has two settings, each testable on its own — and *roles change retroactively while written events do not*. A prospect becomes a patient, and the events that went out under their name are still sitting there; keying off a role would need a rewrite mechanism that could never be complete, because the data has long since been cached on a phone. The switch shares that property, which is exactly why it too only governs what is written from now on and why the screen says so. Both reasons stand as a comment at the top of `payload.ts`.
+**The template governs the title and nothing else**, whatever it says, and the test is built to say so: every structural assertion runs over a matrix of templates including hostile ones, and the one that carries the promise blanks `summary` and demands the rest of the payload be identical across all of them. B1 gave up exactly one older assertion — that the word "Erstgespräch" never appears in a payload, which the practice can now ask for — and gained three that are harder to satisfy by accident: that shape invariance, that the placeholder set is closed (a test walks the list and pins each name to the field it draws from, so a new one without an entry fails), and that the default is the contact number.
+
+**What this is not is a rule derived from roles.** "Pseudonymize the patients" was refused twice over, and the second reason is the stronger one: a rule without an exception can be tested as an absolute — a setting keeps that, because what is asserted is the *shape* of the payload however the title reads — and *roles change retroactively while written events do not*. A prospect becomes a patient, and the events that went out under their name are still sitting there; keying off a role would need a rewrite mechanism that could never be complete, because the data has long since been cached on a phone. The template shares that property, which is exactly why it too only governs what is written from now on and why the screen says so. Both reasons stand as a comment at the top of `payload.ts`.
 
 The read side asks `freebusy.query` for busy intervals, which are painted while scheduling and never stored. What makes that a guarantee rather than a promise is the **scope**: `calendar.freebusy`, never `calendar.readonly`. Do not widen it. The concrete temptation will be "we cannot show the calendar names otherwise" — `calendar.calendarlist.readonly` shows names and no content, and no feature in this software needs to read an appointment title. There is no identity scope either: the connected account's address is the id of its primary calendar, so `openid email` would buy a second consent line for something already in hand. Three scopes, all three about calendars, asserted exactly in `google/oauth.test.ts` — a promise that lives only in a comment is one refactor away from being gone.
 
@@ -1715,7 +1719,7 @@ payment               tenant_id uuid not null -> tenant(id),
                       -- these rows mean is invoicePaymentState() in
                       -- packages/shared, computed on read and never stored.
 
--- as built (slice 9)
+-- as built (slice 9, title template in B1)
 google_connection     tenant_id uuid not null unique -> tenant(id),
                       account_email text,                     -- the
                         -- practitioner's own account, so the settings can say
@@ -1737,24 +1741,40 @@ google_connection     tenant_id uuid not null unique -> tenant(id),
                       freebusy_calendar_ids jsonb not null default '[]',
                         -- string[]. Their content is never read: the token
                         -- carries calendar.freebusy, not calendar.readonly.
-                      pseudonymize boolean not null default true (D-R2/0036)
-                        -- whether an event's title is the contact number or
-                        -- the contact's name. Read by buildEvent() and by
-                        -- nothing else; it governs the TITLE and nothing
-                        -- besides, in either position.
+                      event_title_template text not null
+                        default '{{contactNumber}}'             (B1/0042)
+                        check google_connection_event_title_template_length
+                          (char_length between 1 and 200)
+                        -- What an event's TITLE is built from, and the title
+                        -- is all Google ever learns. Read by buildEvent() and
+                        -- by nothing else.
+                        --
+                        -- A template over a CLOSED set of placeholders
+                        -- (eventTitlePlaceholders in packages/shared) —
+                        -- {{contactNumber}}, {{contactName}}, {{activityType}},
+                        -- {{activityTitle}}, {{appointmentTitle}}, with
+                        -- {{a | b}} taking the first that has a value. An
+                        -- unknown name is refused when the template is SAVED,
+                        -- so `{{diagnose}}` cannot exist here at all, let alone
+                        -- reach Google as those literal characters.
+                        --
+                        -- Replaced the `pseudonymize` boolean of D-R2/0036,
+                        -- which could say "contact number" or "contact name"
+                        -- and nothing in between. The default is what that
+                        -- boolean's protected position produced.
                         --
                         -- Here rather than on practice_settings for three
                         -- reasons: it means nothing without a connection;
                         -- getPracticeSettings answers with the whole row, so
-                        -- the switch would land in the master data form, far
-                        -- from the two sentences that explain it; and
+                        -- the setting would land in the master data form, far
+                        -- from the sentences that explain it; and
                         -- disconnecting DELETES this row, so the next
-                        -- connection starts pseudonymized again. The third is
-                        -- the point rather than a side effect — a new grant
-                        -- can go to a different account, and "send names" is
-                        -- not something a new access should inherit in
+                        -- connection starts back at the contact number. The
+                        -- third is the point rather than a side effect — a new
+                        -- grant can go to a different account, and "send names"
+                        -- is not something a new access should inherit in
                         -- silence. The settings say that, or finding the
-                        -- switch back on would be a puzzle.
+                        -- template reset would be a puzzle.
                       sync_token text,                        -- events.list
                         -- continuation; null forces a full pass, which is what
                         -- Google asks for after it expires (410)

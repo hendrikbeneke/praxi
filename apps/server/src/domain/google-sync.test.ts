@@ -16,7 +16,7 @@ import { activityTypeId, createTenant } from '../test/fixtures.js'
 import { createActivity, deleteActivity, updateActivity } from './activity.js'
 import { updateAppointment } from './appointment.js'
 import { createContact } from './contact.js'
-import { disconnect, setPseudonymize } from './google-connection.js'
+import { disconnect, setEventTitleTemplate } from './google-connection.js'
 import {
   listConflicts,
   pullRemote,
@@ -237,12 +237,12 @@ describe('pushing', () => {
   /**
    * The wiring, not the decision — that one lives in `payload.test.ts`. What
    * could break here without either of them noticing is `pushQueue` reading
-   * the connection at all: with the flag never fetched, the switch would sit
-   * in the settings looking effective and change nothing.
+   * the connection at all: with the template never fetched, the setting would
+   * sit in the settings screen looking effective and change nothing.
    */
-  it('sends the name once the pseudonymization is switched off', async () => {
+  it('sends what the configured template says', async () => {
     await connect()
-    await setPseudonymize(db(), tenantId, false)
+    await setEventTitleTemplate(db(), tenantId, '{{contactName}}')
     const recorder = fakeApi()
 
     await createActivity(
@@ -253,11 +253,33 @@ describe('pushing', () => {
     await pushQueue(db(), tenantId, recorder.api, NOW)
 
     expect(recorder.inserted[0]?.summary).toBe('Erika Testperson')
-    // And still nothing else: the switch governs the title alone.
+    // And still nothing else: the template governs the title alone.
     const serialized = JSON.stringify(recorder.inserted[0])
     expect(serialized).not.toContain('Erstgespräch')
     expect(serialized).not.toContain('Nur intern')
-    expect(serialized).not.toContain('session')
+  })
+
+  /**
+   * The other half of the same wiring, and the one B1 added: the activity type
+   * and the two title fields have to *reach* `buildEvent`, which means the
+   * push query joins `activity` and `activity_type`. Without the join the
+   * template would silently resolve them to nothing and the title would come
+   * out as the number alone — or, for a template made only of them, the row
+   * would fail with an empty title and nobody would guess why.
+   */
+  it('reaches the activity type and title the template asks for', async () => {
+    await connect()
+    await setEventTitleTemplate(db(), tenantId, '{{contactNumber}} — {{activityType}}')
+    const recorder = fakeApi()
+
+    await createActivity(
+      db(),
+      tenantId,
+      booking('2026-09-02T08:00:00.000Z', '2026-09-02T09:00:00.000Z'),
+    )
+    await pushQueue(db(), tenantId, recorder.api, NOW)
+
+    expect(recorder.inserted[0]?.summary).toBe('1 — Folgesitzung')
   })
 
   it('sends a released slot as a cancelled event, not as a deletion', async () => {
