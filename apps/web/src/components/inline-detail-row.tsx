@@ -80,6 +80,15 @@ export function useInlineDetail(initialOpenId?: string | undefined) {
  * 0` makes this cell ask for nothing, and `min-width: 100%` then fills whatever
  * the list's own rows settled on — the `sm:grid` inside collapses to one column
  * instead of the card overflowing.
+ *
+ * **And `[&:has([role=checkbox])]:pr-4` puts back the padding shadcn takes
+ * away.** `TableCell` carries `[&:has([role=checkbox])]:pr-0` for the selection
+ * column of a data table, where the cell *is* a checkbox and should sit tight
+ * against the edge. But `:has()` looks at the whole subtree, so any detail form
+ * with a checkbox anywhere in it — "Standard", "Aktiv", "Als Reiter" — lost the
+ * cell's right padding and ran into the card's border. Every catalogue's edit
+ * form has one; the Mailvorlagen and the Textbausteine are only where it was
+ * noticed first.
  */
 export function InlineDetailRow({
   colSpan,
@@ -92,7 +101,10 @@ export function InlineDetailRow({
 }) {
   return (
     <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={colSpan} className={cn('whitespace-normal bg-muted/30 p-4', className)}>
+      <TableCell
+        colSpan={colSpan}
+        className={cn('whitespace-normal bg-muted/30 p-4 [&:has([role=checkbox])]:pr-4', className)}
+      >
         <div className="w-0 min-w-full">{children}</div>
       </TableCell>
     </TableRow>
