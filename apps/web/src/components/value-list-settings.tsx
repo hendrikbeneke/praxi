@@ -398,7 +398,10 @@ export function CountrySettings() {
                         if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
                       }}
                     />
+                    {/* Compact: this one stands beside the arrows inside a
+                        table cell, where the word would not fit. */}
                     <DeleteButton
+                      compact
                       disabled={false}
                       onConfirm={() => remove.mutate(entry.id)}
                       title={strings.valueList.deleteCountryTitle}

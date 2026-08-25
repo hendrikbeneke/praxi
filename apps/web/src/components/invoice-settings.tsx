@@ -5,16 +5,27 @@ import {
   numberRangeCodes,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileUp, Pencil } from 'lucide-react'
+import { FileUp, Pencil, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { DASH } from '@/components/list-card'
-import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ApiError } from '@/lib/api'
 import {
+  deleteInvoiceTemplate,
   invoiceTemplatePagesQueryOptions,
   invoiceTemplateUrl,
   numberRangeListQueryOptions,
@@ -43,11 +54,20 @@ export function InvoiceSettings() {
   )
 }
 
-/** The prototype's column widths: the name takes the rest, the four values are
- *  fixed, and the action column is as wide as its button (K4). Header and rows
- *  share it so they cannot drift. */
+/**
+ * The prototype's column widths: the name takes the rest, the four values are
+ * fixed, and the action column is fixed too (K4).
+ *
+ * **Fixed, and that is the fix** (B1, K1). It was `auto`, and the heading row
+ * and every data row are *separate grid containers* that each resolve `auto`
+ * and `1fr` for themselves — so pressing "Bearbeiten" swapped one button for
+ * two, that row's last column grew, its `1fr` first column shrank to pay for
+ * it, and the four value columns slid left out from under the headings that
+ * name them. 168px holds "Abbrechen" beside "Speichern", which is the widest
+ * the column ever gets.
+ */
 const RANGE_GRID =
-  'grid grid-cols-[minmax(150px,1fr)_108px_88px_128px_132px_auto] items-center gap-x-4'
+  'grid grid-cols-[minmax(150px,1fr)_108px_88px_128px_132px_168px] items-center gap-x-4'
 
 /**
  * The number ranges as one table — a row per range, not a stacked form per range
@@ -231,7 +251,7 @@ function NumberRangeRow({
       </span>
 
       {editing ? (
-        <span className="flex gap-1">
+        <span className="flex justify-end gap-1">
           {exists && (
             <Button
               size="sm"
@@ -254,10 +274,12 @@ function NumberRangeRow({
           </Button>
         </span>
       ) : (
-        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-          <Pencil className="size-4" aria-hidden />
-          {strings.actions.edit}
-        </Button>
+        <span className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+            <Pencil className="size-4" aria-hidden />
+            {strings.actions.edit}
+          </Button>
+        </span>
       )}
     </div>
   )
@@ -281,6 +303,17 @@ function Letterhead() {
   const pages = useQuery({
     ...invoiceTemplatePagesQueryOptions,
     enabled: settings.data?.invoiceTemplateSet === true,
+  })
+
+  const remove = useMutation({
+    mutationFn: () => deleteInvoiceTemplate(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      toast.success(strings.invoice.letterheadRemoved)
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : strings.error.generic)
+    },
   })
 
   const upload = useMutation({
@@ -309,23 +342,15 @@ function Letterhead() {
       <CardContent>
         <p className="text-muted-foreground text-sm">{strings.invoice.letterheadHint}</p>
 
-        <p className="mt-4 text-sm">
-          {stored ? (
-            <>
-              <Badge variant="secondary">
-                {pages.data === 1
-                  ? strings.invoice.letterheadOnePage
-                  : strings.invoice.letterheadTwoPages}
-              </Badge>
-              <span className="ml-2 text-muted-foreground">
-                {pages.data === 1
-                  ? strings.invoice.letterheadOnePageHint
-                  : strings.invoice.letterheadTwoPagesHint}
-              </span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">{strings.invoice.letterheadNone}</span>
-          )}
+        {/* One sentence, not a chip beside a sentence that repeats it (B1,
+            J2). The page count is the whole content of this line — the two
+            cases it decides are spelled out in the hint above. */}
+        <p className="mt-4 text-muted-foreground text-sm">
+          {stored
+            ? pages.data === 1
+              ? strings.invoice.letterheadOnePageStored
+              : strings.invoice.letterheadTwoPagesStored
+            : strings.invoice.letterheadNone}
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -355,6 +380,38 @@ function Letterhead() {
                 {strings.invoice.letterheadShow}
               </a>
             </Button>
+          )}
+
+          {/* B1, J3: there was no way back to white paper — replacing was the
+              only thing offered, so a letterhead uploaded by mistake stayed
+              behind every invoice. */}
+          {stored && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  disabled={remove.isPending}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  {strings.invoice.letterheadRemove}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{strings.invoice.letterheadRemoveTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {strings.invoice.letterheadRemoveBody}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{strings.actions.cancel}</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>
+                    {strings.actions.delete}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </CardContent>

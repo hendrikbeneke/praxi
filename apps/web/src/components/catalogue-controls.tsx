@@ -99,34 +99,56 @@ export function ActiveStatus({ active }: { active: boolean }) {
   )
 }
 
+/**
+ * Deleting looks like deleting, everywhere (B1, convention A1/A2).
+ *
+ * Two halves, and the second is the one that was missing. **The trigger** is a
+ * bin *and the word* "Löschen", both in `--destructive` — a bare grey pictogram
+ * asks the reader to know what it does before they find out, and it sat beside
+ * "Bearbeiten" and "Schließen", which are words. **The confirming button in the
+ * dialog** is destructive too: a dialog that asks "Vorlage löschen?" and offers
+ * the answer in the same dark as every "Speichern" makes the safe and the
+ * irreversible reply look alike.
+ *
+ * `compact` drops the word for a row that has no space for it — the country
+ * list, where the button stands beside the arrows inside a table cell. The
+ * colour stays; the `aria-label` carries the word for anyone not reading
+ * pixels.
+ */
 export function DeleteButton({
   disabled,
   hint,
   title,
   body,
+  compact = false,
   onConfirm,
 }: {
   disabled: boolean
   hint?: string | undefined
   title: string
   body: string
+  compact?: boolean
   onConfirm: () => void
 }) {
-  if (disabled) {
-    return (
-      <Button variant="ghost" size="icon" disabled title={hint} aria-label={strings.actions.delete}>
-        <Trash2 className="size-4" aria-hidden />
-      </Button>
-    )
-  }
+  const trigger = (
+    <Button
+      variant="ghost"
+      size={compact ? 'icon' : 'sm'}
+      disabled={disabled}
+      title={disabled ? hint : undefined}
+      aria-label={strings.actions.delete}
+      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+    >
+      <Trash2 className="size-4" aria-hidden />
+      {!compact && strings.actions.delete}
+    </Button>
+  )
+
+  if (disabled) return trigger
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={strings.actions.delete}>
-          <Trash2 className="size-4" aria-hidden />
-        </Button>
-      </AlertDialogTrigger>
+      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -134,7 +156,9 @@ export function DeleteButton({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{strings.actions.cancel}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>{strings.actions.delete}</AlertDialogAction>
+          <AlertDialogAction variant="destructive" onClick={onConfirm}>
+            {strings.actions.delete}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

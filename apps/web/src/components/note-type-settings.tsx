@@ -187,9 +187,13 @@ export function NoteTypeSettings() {
           </Table>
         )}
       </ListCard>
-      {/* The sentence the list itself raises: without a type no note can be
-          written, and the first entry is what a new note starts on. */}
-      <p className="mt-3 text-muted-foreground text-sm">{strings.noteType.footer}</p>
+      {/* Only while the list is empty (B1, F2). The sentence names a
+          restriction, and with types configured the restriction does not
+          apply — a standing explanation of a case that is not the case is
+          noise under every card. */}
+      {rows.length === 0 && (
+        <p className="mt-3 text-muted-foreground text-sm">{strings.noteType.footerEmpty}</p>
+      )}
     </>
   )
 }

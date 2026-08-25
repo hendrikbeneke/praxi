@@ -1,6 +1,7 @@
 import {
   type Activity,
   activityLabel,
+  activityTypeColor,
   activityTypeLabel,
   ageInYears,
   type CalendarEntry,
@@ -20,6 +21,7 @@ import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { FileText, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
+import { ColorSwatch } from '@/components/activity-type-settings'
 import { ContactRelations } from '@/components/contact-relations'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -227,6 +229,7 @@ function ActivitySummary({
   const past = useInfiniteQuery(pastActivitiesQueryOptions({ contactId }))
   const activityLabelOf = useActivityLabel()
   const entryLabelOf = useEntryLabel()
+  const entryColorOf = useEntryColor()
   const now = new Date()
 
   const last = past.data?.pages[0]?.items[0]
@@ -242,17 +245,12 @@ function ActivitySummary({
           {next.isPending ? (
             <Pending />
           ) : next.data ? (
-            <>
-              {/* The one number this card is opened for, so the design sets it
-                  large. The day carries no year and does not need one: the
-                  relative line beside it says which week is meant. */}
-              <p className="mt-1 font-semibold text-[19px] tracking-[-0.015em] tabular-nums">
-                {formatBerlinDayTime(next.data.startsAt)}
-              </p>
-              <p className="text-[13px] text-muted-foreground">
-                {formatRelativeDayBerlin(next.data.startsAt, now)} · {entryLabelOf(next.data)}
-              </p>
-            </>
+            <NextAppointment
+              entry={next.data}
+              now={now}
+              color={entryColorOf(next.data)}
+              label={entryLabelOf(next.data)}
+            />
           ) : (
             <p className="mt-1 text-muted-foreground">{strings.contact.noNextAppointment}</p>
           )}
@@ -292,6 +290,52 @@ function ActivitySummary({
  * back to the contact's name, which inside the contact's own record would say
  * nothing at all.
  */
+/**
+ * The next appointment's two lines. Its own component only so the colour is
+ * resolved once and narrows — a `null` check on a function call does not.
+ */
+function NextAppointment({
+  entry,
+  now,
+  color,
+  label,
+}: {
+  entry: CalendarEntry
+  now: Date
+  color: string | null
+  label: string
+}) {
+  return (
+    <>
+      {/* The one number this card is opened for, so the design sets it large.
+          The day carries no year and does not need one: the relative line
+          beside it says which week is meant. */}
+      <p className="mt-1 font-semibold text-[19px] tracking-[-0.015em] tabular-nums">
+        {formatBerlinDayTime(entry.startsAt)}
+      </p>
+      {/* The colour of the activity type in front of it, as every other screen
+          puts it (B1, N1). A bare appointment has no type and therefore no dot
+          — there is no colour for one to stand for. */}
+      <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+        {color !== null && <ColorSwatch color={color} />}
+        <span>
+          {formatRelativeDayBerlin(entry.startsAt, now)} · {label}
+        </span>
+      </p>
+    </>
+  )
+}
+
+/** The colour the calendar paints this entry in, or null where there is no
+ *  activity type to take one from — a bare appointment (B1, N1). Its own hook
+ *  beside `useEntryLabel` rather than a second return value, because the two
+ *  answer different questions and one of them can answer "nothing". */
+function useEntryColor(): (entry: CalendarEntry) => string | null {
+  const types = useQuery(activityTypeListQueryOptions(true))
+  return (entry) =>
+    entry.activityType === null ? null : activityTypeColor(types.data, entry.activityType)
+}
+
 function useEntryLabel(): (entry: CalendarEntry) => string {
   const types = useQuery(activityTypeListQueryOptions(true))
   return (entry) =>

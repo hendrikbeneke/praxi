@@ -10,6 +10,7 @@ import {
   replaceOpeningHours,
 } from '../domain/opening-hour.js'
 import {
+  clearInvoiceTemplate,
   getPracticeSettings,
   invoiceTemplatePath,
   loadInvoiceTemplate,
@@ -135,6 +136,14 @@ export const settingsRoute = new Hono<AppEnv>()
     const pages = template ? await assertUsableTemplate(template).catch(() => null) : null
 
     return c.json({ pages })
+  })
+
+  /** Takes the letterhead away; invoices then print on white paper (B1, J3).
+   *  Idempotent — removing one that is not there is the state being asked
+   *  for, not an error. */
+  .delete('/invoice-template', async (c) => {
+    await clearInvoiceTemplate(db(), tenantId(c), fileStore())
+    return c.body(null, 204)
   })
 
   .get('/invoice-template', async (c) => {

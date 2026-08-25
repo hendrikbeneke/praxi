@@ -1904,6 +1904,12 @@ If a slice reveals that a table built earlier was wrong, say so instead of worki
   changed bullet marker is a changed bullet marker and nothing more. Two such rewrites are
   configured away anyway, because they would touch every note that already exists on its first
   save: `bullet: '-'` and `rule: '-'` in `NOTE_STRINGIFY_OPTIONS`.
+- **Deleting looks like deleting** (B1). A control that removes something for good carries the bin *and the word* "Löschen", both in `--destructive`, and the confirming button in the dialog it opens is `variant="destructive"` too. Both halves matter for the same reason: a bare grey pictogram asks the reader to know what it does before they find out, and a dialog that asks "Vorlage löschen?" and offers the answer in the same dark as every "Speichern" makes the safe and the irreversible reply look alike. `DeleteButton` in `catalogue-controls.tsx` is where this lives for every catalogue; `compact` drops the word for a row that has no space for it — the colour and the `aria-label` stay.
+
+  This is about *removal*, not about weight. Locking a note is irreversible and stays neutral: it adds a state, it takes nothing away. Cancelling an invoice is the one deliberate stretch — it produces a document rather than deleting one, but it is the heaviest irreversible act in the software, so its confirmation is red while its trigger is not.
+
+- **An X takes out of a list, a bin deletes** (B1). The X on an invoice position, on an activity's item, on a service inside a group, on a service in an activity type's preset: all of those leave the catalogue entry standing and only remove it from *here*. The bin is for the row that ceases to exist. Both directions have been got wrong — a bin sat on the activity type's preset where the service obviously survives, and an X sat on a note's attachment where the file is deleted from disk and the upload was the only copy.
+
 - Conventional Commits, in English, one commit per slice — made before the report goes out (see "How we work"), not after.
 
 **A list offers broadly and starts narrow.** The contact list carries fourteen columns and shows five; what a practice wants in its card index is its own business, and a list that opens with everything answers a question nobody asked. Which columns are on, and in what order, is one flat key in `app_user.preferences` per list (`contactListColumns`), reordered by dragging the row's grip — **and by the arrow keys on that grip**, because dragging alone is not a feature for everyone who has to use it.

@@ -551,7 +551,7 @@ export function InvoiceDetail({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => cancel.mutate()}>
+                      <AlertDialogAction variant="destructive" onClick={() => cancel.mutate()}>
                         {strings.invoice.cancelConfirm}
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -563,7 +563,11 @@ export function InvoiceDetail({
                 <>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" disabled={discard.isPending}>
+                      <Button
+                        variant="ghost"
+                        disabled={discard.isPending}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
                         {strings.invoice.discard}
                       </Button>
                     </AlertDialogTrigger>
@@ -576,7 +580,7 @@ export function InvoiceDetail({
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>{strings.actions.back}</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => discard.mutate()}>
+                        <AlertDialogAction variant="destructive" onClick={() => discard.mutate()}>
                           {strings.invoice.discard}
                         </AlertDialogAction>
                       </AlertDialogFooter>

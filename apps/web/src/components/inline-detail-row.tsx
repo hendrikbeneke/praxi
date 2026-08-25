@@ -56,9 +56,31 @@ export function useInlineDetail(initialOpenId?: string | undefined) {
   }
 }
 
-/** The detail row itself — a `TableRow` with one cell spanning every column
- *  of the list above it. Hover styling is switched off: this row is not
- *  another list entry to click. */
+/**
+ * The detail row itself — a `TableRow` with one cell spanning every column
+ * of the list above it. Hover styling is switched off: this row is not
+ * another list entry to click.
+ *
+ * **`whitespace-normal` and `w-0 min-w-full` are load-bearing, not tidying**
+ * (B1, C3/D1/H2). Three reported bugs, one cause each, in the same cell:
+ * "Bezeichnung" and "Dauer" half outside the card in the Vorgangsarten, the
+ * explanatory sentence cut off in the Beziehungsarten, and a Name field in the
+ * Mailvorlagen that looked like it had lost its right-hand padding when it was
+ * in fact cut at a scroll edge.
+ *
+ * `whitespace-normal` is the one that actually did it. `TableCell` carries
+ * `whitespace-nowrap` — right for a list row, where a wrapped cell would make
+ * the rows different heights — and every paragraph and form inside the detail
+ * inherited it. Sentences ran on in one line until the card clipped them, and
+ * *that* is what pushed the table wide enough to scroll.
+ *
+ * `w-0 min-w-full` settles the width the other way round, and is worth keeping
+ * beside it: a table sizes its columns from what its cells contain, so a form
+ * whose min-content is wider than the list would still drive the table. `width:
+ * 0` makes this cell ask for nothing, and `min-width: 100%` then fills whatever
+ * the list's own rows settled on — the `sm:grid` inside collapses to one column
+ * instead of the card overflowing.
+ */
 export function InlineDetailRow({
   colSpan,
   className,
@@ -70,8 +92,8 @@ export function InlineDetailRow({
 }) {
   return (
     <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={colSpan} className={cn('bg-muted/30 p-4', className)}>
-        {children}
+      <TableCell colSpan={colSpan} className={cn('whitespace-normal bg-muted/30 p-4', className)}>
+        <div className="w-0 min-w-full">{children}</div>
       </TableCell>
     </TableRow>
   )

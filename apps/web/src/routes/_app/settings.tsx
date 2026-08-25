@@ -267,10 +267,7 @@ function PracticeForm() {
           )}
         </CardHeader>
         <CardContent>
-          <Section
-            title={strings.settings.sectionPractice}
-            hint={strings.settings.practiceHintSection}
-          >
+          <Section title={strings.settings.sectionPractice}>
             <SectionField span={12}>
               <Field
                 id="practiceName"
@@ -283,10 +280,7 @@ function PracticeForm() {
             </SectionField>
           </Section>
 
-          <Section
-            title={strings.settings.sectionAddress}
-            hint={strings.settings.addressHintSection}
-          >
+          <Section title={strings.settings.sectionAddress}>
             <SectionField span={12}>
               <Field
                 id="street"
@@ -307,7 +301,7 @@ function PracticeForm() {
                 {...form.register('postalCode')}
               />
             </SectionField>
-            <SectionField span={5}>
+            <SectionField span={3}>
               <Field
                 id="city"
                 editing={editing}
@@ -317,7 +311,7 @@ function PracticeForm() {
                 {...form.register('city')}
               />
             </SectionField>
-            <SectionField span={4}>
+            <SectionField span={6}>
               {/* NOT the contact catalogue: the practice's own country is a
                   system property — which law applies hangs on it — so the set
                   is `practiceCountries`, given in a commit and not configurable
@@ -348,10 +342,7 @@ function PracticeForm() {
             </SectionField>
           </Section>
 
-          <Section
-            title={strings.settings.sectionContact}
-            hint={strings.settings.contactHintSection}
-          >
+          <Section title={strings.settings.sectionContact}>
             <SectionField span={6}>
               <Field
                 id="phone"
@@ -386,10 +377,7 @@ function PracticeForm() {
             </SectionField>
           </Section>
 
-          <Section
-            title={strings.settings.sectionBanking}
-            hint={strings.settings.bankingHintSection}
-          >
+          <Section title={strings.settings.sectionBanking}>
             <SectionField span={12}>
               <Field
                 id="bankName"
@@ -400,7 +388,7 @@ function PracticeForm() {
                 {...form.register('bankName')}
               />
             </SectionField>
-            <SectionField span={7}>
+            <SectionField span={6}>
               <Field
                 id="iban"
                 editing={editing}
@@ -410,7 +398,7 @@ function PracticeForm() {
                 {...form.register('iban')}
               />
             </SectionField>
-            <SectionField span={5}>
+            <SectionField span={6}>
               <Field
                 id="bic"
                 editing={editing}
@@ -422,7 +410,7 @@ function PracticeForm() {
             </SectionField>
           </Section>
 
-          <Section title={strings.settings.sectionTaxes} hint={strings.settings.taxesHintSection}>
+          <Section title={strings.settings.sectionTaxes}>
             <SectionField span={6}>
               <Field
                 id="taxNumber"
@@ -449,10 +437,7 @@ function PracticeForm() {
               "Rechnungsstellung" panel where D4 had moved it. Safe since D4: the
               route is a PATCH and this form sends only the fields it renders, so
               saving it cannot touch a column it does not show. */}
-          <Section
-            title={strings.settings.sectionInvoicingPreset}
-            hint={strings.settings.invoicingPresetHintSection}
-          >
+          <Section title={strings.settings.sectionInvoicingPreset}>
             <SectionField span={3}>
               <Field
                 id="defaultPaymentTermDays"

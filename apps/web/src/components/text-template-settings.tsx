@@ -39,6 +39,7 @@ import {
   updateTextTemplate,
 } from '@/lib/invoices'
 import { strings } from '@/lib/strings'
+import { cn } from '@/lib/utils'
 
 /**
  * Intro and outro text blocks (rule 8's text templates), a settings section
@@ -124,17 +125,37 @@ export function TextTemplateSettings() {
           {templates.isPending ? strings.status.loading : strings.invoice.templateEmpty}
         </p>
       ) : (
-        textTemplateKinds.map((kind) => {
-          const kindRows = rows.filter((template) => template.kind === kind)
-          if (kindRows.length === 0) return null
+        /* ONE table for both kinds, and that is the fix (B1, G1/G2).
+           Einleitung and Schluss used to be a `<Table>` each, so each computed
+           its own column widths from its own rows — three entries, and the
+           status dot stood at two different x positions. A group heading is a
+           row inside this one table now, spanning every column, which also
+           gives it the space and the line the two blocks needed to be told
+           apart at a glance. */
+        <Table>
+          <TableBody>
+            {textTemplateKinds.map((kind, kindIndex) => {
+              const kindRows = rows.filter((template) => template.kind === kind)
+              if (kindRows.length === 0) return null
 
-          return (
-            <div key={kind} className="border-b last:border-b-0">
-              <p className="px-4 pt-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                {strings.invoice.templateKinds[kind]}
-              </p>
-              <Table>
-                <TableBody>
+              return (
+                <Fragment key={kind}>
+                  {/* The heavier line is what separates the two blocks; the
+                      first heading needs none, the title bar is right above
+                      it. `kindIndex` and not `first:`, which on a cell that is
+                      always its row's first child would match every time. */}
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={3}
+                      className={cn(
+                        'bg-muted/40 px-4 pt-3 pb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide',
+                        kindIndex > 0 && 'border-t-2',
+                      )}
+                    >
+                      {strings.invoice.templateKinds[kind]}
+                    </TableCell>
+                  </TableRow>
+
                   {kindRows.map((template, index) => (
                     <Fragment key={template.id}>
                       <TableRow
@@ -205,9 +226,14 @@ export function TextTemplateSettings() {
                                   />
                                 )}
                               </dl>
-                              <p className="max-w-prose whitespace-pre-wrap text-sm">
-                                {template.body}
-                              </p>
+                              <div>
+                                <span className="text-muted-foreground text-[11.5px] uppercase tracking-wide">
+                                  {strings.invoice.templateBody}
+                                </span>
+                                <p className="mt-1 max-w-prose whitespace-pre-wrap text-sm">
+                                  {template.body}
+                                </p>
+                              </div>
                               <div className="flex flex-wrap items-center gap-2 border-t pt-4">
                                 <Button size="sm" variant="outline" onClick={detail.startEditing}>
                                   {strings.actions.edit}
@@ -228,11 +254,11 @@ export function TextTemplateSettings() {
                       )}
                     </Fragment>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
-          )
-        })
+                </Fragment>
+              )
+            })}
+          </TableBody>
+        </Table>
       )}
     </ListCard>
   )

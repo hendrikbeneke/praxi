@@ -119,7 +119,13 @@ export function OpeningHoursSettings() {
 
                   {editing &&
                     ofDay.map((window) => (
-                      <div key={window.key} className="flex flex-wrap items-center gap-2">
+                      /* `items-start`, not `items-center` (B1, M1): a
+                         complaint under the second field used to re-centre the
+                         whole row, so the first field and the dash slid down
+                         while the second slid up. Aligned at the top, an
+                         invalid entry grows the row downwards and moves
+                         nothing that is already on screen. */
+                      <div key={window.key} className="flex flex-wrap items-start gap-2">
                         <TimeField
                           id={`${fieldId}-${window.key}-from`}
                           aria-label={strings.openingHours.from}
@@ -133,7 +139,7 @@ export function OpeningHoursSettings() {
                             )
                           }
                         />
-                        <span className="text-muted-foreground text-sm">–</span>
+                        <span className="pt-2 text-muted-foreground text-sm">–</span>
                         <TimeField
                           id={`${fieldId}-${window.key}-to`}
                           aria-label={strings.openingHours.to}
@@ -152,7 +158,7 @@ export function OpeningHoursSettings() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="size-8"
+                            className="mt-0.5 size-8"
                             aria-label={strings.openingHours.removeWindow}
                             onClick={() =>
                               setDraft((current) =>

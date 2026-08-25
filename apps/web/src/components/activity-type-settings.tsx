@@ -7,7 +7,7 @@ import {
   type ServiceGroup,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -392,16 +392,14 @@ function ActivityTypeForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="activity-type-color">{strings.activityType.color}</Label>
-          <div className="mt-2 flex items-center gap-3">
-            <Input
-              id="activity-type-color"
-              type="color"
-              className="h-9 w-16 p-1"
-              value={values.color}
-              onChange={(event) => setValues({ ...values, color: event.target.value })}
-            />
-            <ColorSwatch color={values.color} />
-          </div>
+          {/* No swatch beside it: the field IS the colour (B1, C2). */}
+          <Input
+            id="activity-type-color"
+            type="color"
+            className="mt-2 h-9 w-16 p-1"
+            value={values.color}
+            onChange={(event) => setValues({ ...values, color: event.target.value })}
+          />
           <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.colorHint}</p>
         </div>
 
@@ -541,10 +539,10 @@ function PresetItemsEditor({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={strings.actions.delete}
+                  aria-label={strings.activityType.presetRemove}
                   onClick={() => onChange(items.filter((_, i) => i !== index))}
                 >
-                  <Trash2 className="size-4" aria-hidden />
+                  <X className="size-4" aria-hidden />
                 </Button>
               </li>
             )

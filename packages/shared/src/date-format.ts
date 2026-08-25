@@ -31,9 +31,22 @@ type DateFormatDescriptor = {
   readonly alternativeSeparators: readonly string[]
   /** What the empty field suggests, in the language of the application. */
   readonly placeholder: string
+  /**
+   * A real date, for the sentence a rejected entry gets (B1, M2).
+   *
+   * **Not the placeholder.** "Kein gültiges Datum. Zum Beispiel TT.MM.JJJJ."
+   * offers a *format* under the word "Beispiel", and a format is the one thing
+   * that is not an example of itself — the reader has just typed something the
+   * field refused and is being handed a schema to decode rather than a line to
+   * copy. The placeholder keeps naming the format, which is right where the
+   * field is empty and nothing has gone wrong.
+   */
+  readonly example: string
   /** The separator between hours and minutes. */
   readonly timeSeparator: string
   readonly timePlaceholder: string
+  /** The same, for a time. */
+  readonly timeExample: string
 }
 
 const GERMAN: DateFormatDescriptor = {
@@ -41,8 +54,12 @@ const GERMAN: DateFormatDescriptor = {
   separator: '.',
   alternativeSeparators: ['/', '-'],
   placeholder: 'TT.MM.JJJJ',
+  // A day that cannot be mistaken for a month, so the order is legible from
+  // the example alone.
+  example: '13.07.2026',
   timeSeparator: ':',
   timePlaceholder: 'HH:MM',
+  timeExample: '09:30',
 }
 
 /** The descriptor in force. Changing this line changes every date field. */

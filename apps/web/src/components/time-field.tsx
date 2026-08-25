@@ -19,6 +19,16 @@ export function TimeField({
   onChange,
   disabled,
   className,
+  /**
+   * Forwarded to the input, and it has to be declared to arrive (B1). The
+   * opening hours have passed one since D9.5 and it never reached the DOM:
+   * TypeScript does not excess-property-check a JSX attribute whose name is
+   * not a valid identifier, so `aria-label` on a component that does not
+   * accept it is dropped without a word from the compiler. Both fields of
+   * every window were therefore unnamed for a screen reader — "–" between two
+   * anonymous boxes.
+   */
+  'aria-label': ariaLabel,
 }: {
   id?: string
   /** `HH:mm`, or `''` when there is no time. */
@@ -26,6 +36,7 @@ export function TimeField({
   onChange: (time: string) => void
   disabled?: boolean
   className?: string
+  'aria-label'?: string
 }) {
   const [text, setText] = useState(() => formatTimeDE(value))
   const [invalid, setInvalid] = useState(false)
@@ -40,6 +51,7 @@ export function TimeField({
     <div className={className}>
       <Input
         id={id}
+        aria-label={ariaLabel}
         inputMode="numeric"
         autoComplete="off"
         placeholder={dateFormat.timePlaceholder}
@@ -61,9 +73,15 @@ export function TimeField({
           }
         }}
       />
+      {/* `w-max` so the sentence stays on one line (B1, M1). A time field is
+          typically 6rem wide, and a message wrapped into three lines inside it
+          is what made the opening-hours row visibly come apart. Overflowing to
+          the right costs nothing: at the message's own height the row beside it
+          is empty, and the box itself keeps its width, so nothing around it
+          moves. `max-w-xs` stops it running off the card. */}
       {invalid && (
-        <p className="mt-1 text-destructive text-sm">
-          {strings.date.timeInvalid(dateFormat.timePlaceholder)}
+        <p className="mt-1 w-max max-w-xs text-destructive text-sm">
+          {strings.date.timeInvalid(dateFormat.timeExample)}
         </p>
       )}
     </div>

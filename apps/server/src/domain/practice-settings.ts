@@ -121,3 +121,29 @@ export async function setInvoiceTemplatePath(
     .set({ invoiceTemplatePath: path })
     .where(eq(practiceSettings.tenantId, tenantId))
 }
+
+/**
+ * Takes the letterhead away again, so invoices print on white paper (B1, J3).
+ *
+ * The row is cleared **first** and the file removed after. Get that order wrong
+ * and a crash between the two leaves a path pointing at nothing — the state
+ * `invoice-template/pages` already has to answer `null` for, but one the
+ * practitioner could do nothing about because the screen would offer
+ * "ersetzen" for a template that is not there. This way the worst outcome is
+ * an orphaned file on disk, which nothing reads and the next upload
+ * overwrites: the path is one per tenant.
+ *
+ * A missing file is not an error. It is the state being asked for.
+ */
+export async function clearInvoiceTemplate(
+  database: Database,
+  tenantId: string,
+  store: FileStore,
+): Promise<void> {
+  await database
+    .update(practiceSettings)
+    .set({ invoiceTemplatePath: null })
+    .where(eq(practiceSettings.tenantId, tenantId))
+
+  await store.remove(invoiceTemplatePath(tenantId)).catch(() => undefined)
+}

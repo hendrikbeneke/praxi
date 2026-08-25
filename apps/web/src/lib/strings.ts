@@ -87,15 +87,13 @@ export const strings = {
     sectionBanking: 'Bankverbindung',
     sectionTaxes: 'Steuern',
     sectionInvoicingPreset: 'Rechnungsstellung',
-    /** One card, six sections — the explanation of each stands in its title
-     *  column, in the design's wording (K4). */
+    /** One card, six sections. The six explanations that used to stand in the
+     *  title column beside them are gone (B1, L1): "Der Name steht auf jeder
+     *  Rechnung", "Für Rückfragen der Empfänger" and the rest said what the
+     *  heading above them already said, six times down one column. The
+     *  headings stay. The contact record keeps its own section hints — there
+     *  they carry rules a reader could not guess. */
     cardTitle: 'Praxisstammdaten',
-    practiceHintSection: 'Der Name steht auf jeder Rechnung.',
-    addressHintSection: 'Erscheint im Briefkopf, wenn keine Vorlage hinterlegt ist.',
-    contactHintSection: 'Für Rückfragen der Empfänger.',
-    bankingHintSection: 'Steht unter dem Schlusstext der Rechnung.',
-    taxesHintSection: 'Eines von beiden steht auf jeder Rechnung.',
-    invoicingPresetHintSection: 'Vorbelegung für neue Rechnungen.',
     vatId: 'Umsatzsteuer-ID',
     sectionInvoicing: 'Rechnungsstellung',
     sectionOpeningHours: 'Öffnungszeiten',
@@ -176,6 +174,9 @@ export const strings = {
     codeHint:
       'Technisches Kürzel, klein geschrieben, ohne Leerzeichen. Es steht mit dem Anlegen fest ' +
       'und lässt sich später nicht mehr ändern.',
+    /** Under the code of an EXISTING type, where there is no field to explain
+     *  — only a value and the reason it stands still (B1, C1). */
+    codeFixed: 'Daran hängen die bestehenden Beziehungen. Es lässt sich nicht mehr ändern.',
     label: 'Bezeichnung',
     /** The label is what a role is recognised by now that there is no code —
      *  hence unique, and hence worth saying at the field. */
@@ -256,6 +257,9 @@ export const strings = {
     presetService: 'Leistung',
     presetGroup: 'Leistungsgruppe',
     presetQuantity: 'Menge',
+    /** "Entfernen" and not "Löschen": the service stays in the catalogue, it
+     *  only leaves this preset (B1, convention A3). */
+    presetRemove: 'Aus der Vorbelegung nehmen',
     isDefault: 'Standard für neue Vorgänge',
     isDefaultHint: 'Genau eine Art kann das sein. Die bisherige verliert die Markierung.',
     defaultBadge: 'Standard',
@@ -855,6 +859,13 @@ export const strings = {
     saved: 'Mailkonto gespeichert.',
     notConfigured: 'Es ist noch kein Mailkonto hinterlegt.',
     remove: 'Mailkonto entfernen',
+    removeTitle: 'Mailkonto entfernen?',
+    /** Names what cannot be typed back in: the password is stored encrypted and
+     *  the API never returns it, so it goes with the row for good. */
+    removeBody:
+      'Server, Absenderadresse und Passwort werden gelöscht. Das Passwort lässt sich nicht ' +
+      'wiederherstellen — es müsste neu eingegeben werden. Rechnungen lassen sich danach ' +
+      'nicht mehr versenden.',
     removed: 'Mailkonto entfernt.',
 
     test: 'Testmail senden',
@@ -1030,10 +1041,13 @@ export const strings = {
     deleteBody:
       'Die Notizart wird aus der Auswahl entfernt. Notizen, die sie tragen, verhindern das — ' +
       'bei gesperrten Notizen endgültig.',
-    footer:
-      'Ohne Notizart lässt sich keine Notiz schreiben; eine neue Notiz startet auf dem ersten ' +
-      'Eintrag dieser Liste. Ein Nachtrag ist keine Art, sondern der Bezug auf eine gesperrte ' +
-      'Notiz — er trägt selbst eine Art wie jede andere Notiz.',
+    /** Shown only while the list is EMPTY (B1, F2). It states a restriction,
+     *  and while there are types the restriction does not bite — a sentence
+     *  that explains a case which is not the case is noise under every card.
+     *  What went with it: that a new note starts on the first entry (a detail
+     *  of the note dialog, not of this list) and that an addendum is not a
+     *  type (true, and answering a question nobody asked here). */
+    footerEmpty: 'Ohne Notizart lässt sich keine Notiz schreiben.',
   },
   note: {
     title: 'Notizen',
@@ -1109,8 +1123,13 @@ export const strings = {
     fileUploading: 'Wird hochgeladen …',
     fileAdded: 'Datei angehängt.',
     fileFailed: 'Die Datei konnte nicht angehängt werden.',
-    fileRemove: 'Datei entfernen',
-    fileRemoved: 'Datei entfernt.',
+    fileRemove: 'Datei löschen',
+    fileRemoveTitle: 'Datei löschen?',
+    /** Names the file: a note can carry several, and "die Datei" would not say
+     *  which one is going. */
+    fileRemoveBody: (fileName: string) =>
+      `„${fileName}" wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.`,
+    fileRemoved: 'Datei gelöscht.',
     fileDownload: 'Herunterladen',
     fileHint:
       'PDF sowie JPEG, PNG, WebP, HEIC und TIFF, höchstens 25 MB. ' +
@@ -1380,18 +1399,32 @@ export const strings = {
     templateEmpty: 'Noch keine Textbausteine.',
 
     letterhead: 'Rechnungsvorlage',
+    /** Spelled out per case rather than compressed into one sentence with a
+     *  semicolon in the middle (B1, J1). The old wording — "Eine Seite trägt
+     *  jede Seite der Rechnung; bei zwei Seiten trägt Seite 1 die erste und
+     *  Seite 2 alle weiteren" — used "Seite" for the template and for the
+     *  invoice in the same breath, and the reader had to work out which was
+     *  meant four times over. */
     letterheadHint:
-      'Ein PDF mit Ihrem Briefkopf. Eine Seite trägt jede Seite der Rechnung; bei zwei Seiten ' +
-      'trägt Seite 1 die erste und Seite 2 alle weiteren. Der Inhalt wird darübergelegt.',
+      'Ein PDF mit Ihrem Briefkopf. Hat die Vorlage eine Seite, wird sie hinter jede Seite der ' +
+      'Rechnung gelegt. Hat sie zwei, kommt die erste hinter die erste Rechnungsseite und die ' +
+      'zweite hinter alle weiteren. Der Rechnungsinhalt wird darübergedruckt.',
     letterheadUpload: 'Vorlage hochladen',
     letterheadReplace: 'Vorlage ersetzen',
     letterheadShow: 'Hinterlegte Vorlage ansehen',
     letterheadUploaded: 'Vorlage gespeichert.',
     letterheadNone: 'Keine Vorlage hinterlegt — Rechnungen drucken auf weißem Grund.',
-    letterheadOnePage: 'Einseitig',
-    letterheadTwoPages: 'Zweiseitig',
-    letterheadOnePageHint: 'Diese Seite trägt jede Seite der Rechnung.',
-    letterheadTwoPagesHint: 'Seite 1 trägt die erste Rechnungsseite, Seite 2 alle weiteren.',
+    /** One sentence instead of a chip plus a sentence saying the same thing
+     *  twice (B1, J2). What the practitioner needs from this line is which of
+     *  the two cases above applies to their file. */
+    letterheadOnePageStored: 'Einseitiges PDF hinterlegt.',
+    letterheadTwoPagesStored: 'Zweiseitiges PDF hinterlegt.',
+    letterheadRemove: 'Vorlage entfernen',
+    letterheadRemoveTitle: 'Vorlage entfernen?',
+    letterheadRemoveBody:
+      'Neue Rechnungen drucken danach auf weißem Grund. Bereits festgeschriebene Rechnungen ' +
+      'bleiben unverändert — ihr PDF liegt fertig auf der Platte und wird nie neu erzeugt.',
+    letterheadRemoved: 'Vorlage entfernt.',
   },
   payment: {
     title: 'Zahlungen',

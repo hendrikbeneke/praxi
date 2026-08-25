@@ -369,7 +369,7 @@ export function NoteReader({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-muted-foreground"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     disabled={remove.isPending}
                   >
                     <Trash2 className="size-3.5" aria-hidden />
@@ -383,7 +383,7 @@ export function NoteReader({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{strings.note.cancel}</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => remove.mutate()}>
+                    <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>
                       {strings.note.remove}
                     </AlertDialogAction>
                   </AlertDialogFooter>

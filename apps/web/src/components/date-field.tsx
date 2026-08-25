@@ -137,9 +137,7 @@ export function DateField({
       </div>
 
       {invalid && (
-        <p className="mt-1 text-destructive text-sm">
-          {strings.date.invalid(dateFormat.placeholder)}
-        </p>
+        <p className="mt-1 text-destructive text-sm">{strings.date.invalid(dateFormat.example)}</p>
       )}
     </div>
   )

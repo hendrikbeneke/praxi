@@ -17,6 +17,7 @@ import {
 } from '@/components/catalogue-controls'
 import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
 import { DASH, ListCard, ListCardTitleBar } from '@/components/list-card'
+import { ReadValue } from '@/components/read-value'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -509,16 +510,32 @@ function RelationTypeForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="relation-code">{strings.contactType.code}</Label>
-          <Input
-            id="relation-code"
-            className="mt-2"
-            disabled={type !== undefined}
-            value={values.code}
-            onChange={(event) => setValues({ ...values, code: event.target.value })}
-          />
-          {type === undefined && (
-            <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.codeHint}</p>
+          {/* On an existing type the code is TEXT, not a disabled input (B1,
+              C1). K2 settled this for read mode and the argument is the same
+              here: a grey box with a border promises an entry that cannot be
+              made, and the muted value inside it reads as a placeholder — the
+              field looked empty while `guardian` stood in it. The code is the
+              handle `contact_relation.relation_code` points at and every entry
+              keeps it for life, so what belongs here is the value and the
+              reason, not a control. */}
+          <Label htmlFor={type === undefined ? 'relation-code' : undefined}>
+            {strings.contactType.code}
+          </Label>
+          {type === undefined ? (
+            <>
+              <Input
+                id="relation-code"
+                className="mt-2"
+                value={values.code}
+                onChange={(event) => setValues({ ...values, code: event.target.value })}
+              />
+              <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.codeHint}</p>
+            </>
+          ) : (
+            <>
+              <ReadValue className="font-mono">{values.code}</ReadValue>
+              <p className="mt-1 text-muted-foreground text-xs">{strings.contactType.codeFixed}</p>
+            </>
           )}
         </div>
         <div>

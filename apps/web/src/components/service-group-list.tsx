@@ -1,6 +1,6 @@
 import { formatEuro, type Service, type ServiceGroup, type ServiceGroupInput } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trash2 } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -359,7 +359,7 @@ function ServiceGroupForm({
                       setItems((current) => current.filter((_, rowIndex) => rowIndex !== index))
                     }
                   >
-                    <Trash2 className="size-4" aria-hidden />
+                    <X className="size-4" aria-hidden />
                   </Button>
                 </li>
               )

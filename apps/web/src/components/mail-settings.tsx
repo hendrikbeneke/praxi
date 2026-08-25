@@ -6,7 +6,7 @@ import {
   smtpSecurities,
 } from '@praxi/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, Pencil, Plus } from 'lucide-react'
+import { Mail, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Fragment, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -22,11 +22,13 @@ import { ReadValue } from '@/components/read-value'
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -346,25 +348,48 @@ function SmtpAccount() {
           ) : null}
 
           {stored && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={test.isPending}
-                onClick={() => test.mutate()}
-              >
-                <Mail className="size-4" aria-hidden />
-                {strings.mail.test}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate()}
-              >
-                {strings.mail.remove}
-              </Button>
-            </>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={test.isPending}
+              onClick={() => test.mutate()}
+            >
+              <Mail className="size-4" aria-hidden />
+              {strings.mail.test}
+            </Button>
+          )}
+
+          {/* Editing mode only (B1, I1): removing the account changes the
+              record, and read mode must not be able to. Red, and it asks
+              first (I2, convention A1/A2) — the encrypted password goes with
+              the row and the API never gave it back, so there is nothing to
+              type in again from memory. */}
+          {stored && editing && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={remove.isPending}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  {strings.mail.remove}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{strings.mail.removeTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>{strings.mail.removeBody}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{strings.actions.cancel}</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>
+                    {strings.mail.remove}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
 
@@ -523,7 +548,17 @@ function EmailTemplates() {
                             value={template.subject}
                           />
                         </dl>
-                        <p className="max-w-prose whitespace-pre-wrap text-sm">{template.body}</p>
+                        {/* "Betreff" was labelled and the body was not, so the
+                            text below it read as a continuation of the subject
+                            (B1, H3). */}
+                        <div>
+                          <span className="text-muted-foreground text-[11.5px] uppercase tracking-wide">
+                            {strings.mail.templateBody}
+                          </span>
+                          <p className="mt-1 max-w-prose whitespace-pre-wrap text-sm">
+                            {template.body}
+                          </p>
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
                           <Button size="sm" variant="outline" onClick={detail.startEditing}>
                             {strings.actions.edit}
@@ -608,16 +643,9 @@ function EmailTemplateForm({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
-        <div>
-          <Label htmlFor="email-template-subject">{strings.mail.templateSubject}</Label>
-          <Input
-            id="email-template-subject"
-            className="mt-2"
-            value={input.subject}
-            onChange={(event) => setInput({ ...input, subject: event.target.value })}
-          />
-        </div>
+      {/* Name before Betreff (B1, H1): the name is what the send dialog offers
+          the template under, so it is what one identifies it by. */}
+      <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
         <div>
           <Label htmlFor="email-template-name">{strings.mail.templateName}</Label>
           <Input
@@ -625,6 +653,15 @@ function EmailTemplateForm({
             className="mt-2"
             value={input.name}
             onChange={(event) => setInput({ ...input, name: event.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="email-template-subject">{strings.mail.templateSubject}</Label>
+          <Input
+            id="email-template-subject"
+            className="mt-2"
+            value={input.subject}
+            onChange={(event) => setInput({ ...input, subject: event.target.value })}
           />
         </div>
       </div>

@@ -214,6 +214,12 @@ export async function uploadInvoiceTemplate(file: File): Promise<{ pages: number
   return res.json()
 }
 
+/** Takes the stored letterhead away again (B1, J3). */
+export async function deleteInvoiceTemplate(): Promise<void> {
+  const res = await api.api.settings['invoice-template'].$delete()
+  if (!res.ok) throw await apiError(res)
+}
+
 export const invoiceTemplateUrl = '/api/settings/invoice-template'
 
 /** How many pages the stored letterhead has, `null` when there is none. Asked

@@ -261,7 +261,12 @@ function RelationRow({
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label={strings.contact.relationRemove}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={strings.contact.relationRemove}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
               <Trash2 className="size-4" aria-hidden />
             </Button>
           </AlertDialogTrigger>
@@ -272,7 +277,7 @@ function RelationRow({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{strings.contact.cancel}</AlertDialogCancel>
-              <AlertDialogAction onClick={onRemove}>
+              <AlertDialogAction variant="destructive" onClick={onRemove}>
                 {strings.contact.relationRemove}
               </AlertDialogAction>
             </AlertDialogFooter>

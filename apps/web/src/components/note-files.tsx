@@ -1,8 +1,19 @@
 import type { Note } from '@praxi/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Download, Paperclip, X } from 'lucide-react'
+import { Download, Paperclip, Trash2 } from 'lucide-react'
 import { useId, useRef } from 'react'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
 import { deleteNoteFile, noteFileUrl, uploadNoteFile } from '@/lib/notes'
@@ -90,16 +101,41 @@ export function NoteFiles({ note }: { note: Note }) {
                     <Download className="size-4" aria-hidden />
                   </a>
                 </Button>
+                {/* A bin and not an X, and a question before it acts (B1,
+                    convention A3). An X takes something out of a list and
+                    leaves it standing elsewhere; this deletes the file from
+                    disk, and the upload is the only copy the record has. */}
                 {!locked && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={strings.note.fileRemove}
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(file.id)}
-                  >
-                    <X className="size-4" aria-hidden />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={strings.note.fileRemove}
+                        disabled={remove.isPending}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{strings.note.fileRemoveTitle}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {strings.note.fileRemoveBody(file.fileName)}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{strings.actions.cancel}</AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
+                          onClick={() => remove.mutate(file.id)}
+                        >
+                          {strings.actions.delete}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </div>
             </li>

@@ -140,7 +140,12 @@ export function PaymentCard({ invoice }: { invoice: Invoice }) {
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label={strings.payment.remove}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={strings.payment.remove}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
                     <Trash2 className="size-4" aria-hidden />
                   </Button>
                 </AlertDialogTrigger>
@@ -158,7 +163,7 @@ export function PaymentCard({ invoice }: { invoice: Invoice }) {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{strings.actions.cancel}</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => remove.mutate(row.id)}>
+                    <AlertDialogAction variant="destructive" onClick={() => remove.mutate(row.id)}>
                       {strings.actions.delete}
                     </AlertDialogAction>
                   </AlertDialogFooter>
