@@ -184,6 +184,11 @@ export const strings = {
       'Dieser Eintrag gehört fest zum System — die Software richtet sich nach seinem Kürzel. ' +
       'Bezeichnungen, Richtung und Exklusivität sind deshalb festgelegt; nur „Aktiv" lässt ' +
       'sich umstellen.',
+    /** Beside the one control a system entry still has. Says what switching it
+     *  off does and, just as importantly, what it does not do. */
+    systemActiveHint:
+      'Inaktive Arten stehen nicht mehr zur Auswahl. Bestehende Beziehungen bleiben, wie sie ' +
+      'sind.',
     label: 'Bezeichnung',
     /** The label is what a role is recognised by now that there is no code —
      *  hence unique, and hence worth saying at the field. */

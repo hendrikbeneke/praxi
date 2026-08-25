@@ -428,6 +428,20 @@ export function RelationTypeSettings() {
                         />
                       ) : (
                         <div className="space-y-4">
+                          {/* A system entry has no "Bearbeiten" (B1e). Since
+                              B1b it is read-only apart from `active`, so the
+                              button led to a form of five values one could not
+                              touch and a single checkbox — a control promising
+                              an edit and delivering almost none.
+                              `SystemTypeReadOnlyError` on the server is the
+                              rule; this is the screen stopping short of asking
+                              for it. */}
+                          {type.isSystem && (
+                            <p className="max-w-prose text-muted-foreground text-sm">
+                              {strings.contactType.systemReadOnlyHint}
+                            </p>
+                          )}
+
                           <dl className="flex flex-wrap gap-8">
                             {type.isSystem && (
                               <DetailField label={strings.contactType.code} value={type.code} />
@@ -437,10 +451,34 @@ export function RelationTypeSettings() {
                               value={type.labelInverse ?? DASH}
                             />
                           </dl>
+
+                          {/* "Aktiv" stays reachable, because a practice that
+                              never bills a third party may take the entry out
+                              of the picker (B1b). It acts immediately and has
+                              no save button — a single decision, not a record
+                              being edited, which is how a role in the contact
+                              header behaves for the same reason. */}
+                          {type.isSystem && (
+                            <CheckboxField
+                              id={`relation-active-${type.id}`}
+                              label={strings.contactType.active}
+                              hint={strings.contactType.systemActiveHint}
+                              checked={type.active}
+                              onChange={(checked) =>
+                                save.mutate({
+                                  id: type.id,
+                                  values: { ...toRelationValues(type), active: checked },
+                                })
+                              }
+                            />
+                          )}
+
                           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-                            <Button size="sm" variant="outline" onClick={detail.startEditing}>
-                              {strings.actions.edit}
-                            </Button>
+                            {!type.isSystem && (
+                              <Button size="sm" variant="outline" onClick={detail.startEditing}>
+                                {strings.actions.edit}
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" onClick={detail.close}>
                               {strings.actions.close}
                             </Button>
@@ -509,61 +547,15 @@ function RelationTypeForm({
     (values.isSymmetric || (values.labelInverse ?? '').trim() !== '')
 
   /**
-   * A system entry is read-only apart from "Aktiv" (B1). The reason is not the
-   * exclusivity: `billing_recipient` and `guardian` are looked up **by their
-   * Kürzel** — by `updateInvoice`, by `prepareSend`, by the minor's notice on
-   * the contact record — so a renamed entry would make the record say one thing
-   * while the software does another, with nothing failing to show it.
+   * There is no branch for a system entry here, and that is not an omission:
+   * since B1e the read detail has no "Bearbeiten" for one, so this form is
+   * never reached with it. What a system entry may still change — `active` —
+   * it changes from the read detail directly, without a form.
    *
-   * The values stand as text, not as disabled fields (K2): a grey box promises
-   * an entry that cannot be made. `domain/contact-type.ts` refuses the same set
-   * on the way in, so this is the readable half of the rule and not the whole
-   * of it.
+   * `SystemTypeReadOnlyError` in `domain/contact-type.ts` is what actually
+   * enforces it. A screen that does not ask is the readable half; a server
+   * that refuses is the rule.
    */
-  if (type?.isSystem) {
-    return (
-      <div className="space-y-4">
-        <p className="text-muted-foreground text-sm">{strings.contactType.systemReadOnlyHint}</p>
-
-        <dl className="grid gap-4 sm:grid-cols-2">
-          <DetailField label={strings.contactType.code} value={type.code} />
-          <DetailField label={strings.contactType.labelForward} value={type.labelForward} />
-          <DetailField label={strings.contactType.labelInverse} value={type.labelInverse ?? DASH} />
-          <DetailField
-            label={strings.contactType.direction}
-            value={
-              type.isSymmetric
-                ? strings.contactType.directionMutualLabel
-                : strings.contactType.directionDirectedLabel
-            }
-          />
-          <DetailField
-            label={strings.contactType.exclusive}
-            value={type.isExclusive ? strings.contactType.flagYes : DASH}
-          />
-        </dl>
-
-        <div className="flex flex-wrap gap-6">
-          <CheckboxField
-            id="relation-active"
-            label={strings.contactType.active}
-            checked={values.active}
-            onChange={(checked) => setValues({ ...values, active: checked })}
-          />
-        </div>
-
-        <div className="flex justify-end gap-2 border-t pt-4">
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {strings.actions.cancel}
-          </Button>
-          <Button type="button" disabled={pending} onClick={() => onSubmit(values)}>
-            {strings.actions.save}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground text-sm">{strings.contactType.directionHint}</p>
