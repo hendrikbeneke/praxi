@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { service, serviceGroup, serviceGroupItem } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant, roleTypeId } from '../test/fixtures.js'
+import { activityTypeId, createTenant, roleTypeId } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { createActivityType } from './activity-type.js'
 import { createContact } from './contact.js'
@@ -23,9 +23,11 @@ import {
 } from './service.js'
 
 let tenantId: string
+let sessionTypeId: string
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
 })
 
 const active: CatalogueListQuery = { includeInactive: false }
@@ -409,7 +411,7 @@ describe('deleting the catalogue', () => {
     })
     await createActivity(db(), tenantId, {
       contactId: contact.id,
-      type: 'session',
+      activityTypeId: sessionTypeId,
       status: 'planned',
       occurredAt: new Date('2026-09-01T08:00:00Z').toISOString(),
       durationMin: null,
@@ -431,7 +433,6 @@ describe('deleting the catalogue', () => {
   it('refuses to delete a service used as an activity type preset, and names that reason', async () => {
     const created = await createService(db(), tenantId, serviceInput())
     await createActivityType(db(), tenantId, {
-      code: 'preset_user',
       label: 'Verwendet Vorbelegung',
       color: '#64748b',
       defaultDurationMin: null,
@@ -458,7 +459,6 @@ describe('deleting the catalogue', () => {
       groupInput({ items: [{ serviceId: created.id, quantity: 1 }] }),
     )
     await createActivityType(db(), tenantId, {
-      code: 'preset_user_2',
       label: 'Verwendet Vorbelegung 2',
       color: '#64748b',
       defaultDurationMin: null,

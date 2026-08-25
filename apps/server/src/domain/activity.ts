@@ -324,7 +324,7 @@ async function loadActivity(
       contactFirstName: contact.firstName,
       contactLastName: contact.lastName,
       contactCompanyName: contact.companyName,
-      type: activity.type,
+      activityTypeId: activity.activityTypeId,
       status: activity.status,
       occurredAt: activity.occurredAt,
       durationMin: activity.durationMin,
@@ -379,7 +379,7 @@ async function loadActivity(
       companyName: row.contactCompanyName,
     }),
     contactNumber: row.contactNumber,
-    type: row.type,
+    activityTypeId: row.activityTypeId,
     status: row.status,
     occurredAt: row.occurredAt.toISOString(),
     durationMin: row.durationMin,
@@ -446,7 +446,7 @@ export async function createActivity(
       id,
       tenantId,
       contactId: input.contactId,
-      type: input.type,
+      activityTypeId: input.activityTypeId,
       status: input.status,
       occurredAt: new Date(input.occurredAt),
       durationMin: input.durationMin,
@@ -504,7 +504,7 @@ export async function updateActivity(
       .update(activity)
       .set({
         contactId: input.contactId,
-        type: input.type,
+        activityTypeId: input.activityTypeId,
         status: input.status,
         occurredAt: new Date(input.occurredAt),
         durationMin: input.durationMin,
@@ -609,7 +609,7 @@ export async function listActivities(
   if (query.from) filters.push(gte(activity.occurredAt, new Date(query.from)))
   if (query.to) filters.push(lt(activity.occurredAt, new Date(query.to)))
   if (query.status) filters.push(eq(activity.status, query.status))
-  if (query.type) filters.push(eq(activity.type, query.type))
+  if (query.activityTypeId) filters.push(eq(activity.activityTypeId, query.activityTypeId))
   /* Shared with `billingStateOf` rather than written again here — see
      `activityBillingCondition`. A second copy would answer differently on a
      cancelled invoice, which is the one case that costs money. */
@@ -688,7 +688,7 @@ export async function activitySummary(
   const filters = [eq(activity.tenantId, tenantId)]
   if (from) filters.push(gte(activity.occurredAt, from))
   if (to) filters.push(lt(activity.occurredAt, to))
-  if (query.type) filters.push(eq(activity.type, query.type))
+  if (query.activityTypeId) filters.push(eq(activity.activityTypeId, query.activityTypeId))
   if (query.contactId) filters.push(eq(activity.contactId, query.contactId))
 
   const counted = database
@@ -728,7 +728,7 @@ export async function activitySummary(
     unbilledCentsOf(database, tenantId, {
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
-      ...(query.type ? { type: query.type } : {}),
+      ...(query.activityTypeId ? { activityTypeId: query.activityTypeId } : {}),
       ...(query.contactId ? { contactId: query.contactId } : {}),
     }),
   ])

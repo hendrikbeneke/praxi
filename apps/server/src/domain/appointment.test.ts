@@ -2,7 +2,7 @@ import type { ActivityInput, AppointmentStatus, ContactInput } from '@praxi/shar
 import { occupiesSlot, SLOT_RELEASING_STATUSES } from '@praxi/shared'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
-import { createTenant } from '../test/fixtures.js'
+import { activityTypeId, createTenant } from '../test/fixtures.js'
 import { createActivity, getActivity } from './activity.js'
 import {
   AppointmentHasActivityError,
@@ -16,6 +16,7 @@ import {
 import { createContact } from './contact.js'
 
 let tenantId: string
+let sessionTypeId: string
 let contactId: string
 
 const AT = (iso: string) => new Date(iso).toISOString()
@@ -48,6 +49,7 @@ function person(overrides: Partial<Extract<ContactInput, { kind: 'person' }>> = 
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   contactId = (await createContact(db(), tenantId, person())).id
 })
 
@@ -58,7 +60,7 @@ function booking(
 ): ActivityInput {
   return {
     contactId: options.contactId ?? contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'planned',
     occurredAt: AT(startsAt),
     durationMin: null,

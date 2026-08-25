@@ -10,7 +10,7 @@ import { newId } from '../id.js'
 import type { MailMessage } from '../mail/message.js'
 import type { MailTransport } from '../mail/transport.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
+import { activityTypeId, createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { listBillableItems } from './billable.js'
 import { createContact } from './contact.js'
@@ -40,6 +40,7 @@ const INVOICE_DATE = '2026-09-01'
 const PRICE = 13_500
 
 let tenantId: string
+let sessionTypeId: string
 let userId: string
 let contactId: string
 let serviceId: string
@@ -91,6 +92,7 @@ function person(overrides: Partial<Extract<ContactInput, { kind: 'person' }>> = 
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   userId = (await createUser(db(), { tenantId })).id
   contactId = (await createContact(db(), tenantId, person())).id
 
@@ -138,7 +140,7 @@ const render = (entry: Invoice) => renderInvoicePdf(entry, null)
 async function draft(): Promise<Invoice> {
   await createActivity(db(), tenantId, {
     contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'rendered',
     occurredAt: `${INVOICE_DATE}T07:00:00.000Z`,
     durationMin: 90,

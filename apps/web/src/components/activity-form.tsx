@@ -200,7 +200,7 @@ export function ActivityForm({
   activity,
   contactId,
   startsAtLocal,
-  initialTypeCode,
+  initialTypeId,
   initialDurationMin,
   appointmentFixed = false,
   submitLabel,
@@ -218,7 +218,7 @@ export function ActivityForm({
   /** From the slot finder (D9.5): the kind that was searched for. Its presets
    *  are drawn as if it had been picked by hand, because it was — one screen
    *  earlier. */
-  initialTypeCode?: string | undefined
+  initialTypeId?: string | undefined
   /** Likewise the length. Only meaningful for a search by free duration; with
    *  a type the preset supplies it. */
   initialDurationMin?: number | undefined
@@ -250,7 +250,7 @@ export function ActivityForm({
    * The interval currently in the fields, so the grid can draw the entry
    * before it exists. Null while the form does not describe a slot.
    */
-  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeCode: string } | null) => void
+  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeId: string } | null) => void
   /** Handed the row that was written, so a list can find out where it landed
    *  — see `ActivityList`. */
   onSaved: (saved: Activity) => void
@@ -275,7 +275,7 @@ export function ActivityForm({
   /** Left empty for a new activity on purpose: the default type is picked once
    *  the catalogue has arrived, in the effect below, which is also where its
    *  presets are drawn. */
-  const [type, setType] = useState(activity?.type ?? '')
+  const [typeId, setTypeId] = useState(activity?.activityTypeId ?? '')
   const [activityStatus, setActivityStatus] = useState<ActivityStatus>(
     activity?.status ?? 'planned',
   )
@@ -316,11 +316,11 @@ export function ActivityForm({
   const [appointmentNote, setAppointmentNote] = useState(activity?.appointment?.note ?? '')
 
   const typeList = types.data ?? []
-  const currentType = typeList.find((entry) => entry.code === type)
+  const currentType = typeList.find((entry) => entry.id === typeId)
   /** Active types, plus the one this activity already carries even if it has
    *  been deactivated since — otherwise opening an old activity would silently
    *  offer to change its type. */
-  const selectableTypes = typeList.filter((entry) => entry.active || entry.code === type)
+  const selectableTypes = typeList.filter((entry) => entry.active || entry.id === typeId)
 
   /** Nothing of the practitioner's would be overwritten: no positions, and a
    *  duration still exactly as a preset left it. */
@@ -348,23 +348,23 @@ export function ActivityForm({
    * initial state above, which is read while the queries are still in flight,
    * so `type` starts empty and this fills it exactly once.
    *
-   * `initialTypeCode` wins over the default when the slot finder handed one
+   * `initialTypeId` wins over the default when the slot finder handed one
    * over — and it goes through the same `applyPresetOf`, because the type was
    * chosen by hand, just one screen earlier.
    */
   useEffect(() => {
-    if (activity !== undefined || type !== '') return
+    if (activity !== undefined || typeId !== '') return
     if (!types.data || !services.data) return
 
     const chosen =
-      (initialTypeCode && types.data.find((entry) => entry.code === initialTypeCode)) ||
+      (initialTypeId && types.data.find((entry) => entry.id === initialTypeId)) ||
       types.data.find((entry) => entry.isDefault && entry.active) ||
       types.data.find((entry) => entry.active)
     if (!chosen) return
 
-    setType(chosen.code)
+    setTypeId(chosen.id)
     applyPresetOf(chosen)
-  }, [activity, type, types.data, services.data, applyPresetOf, initialTypeCode])
+  }, [activity, typeId, types.data, services.data, applyPresetOf, initialTypeId])
 
   /**
    * Choosing a type by hand.
@@ -375,10 +375,10 @@ export function ActivityForm({
    * taking the presets over is then an action with a name rather than a silent
    * side effect (CLAUDE.md rule 6).
    */
-  function chooseType(code: string) {
-    setType(code)
+  function chooseType(id: string) {
+    setTypeId(id)
 
-    const entry = typeList.find((candidate) => candidate.code === code)
+    const entry = typeList.find((candidate) => candidate.id === id)
     if (!entry || !hasPreset(entry)) {
       setPresetNotice(false)
       return
@@ -422,7 +422,7 @@ export function ActivityForm({
 
   const canSave =
     targetContactId !== null &&
-    type !== '' &&
+    typeId !== '' &&
     occurredAtLocal !== '' &&
     (!withAppointment || endsAtLocal !== null)
 
@@ -496,11 +496,11 @@ export function ActivityForm({
   }
 
   function submit() {
-    if (targetContactId === null || type === '' || occurredAtLocal === '') return
+    if (targetContactId === null || typeId === '' || occurredAtLocal === '') return
 
     mutation.mutate({
       contactId: targetContactId,
-      type,
+      activityTypeId: typeId,
       status: activityStatus,
       occurredAt: fromBerlinDateTimeLocal(occurredAtLocal),
       durationMin: durationMinutes,
@@ -531,10 +531,10 @@ export function ActivityForm({
     if (!onDraftChange) return
     onDraftChange(
       withAppointment && draftStartsAt !== null && draftEndsAt !== null
-        ? { startsAt: draftStartsAt, endsAt: draftEndsAt, typeCode: type }
+        ? { startsAt: draftStartsAt, endsAt: draftEndsAt, typeId }
         : null,
     )
-  }, [onDraftChange, withAppointment, draftStartsAt, draftEndsAt, type])
+  }, [onDraftChange, withAppointment, draftStartsAt, draftEndsAt, typeId])
 
   /** And taken back down again when the form goes, or the grid would keep
    *  painting a block nobody is editing. */
@@ -571,13 +571,13 @@ export function ActivityForm({
 
           <div className="@xl:col-span-6">
             <Label htmlFor={`${formId}-type`}>{strings.activity.type}</Label>
-            <Select value={type} onValueChange={chooseType}>
+            <Select value={typeId} onValueChange={chooseType}>
               <SelectTrigger id={`${formId}-type`} className="mt-2 w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {selectableTypes.map((entry) => (
-                  <SelectItem key={entry.code} value={entry.code}>
+                  <SelectItem key={entry.id} value={entry.id}>
                     <span
                       aria-hidden
                       className="inline-block size-2.5 rounded-full"

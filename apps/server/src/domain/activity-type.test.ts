@@ -49,7 +49,6 @@ beforeEach(async () => {
 
 function typeInput(overrides: Partial<ActivityTypeCreate> = {}): ActivityTypeCreate {
   return {
-    code: 'supervision',
     label: 'Supervision',
     color: '#334155',
     defaultDurationMin: null,
@@ -61,7 +60,10 @@ function typeInput(overrides: Partial<ActivityTypeCreate> = {}): ActivityTypeCre
   }
 }
 
-const codes = (types: { code: string }[]) => types.map((type) => type.code)
+/** The catalogue has no code since migration 0041, so a test that asks "which
+ *  types are there" asks for the labels — which is also what a reader of the
+ *  expectation below can recognise. */
+const labels = (types: { label: string }[]) => types.map((type) => type.label)
 
 const someService = () =>
   createService(db(), tenantId, {
@@ -78,20 +80,20 @@ describe('the catalogue', () => {
   it('lists in sort order and hides inactive entries unless asked', async () => {
     await createActivityType(db(), tenantId, typeInput({ active: false }))
 
-    expect(codes(await listActivityTypes(db(), tenantId, false))).toEqual([
-      'initial',
-      'session',
-      'talk',
-      'consultation',
+    expect(labels(await listActivityTypes(db(), tenantId, false))).toEqual([
+      'Erstgespräch',
+      'Folgesitzung',
+      'Vortrag',
+      'Beratung',
     ])
-    expect(codes(await listActivityTypes(db(), tenantId, true))).toContain('supervision')
+    expect(labels(await listActivityTypes(db(), tenantId, true))).toContain('Supervision')
   })
 
   it('keeps the tenants apart', async () => {
     const other = await createTenant(db())
     await createActivityType(db(), other, typeInput())
 
-    expect(codes(await listActivityTypes(db(), tenantId, true))).not.toContain('supervision')
+    expect(labels(await listActivityTypes(db(), tenantId, true))).not.toContain('Supervision')
   })
 })
 
@@ -102,15 +104,17 @@ describe('the default type', () => {
     const created = await createActivityType(db(), tenantId, typeInput({ isDefault: true }))
 
     const all = await listActivityTypes(db(), tenantId, true)
-    expect(all.filter((type) => type.isDefault).map((type) => type.code)).toEqual(['supervision'])
+    expect(all.filter((type) => type.isDefault).map((type) => type.label)).toEqual(['Supervision'])
 
     // …and back again, through an update.
-    const session = all.find((type) => type.code === 'session')
+    const session = all.find((type) => type.label === 'Folgesitzung')
     if (!session) throw new Error('fixture missing')
     await updateActivityType(db(), tenantId, session.id, { ...session, isDefault: true })
 
     const after = await listActivityTypes(db(), tenantId, true)
-    expect(after.filter((type) => type.isDefault).map((type) => type.code)).toEqual(['session'])
+    expect(after.filter((type) => type.isDefault).map((type) => type.label)).toEqual([
+      'Folgesitzung',
+    ])
     expect(after.find((type) => type.id === created.id)?.isDefault).toBe(false)
   })
 })
@@ -119,19 +123,19 @@ describe('deleting', () => {
   it('removes a type nobody uses', async () => {
     const created = await createActivityType(db(), tenantId, typeInput())
     expect(await deleteActivityType(db(), tenantId, created.id)).toBe(true)
-    expect(codes(await listActivityTypes(db(), tenantId, true))).not.toContain('supervision')
+    expect(labels(await listActivityTypes(db(), tenantId, true))).not.toContain('Supervision')
   })
 
   /**
    * A type that has been used is history: deleting it would leave activities
-   * pointing at nothing, so `activity_type_fk` refuses and the route turns that
+   * pointing at nothing, so `activity_activity_type_fk` refuses and the route turns that
    * into "set it to inactive instead".
    */
   it('refuses a type that is in use, and deactivating is the way out', async () => {
     const created = await createActivityType(db(), tenantId, typeInput())
     await createActivity(db(), tenantId, {
       contactId,
-      type: created.code,
+      activityTypeId: created.id,
       status: 'planned',
       occurredAt: '2026-09-01T08:00:00.000Z',
       durationMin: null,
@@ -148,7 +152,7 @@ describe('deleting', () => {
     } catch (error) {
       constraint = foreignKeyViolationConstraint(error)
     }
-    expect(constraint).toBe('activity_type_fk')
+    expect(constraint).toBe('activity_activity_type_fk')
 
     const deactivated = await updateActivityType(db(), tenantId, created.id, {
       ...created,
@@ -170,7 +174,7 @@ describe('the presets', () => {
 
     const activity = await createActivity(db(), tenantId, {
       contactId,
-      type: created.code,
+      activityTypeId: created.id,
       status: 'planned',
       occurredAt: '2026-09-01T08:00:00.000Z',
       durationMin: 50,

@@ -99,121 +99,115 @@ export function ActivityTypeSettings() {
   const byServiceId = new Map(serviceRows.map((service) => [service.id, service]))
 
   return (
-    <>
-      <ListCard>
-        <ListCardTitleBar
-          title={strings.activityType.title}
-          hint={strings.activityType.hint}
-          action={
-            <Button
-              size="sm"
-              onClick={() => {
-                detail.close()
-                setCreating((current) => !current)
-              }}
-            >
-              <Plus className="size-4" aria-hidden />
-              {strings.activityType.create}
-            </Button>
-          }
-        />
+    <ListCard>
+      <ListCardTitleBar
+        title={strings.activityType.title}
+        hint={strings.activityType.hint}
+        action={
+          <Button
+            size="sm"
+            onClick={() => {
+              detail.close()
+              setCreating((current) => !current)
+            }}
+          >
+            <Plus className="size-4" aria-hidden />
+            {strings.activityType.create}
+          </Button>
+        }
+      />
 
-        {creating && (
-          <div className="border-b bg-muted/20 p-4">
-            <ActivityTypeForm
-              services={serviceRows}
-              groups={groupRows}
-              pending={save.isPending}
-              onCancel={() => setCreating(false)}
-              onSubmit={(values) => save.mutate({ values })}
-            />
-          </div>
-        )}
+      {creating && (
+        <div className="border-b bg-muted/20 p-4">
+          <ActivityTypeForm
+            services={serviceRows}
+            groups={groupRows}
+            pending={save.isPending}
+            onCancel={() => setCreating(false)}
+            onSubmit={(values) => save.mutate({ values })}
+          />
+        </div>
+      )}
 
-        {rows.length === 0 ? (
-          <p className="p-4 text-muted-foreground text-sm">
-            {types.isPending ? strings.status.loading : strings.activityType.empty}
-          </p>
-        ) : (
-          <Table>
-            <TableBody>
-              {rows.map((type, index) => (
-                <Fragment key={type.id}>
-                  <TableRow
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setCreating(false)
-                      detail.toggle(type.id)
-                    }}
-                  >
-                    <TableCell>
-                      <ColorSwatch color={type.color} />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{type.label}</span>
-                      <span className="ml-2 text-muted-foreground text-xs">{type.code}</span>
-                      {type.isDefault && (
-                        <Badge variant="outline" className="ml-2">
-                          {strings.activityType.defaultBadge}
-                        </Badge>
-                      )}
-                      {/* Duration and preset in one muted line, as the design
+      {rows.length === 0 ? (
+        <p className="p-4 text-muted-foreground text-sm">
+          {types.isPending ? strings.status.loading : strings.activityType.empty}
+        </p>
+      ) : (
+        <Table>
+          <TableBody>
+            {rows.map((type, index) => (
+              <Fragment key={type.id}>
+                <TableRow
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setCreating(false)
+                    detail.toggle(type.id)
+                  }}
+                >
+                  <TableCell>
+                    <ColorSwatch color={type.color} />
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">{type.label}</span>
+                    {type.isDefault && (
+                      <Badge variant="outline" className="ml-2">
+                        {strings.activityType.defaultBadge}
+                      </Badge>
+                    )}
+                    {/* Duration and preset in one muted line, as the design
                           writes it: the duration (or "ohne übliche Dauer")
                           followed by the services, joined by "·" (K4). Without
                           it the row said what the type is called and nothing
                           about what applying it would do. */}
-                      <span className="ml-2 text-muted-foreground text-xs">
-                        {presetSummary(type, byServiceId)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <ActiveStatus active={type.active} />
-                    </TableCell>
-                    <TableCell onClick={(event) => event.stopPropagation()}>
-                      <OrderButtons
-                        index={index}
-                        count={rows.length}
-                        pending={move.isPending}
-                        onMove={(i, delta) => {
-                          const row = rows[i]
-                          if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
-                        }}
-                      />
-                    </TableCell>
-                  </TableRow>
+                    <span className="ml-2 text-muted-foreground text-xs">
+                      {presetSummary(type, byServiceId)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <ActiveStatus active={type.active} />
+                  </TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    <OrderButtons
+                      index={index}
+                      count={rows.length}
+                      pending={move.isPending}
+                      onMove={(i, delta) => {
+                        const row = rows[i]
+                        if (row) move.mutate({ id: row.id, delta: delta as 1 | -1 })
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
 
-                  {detail.isOpen(type.id) && (
-                    <InlineDetailRow colSpan={4}>
-                      {detail.editing ? (
-                        <ActivityTypeForm
-                          type={type}
-                          services={serviceRows}
-                          groups={groupRows}
-                          pending={save.isPending}
-                          onCancel={detail.stopEditing}
-                          onSubmit={(values) => save.mutate({ id: type.id, values })}
-                        />
-                      ) : (
-                        <ActivityTypeDetail
-                          type={type}
-                          services={serviceRows}
-                          onEdit={detail.startEditing}
-                          onClose={detail.close}
-                          onDelete={() => remove.mutate(type.id)}
-                        />
-                      )}
-                    </InlineDetailRow>
-                  )}
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </ListCard>
-      {/* The sentence the design puts under the card — it answers the question
-          the list itself raises, so it belongs below it, not in the title bar (K3). */}
-      <p className="mt-3 text-muted-foreground text-sm">{strings.activityType.footer}</p>
-    </>
+                {detail.isOpen(type.id) && (
+                  <InlineDetailRow colSpan={4}>
+                    {detail.editing ? (
+                      <ActivityTypeForm
+                        type={type}
+                        services={serviceRows}
+                        groups={groupRows}
+                        pending={save.isPending}
+                        onCancel={detail.stopEditing}
+                        onSubmit={(values) => save.mutate({ id: type.id, values })}
+                      />
+                    ) : (
+                      <ActivityTypeDetail
+                        type={type}
+                        services={serviceRows}
+                        onEdit={detail.startEditing}
+                        onClose={detail.close}
+                        onDelete={() => remove.mutate(type.id)}
+                      />
+                    )}
+                  </InlineDetailRow>
+                )}
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </ListCard>
   )
 }
 
@@ -255,7 +249,6 @@ function ActivityTypeDetail({
   return (
     <div className="space-y-4">
       <dl className="flex flex-wrap gap-8">
-        <DetailField label={strings.activityType.code} value={type.code} />
         <DetailField
           label={strings.activityType.defaultDuration}
           value={
@@ -314,7 +307,6 @@ function ActivityTypeDetail({
 
 function toValues(type: ActivityType): ActivityTypeCreate {
   return {
-    code: type.code,
     label: type.label,
     color: type.color,
     defaultDurationMin: type.defaultDurationMin,
@@ -347,7 +339,6 @@ function ActivityTypeForm({
     type
       ? toValues(type)
       : {
-          code: '',
           label: '',
           color: DEFAULT_COLOR,
           defaultDurationMin: null,
@@ -362,22 +353,11 @@ function ActivityTypeForm({
 
   return (
     <div className="space-y-4">
+      {/* No Kürzel field, and none anywhere else on this screen (B1). The
+          catalogue lost its code in migration 0041 — it was an anchor for logic
+          that keys off a particular type, and rule 6 says there is none. What
+          it left behind was a box that could be read and not written. */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="activity-type-code">{strings.activityType.code}</Label>
-          <Input
-            id="activity-type-code"
-            className="mt-2"
-            // The handle `activity.type` points at: fixed once it exists.
-            disabled={type !== undefined}
-            value={values.code}
-            onChange={(event) => setValues({ ...values, code: event.target.value })}
-          />
-          {type === undefined && (
-            <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.codeHint}</p>
-          )}
-        </div>
-
         <div>
           <Label htmlFor="activity-type-label">{strings.activityType.label}</Label>
           <Input
@@ -386,6 +366,7 @@ function ActivityTypeForm({
             value={values.label}
             onChange={(event) => setValues({ ...values, label: event.target.value })}
           />
+          <p className="mt-1 text-muted-foreground text-xs">{strings.activityType.labelHint}</p>
         </div>
       </div>
 
@@ -455,7 +436,7 @@ function ActivityTypeForm({
         </Button>
         <Button
           type="button"
-          disabled={pending || values.code.trim() === '' || values.label.trim() === ''}
+          disabled={pending || values.label.trim() === ''}
           onClick={() => onSubmit(values)}
         >
           {strings.actions.save}

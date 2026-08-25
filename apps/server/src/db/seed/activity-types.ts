@@ -3,9 +3,9 @@
  *
  * None of them is a system entry — nothing in the software depends on a
  * particular type existing, so all four are as editable and deletable as
- * anything the practitioner adds. The codes `session`, `talk` and
- * `consultation` are the ones `activity.type` already carried before the
- * catalogue existed, which is why they are spelled this way.
+ * anything the practitioner adds. That is also why the catalogue lost its
+ * `code` in migration 0041: an anchor with nothing anchored to it. The label
+ * is what an entry is recognised by now, and what this seed dedupes on.
  *
  * No default duration and no default service or group: those are the
  * practice's numbers, and inventing them here would put made-up defaults on
@@ -22,11 +22,11 @@ import type { Database } from '../client.js'
 import { activityType } from '../schema.js'
 
 const ACTIVITY_TYPES = [
-  { code: 'initial', label: 'Erstgespräch', color: '#2563eb', isDefault: false, sortOrder: 10 },
+  { label: 'Erstgespräch', color: '#2563eb', isDefault: false, sortOrder: 10 },
   // The everyday case, so this is the one a new activity starts on.
-  { code: 'session', label: 'Folgesitzung', color: '#0d9488', isDefault: true, sortOrder: 20 },
-  { code: 'talk', label: 'Vortrag', color: '#d97706', isDefault: false, sortOrder: 30 },
-  { code: 'consultation', label: 'Beratung', color: '#7c3aed', isDefault: false, sortOrder: 40 },
+  { label: 'Folgesitzung', color: '#0d9488', isDefault: true, sortOrder: 20 },
+  { label: 'Vortrag', color: '#d97706', isDefault: false, sortOrder: 30 },
+  { label: 'Beratung', color: '#7c3aed', isDefault: false, sortOrder: 40 },
 ] as const
 
 export async function seedActivityTypes(database: Database, tenantId: string): Promise<void> {
@@ -34,6 +34,6 @@ export async function seedActivityTypes(database: Database, tenantId: string): P
     await database
       .insert(activityType)
       .values({ id: newId(), tenantId, ...type })
-      .onConflictDoNothing({ target: [activityType.tenantId, activityType.code] })
+      .onConflictDoNothing({ target: [activityType.tenantId, activityType.label] })
   }
 }

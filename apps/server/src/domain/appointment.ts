@@ -42,7 +42,7 @@ function entryQuery(database: Database) {
       title: appointment.title,
       note: appointment.note,
       activityId: activity.id,
-      activityType: activity.type,
+      activityTypeId: activity.activityTypeId,
       activityStatus: activity.status,
       activityTitle: activity.title,
       contactNumber: contact.contactNumber,
@@ -71,7 +71,7 @@ function toEntry(row: EntryRow): CalendarEntry {
     activityId: row.activityId,
     // The type travels as its code and the calendar resolves label and colour
     // from the catalogue it has loaded anyway.
-    activityType: row.activityType,
+    activityTypeId: row.activityTypeId,
     activityStatus: row.activityStatus,
     activityTitle: row.activityTitle,
     contactNumber: row.contactNumber,

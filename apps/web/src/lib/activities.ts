@@ -17,7 +17,7 @@ import { api, apiError } from './api'
 
 type ListParams = Pick<
   Partial<ActivityListQuery>,
-  'contactId' | 'from' | 'to' | 'status' | 'type' | 'billing'
+  'contactId' | 'from' | 'to' | 'status' | 'activityTypeId' | 'billing'
 >
 
 function listQuery(params: ListParams, extra: Record<string, string> = {}) {
@@ -26,7 +26,7 @@ function listQuery(params: ListParams, extra: Record<string, string> = {}) {
     ...(params.from ? { from: params.from } : {}),
     ...(params.to ? { to: params.to } : {}),
     ...(params.status ? { status: params.status } : {}),
-    ...(params.type ? { type: params.type } : {}),
+    ...(params.activityTypeId ? { activityTypeId: params.activityTypeId } : {}),
     ...(params.billing ? { billing: params.billing } : {}),
     ...extra,
   }
@@ -98,7 +98,7 @@ export const activitySummaryQueryOptions = (params: ActivitySummaryQuery) =>
         query: {
           ...(params.from ? { from: params.from } : {}),
           ...(params.to ? { to: params.to } : {}),
-          ...(params.type ? { type: params.type } : {}),
+          ...(params.activityTypeId ? { activityTypeId: params.activityTypeId } : {}),
           ...(params.contactId ? { contactId: params.contactId } : {}),
         },
       })

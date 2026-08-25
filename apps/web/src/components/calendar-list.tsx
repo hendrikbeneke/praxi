@@ -87,7 +87,7 @@ export function CalendarList({
                   <span
                     aria-hidden
                     className="size-2.5 shrink-0 rounded-sm"
-                    style={{ backgroundColor: activityTypeColor(types, entry.activityType) }}
+                    style={{ backgroundColor: activityTypeColor(types, entry.activityTypeId) }}
                   />
                   <span
                     className={cn(
@@ -98,7 +98,7 @@ export function CalendarList({
                     {entryName(entry, types)}
                   </span>
                   <span className="shrink-0 text-muted-foreground text-sm">
-                    {entry.activityType ? activityTypeLabel(types, entry.activityType) : ''}
+                    {entry.activityTypeId ? activityTypeLabel(types, entry.activityTypeId) : ''}
                   </span>
                   {/* The status as a chip, which the grid has no room for and
                       this view does. */}

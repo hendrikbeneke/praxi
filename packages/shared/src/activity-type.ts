@@ -1,17 +1,22 @@
 import { z } from 'zod'
 import { DEFAULT_COLOR, hexColorSchema } from './color.js'
 import { requiredText } from './field.js'
-import { typeCodeSchema } from './type-code.js'
 
 /**
  * The catalogue of activity types — Erstgespräch, Folgesitzung, Vortrag,
  * Beratung and whatever else the practice needs (CLAUDE.md rule 6).
  *
  * Like the role and relation catalogues of rule 4 this is maintained by the
- * practitioner, so `activity.type` points at a `code` here through a composite
- * foreign key rather than being an enum or a check constraint. Unlike those
- * two there are no system entries: nothing in the software depends on a
- * particular activity type existing.
+ * practitioner, so `activity.activity_type_id` points at a row here through a
+ * composite foreign key rather than being an enum or a check constraint.
+ *
+ * **There is no `code`** since migration 0041, and that follows from the next
+ * sentence rather than contradicting it: there are no system entries, nothing
+ * in the software depends on a particular activity type existing, so there was
+ * nothing for an anchor to anchor. What a code bought was a second name to keep
+ * in step and a field on screen that could be read and not edited. The label is
+ * what a type is recognised by now — unique per tenant, and freely renamable
+ * because every activity points at the id.
  *
  * ## The presets are presets
  *
@@ -65,17 +70,20 @@ const activityTypeFields = {
   active: z.boolean().default(true),
 }
 
-/** What an edit may change. `code` is absent on purpose: it is the handle
- *  `activity.type` points at and is fixed once the entry exists. */
+/**
+ * Creating and editing take the same fields — there is nothing that is settled
+ * once and frozen afterwards, which is exactly what dropping the code bought.
+ * `ActivityTypeCreate` stays as an alias so the two intents still read
+ * differently at the call sites.
+ */
 export const activityTypeInputSchema = z.object(activityTypeFields)
 export type ActivityTypeInput = z.infer<typeof activityTypeInputSchema>
 
-export const activityTypeCreateSchema = z.object({ code: typeCodeSchema, ...activityTypeFields })
-export type ActivityTypeCreate = z.infer<typeof activityTypeCreateSchema>
+export const activityTypeCreateSchema = activityTypeInputSchema
+export type ActivityTypeCreate = ActivityTypeInput
 
 export const activityTypeSchema = z.object({
   id: z.uuid(),
-  code: z.string(),
   label: z.string(),
   color: z.string(),
   defaultDurationMin: z.number().int().nullable(),
@@ -98,20 +106,23 @@ export const activityTypeSchema = z.object({
 
 export type ActivityType = z.infer<typeof activityTypeSchema>
 
-/** The label of a type, by code, for a list that has the catalogue loaded.
- *  A code with no entry — a deactivated type is still shown where it is used —
- *  falls back to the code itself rather than to an empty cell. */
-export function activityTypeLabel(
-  types: readonly ActivityType[] | undefined,
-  code: string,
-): string {
-  return types?.find((type) => type.code === code)?.label ?? code
+/**
+ * The label of a type, by id, for a list that has the catalogue loaded.
+ *
+ * The fallback used to be the code, which said *something* to a reader. An id
+ * says nothing, so a missing entry falls back to the em dash every list uses
+ * for an absent value. It is unreachable in practice — a type an activity
+ * carries cannot be deleted, and the callers all load inactive types too — and
+ * printing a uuid in a calendar block would be the worse way to find that out.
+ */
+export function activityTypeLabel(types: readonly ActivityType[] | undefined, id: string): string {
+  return types?.find((type) => type.id === id)?.label ?? '—'
 }
 
 export function activityTypeColor(
   types: readonly ActivityType[] | undefined,
-  code: string | null,
+  id: string | null,
 ): string {
-  if (code === null) return DEFAULT_COLOR
-  return types?.find((type) => type.code === code)?.color ?? DEFAULT_COLOR
+  if (id === null) return DEFAULT_COLOR
+  return types?.find((type) => type.id === id)?.color ?? DEFAULT_COLOR
 }

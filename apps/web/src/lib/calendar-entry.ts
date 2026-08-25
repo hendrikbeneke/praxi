@@ -22,13 +22,13 @@ import { strings } from './strings'
  * a blocker would have been drawn as a nameless box.
  */
 export function entryName(
-  entry: Pick<CalendarEntry, 'title' | 'contactName' | 'activityType'>,
+  entry: Pick<CalendarEntry, 'title' | 'contactName' | 'activityTypeId'>,
   types: readonly ActivityType[] | undefined,
 ): string {
   if (entry.title !== null) return entry.title
   if (entry.contactName !== null) return entry.contactName
-  return entry.activityType
-    ? activityTypeLabel(types, entry.activityType)
+  return entry.activityTypeId
+    ? activityTypeLabel(types, entry.activityTypeId)
     : strings.appointment.untitled
 }
 
@@ -47,10 +47,10 @@ export function entryName(
  * the treatment is a property of the Vorgang and is read in its own list.
  */
 export function entrySubline(
-  entry: Pick<CalendarEntry, 'status' | 'activityType'>,
+  entry: Pick<CalendarEntry, 'status' | 'activityTypeId'>,
   types: readonly ActivityType[] | undefined,
 ): string {
-  const type = entry.activityType ? activityTypeLabel(types, entry.activityType) : ''
+  const type = entry.activityTypeId ? activityTypeLabel(types, entry.activityTypeId) : ''
 
   if (!occupiesSlot(entry.status)) return strings.appointment.status[entry.status]
   if (entry.status === 'requested') {

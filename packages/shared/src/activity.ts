@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { appointmentDraftSchema, appointmentSchema } from './appointment.js'
 import { optionalText, requiredText } from './field.js'
 import { cursorSchema, PAGE_SIZE } from './list.js'
-import { typeCodeSchema } from './type-code.js'
 
 /**
  * A dated event where services were rendered to a contact — a session, a talk,
@@ -97,8 +96,9 @@ export type ActivityItemInput = z.infer<typeof activityItemInputSchema>
 
 export const activityInputSchema = z.object({
   contactId: z.uuid(),
-  /** The `code` of an `activity_type`. */
-  type: typeCodeSchema,
+  /** The `activity_type` this is one of. An id since migration 0041; the
+   *  catalogue has no code anymore. */
+  activityTypeId: z.uuid(),
   status: activityStatusSchema.default('planned'),
   occurredAt: z.iso.datetime(),
   /** Descriptive only. Nothing is derived from it — an activity documented
@@ -139,7 +139,7 @@ export const activitySchema = z.object({
    *  spell a name the same way. */
   contactName: z.string(),
   contactNumber: z.number().int(),
-  type: z.string(),
+  activityTypeId: z.uuid(),
   status: activityStatusSchema,
   occurredAt: z.iso.datetime(),
   durationMin: z.number().int().nullable(),
@@ -160,15 +160,16 @@ export type Activity = z.infer<typeof activitySchema>
  * halves, and this is the file that may see both: `activity.ts` imports
  * `appointment.ts`, so the reverse import would close a cycle.
  *
- * The activity's type travels as its `code`, not as a label and not as a
+ * The activity's type travels as its **id**, not as a label and not as a
  * colour — the client has the catalogue loaded for the filter anyway, and
- * resolving it there keeps one source for both. All four activity columns are
+ * resolving it there keeps one source for both. It was the code until
+ * migration 0041 took the code off the catalogue. All four activity columns are
  * null on a free-standing appointment — a blocker, documentation time, a team
  * meeting, which `POST /api/appointments` has produced since D-K1.
  */
 export const calendarEntrySchema = appointmentSchema.extend({
   activityId: z.uuid().nullable(),
-  activityType: z.string().nullable(),
+  activityTypeId: z.uuid().nullable(),
   activityStatus: activityStatusSchema.nullable(),
   /** The Vorgang's own title, which is a different column from the
    *  appointment's `title` above: an appointment created together with its
@@ -228,9 +229,9 @@ export const activityListQuerySchema = z
     from: z.iso.datetime().optional(),
     to: z.iso.datetime().optional(),
     status: activityStatusSchema.optional(),
-    /** The `code` of an `activity_type` (D8). Filtered on the server like the
+    /** One `activity_type`, by id (D8). Filtered on the server like the
      *  status, and for the same reason: the list is paged. */
-    type: typeCodeSchema.optional(),
+    activityTypeId: z.uuid().optional(),
     /** Filtered on the server like the status, and for the same reason: the
      *  list is paged, and a browser cannot narrow what it never fetched. */
     billing: activityBillingFilterSchema.optional(),
@@ -264,7 +265,7 @@ export const activitySummaryQuerySchema = z.object({
   contactId: z.uuid().optional(),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
-  type: typeCodeSchema.optional(),
+  activityTypeId: z.uuid().optional(),
 })
 
 export type ActivitySummaryQuery = z.infer<typeof activitySummaryQuerySchema>

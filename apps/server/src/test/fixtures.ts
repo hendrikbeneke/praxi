@@ -2,6 +2,7 @@ import type { Invoice } from '@praxi/shared'
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import {
+  activityType as activityTypeTable,
   appUser,
   contactRoleType,
   country,
@@ -60,6 +61,28 @@ export async function roleTypeId(
     .limit(1)
 
   if (!row) throw new Error(`no role type labelled ${label}`)
+  return row.id
+}
+
+/**
+ * The id of one of the seeded activity types, by label — the third of these,
+ * and by now the pattern rather than the exception: migration 0041 took the
+ * code off the activity catalogue the way 0035 took it off the roles and 0038
+ * off the note types. `activityTypeId(db, tenant, 'Folgesitzung')` says what it
+ * wants; `types[1].id` would say where it happens to sit.
+ */
+export async function activityTypeId(
+  database: Database,
+  tenantId: string,
+  label: string,
+): Promise<string> {
+  const [row] = await database
+    .select({ id: activityTypeTable.id })
+    .from(activityTypeTable)
+    .where(and(eq(activityTypeTable.tenantId, tenantId), eq(activityTypeTable.label, label)))
+    .limit(1)
+
+  if (!row) throw new Error(`no activity type labelled ${label}`)
   return row.id
 }
 

@@ -177,6 +177,14 @@ export const strings = {
     /** Under the code of an EXISTING type, where there is no field to explain
      *  — only a value and the reason it stands still (B1, C1). */
     codeFixed: 'Daran hängen die bestehenden Beziehungen. Es lässt sich nicht mehr ändern.',
+    direction: 'Richtung',
+    /** Above the read-only form of a system entry (B1). Names the consequence
+     *  rather than the rule: what a rename would break is that the record and
+     *  the invoice would stop agreeing. */
+    systemReadOnlyHint:
+      'Dieser Eintrag gehört fest zum System — die Software richtet sich nach seinem Kürzel. ' +
+      'Bezeichnungen, Richtung und Exklusivität sind deshalb festgelegt; nur „Aktiv" lässt ' +
+      'sich umstellen.',
     label: 'Bezeichnung',
     /** The label is what a role is recognised by now that there is no code —
      *  hence unique, and hence worth saying at the field. */
@@ -209,9 +217,11 @@ export const strings = {
     systemBadge: 'System',
     exclusiveBadge: 'Nur einmal',
     symmetricBadge: 'Beidseitig',
+    /** Renaming was allowed until B1 and is not anymore — see
+     *  `systemReadOnlyHint`. */
     systemHint:
-      'Auf diesem Eintrag baut die Software auf. Er lässt sich umbenennen, aber nicht löschen, ' +
-      'und sein Kürzel bleibt, wie es ist.',
+      'Auf diesem Eintrag baut die Software auf. Er lässt sich weder umbenennen noch löschen, ' +
+      'nur auf inaktiv setzen.',
 
     createRole: 'Neue Rolle',
     createRelation: 'Neue Beziehungsart',
@@ -229,8 +239,11 @@ export const strings = {
   activityType: {
     title: 'Vorgangsarten',
     hint: 'Farbe im Kalender und Vorbelegung beim Anlegen',
-    footer:
-      'Inaktive Arten erscheinen in keiner Auswahlliste, bleiben aber an bestehenden Vorgängen.',
+    /** Deliberately no footer under this card (B1). It said what `activeHint`
+     *  says beside the checkbox that does it — and a sentence standing twice on
+     *  one screen is not read twice, it is read once at best. The hint stays,
+     *  because it is at the control; the footer went, because it explained a
+     *  mechanism nobody was invoking. Same call as F2 at the Notizarten. */
     /** Not `—`: the point is that this kind of activity has no usual length,
      *  which is a statement, where a dash would read as a missing value. */
     noUsualDuration: 'ohne übliche Dauer',
@@ -238,11 +251,10 @@ export const strings = {
     create: 'Neue Vorgangsart',
     empty: 'Noch keine Vorgangsarten.',
 
-    code: 'Kürzel',
-    codeHint:
-      'Technisches Kürzel, klein geschrieben, ohne Leerzeichen. Es steht mit dem Anlegen fest ' +
-      'und lässt sich später nicht mehr ändern.',
+    /** No `code`/`codeHint` here since migration 0041 — see the catalogue's
+     *  schema. The label is what a type is recognised by, hence unique. */
     label: 'Bezeichnung',
+    labelHint: 'Jede Vorgangsart braucht eine eigene Bezeichnung.',
     color: 'Farbe',
     colorHint: 'Damit wird der Termin im Kalender hinterlegt.',
     defaultDuration: 'Dauer in Minuten',

@@ -12,7 +12,7 @@ import { type EventPage, type GoogleApi, GoogleApiError } from '../google/client
 import type { GoogleEventPayload } from '../google/payload.js'
 import { googleEventId } from '../google/payload.js'
 import { newId } from '../id.js'
-import { createTenant } from '../test/fixtures.js'
+import { activityTypeId, createTenant } from '../test/fixtures.js'
 import { createActivity, deleteActivity, updateActivity } from './activity.js'
 import { updateAppointment } from './appointment.js'
 import { createContact } from './contact.js'
@@ -36,6 +36,7 @@ import {
 const CALENDAR_ID = 'praxis@praxi.invalid'
 
 let tenantId: string
+let sessionTypeId: string
 let contactId: string
 
 /** Requests the fake saw, and what it should do with the next one. */
@@ -110,7 +111,7 @@ function person(): ContactInput {
 function booking(startsAt: string, endsAt: string): ActivityInput {
   return {
     contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'planned',
     occurredAt: startsAt,
     durationMin: null,
@@ -154,6 +155,7 @@ const NOW = new Date('2026-09-01T10:00:00.000Z')
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   contactId = (await createContact(db(), tenantId, person())).id
 })
 

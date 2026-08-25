@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils'
  *  parameter, not a decision about the appointment (K10). */
 const FREE_DURATIONS = [15, 30, 60] as const
 
-export type SlotSearch = { durationMin: number; typeCode: string | null }
+export type SlotSearch = { durationMin: number; typeId: string | null }
 
 export function SlotFinder({
   search,
@@ -57,7 +57,7 @@ export function SlotFinder({
   /** The same click twice means "never mind" — the way out that does not
    *  require finding the link below. */
   const toggle = (next: SlotSearch) => {
-    const same = search?.typeCode === next.typeCode && search?.durationMin === next.durationMin
+    const same = search?.typeId === next.typeId && search?.durationMin === next.durationMin
     if (same) onClear()
     else onSearch(next)
   }
@@ -69,14 +69,14 @@ export function SlotFinder({
       <div className="space-y-1.5">
         {withDuration.map((entry) => (
           <button
-            key={entry.code}
+            key={entry.id}
             type="button"
-            onClick={() => toggle({ durationMin: entry.defaultDurationMin, typeCode: entry.code })}
+            onClick={() => toggle({ durationMin: entry.defaultDurationMin, typeId: entry.id })}
             /* Chosen, in the type's own colour rather than in the accent —
                the same tint the grid paints its entries with, so the card and
                what it will produce read as one thing (design). */
             style={
-              search?.typeCode === entry.code
+              search?.typeId === entry.id
                 ? {
                     backgroundColor: `color-mix(in oklab, ${entry.color} 12%, var(--card))`,
                     borderColor: `color-mix(in oklab, ${entry.color} 45%, transparent)`,
@@ -85,7 +85,7 @@ export function SlotFinder({
             }
             className={cn(
               'flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left',
-              search?.typeCode !== entry.code && 'hover:bg-accent',
+              search?.typeId !== entry.id && 'hover:bg-accent',
             )}
           >
             <span
@@ -123,12 +123,12 @@ export function SlotFinder({
             key={minutes}
             size="sm"
             variant={
-              search && search.typeCode === null && search.durationMin === minutes
+              search && search.typeId === null && search.durationMin === minutes
                 ? 'default'
                 : 'outline'
             }
             className="h-8 flex-1 px-1 text-xs tabular-nums"
-            onClick={() => toggle({ durationMin: minutes, typeCode: null })}
+            onClick={() => toggle({ durationMin: minutes, typeId: null })}
           >
             {strings.slotFinder.minutes(minutes)}
           </Button>

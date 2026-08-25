@@ -49,7 +49,7 @@ export type RailSelection =
    *  what is held, so a refetch cannot leave a stale copy on screen. */
   | { kind: 'appointment'; appointmentId: string }
   /**
-   * `typeCode` and `durationMin` are set when the slot finder handed the slot
+   * `typeId` and `durationMin` are set when the slot finder handed the slot
    * over: they are what the search was about, and asking for them again would
    * be asking twice (D9.5). `mode` is which tab opens — a search by bare
    * duration means a Termin and not a Vorgang, so it opens on "Nur Termin".
@@ -57,7 +57,7 @@ export type RailSelection =
   | {
       kind: 'new'
       startsAtLocal?: string
-      typeCode?: string
+      typeId?: string
       durationMin?: number
       mode?: 'activity' | 'appointment'
     }
@@ -94,12 +94,12 @@ export function CalendarRail({
    *  and not on the second. */
   onSaved: () => void
   /** What the open form currently describes, for the panel's header. */
-  draft?: { startsAt: string; endsAt: string; typeCode: string } | null
+  draft?: { startsAt: string; endsAt: string; typeId: string } | null
   /** The overlap sentence, worked out by the page: only it knows what else is
    *  in the week the grid has loaded. */
   warning?: React.ReactNode
   /** The interval currently in the open form, for the grid's draft block. */
-  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeCode: string } | null) => void
+  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeId: string } | null) => void
 }) {
   return (
     /* `overflow-hidden` on the column and the scrolling inside it: the panel's
@@ -157,9 +157,9 @@ function Selected({
   selection: NonNullable<RailSelection>
   entries: readonly CalendarEntry[]
   /** What the open form currently describes — the header reads it. */
-  draft?: { startsAt: string; endsAt: string; typeCode: string } | null
+  draft?: { startsAt: string; endsAt: string; typeId: string } | null
   warning?: React.ReactNode
-  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeCode: string } | null) => void
+  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeId: string } | null) => void
   onClose: () => void
   onSaved: () => void
 }) {
@@ -213,7 +213,7 @@ function Selected({
     ) : (
       <EntryHeader
         entry={selection.kind === 'appointment' ? bare : undefined}
-        activityType={activity.data?.type ?? bare?.activityType ?? null}
+        activityTypeId={activity.data?.activityTypeId ?? bare?.activityTypeId ?? null}
         name={
           activity.data
             ? (activity.data.contactName ?? strings.appointment.untitled)
@@ -269,7 +269,7 @@ function Selected({
           tab === 'activity' ? (
             <ActivityForm
               {...(selection.startsAtLocal ? { startsAtLocal: selection.startsAtLocal } : {})}
-              {...(selection.typeCode ? { initialTypeCode: selection.typeCode } : {})}
+              {...(selection.typeId ? { initialTypeId: selection.typeId } : {})}
               {...(selection.durationMin ? { initialDurationMin: selection.durationMin } : {})}
               appointmentFixed
               submitLabel={strings.activity.createSubmit}
@@ -343,14 +343,14 @@ function Selected({
 /** The two lines above an entry: its kind in the type's colour, then what it
  *  is called, then the day and the span. */
 function EntryHeader({
-  activityType,
+  activityTypeId,
   name,
   startsAt,
   endsAt,
   types,
 }: {
   entry: CalendarEntry | undefined
-  activityType: string | null
+  activityTypeId: string | null
   name: string
   startsAt: string | null
   endsAt: string | null
@@ -362,10 +362,10 @@ function EntryHeader({
         <span
           aria-hidden
           className="size-2.5 shrink-0 rounded-sm"
-          style={{ backgroundColor: activityTypeColor(types, activityType) }}
+          style={{ backgroundColor: activityTypeColor(types, activityTypeId) }}
         />
         <span className="truncate">
-          {activityType ? activityTypeLabel(types, activityType) : strings.appointment.untitled}
+          {activityTypeId ? activityTypeLabel(types, activityTypeId) : strings.appointment.untitled}
         </span>
       </p>
       <p className="mt-[3px] truncate font-semibold text-[17px] tracking-[-0.015em]">{name}</p>
@@ -489,7 +489,7 @@ function DayOverview({
                 <span
                   aria-hidden
                   className="w-0.5 shrink-0 self-stretch rounded-full"
-                  style={{ backgroundColor: activityTypeColor(types.data, entry.activityType) }}
+                  style={{ backgroundColor: activityTypeColor(types.data, entry.activityTypeId) }}
                 />
                 <span
                   className={

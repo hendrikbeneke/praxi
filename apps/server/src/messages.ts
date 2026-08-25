@@ -87,7 +87,14 @@ export const messages = {
     // that do. Roles carry no logic anymore.
     systemNotDeletable:
       'Dieser Eintrag gehört fest zum System und kann nicht gelöscht werden. ' +
-      'Sie können ihn umbenennen oder auf inaktiv setzen.',
+      'Sie können ihn auf inaktiv setzen.',
+    /** Renaming was allowed until B1. The reason it is not: the software looks
+     *  this entry up by its Kürzel, so a renamed "Rechnungsempfänger" would make
+     *  the contact record say one thing while the invoice does another. */
+    systemReadOnly:
+      'Dieser Eintrag gehört fest zum System. Bezeichnungen, Richtung und Exklusivität ' +
+      'lassen sich nicht ändern — die Software richtet sich nach ihnen. Auf inaktiv setzen ' +
+      'können Sie ihn.',
     // Says how many, because "delete them there first" without a number sends
     // the practitioner looking through the whole card index.
     roleInUse: (count: number) =>
@@ -143,7 +150,9 @@ export const messages = {
   },
   activityType: {
     notFound: 'Diese Vorgangsart existiert nicht.',
-    codeTaken: 'Dieses Kürzel ist bereits vergeben.',
+    /** The label is what a type is recognised by since migration 0041 — the
+     *  catalogue has no Kürzel anymore. */
+    labelTaken: 'Eine Vorgangsart mit dieser Bezeichnung gibt es bereits.',
     inUse:
       'Diese Vorgangsart wird noch von Vorgängen verwendet und kann nicht gelöscht werden. ' +
       'Setzen Sie sie auf inaktiv, wenn sie nicht mehr zur Auswahl stehen soll.',

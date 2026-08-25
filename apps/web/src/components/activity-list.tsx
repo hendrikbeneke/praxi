@@ -191,8 +191,8 @@ export function ActivityList({
 
           {section.rows.map((activity) => {
             const open = detail.isOpen(activity.id)
-            const color = activityTypeColor(types.data, activity.type)
-            const typeLabel = activityTypeLabel(types.data, activity.type)
+            const color = activityTypeColor(types.data, activity.activityTypeId)
+            const typeLabel = activityTypeLabel(types.data, activity.activityTypeId)
             const billable = sumItems(activity.items, { billableOnly: true })
 
             const isNew = created?.id === activity.id

@@ -38,6 +38,31 @@ export class SystemTypeError extends Error {
   }
 }
 
+/**
+ * A system relation type is **read-only apart from `active` and its order**
+ * (B1). It used to be renamable, and the reason that was wrong is not the
+ * exclusivity: rename `billing_recipient` to "Sorgeberechtigt" and the contact
+ * record says one thing while `updateInvoice` and `prepareSend` do another,
+ * because both of them look the relation up by its code. The label is what a
+ * human reads; the code is what the software obeys, and letting the two drift
+ * apart is a way to make a screen lie without anything failing.
+ *
+ * So: `code`, `labelForward`, `labelInverse`, `isSymmetric` and `isExclusive`
+ * are frozen. `active` stays — a practice that bills nobody through a third
+ * party may switch the entry off — and so does `sortOrder`, which moves through
+ * `/move` and not through here.
+ *
+ * The `protect_system_type` trigger already froze `code` and `is_system` in the
+ * database. This is the wider rule, and it lives in the domain because the
+ * others are ordinary columns a trigger has no reason to guard.
+ */
+export class SystemTypeReadOnlyError extends Error {
+  constructor() {
+    super('system entry is read-only')
+    this.name = 'SystemTypeReadOnlyError'
+  }
+}
+
 /** A role type some contact still holds. Counted rather than left to the
  *  foreign key, so the message can say how many — "delete them there first"
  *  without a number sends the practitioner looking. */
@@ -206,12 +231,35 @@ export async function updateRelationType(
 ): Promise<ContactRelationType | null> {
   return database.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ code: contactRelationType.code, isExclusive: contactRelationType.isExclusive })
+      .select({
+        code: contactRelationType.code,
+        labelForward: contactRelationType.labelForward,
+        labelInverse: contactRelationType.labelInverse,
+        isSymmetric: contactRelationType.isSymmetric,
+        isExclusive: contactRelationType.isExclusive,
+        isSystem: contactRelationType.isSystem,
+      })
       .from(contactRelationType)
       .where(and(eq(contactRelationType.tenantId, tenantId), eq(contactRelationType.id, id)))
       .limit(1)
 
     if (!existing) return null
+
+    /**
+     * Refused rather than silently ignored, and compared field by field rather
+     * than blocked outright: the screen sends the whole form, and `active` on a
+     * system entry is a legitimate edit. See `SystemTypeReadOnlyError` for why
+     * the labels are in the frozen set and not only the code.
+     */
+    if (
+      existing.isSystem &&
+      (input.labelForward !== existing.labelForward ||
+        (input.labelInverse ?? null) !== existing.labelInverse ||
+        input.isSymmetric !== existing.isSymmetric ||
+        input.isExclusive !== existing.isExclusive)
+    ) {
+      throw new SystemTypeReadOnlyError()
+    }
 
     const [row] = await tx
       .update(contactRelationType)

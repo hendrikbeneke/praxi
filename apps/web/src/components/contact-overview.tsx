@@ -196,7 +196,8 @@ function ContactDetails({ contact }: { contact: Contact }) {
  */
 function useActivityLabel(): (activity: Activity) => string {
   const types = useQuery(activityTypeListQueryOptions(true))
-  return (activity) => activityLabel(activity, activityTypeLabel(types.data, activity.type))
+  return (activity) =>
+    activityLabel(activity, activityTypeLabel(types.data, activity.activityTypeId))
 }
 
 /**
@@ -333,17 +334,17 @@ function NextAppointment({
 function useEntryColor(): (entry: CalendarEntry) => string | null {
   const types = useQuery(activityTypeListQueryOptions(true))
   return (entry) =>
-    entry.activityType === null ? null : activityTypeColor(types.data, entry.activityType)
+    entry.activityTypeId === null ? null : activityTypeColor(types.data, entry.activityTypeId)
 }
 
 function useEntryLabel(): (entry: CalendarEntry) => string {
   const types = useQuery(activityTypeListQueryOptions(true))
   return (entry) =>
-    entry.activityType === null
+    entry.activityTypeId === null
       ? (entry.title ?? strings.appointment.untitled)
       : activityLabel(
           { title: entry.activityTitle },
-          activityTypeLabel(types.data, entry.activityType),
+          activityTypeLabel(types.data, entry.activityTypeId),
         )
 }
 

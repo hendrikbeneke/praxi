@@ -120,7 +120,7 @@ export function CalendarMonth({
                         aria-hidden
                         className="size-1.5 shrink-0 rounded-full"
                         style={{
-                          backgroundColor: activityTypeColor(types, entry.activityType),
+                          backgroundColor: activityTypeColor(types, entry.activityTypeId),
                         }}
                       />
                       <span className="shrink-0 text-muted-foreground tabular-nums">

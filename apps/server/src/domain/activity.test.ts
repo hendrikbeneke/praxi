@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { activity, activityItem, appointment } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant, roleTypeId } from '../test/fixtures.js'
+import { activityTypeId, createTenant, roleTypeId } from '../test/fixtures.js'
 import {
   activitySummary,
   createActivity,
@@ -20,12 +20,18 @@ import { createContact } from './contact.js'
 import { createService, createServiceGroup, updateService, updateServiceGroup } from './service.js'
 
 let tenantId: string
+let initialTypeId: string
+let sessionTypeId: string
+let talkTypeId: string
 let contactId: string
 
 const AT = (iso: string) => new Date(iso).toISOString()
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  initialTypeId = await activityTypeId(db(), tenantId, 'Erstgespräch')
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
+  talkTypeId = await activityTypeId(db(), tenantId, 'Vortrag')
   const created = await createContact(db(), tenantId, {
     kind: 'person',
     salutationId: null,
@@ -67,7 +73,7 @@ function serviceInput(overrides: Partial<ServiceInput> = {}): ServiceInput {
 function activityInput(overrides: Partial<ActivityInput> = {}): ActivityInput {
   return {
     contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'planned',
     occurredAt: AT('2026-09-01T08:00:00Z'),
     durationMin: null,
@@ -207,7 +213,7 @@ describe('copying from the catalogue', () => {
       db(),
       tenantId,
       activityInput({
-        type: 'talk',
+        activityTypeId: talkTypeId,
         items: [
           {
             kind: 'custom',
@@ -606,7 +612,7 @@ describe('the no-show workflow', () => {
 
     const billable = await listBillableItems(db(), tenantId, contactId)
     expect(billable.map((item) => item.description)).toEqual(['Ausfallhonorar'])
-    expect(billable[0]?.activityType).toBe(created.type)
+    expect(billable[0]?.activityTypeId).toBe(created.activityTypeId)
   })
 })
 
@@ -688,7 +694,7 @@ describe('the appointment beside the activity', () => {
           id: newId(),
           tenantId,
           contactId: other.id,
-          type: 'session',
+          activityTypeId: sessionTypeId,
           occurredAt: new Date('2026-09-01T08:00:00Z'),
           appointmentId,
         }),
@@ -778,12 +784,12 @@ describe('listing', () => {
     await createActivity(
       db(),
       tenantId,
-      activityInput({ type: 'initial', occurredAt: AT('2026-09-02T08:00:00Z') }),
+      activityInput({ activityTypeId: initialTypeId, occurredAt: AT('2026-09-02T08:00:00Z') }),
     )
 
     const initial = await listActivities(db(), tenantId, {
       contactId,
-      type: 'initial',
+      activityTypeId: initialTypeId,
       limit: 50,
     })
     expect(initial.items.map((item) => item.occurredAt)).toEqual([AT('2026-09-02T08:00:00Z')])
@@ -943,12 +949,13 @@ describe('the summary above the list', () => {
     await createActivity(
       db(),
       tenantId,
-      activityInput({ type: 'initial', occurredAt: AT('2026-09-03T08:00:00Z') }),
+      activityInput({ activityTypeId: initialTypeId, occurredAt: AT('2026-09-03T08:00:00Z') }),
     )
 
-    expect((await activitySummary(db(), tenantId, { ...WINDOW, type: 'initial' }, NOW)).total).toBe(
-      1,
-    )
+    expect(
+      (await activitySummary(db(), tenantId, { ...WINDOW, activityTypeId: initialTypeId }, NOW))
+        .total,
+    ).toBe(1)
   })
 
   it('answers with zeros for an empty window rather than nothing', async () => {

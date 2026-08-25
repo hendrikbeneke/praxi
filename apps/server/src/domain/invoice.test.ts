@@ -18,7 +18,7 @@ import {
 } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
+import { activityTypeId, createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import {
   activitySummary,
   BilledItemError,
@@ -47,6 +47,7 @@ import {
 import { upsertNumberRange } from './number-range.js'
 
 let tenantId: string
+let sessionTypeId: string
 let contactId: string
 let serviceId: string
 let store: FileStore
@@ -56,6 +57,7 @@ const INVOICE_DATE = '2026-08-09'
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   await createUser(db(), { tenantId })
   await db().insert(practiceSettings).values({ id: newId(), tenantId, practiceName: 'Testpraxis' })
 
@@ -100,7 +102,7 @@ afterEach(async () => {
 async function makeActivityWithItem(price = 13_500) {
   return createActivity(db(), tenantId, {
     contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'planned',
     occurredAt: '2026-08-09T07:00:00.000Z',
     durationMin: 90,
@@ -143,7 +145,7 @@ describe('billable items', () => {
 
     await updateActivity(db(), tenantId, activity.id, {
       contactId,
-      type: 'session',
+      activityTypeId: sessionTypeId,
       status: 'planned',
       occurredAt: '2026-08-09T07:00:00.000Z',
       durationMin: 90,
@@ -652,7 +654,7 @@ describe('an activity item that is on an invoice', () => {
     await expect(
       updateActivity(db(), tenantId, activity.id, {
         contactId,
-        type: 'session',
+        activityTypeId: sessionTypeId,
         status: 'planned',
         occurredAt: '2026-08-09T07:00:00.000Z',
         durationMin: 90,
@@ -830,7 +832,7 @@ async function secondContact(): Promise<string> {
 async function activityFor(contactForItem: string, occurredAt = '2026-08-09T07:00:00.000Z') {
   return createActivity(db(), tenantId, {
     contactId: contactForItem,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'planned',
     occurredAt,
     durationMin: 90,
@@ -980,7 +982,7 @@ describe('billingState', () => {
   it('is none when there is nothing to bill', async () => {
     const activity = await createActivity(db(), tenantId, {
       contactId,
-      type: 'session',
+      activityTypeId: sessionTypeId,
       status: 'planned',
       occurredAt: '2026-08-09T07:00:00.000Z',
       durationMin: 90,
@@ -1107,7 +1109,7 @@ describe('filtering a list by billing state', () => {
   it('leaves an activity with nothing billable out of both', async () => {
     const created = await createActivity(db(), tenantId, {
       contactId,
-      type: 'session',
+      activityTypeId: sessionTypeId,
       status: 'planned',
       occurredAt: '2026-08-09T07:00:00.000Z',
       durationMin: 90,

@@ -504,6 +504,62 @@ function RelationTypeForm({
     values.labelForward.trim() !== '' &&
     (values.isSymmetric || (values.labelInverse ?? '').trim() !== '')
 
+  /**
+   * A system entry is read-only apart from "Aktiv" (B1). The reason is not the
+   * exclusivity: `billing_recipient` and `guardian` are looked up **by their
+   * Kürzel** — by `updateInvoice`, by `prepareSend`, by the minor's notice on
+   * the contact record — so a renamed entry would make the record say one thing
+   * while the software does another, with nothing failing to show it.
+   *
+   * The values stand as text, not as disabled fields (K2): a grey box promises
+   * an entry that cannot be made. `domain/contact-type.ts` refuses the same set
+   * on the way in, so this is the readable half of the rule and not the whole
+   * of it.
+   */
+  if (type?.isSystem) {
+    return (
+      <div className="space-y-4">
+        <p className="text-muted-foreground text-sm">{strings.contactType.systemReadOnlyHint}</p>
+
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <DetailField label={strings.contactType.code} value={type.code} />
+          <DetailField label={strings.contactType.labelForward} value={type.labelForward} />
+          <DetailField label={strings.contactType.labelInverse} value={type.labelInverse ?? DASH} />
+          <DetailField
+            label={strings.contactType.direction}
+            value={
+              type.isSymmetric
+                ? strings.contactType.directionMutualLabel
+                : strings.contactType.directionDirectedLabel
+            }
+          />
+          <DetailField
+            label={strings.contactType.exclusive}
+            value={type.isExclusive ? strings.contactType.flagYes : DASH}
+          />
+        </dl>
+
+        <div className="flex flex-wrap gap-6">
+          <CheckboxField
+            id="relation-active"
+            label={strings.contactType.active}
+            checked={values.active}
+            onChange={(checked) => setValues({ ...values, active: checked })}
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 border-t pt-4">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            {strings.actions.cancel}
+          </Button>
+          <Button type="button" disabled={pending} onClick={() => onSubmit(values)}>
+            {strings.actions.save}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground text-sm">{strings.contactType.directionHint}</p>

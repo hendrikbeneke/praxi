@@ -1,7 +1,7 @@
 import type { ActivityInput, OpeningHoursInput } from '@praxi/shared'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
-import { createTenant } from '../test/fixtures.js'
+import { activityTypeId, createTenant } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { createContact } from './contact.js'
 import { type BusyLookup, findFreeSlots } from './free-slots.js'
@@ -16,6 +16,7 @@ import { replaceOpeningHours } from './opening-hour.js'
  */
 
 let tenantId: string
+let sessionTypeId: string
 let contactId: string
 
 /** Berlin local `YYYY-MM-DDTHH:MM` as an instant. September is CEST, so the
@@ -39,6 +40,7 @@ const noBusy: BusyLookup = async () => []
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   contactId = (
     await createContact(db(), tenantId, {
       kind: 'person',
@@ -72,7 +74,7 @@ function hours(...windows: OpeningHoursInput['windows']) {
 function booking(startLocal: string, endLocal: string, options: Partial<ActivityInput> = {}) {
   return createActivity(db(), tenantId, {
     contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'planned',
     occurredAt: BERLIN(startLocal),
     durationMin: null,

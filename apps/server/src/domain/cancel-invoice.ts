@@ -225,7 +225,7 @@ export async function cancelInvoice(
           // there is no Vorgang to name either.
           activityId: null,
           activityOccurredAt: null,
-          activityType: null,
+          activityTypeId: null,
           activityTitle: null,
           description: line.description,
           feeCode: line.feeCode,

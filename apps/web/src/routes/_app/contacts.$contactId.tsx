@@ -914,11 +914,11 @@ function ContactAppointments({ contactId }: { contactId: string }) {
             {/* The same two-part naming the calendar uses (D-K2), minus the
                 contact — inside their own record it would repeat on every
                 row. */}
-            {entry.activityType === null
+            {entry.activityTypeId === null
               ? (entry.title ?? strings.appointment.untitled)
               : activityLabel(
                   { title: entry.activityTitle },
-                  activityTypeLabel(types.data, entry.activityType),
+                  activityTypeLabel(types.data, entry.activityTypeId),
                 )}
           </span>
         </li>

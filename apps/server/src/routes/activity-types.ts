@@ -30,12 +30,12 @@ const listQuery = z.object({
 /** The rules live in `domain/activity-type.ts` and in the constraints; this
  *  only decides how they reach the client. */
 function translate(error: unknown): never {
-  if (uniqueViolationConstraint(error) === 'activity_type_tenant_code_key') {
-    throw new HTTPException(409, { message: messages.activityType.codeTaken })
+  if (uniqueViolationConstraint(error) === 'activity_type_tenant_label_key') {
+    throw new HTTPException(409, { message: messages.activityType.labelTaken })
   }
 
   const foreignKey = foreignKeyViolationConstraint(error)
-  if (foreignKey === 'activity_type_fk') {
+  if (foreignKey === 'activity_activity_type_fk') {
     throw new HTTPException(409, { message: messages.activityType.inUse })
   }
 

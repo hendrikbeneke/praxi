@@ -159,7 +159,7 @@ export function CalendarGrid({
    * "12:15, 60 minutes" a place on the screen rather than an arithmetic
    * problem — and it is where a collision is seen rather than described.
    */
-  draft?: { startsAt: string; endsAt: string; typeCode: string } | null
+  draft?: { startsAt: string; endsAt: string; typeId: string } | null
   /** Whether that draft lands on an occupied slot. Since migration 0034 that
    *  is a warning and not a refusal: the practitioner decides. */
   draftClashes?: boolean
@@ -487,7 +487,7 @@ export function CalendarGrid({
                      * a live entry. A requested one is dashed all round — the
                      * slot is asked for, not held.
                      */
-                    const color = activityTypeColor(types, entry.activityType)
+                    const color = activityTypeColor(types, entry.activityTypeId)
                     /**
                      * 20 % of the type's colour, 9 % while the slot is only
                      * asked for — and 12 % for an entry that carries no
@@ -526,7 +526,9 @@ export function CalendarGrid({
                         onClick={() => onSelect(entry)}
                         title={[
                           entryName(entry, types),
-                          entry.activityType ? activityTypeLabel(types, entry.activityType) : null,
+                          entry.activityTypeId
+                            ? activityTypeLabel(types, entry.activityTypeId)
+                            : null,
                           strings.appointment.status[entry.status],
                           entry.activityStatus && entry.activityStatus !== 'planned'
                             ? strings.activity.statuses[entry.activityStatus]
@@ -576,9 +578,7 @@ export function CalendarGrid({
                     draft={draft}
                     clashes={draftClashes}
                     perMinute={perMinute}
-                    typeLabel={
-                      draft.typeCode === '' ? null : activityTypeLabel(types, draft.typeCode)
-                    }
+                    typeLabel={draft.typeId === '' ? null : activityTypeLabel(types, draft.typeId)}
                   />
                 )}
 
@@ -645,7 +645,7 @@ function DraftBlock({
   perMinute,
   typeLabel,
 }: {
-  draft: { startsAt: string; endsAt: string; typeCode: string }
+  draft: { startsAt: string; endsAt: string; typeId: string }
   clashes: boolean
   perMinute: number
   typeLabel: string | null

@@ -171,7 +171,7 @@ export function BillableList() {
               </header>
 
               {group.activities.map((activity) => {
-                const color = activityTypeColor(types.data, activity.activityType)
+                const color = activityTypeColor(types.data, activity.activityTypeId)
                 const picked = activity.items.filter((item) => selected.has(item.id)).length
 
                 return (
@@ -203,7 +203,7 @@ export function BillableList() {
                         className="rounded-[5px] px-[7px] py-0.5 text-[11.5px]"
                         style={{ backgroundColor: color, color: readableTextOn(color) }}
                       >
-                        {activityTypeLabel(types.data, activity.activityType)}
+                        {activityTypeLabel(types.data, activity.activityTypeId)}
                       </span>
                       {activity.activityTitle && (
                         <span className="text-[12.5px] text-muted-foreground">
@@ -309,7 +309,7 @@ type ActivityGroup = {
   activityId: string
   occurredAt: string
   activityTitle: string | null
-  activityType: string
+  activityTypeId: string
   activityStatus: BillableItem['activityStatus']
   items: BillableItem[]
 }
@@ -353,7 +353,7 @@ function groupByContact(items: readonly BillableItem[]): Group[] {
         activityId: item.activityId,
         occurredAt: item.occurredAt,
         activityTitle: item.activityTitle,
-        activityType: item.activityType,
+        activityTypeId: item.activityTypeId,
         activityStatus: item.activityStatus,
         items: [item],
       })

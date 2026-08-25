@@ -61,7 +61,7 @@ export function AppointmentForm({
   submitLabel?: string | undefined
   warning?: React.ReactNode
   footerPortal?: HTMLElement | null
-  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeCode: string } | null) => void
+  onDraftChange?: (draft: { startsAt: string; endsAt: string; typeId: string } | null) => void
   onSaved: () => void
   onCancel: () => void
 }) {
@@ -106,7 +106,7 @@ export function AppointmentForm({
    *  `activityTypeColor` reads as "none". */
   useEffect(() => {
     if (!onDraftChange) return
-    onDraftChange(startsAt !== null && endsAt !== null ? { startsAt, endsAt, typeCode: '' } : null)
+    onDraftChange(startsAt !== null && endsAt !== null ? { startsAt, endsAt, typeId: '' } : null)
   }, [onDraftChange, startsAt, endsAt])
   useEffect(() => () => onDraftChange?.(null), [onDraftChange])
 

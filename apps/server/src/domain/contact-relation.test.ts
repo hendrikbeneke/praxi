@@ -14,7 +14,7 @@ import {
   UnknownRelationTypeError,
   updateRelation,
 } from './contact-relation.js'
-import { updateRelationType } from './contact-type.js'
+import { createRelationType, SystemTypeReadOnlyError, updateRelationType } from './contact-type.js'
 
 let tenantId: string
 let child: string
@@ -52,6 +52,30 @@ beforeEach(async () => {
   mother = (await createContact(db(), tenantId, testPerson('Testmutter'))).id
   father = (await createContact(db(), tenantId, testPerson('Testvater'))).id
 })
+
+/**
+ * A relation type the practitioner made, for the tests about switching a type
+ * to exclusive.
+ *
+ * They used `guardian` until B1, and `guardian` is a **system** entry: since
+ * that slice its labels, direction and exclusivity are frozen, because the
+ * software looks `guardian` and `billing_recipient` up by their code and a
+ * renamed one would make the contact record disagree with what the code does.
+ * What these tests are about is the mirrored `contact_relation.exclusive`
+ * column and the partial index over it, which is a mechanism of every type —
+ * so an ordinary one is the honest subject.
+ */
+async function ownRelationType(code: string) {
+  return createRelationType(db(), tenantId, {
+    code,
+    labelForward: 'Betreut',
+    labelInverse: 'Betreut von',
+    isSymmetric: false,
+    isExclusive: false,
+    sortOrder: 90,
+    active: true,
+  })
+}
 
 function relationTypeId(code: string) {
   return db()
@@ -255,17 +279,16 @@ describe('exclusive types', () => {
   })
 
   it('cannot be switched on while a contact already holds two', async () => {
-    const [type] = await relationTypeId('guardian')
-    if (!type) throw new Error('the seed did not create the guardian relation type')
+    const type = await ownRelationType('carer')
 
     await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationCode: 'carer',
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
     await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationCode: 'carer',
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -273,11 +296,11 @@ describe('exclusive types', () => {
 
     await expect(
       updateRelationType(db(), tenantId, type.id, {
-        labelForward: 'Sorgeberechtigt',
-        labelInverse: 'Sorgeberechtigt für',
+        labelForward: 'Betreut',
+        labelInverse: 'Betreut von',
         isSymmetric: false,
         isExclusive: true,
-        sortOrder: 10,
+        sortOrder: 90,
         active: true,
       }),
     ).rejects.toSatisfy(
@@ -293,22 +316,21 @@ describe('exclusive types', () => {
   })
 
   it('propagate the switch onto existing relations', async () => {
-    const [type] = await relationTypeId('guardian')
-    if (!type) throw new Error('the seed did not create the guardian relation type')
+    const type = await ownRelationType('carer')
 
     await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationCode: 'carer',
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
 
     await updateRelationType(db(), tenantId, type.id, {
-      labelForward: 'Sorgeberechtigt',
-      labelInverse: 'Sorgeberechtigt für',
+      labelForward: 'Betreut',
+      labelInverse: 'Betreut von',
       isSymmetric: false,
       isExclusive: true,
-      sortOrder: 10,
+      sortOrder: 90,
       active: true,
     })
 
@@ -318,12 +340,52 @@ describe('exclusive types', () => {
 
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: 'guardian',
+        relationCode: 'carer',
         direction: 'forward',
         otherContactId: father,
         since: null,
       }),
     ).rejects.toThrow()
+  })
+
+  /**
+   * The other half of the same rule (B1): a system entry refuses the edit
+   * outright. `billing_recipient` is exclusive and has to stay that way — an
+   * invoice resolves its recipient through this relation and relies on there
+   * being at most one.
+   */
+  it('cannot be switched off on a system type', async () => {
+    const [type] = await relationTypeId('billing_recipient')
+    if (!type) throw new Error('the seed did not create the billing_recipient relation type')
+
+    await expect(
+      updateRelationType(db(), tenantId, type.id, {
+        labelForward: 'Rechnungsempfänger',
+        labelInverse: 'Rechnungsempfänger für',
+        isSymmetric: false,
+        isExclusive: false,
+        sortOrder: 20,
+        active: true,
+      }),
+    ).rejects.toThrow(SystemTypeReadOnlyError)
+  })
+
+  /** …but switching it off entirely is allowed: a practice that never bills a
+   *  third party can take the entry out of the picker. */
+  it('lets a system type be deactivated', async () => {
+    const [type] = await relationTypeId('billing_recipient')
+    if (!type) throw new Error('the seed did not create the billing_recipient relation type')
+
+    const saved = await updateRelationType(db(), tenantId, type.id, {
+      labelForward: 'Rechnungsempfänger',
+      labelInverse: 'Rechnungsempfänger für',
+      isSymmetric: false,
+      isExclusive: true,
+      sortOrder: 20,
+      active: false,
+    })
+
+    expect(saved?.active).toBe(false)
   })
 })
 

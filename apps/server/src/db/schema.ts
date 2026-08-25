@@ -785,7 +785,8 @@ export const activityType = pgTable(
     tenantId: uuid()
       .notNull()
       .references(() => tenant.id),
-    code: text().notNull(),
+    /** What a type is recognised by, there being no code since migration 0041
+     *  — hence unique per tenant. */
     label: text().notNull(),
     /** `#rrggbb`. The calendar paints the entry in it and picks black or white
      *  for the label, whichever reads better — `readableTextOn` in
@@ -799,13 +800,11 @@ export const activityType = pgTable(
     ...timestamps,
   },
   (t) => [
-    // Also the target of the composite foreign key on `activity`.
-    unique('activity_type_tenant_code_key').on(t.tenantId, t.code),
+    unique('activity_type_tenant_label_key').on(t.tenantId, t.label),
     // Referenced by the composite foreign key on `activity_type_preset_item`.
     unique('activity_type_id_tenant_key').on(t.id, t.tenantId),
     index('activity_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.label),
     uniqueIndex('activity_type_default_key').on(t.tenantId).where(sql`${t.isDefault}`),
-    check('activity_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
     check('activity_type_color_shape', sql`${t.color} ~ '^#[0-9a-f]{6}$'`),
     check(
       'activity_type_duration_positive',
@@ -971,8 +970,16 @@ export const activity = pgTable(
       .notNull()
       .references(() => tenant.id),
     contactId: uuid().notNull(),
-    /** The `code` of an `activity_type`, held by a composite foreign key. */
-    type: text().notNull(),
+    /**
+     * The `activity_type` this activity is of, held by a composite foreign key.
+     *
+     * Pointed at the type's `code` until migration 0041, which took the code
+     * off the catalogue the way 0035 took it off the roles: it was an anchor
+     * for logic that might key off a particular type, and rule 6 says outright
+     * that no such logic exists. The id is the anchor now, so a type stays
+     * freely renamable and every activity follows.
+     */
+    activityTypeId: uuid().notNull(),
     /**
      * What became of the activity. **Descriptive only: it does not gate
      * billing** (rule 6). Anything in the past can be invoiced whatever this
@@ -1022,19 +1029,20 @@ export const activity = pgTable(
     // activity of a different contact.
     unique('activity_id_contact_tenant_key').on(t.id, t.contactId, t.tenantId),
     /**
-     * The catalogue, per rule 6. `ON UPDATE RESTRICT` has nothing to cascade:
-     * a code is set when the type is created and never changes. `ON DELETE
-     * RESTRICT` is what makes a type that is in use undeletable — the domain
-     * refuses first, so the message is a sentence and not a constraint name.
+     * The catalogue, per rule 6. `ON DELETE RESTRICT` is what makes a type that
+     * is in use undeletable — the domain refuses first, so the message is a
+     * sentence and not a constraint name.
      */
     foreignKey({
-      columns: [t.type, t.tenantId],
-      foreignColumns: [activityType.code, activityType.tenantId],
-      name: 'activity_type_fk',
+      columns: [t.activityTypeId, t.tenantId],
+      foreignColumns: [activityType.id, activityType.tenantId],
+      name: 'activity_activity_type_fk',
     })
       .onUpdate('restrict')
       .onDelete('restrict'),
     index('activity_tenant_occurred_idx').on(t.tenantId, t.occurredAt),
+    // On the child side, so deleting a type does not seq-scan this table.
+    index('activity_activity_type_idx').on(t.activityTypeId),
     index('activity_contact_idx').on(t.contactId, t.occurredAt),
     index('activity_tenant_status_idx').on(t.tenantId, t.status),
     check('activity_status_check', sql`${t.status} in ('planned', 'rendered', 'no_show')`),

@@ -44,7 +44,7 @@ export type DraftLine = {
    *  position; edit mode groups by it. */
   activityId: string | null
   activityOccurredAt: string | null
-  activityType: string | null
+  activityTypeId: string | null
   activityTitle: string | null
   description: string
   feeCode: string
@@ -66,7 +66,7 @@ export function lineFromStored(line: Invoice['lines'][number]): DraftLine {
     activityItemId: line.activityItemId,
     activityId: line.activityId,
     activityOccurredAt: line.activityOccurredAt,
-    activityType: line.activityType,
+    activityTypeId: line.activityTypeId,
     activityTitle: line.activityTitle,
     description: line.description,
     feeCode: line.feeCode ?? '',
@@ -82,7 +82,7 @@ export function lineFromBillable(item: BillableItem): DraftLine {
     activityItemId: item.id,
     activityId: item.activityId,
     activityOccurredAt: item.occurredAt,
-    activityType: item.activityType,
+    activityTypeId: item.activityTypeId,
     activityTitle: item.activityTitle,
     description: item.description,
     feeCode: item.feeCode ?? '',
@@ -114,7 +114,7 @@ export function linePriceCents(line: DraftLine): number {
 type Group = {
   activityId: string
   occurredAt: string
-  typeCode: string
+  typeId: string
   title: string | null
   rows: GroupRow[]
 }
@@ -326,9 +326,9 @@ export function InvoicePositions({
                   <span
                     aria-hidden
                     className="size-2 rounded-full"
-                    style={{ backgroundColor: activityTypeColor(types.data, group.typeCode) }}
+                    style={{ backgroundColor: activityTypeColor(types.data, group.typeId) }}
                   />
-                  {group.title ?? activityTypeLabel(types.data, group.typeCode)}
+                  {group.title ?? activityTypeLabel(types.data, group.typeId)}
                 </span>
                 <span className="ml-auto text-[13px] tabular-nums">
                   {formatEuro(
@@ -453,7 +453,7 @@ export function InvoicePositions({
                   activityItemId: null,
                   activityId: null,
                   activityOccurredAt: null,
-                  activityType: null,
+                  activityTypeId: null,
                   activityTitle: null,
                   description: '',
                   feeCode: '',
@@ -486,7 +486,7 @@ function freeFrom(service: Service, invoiceDate: string): DraftLine {
     activityItemId: null,
     activityId: null,
     activityOccurredAt: null,
-    activityType: null,
+    activityTypeId: null,
     activityTitle: null,
     description: service.description,
     feeCode: service.feeCode ?? '',
@@ -589,18 +589,18 @@ function buildGroups(
   const ensure = (
     activityId: string,
     occurredAt: string,
-    typeCode: string,
+    typeId: string,
     title: string | null,
   ): Group => {
     const found = byActivity.get(activityId)
     if (found) return found
-    const created: Group = { activityId, occurredAt, typeCode, title, rows: [] }
+    const created: Group = { activityId, occurredAt, typeId, title, rows: [] }
     byActivity.set(activityId, created)
     return created
   }
 
   for (const item of billable) {
-    ensure(item.activityId, item.occurredAt, item.activityType, item.activityTitle).rows.push({
+    ensure(item.activityId, item.occurredAt, item.activityTypeId, item.activityTitle).rows.push({
       item,
     })
   }
@@ -630,7 +630,7 @@ function buildGroups(
     ensure(
       line.activityId ?? `line:${line.activityItemId}`,
       line.activityOccurredAt ?? `${line.dateOfService ?? ''}T00:00:00.000Z`,
-      line.activityType ?? '',
+      line.activityTypeId ?? '',
       line.activityTitle,
     ).rows.push(isDetached ? { detached: line } : { line })
   }

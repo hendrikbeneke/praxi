@@ -55,7 +55,7 @@ function translate(error: unknown): never {
   }
   // An activity type that was deleted or deactivated between loading the form
   // and saving it. The catalogue is the only place a type can come from.
-  if (foreignKeyViolationConstraint(error) === 'activity_type_fk') {
+  if (foreignKeyViolationConstraint(error) === 'activity_activity_type_fk') {
     throw new HTTPException(409, { message: messages.activity.unknownType })
   }
   throw error

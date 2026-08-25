@@ -172,7 +172,7 @@ function CalendarPage() {
   const [draft, setDraft] = useState<{
     startsAt: string
     endsAt: string
-    typeCode: string
+    typeId: string
   } | null>(null)
 
   /**
@@ -220,7 +220,7 @@ function CalendarPage() {
   const nextFreeSearch: SlotSearch | null =
     slotSearch ??
     (defaultType && defaultType.defaultDurationMin !== null
-      ? { durationMin: defaultType.defaultDurationMin, typeCode: defaultType.code }
+      ? { durationMin: defaultType.defaultDurationMin, typeId: defaultType.id }
       : null)
 
   /* Asked of the server like every other question about free time:
@@ -293,11 +293,11 @@ function CalendarPage() {
     setSelection({
       kind: 'new',
       startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
-      ...(slotSearch?.typeCode ? { typeCode: slotSearch.typeCode } : {}),
+      ...(slotSearch?.typeId ? { typeId: slotSearch.typeId } : {}),
       ...(slotSearch ? { durationMin: slotSearch.durationMin } : {}),
       // A search by a bare duration was a search for a *Termin*: there is no
       // kind of treatment behind it, so the panel opens on the other tab.
-      mode: slotSearch?.typeCode ? 'activity' : 'appointment',
+      mode: slotSearch?.typeId ? 'activity' : 'appointment',
     })
   }
 
@@ -484,8 +484,8 @@ function CalendarPage() {
               ? {
                   freeSlots: freeSlots.data?.slots ?? [],
                   freeSlotsAreComplete: freeSlots.data?.privateCalendarsChecked ?? true,
-                  slotTypeLabel: slotSearch.typeCode
-                    ? activityTypeLabel(types.data, slotSearch.typeCode)
+                  slotTypeLabel: slotSearch.typeId
+                    ? activityTypeLabel(types.data, slotSearch.typeId)
                     : null,
                   onPickSlot: pickSlot,
                 }
@@ -501,8 +501,8 @@ function CalendarPage() {
             ? {
                 slot: (nextFree.data?.slots ?? [])[0] ?? null,
                 durationMin: nextFreeSearch.durationMin,
-                typeLabel: nextFreeSearch.typeCode
-                  ? activityTypeLabel(types.data, nextFreeSearch.typeCode)
+                typeLabel: nextFreeSearch.typeId
+                  ? activityTypeLabel(types.data, nextFreeSearch.typeId)
                   : null,
               }
             : null
@@ -512,8 +512,8 @@ function CalendarPage() {
             kind: 'new',
             startsAtLocal: toBerlinDateTimeLocal(slot.startsAt).slice(0, 16),
             ...(nextFreeSearch ? { durationMin: nextFreeSearch.durationMin } : {}),
-            ...(nextFreeSearch?.typeCode ? { typeCode: nextFreeSearch.typeCode } : {}),
-            mode: nextFreeSearch?.typeCode ? 'activity' : 'appointment',
+            ...(nextFreeSearch?.typeId ? { typeId: nextFreeSearch.typeId } : {}),
+            mode: nextFreeSearch?.typeId ? 'activity' : 'appointment',
           })
         }
         entries={shown}

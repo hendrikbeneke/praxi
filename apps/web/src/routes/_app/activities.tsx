@@ -3,7 +3,6 @@ import {
   activityStatuses,
   formatEuro,
   fromBerlinDateTimeLocal,
-  typeCodeSchema,
 } from '@praxi/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
@@ -45,7 +44,7 @@ const searchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   status: z.enum(activityStatuses).optional(),
-  type: typeCodeSchema.optional(),
+  activityTypeId: z.uuid().optional(),
 })
 
 export const Route = createFileRoute('/_app/activities')({
@@ -85,7 +84,7 @@ function ActivitiesPage() {
   const listParams = {
     ...window,
     ...(search.status ? { status: search.status } : {}),
-    ...(search.type ? { type: search.type } : {}),
+    ...(search.activityTypeId ? { activityTypeId: search.activityTypeId } : {}),
   }
   const upcoming = useQuery(upcomingActivitiesQueryOptions(listParams))
   const past = useInfiniteQuery(pastActivitiesQueryOptions(listParams))
@@ -96,7 +95,10 @@ function ActivitiesPage() {
    * the list is paged and the browser cannot count what it never fetched.
    */
   const summary = useQuery(
-    activitySummaryQueryOptions({ ...window, ...(search.type ? { type: search.type } : {}) }),
+    activitySummaryQueryOptions({
+      ...window,
+      ...(search.activityTypeId ? { activityTypeId: search.activityTypeId } : {}),
+    }),
   )
 
   const [creating, setCreating] = useState(false)
@@ -161,9 +163,9 @@ function ActivitiesPage() {
           <div>
             <Label htmlFor="type">{strings.activity.type}</Label>
             <Select
-              value={search.type ?? ALL_TYPES}
+              value={search.activityTypeId ?? ALL_TYPES}
               onValueChange={(value) =>
-                setSearch({ type: value === ALL_TYPES ? undefined : value })
+                setSearch({ activityTypeId: value === ALL_TYPES ? undefined : value })
               }
             >
               <SelectTrigger id="type" className="mt-1.5 w-52">
@@ -172,9 +174,9 @@ function ActivitiesPage() {
               <SelectContent>
                 <SelectItem value={ALL_TYPES}>{strings.activity.allTypes}</SelectItem>
                 {(types.data ?? [])
-                  .filter((entry) => entry.active || entry.code === search.type)
+                  .filter((entry) => entry.active || entry.id === search.activityTypeId)
                   .map((entry) => (
-                    <SelectItem key={entry.code} value={entry.code}>
+                    <SelectItem key={entry.id} value={entry.id}>
                       <span
                         aria-hidden
                         className="inline-block size-2.5 rounded-full"

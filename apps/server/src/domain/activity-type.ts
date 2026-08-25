@@ -17,8 +17,10 @@ import { UnknownServiceError } from './service.js'
  * because a type that has been used is history and deactivating it is the
  * answer.
  *
- * `code` is fixed once the entry exists, like everywhere else: it is the handle
- * `activity.type` points at, and the update schema does not carry one.
+ * There is no `code` since migration 0041 — the label is what a type is
+ * recognised by, and `activity.activity_type_id` points at the id, so renaming
+ * a type reaches every activity at once. Creating and editing therefore take
+ * the same fields; nothing here is settled once and frozen afterwards.
  *
  * The default duration and `presetItems` are **presets**. They are read when a
  * type is applied to an activity and never again; changing them here reaches
@@ -28,7 +30,6 @@ import { UnknownServiceError } from './service.js'
 
 const columns = {
   id: activityType.id,
-  code: activityType.code,
   label: activityType.label,
   color: activityType.color,
   defaultDurationMin: activityType.defaultDurationMin,
@@ -186,7 +187,6 @@ export async function createActivityType(
       .values({
         id: newId(),
         tenantId,
-        code: input.code,
         label: input.label,
         color: input.color,
         defaultDurationMin: input.defaultDurationMin,
@@ -234,7 +234,7 @@ export async function updateActivityType(
   })
 }
 
-/** A type still used by an activity is refused by `activity_type_fk`, which
+/** A type still used by an activity is refused by `activity_activity_type_fk`, which
  *  the route turns into its own message. */
 export async function deleteActivityType(
   database: Database,

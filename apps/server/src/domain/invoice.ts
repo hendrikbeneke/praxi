@@ -102,7 +102,7 @@ const lineColumns = {
    */
   activityId: activityItem.activityId,
   activityOccurredAt: activity.occurredAt,
-  activityType: activity.type,
+  activityTypeId: activity.activityTypeId,
   activityTitle: activity.title,
   description: invoiceLine.description,
   feeCode: invoiceLine.feeCode,

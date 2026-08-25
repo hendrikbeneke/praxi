@@ -329,7 +329,7 @@ export function NoteForm({
                   {choices.map((entry: Activity) => (
                     <SelectItem key={entry.id} value={entry.id}>
                       {formatBerlinDate(entry.occurredAt)} ·{' '}
-                      {activityLabel(entry, activityTypeLabel(types.data, entry.type))}
+                      {activityLabel(entry, activityTypeLabel(types.data, entry.activityTypeId))}
                     </SelectItem>
                   ))}
                   {/* Said only where it is true. A cap that is never reached

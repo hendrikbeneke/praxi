@@ -106,7 +106,7 @@ export const invoiceLineSchema = z.object({
    * that exists, against one request per invoice.
    */
   activityOccurredAt: z.iso.datetime().nullable(),
-  activityType: z.string().nullable(),
+  activityTypeId: z.uuid().nullable(),
   activityTitle: z.string().nullable(),
   description: z.string(),
   feeCode: z.string().nullable(),
@@ -247,10 +247,10 @@ export const billableItemSchema = z.object({
   contactName: z.string(),
   occurredAt: z.iso.datetime(),
   activityTitle: z.string().nullable(),
-  /** The `code` of the activity's type. Sent so the picker can fall back to
-   *  its label where the activity has no title of its own — the client
-   *  resolves it from the catalogue, like everywhere else. */
-  activityType: z.string(),
+  /** The id of the activity's type. Sent so the picker can fall back to its
+   *  label where the activity has no title of its own — the client resolves it
+   *  from the catalogue, like everywhere else. */
+  activityTypeId: z.uuid(),
   /**
    * What became of the treatment. Shown, never filtered on: a past activity
    * still standing on "geplant" is the one worth noticing, and a filter would

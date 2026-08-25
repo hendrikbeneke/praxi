@@ -7,7 +7,13 @@ import { db } from '../db/client.js'
 import { raisedMessage } from '../db/errors.js'
 import { contact, note, noteFile } from '../db/schema.js'
 import { newId } from '../id.js'
-import { createTenant, createUser, noteTypeId, type TestUser } from '../test/fixtures.js'
+import {
+  activityTypeId,
+  createTenant,
+  createUser,
+  noteTypeId,
+  type TestUser,
+} from '../test/fixtures.js'
 import { ActivityHasNotesError, createActivity, deleteActivity } from './activity.js'
 import { FileStore } from './file-store.js'
 import {
@@ -31,6 +37,7 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01])
 
 let tenantId: string
+let sessionTypeId: string
 let user: TestUser
 let contactId: string
 let sessionType: string
@@ -54,6 +61,7 @@ async function makeContact(): Promise<string> {
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   user = await createUser(db(), { tenantId })
   contactId = await makeContact()
   sessionType = await noteTypeId(db(), tenantId, 'Sitzung')
@@ -546,7 +554,7 @@ describe('an activity that documentation hangs on', () => {
   it('cannot be deleted while a note points at it', async () => {
     const activity = await createActivity(db(), tenantId, {
       contactId,
-      type: 'session',
+      activityTypeId: sessionTypeId,
       status: 'planned',
       occurredAt: '2026-08-09T07:00:00.000Z',
       durationMin: 50,

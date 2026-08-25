@@ -13,6 +13,65 @@ import { strings } from '@/lib/strings'
  * keystroke is reported, unreadable text reports nothing rather than leaving a
  * stale time behind, and the complaint waits for the field to be left.
  */
+
+/** The reading of what is typed, without any opinion about where the complaint
+ *  belongs on screen. Extracted in B1 so a caller that puts several time fields
+ *  in one row can render one message underneath them all — see `TimeField`
+ *  below for why that is not a layout preference. */
+export function useTimeInput(value: string, onChange: (time: string) => void) {
+  const [text, setText] = useState(() => formatTimeDE(value))
+  const [invalid, setInvalid] = useState(false)
+
+  // Only resynced when the value disagrees with what the text already means;
+  // see DateField for why.
+  useEffect(() => {
+    setText((current) => ((parseTimeDE(current) ?? '') === value ? current : formatTimeDE(value)))
+  }, [value])
+
+  return {
+    invalid,
+    inputProps: {
+      inputMode: 'numeric' as const,
+      autoComplete: 'off',
+      placeholder: dateFormat.timePlaceholder,
+      'aria-invalid': invalid ? (true as const) : undefined,
+      value: text,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+        setText(event.target.value)
+        setInvalid(false)
+        onChange(parseTimeDE(event.target.value) ?? '')
+      },
+      onBlur: () => {
+        const time = parseTimeDE(text)
+        if (time !== null) {
+          setText(formatTimeDE(time))
+          setInvalid(false)
+        } else {
+          setInvalid(text.trim() !== '')
+        }
+      },
+    },
+  }
+}
+
+/** The one sentence a rejected time gets, so the two places that render it
+ *  cannot word it differently. */
+export function timeInvalidMessage(): string {
+  return strings.date.timeInvalid(dateFormat.timeExample)
+}
+
+/**
+ * A time field that carries its own complaint underneath it — the shape every
+ * caller wants where the field stands alone in a column.
+ *
+ * **Where two of them share a row, use `useTimeInput` instead** (B1, M1). The
+ * message is around eighteen characters wider than the field, and the opening
+ * hours are the case that proves what that costs: in flow it wrapped to three
+ * lines and pushed the row apart, and made to overflow sideways it would land
+ * on top of its neighbour's message the moment both times were unreadable. A
+ * row with two fields has to put the message below *the row*, which is
+ * something only the row can do.
+ */
 export function TimeField({
   id,
   value,
@@ -38,52 +97,12 @@ export function TimeField({
   className?: string
   'aria-label'?: string
 }) {
-  const [text, setText] = useState(() => formatTimeDE(value))
-  const [invalid, setInvalid] = useState(false)
-
-  // Only resynced when the value disagrees with what the text already means;
-  // see DateField for why.
-  useEffect(() => {
-    setText((current) => ((parseTimeDE(current) ?? '') === value ? current : formatTimeDE(value)))
-  }, [value])
+  const { invalid, inputProps } = useTimeInput(value, onChange)
 
   return (
     <div className={className}>
-      <Input
-        id={id}
-        aria-label={ariaLabel}
-        inputMode="numeric"
-        autoComplete="off"
-        placeholder={dateFormat.timePlaceholder}
-        disabled={disabled}
-        aria-invalid={invalid ? true : undefined}
-        value={text}
-        onChange={(event) => {
-          setText(event.target.value)
-          setInvalid(false)
-          onChange(parseTimeDE(event.target.value) ?? '')
-        }}
-        onBlur={() => {
-          const time = parseTimeDE(text)
-          if (time !== null) {
-            setText(formatTimeDE(time))
-            setInvalid(false)
-          } else {
-            setInvalid(text.trim() !== '')
-          }
-        }}
-      />
-      {/* `w-max` so the sentence stays on one line (B1, M1). A time field is
-          typically 6rem wide, and a message wrapped into three lines inside it
-          is what made the opening-hours row visibly come apart. Overflowing to
-          the right costs nothing: at the message's own height the row beside it
-          is empty, and the box itself keeps its width, so nothing around it
-          moves. `max-w-xs` stops it running off the card. */}
-      {invalid && (
-        <p className="mt-1 w-max max-w-xs text-destructive text-sm">
-          {strings.date.timeInvalid(dateFormat.timeExample)}
-        </p>
-      )}
+      <Input id={id} aria-label={ariaLabel} disabled={disabled} {...inputProps} />
+      {invalid && <p className="mt-1 text-destructive text-sm">{timeInvalidMessage()}</p>}
     </div>
   )
 }

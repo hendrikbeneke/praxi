@@ -10,7 +10,7 @@ import { raisedMessage } from '../db/errors.js'
 import { contact, payment, practiceSettings, service, textTemplate } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
+import { activityTypeId, createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { listBillableItems } from './billable.js'
 import { cancelInvoice } from './cancel-invoice.js'
@@ -21,6 +21,7 @@ import { upsertNumberRange } from './number-range.js'
 import { addPayment, deletePayment, InvoiceNotPayableError, listPayments } from './payment.js'
 
 let tenantId: string
+let sessionTypeId: string
 let contactId: string
 let serviceId: string
 let store: FileStore
@@ -31,6 +32,7 @@ const PRICE = 13_500
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
+  sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   await createUser(db(), { tenantId })
   await db().insert(practiceSettings).values({ id: newId(), tenantId, practiceName: 'Testpraxis' })
 
@@ -72,7 +74,7 @@ const render = (entry: Invoice) => renderInvoicePdf(entry, null)
 async function draft(): Promise<Invoice> {
   await createActivity(db(), tenantId, {
     contactId,
-    type: 'session',
+    activityTypeId: sessionTypeId,
     status: 'rendered',
     occurredAt: `${INVOICE_DATE}T07:00:00.000Z`,
     durationMin: 90,

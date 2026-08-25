@@ -21,6 +21,7 @@ import {
   moveRoleType,
   RoleTypeInUseError,
   SystemTypeError,
+  SystemTypeReadOnlyError,
   updateRelationType,
   updateRoleType,
 } from '../domain/contact-type.js'
@@ -45,6 +46,9 @@ const relationListQuery = z.object({
 function translate(error: unknown): never {
   if (error instanceof SystemTypeError) {
     throw new HTTPException(409, { message: messages.contactType.systemNotDeletable })
+  }
+  if (error instanceof SystemTypeReadOnlyError) {
+    throw new HTTPException(409, { message: messages.contactType.systemReadOnly })
   }
   if (error instanceof RoleTypeInUseError) {
     throw new HTTPException(409, { message: messages.contactType.roleInUse(error.count) })

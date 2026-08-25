@@ -182,7 +182,7 @@ Both sets are **configurable**. `contact_role_type` and `contact_relation_type` 
 
 **A role is a label, and that is the whole of it** (migration 0035). It has no `code`, no `is_system` and no `active`: every entry is alike — creatable, renamable, deletable as long as no contact holds it, and the refusal says how many do. `contact_role` points at the type's `id`. The label is what a role is recognised by, so it is unique per tenant; two roles reading "Patient" would put two indistinguishable tabs in the contact list. `active` went with the rest deliberately — it raises four questions (is an inactive role shown while editing a contact that holds it, does it stay in the filter, and if not, how are those contacts found again) and prevents nothing. With `service` it is different: a service on a finalized invoice can never be removed, so there has to be a way to take it out of the selection. A role assignment is a row of its own with nothing hanging off it. Work, but never a dead end.
 
-**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. The first of those was a promise until L8: the code was seeded, flagged `is_system` and named in this sentence, and nothing outside a comment read it. `invoice.recipient_contact_id` is where it became true, and the shape it took is worth keeping in mind for the next such code — the relation is read **once**, when the document is finalized, and the address goes into `recipient_snapshot`; a relation dissolved next week cannot reach an invoice already posted. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. Everything about how they read stays editable: label, order, `active`. `is_system` appears in no input schema; only the seed sets it. A relation type's `code` is fixed for every entry, system or not: it is the handle other rows point at.
+**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. The first of those was a promise until L8: the code was seeded, flagged `is_system` and named in this sentence, and nothing outside a comment read it. `invoice.recipient_contact_id` is where it became true, and the shape it took is worth keeping in mind for the next such code — the relation is read **once**, when the document is finalized, and the address goes into `recipient_snapshot`; a relation dissolved next week cannot reach an invoice already posted. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. **A system entry is read-only apart from `active` and its order** (B1), and the reason is not the exclusivity. Rename `billing_recipient` to "Sorgeberechtigt" and the contact record says one thing while `updateInvoice` and `prepareSend` do another, because both of them look the relation up by its code: the label is what a human reads, the code is what the software obeys, and letting the two drift apart makes a screen lie without anything failing. So `code`, both labels, `is_symmetric` and `is_exclusive` are frozen — `SystemTypeReadOnlyError` in `domain/contact-type.ts`, beside the trigger that already froze the code — and the form renders them as text rather than as disabled fields. `active` stays, because a practice that never bills a third party may take the entry out of the picker, and so does `sort_order`, which moves through `/move`. `is_system` appears in no input schema; only the seed sets it. A relation type's `code` is fixed for every entry, system or not: it is the handle other rows point at.
 
 **Direction of a relation**: `from` is the contact in whose record the fact is a property *of that contact*, `to` is the counterpart. A child is the `from` of `guardian`, a patient is the `from` of `billing_recipient`. This is not cosmetic — `is_exclusive` is enforced per `from_contact_id`, so with the convention exclusivity always reads as "this contact has at most one X", and the next exclusive type needs no fresh thinking. `parent_of` is the deliberate exception: with kinship neither side owns the fact, and "Elternteil von / Kind von" is the more common reading direction.
 
@@ -215,7 +215,9 @@ Consequences, all of them intended:
 
 `activity` is a dated event where services were rendered to a contact — a session, a talk, a consultation. It is the record of what happened.
 
-**The type of an activity is a catalogue entry**, not an enum: `activity.type` holds the `code` of an `activity_type`, through a composite foreign key carrying `tenant_id`, exactly as roles and relations do in rule 4. The practice decides which kinds of appointment it has, and it names and colours them itself. There are no system entries — nothing in the software depends on a particular type existing. A type that is in use cannot be deleted, only deactivated; the foreign key enforces that and the domain refuses first, so the message is a sentence.
+**The type of an activity is a catalogue entry**, not an enum: `activity.activity_type_id` points at an `activity_type` through a composite foreign key carrying `tenant_id`, exactly as roles do in rule 4. The practice decides which kinds of appointment it has, and it names and colours them itself. There are no system entries — nothing in the software depends on a particular type existing.
+
+**And therefore no `code`**, since migration 0041. It held one until then, an anchor for logic that might key off a particular type, and the sentence above says outright that no such logic exists — so what the code actually bought was a second name to keep in step and a field on the settings screen that could be read and not written. It went the way 0035 took the code off the roles and 0038 off the note types; the label is what a type is recognised by now, unique per tenant, and freely renamable because every activity points at the id. The relation types kept theirs, and rule 4 says why: there the codes carry real logic. A type that is in use cannot be deleted, only deactivated; the foreign key enforces that and the domain refuses first, so the message is a sentence.
 
 An activity type may carry **presets**: a default duration, and a list of service references (`activity_type_preset_item`) with a quantity and an order — picking a service group when setting the preset resolves it into that list immediately, so the type never names a group itself. They prefill a *new* activity and are read exactly once, when the type is applied. This is rule 5 one level up — changing a preset reaches nothing that already exists, and there is no re-apply mechanism anywhere in `domain/`. Changing the type of an activity that already carries a duration or positions therefore changes nothing else; the UI says so in a line and offers taking the presets over as an action with a name, rather than overwriting silently.
 
@@ -932,10 +934,13 @@ activity              tenant_id uuid not null -> tenant(id),
                         -- every row and it comes from formatContactName(), the
                         -- same function the invoice snapshot uses. Like
                         -- billingState, derived on read (D8).
-                      type text not null,                     -- the `code` of
-                        -- an activity_type. Was a check constraint until 7.5;
-                        -- the set is not merely expected to change, it is
-                        -- maintained by the practitioner (rule 6).
+                      activity_type_id uuid not null,         -- the
+                        -- activity_type this is one of. Was a check constraint
+                        -- until 7.5 and then the type's `code` until B1/0041,
+                        -- which took the code off the catalogue: the set is not
+                        -- merely expected to change, it is maintained by the
+                        -- practitioner (rule 6), and renaming a type now
+                        -- reaches every activity at once.
                       status text not null default 'planned' check in
                         ('planned','rendered','no_show'),
                         -- what became of the TREATMENT. Descriptive only: it
@@ -956,10 +961,9 @@ activity              tenant_id uuid not null -> tenant(id),
                         -- has its own pair, see rule 6)
                       foreign key (contact_id, tenant_id)
                         -> contact (id, tenant_id)
-                      foreign key (type, tenant_id)
-                        -> activity_type (code, tenant_id)
+                      foreign key (activity_type_id, tenant_id)
+                        -> activity_type (id, tenant_id)
                         on update restrict on delete restrict
-                        -- nothing to cascade on update: a code never changes.
                         -- restrict on delete is what makes a type that is in
                         -- use undeletable; the domain refuses first so the
                         -- message is a sentence.
@@ -1011,11 +1015,10 @@ activity_item         tenant_id uuid not null -> tenant(id),
                       -- place rather than replacing, because slice 6 points
                       -- invoice_line.activity_item_id at these ids.
 
--- as built (slice 7.5, presets rebuilt as a list in D1)
+-- as built (slice 7.5, presets rebuilt as a list in D1, code dropped in B1)
 activity_type         tenant_id uuid not null -> tenant(id),
-                      code text not null,                       -- the handle
-                        -- activity.type points at; fixed once the row exists
-                      label text not null,
+                      label text not null,                      -- what a type
+                        -- is recognised by, there being no code
                       color text not null default '#64748b'
                         check (~ '^#[0-9a-f]{6}$'),             -- the calendar
                         -- paints the entry in it; the label on top is black or
@@ -1024,19 +1027,29 @@ activity_type         tenant_id uuid not null -> tenant(id),
                       is_default boolean not null default false,
                       sort_order integer not null default 0,
                       active boolean not null default true
-                      unique (tenant_id, code)                  -- also the
-                        -- target of activity's composite foreign key
-                      unique (id, tenant_id)                    -- for the
-                        -- composite FK on activity_type_preset_item below
+                      unique (tenant_id, label)
+                      unique (id, tenant_id)                    -- the target of
+                        -- activity's composite foreign key AND of the one on
+                        -- activity_type_preset_item
                       index on (tenant_id, sort_order, label),
                       unique index activity_type_default_key
                         on (tenant_id) where is_default
-                      check activity_type_code_shape
-                        (^[a-z][a-z0-9_]{0,39}$)
                       -- No is_system column and no protect_system_type trigger,
                       -- unlike the two catalogues of rule 4: nothing in the
                       -- software depends on a particular activity type
                       -- existing. set_updated_at; RLS created and disabled.
+                      --
+                      -- DELIBERATELY ABSENT since B1/0041: `code` and
+                      -- activity_type_code_shape. It was the handle
+                      -- activity.type pointed at, frozen once the row existed —
+                      -- an anchor for logic keying off a particular type, and
+                      -- the paragraph above says there is none. So it bought a
+                      -- second name to keep in step and a settings field that
+                      -- could be read and not written. Third catalogue to lose
+                      -- one, after contact_role_type (0035) and note_type
+                      -- (0038); by now this is the pattern and a code is the
+                      -- exception that has to earn itself, as the relation
+                      -- types do.
                       --
                       -- default_service_id / default_service_group_id (slice
                       -- 7.5) and the check that at most one was set are gone as
@@ -1957,7 +1970,7 @@ Defaults in a *creation* form are not this mistake, as long as the screen says p
 
 *Placeholders stay resolved on the server even when the dialog changes the template (rule 14): switching prepares the draft again through `prepareSend`, which is still "when the dialog is prepared" and keeps one resolver. Replacing text the practitioner has already edited is refused and named, with taking it over offered as an action — the same shape as applying an activity type's presets.*
 
-**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_type_id`, `contact.salutation_id`, `contact.gender_id`, `contact.country_id`, `contact_relation.relation_code`, `note.note_type_id` and `activity.type` point at a catalogue table through a composite foreign key (rules 4, 6 and 7). `contact.gender` was the check-constraint case in this very sentence until D-R3 and is a catalogue now, and `note.type` stood beside it until L1 — the second and third time that has happened. `activity.type` began as a check constraint and became a catalogue in slice 7.5 — one DROP and one ADD, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
+**Closed value sets.** Use a `pgEnum` when the set is structurally fixed and a value will never be renamed or removed — `contact.kind`, `invoice.type`, `invoice.status`, `payment.method`, `text_template.kind`, `google_sync_queue.operation`. Use `text` with a **named** check constraint for sets that are expected to change — `activity.status`, `appointment.status`. Where the set is not merely expected to change but is *maintained by the practitioner*, neither applies: `contact_role.role_type_id`, `contact.salutation_id`, `contact.gender_id`, `contact.country_id`, `contact_relation.relation_code`, `note.note_type_id` and `activity.activity_type_id` point at a catalogue table through a composite foreign key (rules 4, 6 and 7). `contact.gender` was the check-constraint case in this very sentence until D-R3 and is a catalogue now, and `note.type` stood beside it until L1 — the second and third time that has happened. `activity.type` began as a check constraint, became a catalogue in slice 7.5 and lost its code in B1/0041 — a DROP, an ADD, and then the anchor turning out to be unnecessary, which is the whole argument for not reaching for an enum when in doubt. `ALTER TYPE … ADD VALUE` is awkward in a migration and the new value cannot be used in the same transaction; renaming or removing an enum value is effectively impossible. A check constraint is replaced with DROP/ADD in one migration. In both cases the TypeScript union is defined by the Zod schema in `packages/shared`, and the Drizzle column type is derived from it (`text().$type<ContactRole>()`) — never maintained twice.
 
 **`updated_at`.** Maintained by the database, by the generic `set_updated_at()` trigger created in migration `0002`. Every table gets that trigger in the migration that creates it; nothing sets `updated_at` from application code. A value that silently stays behind on a `psql` update during maintenance is worse than no value at all. It means **last write**: an UPDATE storing identical values still moves it. Skipping no-op writes was tried and removed — Postgres fills generated columns after `BEFORE` triggers, so `NEW IS DISTINCT FROM OLD` is always true on a table with one, and the guard would have behaved differently per table (see migration `0005`).
 

@@ -89,8 +89,8 @@ export function ActivityDetail({
 
   const billable = sumItems(activity.items, { billableOnly: true })
   const total = sumItems(activity.items)
-  const color = activityTypeColor(types.data, activity.type)
-  const typeLabel = activityTypeLabel(types.data, activity.type)
+  const color = activityTypeColor(types.data, activity.activityTypeId)
+  const typeLabel = activityTypeLabel(types.data, activity.activityTypeId)
 
   return (
     /*

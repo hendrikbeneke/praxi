@@ -74,7 +74,7 @@ export async function listBillableItems(
       activityTitle: activity.title,
       /** So the picker can fall back to the type's label where the activity
        *  has no title of its own. */
-      activityType: activity.type,
+      activityTypeId: activity.activityTypeId,
       activityStatus: activity.status,
       description: activityItem.description,
       feeCode: activityItem.feeCode,
@@ -202,7 +202,7 @@ export async function unbilledCentsOf(
   selection: {
     from?: Date | undefined
     to?: Date | undefined
-    type?: string | undefined
+    activityTypeId?: string | undefined
     contactId?: string | undefined
   },
 ): Promise<number> {
@@ -213,7 +213,7 @@ export async function unbilledCentsOf(
   ]
   if (selection.from) filters.push(gte(activity.occurredAt, selection.from))
   if (selection.to) filters.push(lt(activity.occurredAt, selection.to))
-  if (selection.type) filters.push(eq(activity.type, selection.type))
+  if (selection.activityTypeId) filters.push(eq(activity.activityTypeId, selection.activityTypeId))
   if (selection.contactId) filters.push(eq(activity.contactId, selection.contactId))
 
   const [row] = await reader

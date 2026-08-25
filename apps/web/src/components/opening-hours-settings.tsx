@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, X } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
-import { TimeField } from '@/components/time-field'
+import { timeInvalidMessage, useTimeInput } from '@/components/time-field'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { ApiError } from '@/lib/api'
 import { openingHoursQueryOptions, replaceOpeningHours } from '@/lib/settings'
 import { strings } from '@/lib/strings'
@@ -119,57 +120,21 @@ export function OpeningHoursSettings() {
 
                   {editing &&
                     ofDay.map((window) => (
-                      /* `items-start`, not `items-center` (B1, M1): a
-                         complaint under the second field used to re-centre the
-                         whole row, so the first field and the dash slid down
-                         while the second slid up. Aligned at the top, an
-                         invalid entry grows the row downwards and moves
-                         nothing that is already on screen. */
-                      <div key={window.key} className="flex flex-wrap items-start gap-2">
-                        <TimeField
-                          id={`${fieldId}-${window.key}-from`}
-                          aria-label={strings.openingHours.from}
-                          className="w-24"
-                          value={window.startsAt}
-                          onChange={(value) =>
-                            setDraft((current) =>
-                              current.map((entry) =>
-                                entry.key === window.key ? { ...entry, startsAt: value } : entry,
-                              ),
-                            )
-                          }
-                        />
-                        <span className="pt-2 text-muted-foreground text-sm">–</span>
-                        <TimeField
-                          id={`${fieldId}-${window.key}-to`}
-                          aria-label={strings.openingHours.to}
-                          className="w-24"
-                          value={window.endsAt}
-                          onChange={(value) =>
-                            setDraft((current) =>
-                              current.map((entry) =>
-                                entry.key === window.key ? { ...entry, endsAt: value } : entry,
-                              ),
-                            )
-                          }
-                        />
-                        {editing && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="mt-0.5 size-8"
-                            aria-label={strings.openingHours.removeWindow}
-                            onClick={() =>
-                              setDraft((current) =>
-                                current.filter((entry) => entry.key !== window.key),
-                              )
-                            }
-                          >
-                            <X className="size-4" aria-hidden />
-                          </Button>
-                        )}
-                      </div>
+                      <WindowRow
+                        key={window.key}
+                        idPrefix={`${fieldId}-${window.key}`}
+                        window={window}
+                        onChange={(patch) =>
+                          setDraft((current) =>
+                            current.map((entry) =>
+                              entry.key === window.key ? { ...entry, ...patch } : entry,
+                            ),
+                          )
+                        }
+                        onRemove={() =>
+                          setDraft((current) => current.filter((entry) => entry.key !== window.key))
+                        }
+                      />
                     ))}
 
                   {editing && (
@@ -234,5 +199,72 @@ export function OpeningHoursSettings() {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * One opening window in edit mode: two times, the dash between them, and the
+ * button that takes the window out.
+ *
+ * **The complaint goes under the row, not under the field** (B1, M1). It used
+ * to be rendered by `TimeField` itself, inside a 6rem box, where it wrapped to
+ * three lines and shoved the second field and the dash out of line — the
+ * fields came apart, which is the one thing a message must never do to what
+ * stands beside it. Widening it to overflow sideways only moved the problem:
+ * two unreadable times in one window would have put two sentences on top of
+ * each other.
+ *
+ * So the row reads both fields through `useTimeInput` and renders one message
+ * below both of them. It pushes what is under it and touches nothing beside
+ * it. No space is reserved for it either — an empty line under every window of
+ * the week, seven days a year, to save one reflow is the worse trade.
+ */
+function WindowRow({
+  idPrefix,
+  window,
+  onChange,
+  onRemove,
+}: {
+  idPrefix: string
+  window: Draft
+  onChange: (patch: Partial<Pick<Draft, 'startsAt' | 'endsAt'>>) => void
+  onRemove: () => void
+}) {
+  const from = useTimeInput(window.startsAt, (startsAt) => onChange({ startsAt }))
+  const to = useTimeInput(window.endsAt, (endsAt) => onChange({ endsAt }))
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          id={`${idPrefix}-from`}
+          aria-label={strings.openingHours.from}
+          className="w-24"
+          {...from.inputProps}
+        />
+        <span className="text-muted-foreground text-sm">–</span>
+        <Input
+          id={`${idPrefix}-to`}
+          aria-label={strings.openingHours.to}
+          className="w-24"
+          {...to.inputProps}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          aria-label={strings.openingHours.removeWindow}
+          onClick={onRemove}
+        >
+          <X className="size-4" aria-hidden />
+        </Button>
+      </div>
+      {/* One sentence however many of the two are unreadable: it says the same
+          thing about either, and two identical lines would only be noise. */}
+      {(from.invalid || to.invalid) && (
+        <p className="mt-1 text-destructive text-sm">{timeInvalidMessage()}</p>
+      )}
+    </div>
   )
 }
