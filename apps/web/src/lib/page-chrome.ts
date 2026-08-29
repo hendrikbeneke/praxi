@@ -4,10 +4,11 @@
  *
  * Padding lives here and the *width cap* deliberately does not: on four of the
  * eight screens the design caps a block **inside** the page rather than the
- * page itself. Vorgänge caps its list but lets the filter band run to the
- * window edge — which is what puts that full-width rule under it — and
- * Kontaktdetail caps its tab content but not the header and tab row, which is
- * what lets the tab underline span the whole field. A single number per route
+ * page itself. Vorgänge caps its list and the *content* of its filter band, but
+ * lets the band itself run to the window edge — which is what puts that
+ * full-width rule under it while "Neuer Vorgang" still ends where the entries do
+ * (B2) — and Kontaktdetail caps its tab content but not the header and tab row,
+ * which is what lets the tab underline span the whole field. A single number per route
  * would have quietly taken both away, and L5 added a third reason: the cap on
  * Kontaktdetail differs **per tab**, because the Übersicht spreads its cards
  * over the whole field while every other tab is a column of text. The cap is
@@ -33,7 +34,10 @@ const byRouteId: Record<string, string> = {
   '/_app/contacts/new': 'p-0',
   '/_app/contacts/$contactId': 'p-0',
   // Its filter band is full-bleed with a rule under it, like the contact
-  // record's header strip — so the page sets its own inset below it (K9).
+  // record's header strip — so the page sets its own inset below it (K9). Since
+  // B2 it owns the window's height too and scrolls its list inside itself, the
+  // same as the contact list above: the scrollbar then belongs to the entries
+  // rather than to the window.
   '/_app/activities': 'p-0',
   '/_app/payments': 'px-8 pt-5 pb-7',
   '/_app/services': 'px-8 pt-[22px] pb-10',

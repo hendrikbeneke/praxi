@@ -616,7 +616,6 @@ export const strings = {
       rendered: 'Stattgefunden',
       no_show: 'Nicht erschienen',
     },
-    allStatuses: 'Alle',
     allTypes: 'Alle Arten',
     rangeFrom: 'Von',
     rangeTo: 'Bis',
@@ -695,9 +694,6 @@ export const strings = {
     section: 'Vorgang',
     appointmentSection: 'Termin',
     noAppointment: 'Kein Kalendertermin',
-    /** In a list row, where the sentence has to be short and sits among
-     *  badges — the detail below says it in full. */
-    noAppointmentShort: 'ohne Termin',
     /** "Termin Bestätigt" — the word is part of the badge, so the slot's
      *  status cannot be mistaken for the activity's own (K7). */
     appointmentBadge: (status: string) => `Termin ${status}`,

@@ -223,26 +223,32 @@ export const activityListParts = ['upcoming', 'past'] as const
 export const activityListPartSchema = z.enum(activityListParts)
 export type ActivityListPart = z.infer<typeof activityListPartSchema>
 
-export const activityListQuerySchema = z
-  .object({
-    contactId: z.uuid().optional(),
-    from: z.iso.datetime().optional(),
-    to: z.iso.datetime().optional(),
-    status: activityStatusSchema.optional(),
-    /** One `activity_type`, by id (D8). Filtered on the server like the
-     *  status, and for the same reason: the list is paged. */
-    activityTypeId: z.uuid().optional(),
-    /** Filtered on the server like the status, and for the same reason: the
-     *  list is paged, and a browser cannot narrow what it never fetched. */
-    billing: activityBillingFilterSchema.optional(),
-    part: activityListPartSchema.optional(),
-    limit: z.coerce.number().int().min(1).max(200).default(PAGE_SIZE),
-    /** Absent means the first page. Ignored for `upcoming`, which has none. */
-    cursor: cursorSchema.optional(),
-  })
-  .refine((query) => query.contactId !== undefined || query.from !== undefined, {
-    message: 'contactId or from is required',
-  })
+/**
+ * **Every bound is optional**, the same as on the summary beside it (B2).
+ *
+ * It carried `contactId or from is required` until then, and the Vorgänge page
+ * satisfied it by prefilling a window of 120 days — a range nobody had asked
+ * for, in a form that read as a record of one. Nothing in the query needs the
+ * bound: the past is cut into pages by keyset, and the future is finite, which
+ * is the whole reason it comes whole (L3). What the refusal actually bought was
+ * a default the screen then had to claim.
+ */
+export const activityListQuerySchema = z.object({
+  contactId: z.uuid().optional(),
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
+  status: activityStatusSchema.optional(),
+  /** One `activity_type`, by id (D8). Filtered on the server like the
+   *  status, and for the same reason: the list is paged. */
+  activityTypeId: z.uuid().optional(),
+  /** Filtered on the server like the status, and for the same reason: the
+   *  list is paged, and a browser cannot narrow what it never fetched. */
+  billing: activityBillingFilterSchema.optional(),
+  part: activityListPartSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(PAGE_SIZE),
+  /** Absent means the first page. Ignored for `upcoming`, which has none. */
+  cursor: cursorSchema.optional(),
+})
 
 export type ActivityListQuery = z.infer<typeof activityListQuerySchema>
 

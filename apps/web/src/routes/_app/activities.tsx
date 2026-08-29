@@ -1,232 +1,112 @@
-import {
-  type ActivityStatus,
-  activityStatuses,
-  formatEuro,
-  fromBerlinDateTimeLocal,
-} from '@praxi/shared'
+import { formatEuro } from '@praxi/shared'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
-import { z } from 'zod'
+import { ActivityFilterBar } from '@/components/activity-filter-bar'
 import { ActivityList } from '@/components/activity-list'
-import { filterChipClass } from '@/components/chip'
 import { ContentWidth } from '@/components/content-width'
-import { DateField } from '@/components/date-field'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   activitySummaryQueryOptions,
   pastActivitiesQueryOptions,
   upcomingActivitiesQueryOptions,
 } from '@/lib/activities'
-import { activityTypeListQueryOptions } from '@/lib/activity-types'
+import {
+  type ActivityFilterValue,
+  activityFilterSearchSchema,
+  activityListParams,
+  activitySummaryParams,
+} from '@/lib/activity-filters'
 import { strings } from '@/lib/strings'
 
-/** Dates, a status and a type code — nothing personal, so the URL may carry
- *  them. Which row is expanded is not in here: it is a scroll position, not a
+/** Dates, a chip and a type id — nothing personal, so the URL may carry them.
+ *  The same four the contact's Vorgänge tab carries, out of the same schema
+ *  (B2). Which row is expanded is not in here: it is a scroll position, not a
  *  place, and it belongs to the visit rather than to the address. */
-const searchSchema = z.object({
-  from: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  to: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  status: z.enum(activityStatuses).optional(),
-  activityTypeId: z.uuid().optional(),
-})
-
 export const Route = createFileRoute('/_app/activities')({
-  validateSearch: searchSchema,
+  validateSearch: activityFilterSearchSchema,
   component: ActivitiesPage,
 })
-
-const ALL_TYPES = 'all'
-
-function todayInBerlin(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date())
-}
-
-function shiftDays(date: string, days: number): string {
-  const shifted = new Date(`${date}T12:00:00Z`)
-  shifted.setUTCDate(shifted.getUTCDate() + days)
-  return shifted.toISOString().slice(0, 10)
-}
 
 function ActivitiesPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
 
-  const today = todayInBerlin()
-  const from = search.from ?? shiftDays(today, -90)
-  const to = search.to ?? shiftDays(today, 30)
-
-  const window = {
-    from: fromBerlinDateTimeLocal(`${from}T00:00`),
-    to: fromBerlinDateTimeLocal(`${shiftDays(to, 1)}T00:00`),
-  }
-
-  const types = useQuery(activityTypeListQueryOptions(true))
+  const setSearch = (change: Partial<ActivityFilterValue>) =>
+    void navigate({ search: (previous) => ({ ...previous, ...change }) })
 
   /** Two queries, two rules (L3): the future is finite and comes whole, the
    *  past is not and comes fifty at a time. */
-  const listParams = {
-    ...window,
-    ...(search.status ? { status: search.status } : {}),
-    ...(search.activityTypeId ? { activityTypeId: search.activityTypeId } : {}),
-  }
+  const listParams = activityListParams(undefined, search)
   const upcoming = useQuery(upcomingActivitiesQueryOptions(listParams))
   const past = useInfiniteQuery(pastActivitiesQueryOptions(listParams))
   /**
    * Its own request, unlike D7's invoice list, which counts the 200 rows it
-   * loaded. The reason is the data, not a change of mind: the default window
-   * here is 120 days, which for a working practice is some 700 activities, so
-   * the list is paged and the browser cannot count what it never fetched.
+   * loaded. The reason is the data, not a change of mind: the list here is
+   * paged, and a browser cannot count what it never fetched — a chip whose
+   * number changes as one scrolls is worse than a chip with no number.
    */
-  const summary = useQuery(
-    activitySummaryQueryOptions({
-      ...window,
-      ...(search.activityTypeId ? { activityTypeId: search.activityTypeId } : {}),
-    }),
-  )
+  const summary = useQuery(activitySummaryQueryOptions(activitySummaryParams(undefined, search)))
 
   const [creating, setCreating] = useState(false)
-
-  const setSearch = (change: Partial<z.infer<typeof searchSchema>>) =>
-    void navigate({ search: (previous) => ({ ...previous, ...change }) })
-
   const counts = summary.data
-  const chips: { value: ActivityStatus | undefined; label: string; count: number | undefined }[] = [
-    { value: undefined, label: strings.activity.allStatuses, count: counts?.total },
-    { value: 'planned', label: strings.activity.statuses.planned, count: counts?.planned },
-    { value: 'rendered', label: strings.activity.statuses.rendered, count: counts?.rendered },
-    { value: 'no_show', label: strings.activity.statuses.no_show, count: counts?.noShow },
-  ]
 
   return (
-    <>
+    /* The screen owns the window's height and the list scrolls inside it, so
+       the filter band stays put without being sticky and the scrollbar belongs
+       to the entries rather than to the window (B2). Same shape as the contact
+       list (L4); the shell gives this route no padding
+       (`lib/page-chrome.ts`). */
+    <div className="flex h-full min-h-0 flex-col">
       {/*
-          Title, filters, chips and the summary are one full-bleed sticky band
-          in card colour, and its bottom border is the rule the design runs
-          across the whole width — the same shape as the contact record's
-          header strip (K6). The rule is why the band exists: drawn under a
-          capped block it would stop where the list stops, which is not a
-          division of the screen but a line in the middle of it. The shell
-          gives this route no padding (`lib/page-chrome.ts`).
+          Title, filters, chips and the summary are one full-bleed band in card
+          colour, and its bottom border is the rule the design runs across the
+          whole width — the same shape as the contact record's header strip
+          (K6). The rule is why the band runs to the window edge while its
+          *content* is capped: drawn under a capped block it would stop where
+          the list stops, which is not a division of the screen but a line in
+          the middle of it. The cap on the content is what puts "Neuer Vorgang"
+          flush with the entries below it.
         */}
-      <div className="sticky top-0 z-5 border-b bg-card px-8 pt-[22px] pb-3.5">
-        <PageHeader
-          className="mb-0"
-          title={strings.activity.title}
-          description={strings.activity.description}
-          actions={
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="size-4" aria-hidden />
-              {strings.activity.create}
-            </Button>
-          }
-        />
+      <div className="border-b bg-card px-8 pt-[22px] pb-3.5">
+        <ContentWidth>
+          <PageHeader
+            className="mb-0"
+            title={strings.activity.title}
+            description={strings.activity.description}
+            actions={
+              <Button onClick={() => setCreating(true)}>
+                <Plus className="size-4" aria-hidden />
+                {strings.activity.create}
+              </Button>
+            }
+          />
 
-        {/* One wrapping row, bottom-aligned: the two date fields, the type
-            filter, the chips and the summary sentence all sit on the same
-            baseline (design). */}
-        <div className="mt-4 flex flex-wrap items-end gap-[18px]">
-          <div>
-            <Label htmlFor="from">{strings.activity.rangeFrom}</Label>
-            <DateField
-              id="from"
-              className="mt-1.5 w-40"
-              value={from}
-              onChange={(value: string) => setSearch({ from: value })}
-            />
-          </div>
-          <div>
-            <Label htmlFor="to">{strings.activity.rangeTo}</Label>
-            <DateField
-              id="to"
-              className="mt-1.5 w-40"
-              value={to}
-              onChange={(value: string) => setSearch({ to: value })}
-            />
-          </div>
-          <div>
-            <Label htmlFor="type">{strings.activity.type}</Label>
-            <Select
-              value={search.activityTypeId ?? ALL_TYPES}
-              onValueChange={(value) =>
-                setSearch({ activityTypeId: value === ALL_TYPES ? undefined : value })
-              }
-            >
-              <SelectTrigger id="type" className="mt-1.5 w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_TYPES}>{strings.activity.allTypes}</SelectItem>
-                {(types.data ?? [])
-                  .filter((entry) => entry.active || entry.id === search.activityTypeId)
-                  .map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      <span
-                        aria-hidden
-                        className="inline-block size-2.5 rounded-full"
-                        style={{ backgroundColor: entry.color }}
-                      />
-                      {entry.label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* The counts describe the window, not the selection — picking a
-              chip must not change the number written on it. Only the type
-              filter beside them narrows them. */}
-          <div className="flex flex-wrap items-center gap-2 pb-[7px]">
-            {chips.map((chip) => (
-              <button
-                key={chip.value ?? 'all'}
-                type="button"
-                className={filterChipClass(search.status === chip.value)}
-                onClick={() => setSearch({ status: chip.value })}
-              >
-                {/* The number first: on a filter chip it is the statement — how
-                    many rows to expect — while a tab's number is an aside to
-                    its name. Two roles, two positions (K8). */}
-                {chip.count !== undefined && (
-                  <span className="font-semibold tabular-nums">{chip.count}</span>
-                )}
-                {chip.label}
-              </button>
-            ))}
-          </div>
-
-          {counts && (
-            <p className="pb-[9px] text-[13px] text-muted-foreground">
-              {strings.activity.summary(
+          <ActivityFilterBar
+            className="mt-4"
+            value={search}
+            onChange={setSearch}
+            summary={counts}
+            summaryText={
+              counts &&
+              strings.activity.summary(
                 counts.total,
                 counts.upcoming,
                 formatEuro(counts.unbilledCents),
-              )}
-            </p>
-          )}
-        </div>
+              )
+            }
+          />
+        </ContentWidth>
       </div>
 
-      <div className="px-8 pt-[18px] pb-12">
-        {/* Only the list is capped; the band above runs to the window edge,
-            which is what carries its full-width rule (K1). */}
-        <ContentWidth>
+      {/* Only the list is capped; the band above runs to the window edge,
+          which is what carries its full-width rule (K1). The cap sits on the
+          scrolling element itself, so its scrollbar lands at the edge of the
+          cards and not at the edge of the window. */}
+      <div className="flex min-h-0 flex-1 px-8">
+        <ContentWidth className="min-h-0 overflow-auto pt-[18px] pb-12">
           <ActivityList
             upcoming={upcoming.data ?? []}
             past={past.data?.pages.flatMap((page) => page.items) ?? []}
@@ -242,6 +122,6 @@ function ActivitiesPage() {
           />
         </ContentWidth>
       </div>
-    </>
+    </div>
   )
 }

@@ -82,3 +82,46 @@ export function listTabClass(active: boolean): string {
       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
   )
 }
+
+/**
+ * A row of filter chips — one implementation for every list that carries them
+ * (B2).
+ *
+ * The behaviour is a rule and not a call site's choice: **the active chip
+ * switches itself off when it is pressed again**, which is what takes the place
+ * of an "Alle" chip. The Vorgänge page had one and the contact's Vorgänge tab
+ * did not, so the same row of pills answered the same question in two ways.
+ *
+ * `count` may be missing while the figures are still on their way. A chip
+ * without one is still a chip: it filters, it just cannot say yet how many.
+ */
+export function FilterChips<Id extends string>({
+  chips,
+  active,
+  onChange,
+}: {
+  chips: readonly { id: Id; label: string; count: number | undefined }[]
+  active: Id | undefined
+  onChange: (next: Id | undefined) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {chips.map((chip) => (
+        <button
+          key={chip.id}
+          type="button"
+          className={filterChipClass(active === chip.id)}
+          onClick={() => onChange(active === chip.id ? undefined : chip.id)}
+        >
+          {/* The number first: on a filter chip it is the statement — how many
+              rows to expect — while a tab's number is an aside to its name.
+              Two roles, two positions (K8). */}
+          {chip.count !== undefined && (
+            <span className="font-semibold tabular-nums">{chip.count}</span>
+          )}
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  )
+}

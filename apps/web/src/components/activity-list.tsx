@@ -226,7 +226,17 @@ export function ActivityList({
                       {formatBerlinDateLong(activity.occurredAt)},{' '}
                       {formatBerlinTime(activity.appointment?.startsAt ?? activity.occurredAt)}
                     </span>
-                    {showContact && <span className="font-semibold">{activity.contactName}</span>}
+                    {/* A column of its own between the date and the type, so
+                        the badges of a run of rows start at one x (B2). A
+                        *minimum* rather than a fixed width, unlike the date
+                        beside it: a date has a known widest form and a name
+                        does not, and a name pushing the badge right is better
+                        than a name cut off. "Nachname, Vorname" comes from the
+                        server — `formatContactNameSorted`, because this list is
+                        ordered by the name (K9). */}
+                    {showContact && (
+                      <span className="min-w-[190px] font-semibold">{activity.contactName}</span>
+                    )}
                     <span
                       className="rounded px-1.5 py-0.5 text-xs"
                       style={{ backgroundColor: color, color: readableTextOn(color) }}
@@ -244,12 +254,14 @@ export function ActivityList({
                         status beside it, which is a different statement (rule
                         6). A cancellation is red; a confirmed slot is settled
                         and reads quietly.
+
+                        Where there is **no** slot, nothing is said (B2). The
+                        row carried a grey "ohne Termin" until then, which is
+                        the absence of a fact dressed as one; the empty time
+                        cell on the line below already shows it, and the detail
+                        says it in full.
                       */}
-                    {activity.appointment === null ? (
-                      <span className="text-muted-foreground text-xs">
-                        {strings.activity.noAppointmentShort}
-                      </span>
-                    ) : (
+                    {activity.appointment !== null && (
                       <Badge variant={appointmentVariant(activity.appointment.status)}>
                         {strings.activity.appointmentBadge(
                           strings.appointment.status[activity.appointment.status],

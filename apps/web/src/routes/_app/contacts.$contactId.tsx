@@ -1,6 +1,4 @@
 import {
-  type ActivityListQuery,
-  type ActivitySummary,
   activityLabel,
   activityTypeLabel,
   type ContactRoleInput,
@@ -23,8 +21,9 @@ import { Pencil, Plus, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { ActivityFilterBar } from '@/components/activity-filter-bar'
 import { ActivityList } from '@/components/activity-list'
-import { filterChipClass } from '@/components/chip'
+import { FilterChips } from '@/components/chip'
 import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
@@ -55,6 +54,12 @@ import {
   pastActivitiesQueryOptions,
   upcomingActivitiesQueryOptions,
 } from '@/lib/activities'
+import {
+  type ActivityFilterValue,
+  activityFilterSearchSchema,
+  activityListParams,
+  activitySummaryParams,
+} from '@/lib/activity-filters'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
 import {
@@ -88,6 +93,16 @@ const searchSchema = z.object({
    * is: a link has to survive the back button.
    */
   activityId: z.uuid().optional(),
+  /**
+   * What the Vorgänge tab is narrowed to, out of the same schema the Vorgänge
+   * page validates its own address with (B2). Here rather than in `useState`
+   * so a narrowed view of one record is a link — the tab is in the URL for
+   * exactly that reason, and the filter beside it costs nothing.
+   *
+   * Switching tabs drops it along with `activityId`: it belongs to the tab it
+   * narrows.
+   */
+  ...activityFilterSearchSchema.shape,
 })
 
 export const Route = createFileRoute('/_app/contacts/$contactId')({
@@ -99,7 +114,8 @@ export const Route = createFileRoute('/_app/contacts/$contactId')({
 
 function ContactDetailPage() {
   const { contactId } = Route.useParams()
-  const { tab, activityId } = Route.useSearch()
+  const search = Route.useSearch()
+  const { tab, activityId } = search
   const navigate = useNavigate({ from: Route.fullPath })
   const queryClient = useQueryClient()
   const { data: contact } = useQuery(contactQueryOptions(contactId))
@@ -266,7 +282,14 @@ function ContactDetailPage() {
 
         <TabsContent value="activities">
           <ContentWidth>
-            <ContactActivities contactId={contactId} openActivityId={activityId} />
+            <ContactActivities
+              contactId={contactId}
+              openActivityId={activityId}
+              filter={search}
+              onFilterChange={(change) =>
+                void navigate({ search: (previous) => ({ ...previous, ...change }) })
+              }
+            />
           </ContentWidth>
         </TabsContent>
 
@@ -297,22 +320,27 @@ function ContactDetailPage() {
 }
 
 /**
- * The contact's activities — the same list and the same inline detail as the
- * Vorgänge page (D8), with the contact left out of every row and out of the
- * detail's rail: it would repeat on each row and its link would lead back to
- * this page.
+ * The contact's activities — **the same list, the same filter bar and the same
+ * inline detail as the Vorgänge page** (D8, unified in B2). Two things differ,
+ * and both follow from the one fact that the contact is fixed here: the name is
+ * left out of every row and out of the detail's rail, where it would repeat and
+ * lead back to this page, and the create form takes the contact rather than
+ * asking for it.
  */
 function ContactActivities({
   contactId,
   openActivityId,
+  filter,
+  onFilterChange,
 }: {
   contactId: string
   /** Arrived here from "Letzte Vorgänge" on the overview (L5) — that Vorgang
    *  opens in read mode. */
   openActivityId: string | undefined
+  /** In the URL beside `tab`, so a narrowed view of this record is a link. */
+  filter: ActivityFilterValue
+  onFilterChange: (change: Partial<ActivityFilterValue>) => void
 }) {
-  const [filter, setFilter] = useState<ActivityFilter | undefined>()
-
   /**
    * **The chips narrow on the server and count on the server** (L7). They
    * counted and filtered what had been loaded until then, which was right for
@@ -324,31 +352,26 @@ function ContactActivities({
    * Two things follow, and they are why this needs three queries rather than
    * one. The filter travels into both halves of the list, because both are
    * narrowed the same way; the **counts do not**, because a chip's number has
-   * to hold still when the chip is pressed. So the summary asks about the
-   * contact and nothing else.
+   * to hold still when the chip is pressed — see `activitySummaryParams`.
    */
-  const params = { contactId, ...(filter ? activityFilters[filter] : {}) }
+  const params = activityListParams(contactId, filter)
   const upcoming = useQuery(upcomingActivitiesQueryOptions(params))
   const past = useInfiniteQuery(pastActivitiesQueryOptions(params))
-  const counts = useQuery(activitySummaryQueryOptions({ contactId }))
+  const counts = useQuery(activitySummaryQueryOptions(activitySummaryParams(contactId, filter)))
   const [creating, setCreating] = useState(false)
 
   const summary = counts.data
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <FilterRow
-          summary={strings.counts.activities(summary?.total ?? 0, summary?.upcoming ?? 0)}
-          chips={activityChipOrder.map((id) => ({
-            id,
-            label: activityChipLabel(id),
-            count: summary ? activityChipCount(summary, id) : 0,
-          }))}
-          active={filter}
-          onChange={setFilter}
+      <div className="mb-4 flex flex-wrap items-end gap-4">
+        <ActivityFilterBar
+          value={filter}
+          onChange={onFilterChange}
+          summary={summary}
+          summaryText={summary && strings.counts.activities(summary.total, summary.upcoming)}
         />
-        <Button className="ml-auto" onClick={() => setCreating(true)}>
+        <Button className="mb-[3px] ml-auto" onClick={() => setCreating(true)}>
           <Plus className="size-4" aria-hidden />
           {strings.activity.create}
         </Button>
@@ -372,47 +395,6 @@ function ContactActivities({
       />
     </>
   )
-}
-
-/**
- * The five chips of the Vorgänge tab, in the design's order (L7).
- *
- * **There is deliberately no chip for a Terminstatus**, and none for "Ohne
- * Termin" either — the tab filters Vorgänge, not Termine. The appointment's
- * status still stands in every row as a badge, because a cancelled slot is
- * something one wants to see while skimming; being worth seeing and being
- * worth filtering by are different questions.
- *
- * Each entry is a *query*, not a predicate: what narrows the list is what the
- * server is asked, so a chip cannot mean one thing in the count and another in
- * the rows.
- */
-const activityFilters = {
-  planned: { status: 'planned' },
-  rendered: { status: 'rendered' },
-  no_show: { status: 'no_show' },
-  billed: { billing: 'billed' },
-  unbilled: { billing: 'open' },
-} as const satisfies Record<string, Pick<Partial<ActivityListQuery>, 'status' | 'billing'>>
-
-type ActivityFilter = keyof typeof activityFilters
-
-const activityChipOrder = ['planned', 'rendered', 'no_show', 'billed', 'unbilled'] as const
-
-function activityChipLabel(id: ActivityFilter): string {
-  if (id === 'billed') return strings.counts.activitiesBilled
-  if (id === 'unbilled') return strings.counts.activitiesUnbilled
-  return strings.activity.statuses[id]
-}
-
-/** The count is the summary's, field for field — a chip must never work its
- *  own number out of the rows it happens to have. */
-function activityChipCount(summary: ActivitySummary, id: ActivityFilter): number {
-  if (id === 'planned') return summary.planned
-  if (id === 'rendered') return summary.rendered
-  if (id === 'no_show') return summary.noShow
-  if (id === 'billed') return summary.billed
-  return summary.unbilled
 }
 
 /**
@@ -954,19 +936,12 @@ function FilterRow<Id extends string>({
   onChange: (next: Id | undefined) => void
 }) {
   return (
+    /* The pills themselves are `FilterChips`, the one implementation every
+       list on this screen and the Vorgänge page share (B2). What is left here
+       is the sentence in front of them. */
     <div className="flex flex-wrap items-center gap-2">
       <p className="text-[13.5px] text-muted-foreground">{summary}</p>
-      {chips.map((chip) => (
-        <button
-          key={chip.id}
-          type="button"
-          className={filterChipClass(active === chip.id)}
-          onClick={() => onChange(active === chip.id ? undefined : chip.id)}
-        >
-          <span className="font-semibold tabular-nums">{chip.count}</span>
-          {chip.label}
-        </button>
-      ))}
+      <FilterChips chips={chips} active={active} onChange={onChange} />
     </div>
   )
 }
