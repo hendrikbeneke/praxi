@@ -227,3 +227,51 @@ export function matchesInvoiceListFilter(
   // half a payment does not settle a claim, and the row says how much arrived.
   return state.status === 'open' || state.status === 'partially_paid'
 }
+
+/** Whose invoices are counted. The **filter is deliberately not in here**, for
+ *  the reason `activitySummaryParams` gives on the Vorgänge side (L7): the
+ *  figures describe the selection, not the narrowing, so pressing a chip cannot
+ *  change the number written on it. */
+export const invoiceSummaryQuerySchema = z.object({ contactId: z.uuid().optional() })
+
+export type InvoiceSummaryQuery = z.infer<typeof invoiceSummaryQuerySchema>
+
+/**
+ * The numbers above the invoice list — the chips, and the two tiles on
+ * Zahlungen (B3).
+ *
+ * **Counted on the server, over every row of the selection**, and that is the
+ * whole reason this endpoint exists. Both screens counted what a request had
+ * returned until B3, capped at 200 invoices: past that, a tile said "3 offen"
+ * of the first two hundred documents and a chip promised rows it had not seen.
+ * A number that changes as one scrolls is not a smaller number, it is a wrong
+ * one.
+ *
+ * `draft`, `open`, `overdue`, `paid` and `cancelled` are exactly
+ * `invoiceListFilters`, and the domain builds them as a `Record` over that
+ * array so a sixth filter cannot be added without a count coming with it.
+ * **Nothing here is decided a second time**: the server runs
+ * `invoicePaymentState()` and `matchesInvoiceListFilter()` — the same two
+ * functions the rows use — over the rows rather than restating the rule as a
+ * `WHERE` clause, which would be the second definition rule 9 refuses.
+ */
+export const invoiceSummarySchema = z.object({
+  /** Every document in the selection — the number on the "Alle" chip. */
+  total: z.number().int(),
+  draft: z.number().int(),
+  open: z.number().int(),
+  overdue: z.number().int(),
+  paid: z.number().int(),
+  cancelled: z.number().int(),
+  /** What is still owed across the selection — the amount on the Rechnungen
+   *  tile. Drafts contribute nothing: a draft is not a claim. */
+  openCents: z.number().int(),
+  /** The other tile: what is rendered and on no active invoice. The three
+   *  figures come from `domain/billable.ts`, beside the one definition of
+   *  "already claimed" (rule 6). */
+  billableActivities: z.number().int(),
+  billableItems: z.number().int(),
+  billableCents: z.number().int(),
+})
+
+export type InvoiceSummary = z.infer<typeof invoiceSummarySchema>

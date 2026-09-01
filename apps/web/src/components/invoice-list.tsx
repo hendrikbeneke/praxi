@@ -3,22 +3,20 @@ import {
   formatBerlinDate,
   formatEuro,
   type Invoice,
-  type InvoiceListFilter,
-  invoiceListFilters,
   invoicePaymentState,
-  matchesInvoiceListFilter,
   type PaymentState,
   toBerlinDate,
 } from '@praxi/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
-import { useState } from 'react'
-import { filterChipClass } from '@/components/chip'
-import { type ColumnDefinition, ColumnPicker } from '@/components/column-picker'
-import { NewInvoiceDialog } from '@/components/new-invoice-dialog'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { ContactPicker } from '@/components/contact-picker'
+import { InlineDetailRow, useInlineDetail } from '@/components/inline-detail-row'
+import { InvoiceDetail } from '@/components/invoice-detail'
+import { invoiceColumnDefinitions } from '@/components/invoice-filter-bar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -27,40 +25,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { invoiceListQueryOptions } from '@/lib/invoices'
+import { ApiError } from '@/lib/api'
+import { createInvoice } from '@/lib/invoices'
 import { strings } from '@/lib/strings'
-import {
-  updateUserPreferences,
-  userPreferencesQueryKey,
-  userPreferencesQueryOptions,
-} from '@/lib/user-preferences'
-
-/** Enough for a practice's whole history today; the count line below the
- *  table says so when it is not, rather than silently showing a prefix. */
-const PAGE_SIZE = 200
-
-/**
- * **One status column, not two** (K8). It said "Festgeschrieben" in one and
- * "Teilweise bezahlt" in the next, which is the same mistake the chip band had
- * before D7 merged it: a document is in *one* state, and the two columns had
- * to be read together to find out which. `documentState()` below is that one
- * state, and what has been paid so far stands beside the badge rather than in
- * a column of its own.
- *
- * The order is the design's, and `total` comes before `openAmount`: what was
- * demanded, then what is left of it.
- */
-const COLUMN_DEFINITIONS: ColumnDefinition[] = [
-  { key: 'number', label: strings.invoice.number, locked: true },
-  { key: 'contact', label: strings.invoice.contact },
-  { key: 'invoiceDate', label: strings.invoice.invoiceDate },
-  { key: 'dueDate', label: strings.invoice.dueDate },
-  { key: 'status', label: strings.invoice.statusLabel },
-  { key: 'total', label: strings.invoice.total },
-  { key: 'openAmount', label: strings.invoice.openAmount },
-]
-
-const DEFAULT_COLUMNS = COLUMN_DEFINITIONS.map((entry) => entry.key)
+import { cn } from '@/lib/utils'
 
 /** A plain date rendered through the Berlin formatter needs an instant; midday
  *  can never fall on the wrong side of a timezone boundary. */
@@ -69,209 +37,255 @@ function formatDate(date: string): string {
 }
 
 /**
- * Every invoice and what its payments make of it — the second tab of
- * Zahlungen (D7), where the invoice list and the Bezahlübersicht merged.
+ * Every invoice and what its payments make of it — **the same table on the
+ * Zahlungen page and in a contact's Rechnungen tab** (B3).
  *
- * The merge is possible because both screens were the same rows: the invoice
- * list already carried `paidCents`, and `invoicePaymentState()` derives the
- * rest. What the Bezahlübersicht added was a server-side narrowing, and that
- * endpoint is gone — the filter runs here now, over the loaded rows, for the
- * reason its docstring gave: rewriting the status rule as a `WHERE` clause
- * would be a second definition of it, and the two would eventually disagree.
+ * The two were different screens until then: a table with seven columns and a
+ * column picker here, a hand-built list of rows with three chips of its own
+ * there. They are one list now, and it takes **no parameter to be one**: the
+ * rows are handed in, the columns are handed in, and `contactId` reaches
+ * nothing but the editor, where it decides whether the recipient is asked for
+ * or already known.
  *
- * Nothing on this screen is stored. Every amount and every status comes out
- * of `invoicePaymentState()` on read (CLAUDE.md rule 9).
+ * **The detail opens inside the row that was clicked**, spanning every column —
+ * for writing an invoice as much as for reading one, so there is no jump to a
+ * page of its own. `/invoices/$invoiceId` stays as an *address*, because three
+ * other screens point at a document, but nothing on this list leads there: two
+ * renderings of one record eventually say two different things about it, and
+ * here the record is a document with legal weight.
+ *
+ * Nothing on this screen is stored. Every amount and every status comes out of
+ * `invoicePaymentState()` on read (CLAUDE.md rule 9).
  */
 export function InvoiceList({
-  filter,
-  onFilterChange,
+  invoices,
+  columns,
+  contactId,
+  creating = false,
+  onCreated,
+  onCancelCreate,
+  openInvoiceId,
+  emptyText,
+  emptyFilteredText,
+  filtered = false,
 }: {
-  filter: InvoiceListFilter | undefined
-  onFilterChange: (next: InvoiceListFilter | undefined) => void
+  invoices: readonly Invoice[]
+  /** From `useInvoiceColumns()` — one preference for both screens. */
+  columns: string[]
+  /** Set inside a contact record. The **one difference between the two
+   *  screens**: with it the draft is written the moment "Neue Rechnung" is
+   *  pressed, without it the panel asks who it is for first. */
+  contactId?: string | undefined
+  creating?: boolean
+  onCreated?: () => void
+  onCancelCreate?: () => void
+  /** Opened on arrival — the contact's overview links here at the draft it
+   *  just started (L5's `activityId`, one record over). A *starting* state:
+   *  clicking another row from here on is the ordinary toggle. */
+  openInvoiceId?: string | undefined
+  emptyText?: string
+  emptyFilteredText?: string
+  /** Whether a chip is pressed, so an empty list can say which kind of empty
+   *  it is. */
+  filtered?: boolean
 }) {
-  const queryClient = useQueryClient()
-  const invoices = useQuery(invoiceListQueryOptions({ limit: PAGE_SIZE }))
+  const detail = useInlineDetail(openInvoiceId)
   const today = toBerlinDate(new Date().toISOString())
-  const [createOpen, setCreateOpen] = useState(false)
 
-  const preferences = useQuery(userPreferencesQueryOptions)
-  /**
-   * A stored choice that names a column this list no longer has predates the
-   * change and is **dropped whole**, not filtered down to its known part.
-   *
-   * Discarding looks generous until one sees what keeping it does: the array
-   * carries the *order* as well as the selection, so the surviving keys would
-   * go on standing in an order nobody chose any more. That is not theory — on
-   * the first pass of K8 `Betrag` and `Offen` stayed the wrong way round for
-   * exactly this reason, with the definitions long since swapped. A preference
-   * that mentions something gone is a preference from before the change, and
-   * the honest answer to it is the current default.
-   */
-  const stored = preferences.data?.invoiceListColumns
-  const visibleColumns =
-    stored?.every((key) => COLUMN_DEFINITIONS.some((entry) => entry.key === key)) === true
-      ? stored
-      : DEFAULT_COLUMNS
-  const saveColumns = useMutation({
-    mutationFn: (next: string[]) => updateUserPreferences({ invoiceListColumns: next }),
-    onMutate: (next) => {
-      queryClient.setQueryData(userPreferencesQueryKey, (current) => ({
-        ...(current ?? {}),
-        invoiceListColumns: next,
-      }))
-    },
-    onSuccess: (saved) => queryClient.setQueryData(userPreferencesQueryKey, saved),
-  })
+  /** The draft just written, so it opens straight in edit mode — that way in
+   *  means "write an invoice", every other one means "read this one". */
+  const [created, setCreated] = useState<string | null>(null)
 
-  const loaded = invoices.data ?? []
-  const rows = loaded
-    .map((invoice) => ({ invoice, state: invoicePaymentState(invoice, invoice.paidCents, today) }))
-    .filter(
-      (row) => filter === undefined || matchesInvoiceListFilter(row.invoice, row.state, filter),
+  const shown = columns.filter((key) => invoiceColumnDefinitions.some((entry) => entry.key === key))
+
+  if (invoices.length === 0 && !creating) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        {(filtered ? emptyFilteredText : emptyText) ?? strings.invoice.empty}
+      </p>
     )
-
-  /* The summary describes the whole list, not the filtered view: it is what
-     the chips narrow *from*, so it must not move when one is pressed. */
-  const draftCount = loaded.filter((invoice) => invoice.status === 'draft').length
-  const claims = loaded
-    .filter((invoice) => invoice.status !== 'draft')
-    .map((invoice) => invoicePaymentState(invoice, invoice.paidCents, today))
-  const openCount = claims.filter((state) => state.openCents > 0).length
-  const openTotalAll = claims.reduce((total, state) => total + state.openCents, 0)
-  const columns = visibleColumns.filter((key) =>
-    COLUMN_DEFINITIONS.some((entry) => entry.key === key),
-  )
+  }
 
   return (
-    <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {/* The summary first, then the chips — the design's order, and it
-            reads as one sentence with them: what the list is made of, then the
-            ways to narrow it (K8). */}
-        <p className="mr-3 text-[13px] text-muted-foreground tabular-nums">
-          {strings.invoice.listSummary(draftCount, openCount, formatEuro(openTotalAll))}
-        </p>
+    <div className="overflow-hidden rounded-[10px] border bg-card">
+      <Table>
+        {/* 14px in mixed case, like the contact list — the small caps of
+            `listHeaderClass` are the catalogue lists' shape (K5), not this
+            table's (K8). */}
+        <TableHeader>
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
+            {shown.map((key) => (
+              <TableHead
+                key={key}
+                className={cn('h-10 px-4 font-medium text-sm', isNumeric(key) && 'text-right')}
+              >
+                {invoiceColumnDefinitions.find((entry) => entry.key === key)?.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {creating && (
+            <InlineDetailRow colSpan={shown.length} className="bg-card">
+              <CreatePanel
+                {...(contactId ? { contactId } : {})}
+                onCreated={(draft) => {
+                  setCreated(draft.id)
+                  detail.open(draft.id)
+                  onCreated?.()
+                }}
+                onCancel={() => onCancelCreate?.()}
+              />
+            </InlineDetailRow>
+          )}
 
-        {/* **The count comes first here**: on a filter chip the number is the
-            statement — how many rows to expect — while on a tab it is an aside
-            to the name. K3 flattened the two to one order; K8 took that back
-            (see `components/chip.tsx`). */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            className={filterChipClass(filter === undefined)}
-            onClick={() => onFilterChange(undefined)}
-          >
-            <span className="font-semibold tabular-nums">{loaded.length}</span>
-            {strings.invoice.all}
-          </button>
-          {invoiceListFilters.map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              className={filterChipClass(filter === entry)}
-              onClick={() => onFilterChange(entry)}
-            >
-              <span className="font-semibold tabular-nums">
-                {
-                  loaded.filter((invoice) =>
-                    matchesInvoiceListFilter(
-                      invoice,
-                      invoicePaymentState(invoice, invoice.paidCents, today),
-                      entry,
-                    ),
-                  ).length
-                }
-              </span>
-              {strings.invoice.filters[entry]}
-            </button>
-          ))}
-        </div>
+          {invoices.map((invoice) => {
+            const state = invoicePaymentState(invoice, invoice.paidCents, today)
+            const open = detail.isOpen(invoice.id)
 
-        <div className="ml-auto flex items-center gap-2">
-          <ColumnPicker
-            columns={COLUMN_DEFINITIONS}
-            visible={visibleColumns}
-            onChange={(next) => saveColumns.mutate(next)}
-          />
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" aria-hidden />
-            {strings.invoice.create}
-          </Button>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          {invoices.isPending
-            ? strings.status.loading
-            : filter === undefined
-              ? strings.invoice.empty
-              : strings.invoice.emptyFiltered}
-        </p>
-      ) : (
-        <>
-          <div className="overflow-hidden rounded-[10px] border">
-            <Table>
-              {/* 14px in mixed case, like the contact list — the small caps of
-                  `listHeaderClass` are the catalogue lists' shape (K5), not
-                  this table's (K8). */}
-              <TableHeader>
-                <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {columns.map((key) => (
-                    <TableHead
-                      key={key}
-                      className={`h-10 px-4 font-medium text-sm ${
-                        isNumeric(key) ? 'text-right' : ''
-                      }`}
-                    >
-                      {COLUMN_DEFINITIONS.find((entry) => entry.key === key)?.label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map(({ invoice, state }) => (
-                  <TableRow
-                    key={invoice.id}
+            return (
+              <Fragment key={invoice.id}>
+                <TableRow
+                  className={cn(
+                    'cursor-pointer',
                     /* The one place this screen carries colour of its own.
                        `/10` rather than `/5`: on the dark theme a five-percent
                        tint over an already dark surface is not a marking. */
-                    className={state.daysOverdue !== null ? 'bg-destructive/10' : ''}
-                  >
-                    {columns.map((key) => (
-                      <TableCell
-                        key={key}
-                        className={isNumeric(key) ? 'text-right tabular-nums' : ''}
-                      >
-                        <Cell column={key} invoice={invoice} state={state} />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                    state.daysOverdue !== null && 'bg-destructive/10',
+                    open && 'bg-muted/40',
+                  )}
+                  onClick={() => detail.toggle(invoice.id)}
+                >
+                  {shown.map((key) => (
+                    <TableCell
+                      key={key}
+                      className={cn('px-4', isNumeric(key) && 'text-right tabular-nums')}
+                    >
+                      <Cell column={key} invoice={invoice} state={state} />
+                    </TableCell>
+                  ))}
+                </TableRow>
 
-          {/* What is outstanding is said once, above the chips, and it says it
-              of the whole list. The line that used to stand here said it of
-              the filtered view *and* counted drafts as open, so the two could
-              differ by a draft's total — a claim nobody has made yet (K8). */}
-          {loaded.length === PAGE_SIZE && (
-            <p className="mt-3 text-muted-foreground text-sm tabular-nums">
-              {strings.contact.countOf(rows.length, loaded.length)}
-            </p>
-          )}
-        </>
-      )}
-
-      <NewInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
-    </>
+                {open && (
+                  <InlineDetailRow colSpan={shown.length} className="bg-card">
+                    <InvoiceDetail
+                      key={invoice.id}
+                      invoice={invoice}
+                      startEditing={created === invoice.id}
+                      onClose={detail.close}
+                      onDiscarded={detail.close}
+                    />
+                  </InlineDetailRow>
+                )}
+              </Fragment>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 
 function isNumeric(column: string): boolean {
   return column === 'total' || column === 'openAmount'
+}
+
+/**
+ * Starting an invoice, in the row where it will stand (B3).
+ *
+ * **With a contact it asks nothing.** Pressing "Neue Rechnung" inside a record
+ * *is* the decision, so the draft is written at once and the panel is gone by
+ * the time anything is drawn — the row that appears is the ordinary editor, in
+ * edit mode.
+ *
+ * Without one, the only thing missing is who it is for, so that is all this
+ * asks. The rest of the invoice is edited in the row it lands in, which is why
+ * this is a picker and not a second copy of the form: the design draws the
+ * whole form here with an empty recipient, and a form standing for a record
+ * that does not exist yet is exactly what CLAUDE.md refuses. What appears once
+ * a contact is picked *is* that form, and it is backed by a real draft.
+ *
+ * The field is labelled "Kontakt" and not "Rechnungsempfänger", though the
+ * design writes the latter: the two are different questions. This one asks
+ * whose treatment is billed; the editor's field of that name asks which of
+ * that contact's billing recipients the document goes to (L8). One word for
+ * both is the one-string-two-purposes bug K4 and K5 each fixed once.
+ */
+function CreatePanel({
+  contactId,
+  onCreated,
+  onCancel,
+}: {
+  contactId?: string | undefined
+  onCreated: (draft: Invoice) => void
+  onCancel: () => void
+}) {
+  const queryClient = useQueryClient()
+  const fieldId = useId()
+  const [picked, setPicked] = useState<string | null>(null)
+
+  const create = useMutation({
+    mutationFn: (chosen: string) =>
+      createInvoice({
+        contactId: chosen,
+        invoiceDate: toBerlinDate(new Date().toISOString()),
+        activityItemIds: [],
+      }),
+    onSuccess: async (draft) => {
+      await queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      await queryClient.invalidateQueries({ queryKey: ['activities'] })
+      toast.success(strings.invoice.created)
+      onCreated(draft)
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
+      onCancel()
+    },
+  })
+
+  /* Mount is the trigger, because this row exists only while an invoice is
+     being started. The ref is against StrictMode's double invocation, which
+     would otherwise open two drafts. */
+  const started = useRef(false)
+  useEffect(() => {
+    if (contactId !== undefined && !started.current) {
+      started.current = true
+      create.mutate(contactId)
+    }
+  }, [contactId, create.mutate])
+
+  if (contactId !== undefined) {
+    return <p className="text-muted-foreground text-sm">{strings.invoice.creating}</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="flex flex-wrap items-baseline gap-2">
+        <span className="font-semibold">{strings.invoice.create}</span>
+        <span className="text-[13px] text-muted-foreground">{strings.invoice.draftPending}</span>
+      </p>
+
+      <div className="max-w-lg">
+        <Label htmlFor={fieldId}>{strings.invoice.forContact}</Label>
+        <ContactPicker inputId={fieldId} value={picked} locked={false} onChange={setPicked} />
+        <p className="mt-1 text-muted-foreground text-xs">{strings.invoice.createHint}</p>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+        <Button variant="ghost" onClick={onCancel} disabled={create.isPending}>
+          {strings.actions.cancel}
+        </Button>
+        <Button
+          disabled={picked === null || create.isPending}
+          onClick={() => {
+            if (picked !== null) create.mutate(picked)
+          }}
+        >
+          {strings.invoice.createConfirm}
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -309,6 +323,18 @@ function statusNote(invoice: Invoice, state: PaymentState): string | undefined {
   return state.paidCents > 0 ? strings.invoice.partPaid(formatEuro(state.paidCents)) : undefined
 }
 
+/**
+ * Who the document went to (L8), and this is deliberately not `contactName`.
+ *
+ * The snapshot first: once finalized, what the invoice says is what it went
+ * to, whatever has happened to the contact since. Then the chosen recipient,
+ * then the contact — which is what most rows are. The same chain the editor's
+ * rail uses, so a row and the record it opens cannot disagree.
+ */
+function recipientOf(invoice: Invoice): string {
+  return invoice.recipientSnapshot?.name ?? invoice.recipientName ?? invoice.contactName
+}
+
 function Cell({
   column,
   invoice,
@@ -321,40 +347,21 @@ function Cell({
   switch (column) {
     case 'number':
       return (
-        <>
-          <Link
-            className="underline underline-offset-2"
-            to="/invoices/$invoiceId"
-            params={{ invoiceId: invoice.id }}
-          >
+        <span className="inline-flex flex-wrap items-baseline gap-2">
+          {/* Drawn as a link, because that is what the design draws and what
+              the cell does: it opens the document. It is not an anchor —
+              the row expands rather than navigating (B3), and an anchor
+              inside a clickable row would be two gestures on one line. */}
+          <span className="font-medium underline underline-offset-2 tabular-nums">
             {invoice.number ?? strings.invoice.statuses.draft}
-          </Link>
+          </span>
           {invoice.type === 'cancellation_invoice' && (
-            <Badge variant="secondary" className="ml-2">
-              {strings.invoice.types.cancellation_invoice}
-            </Badge>
+            <Badge variant="secondary">{strings.invoice.types.cancellation_invoice}</Badge>
           )}
-
-          {/* Both directions of the link, each pointing at the other
-              document (rule 9). */}
-          {invoice.cancelledByInvoiceId && invoice.cancelledByInvoiceNumber && (
-            <CounterpartLink
-              label={strings.invoice.cancelledBy}
-              invoiceId={invoice.cancelledByInvoiceId}
-              number={invoice.cancelledByInvoiceNumber}
-            />
-          )}
-          {invoice.cancelsInvoiceId && invoice.cancelsInvoiceNumber && (
-            <CounterpartLink
-              label={strings.invoice.cancels}
-              invoiceId={invoice.cancelsInvoiceId}
-              number={invoice.cancelsInvoiceNumber}
-            />
-          )}
-        </>
+        </span>
       )
-    case 'contact':
-      return <>{invoice.contactName}</>
+    case 'recipient':
+      return <>{recipientOf(invoice)}</>
     case 'invoiceDate':
       return <span className="tabular-nums">{formatDate(invoice.invoiceDate)}</span>
     case 'dueDate': {
@@ -391,27 +398,4 @@ function Cell({
     default:
       return null
   }
-}
-
-function CounterpartLink({
-  label,
-  invoiceId,
-  number,
-}: {
-  label: string
-  invoiceId: string
-  number: string
-}) {
-  return (
-    <span className="ml-2 whitespace-nowrap text-muted-foreground text-xs">
-      {label}{' '}
-      <Link
-        className="underline underline-offset-2"
-        to="/invoices/$invoiceId"
-        params={{ invoiceId }}
-      >
-        {number}
-      </Link>
-    </span>
-  )
 }

@@ -432,8 +432,11 @@ function RecentActivities({
  * draft is created empty — the billable picker lives on the invoice, where the
  * lines are edited.
  *
- * The target is the invoice page for now. L8 moves the editor into the
- * Rechnungen tab, and then this one destination changes in one place.
+ * **Both ways lead to the Rechnungen tab**, where the editor is (B3). They
+ * went to `/invoices/$invoiceId` until then, with a note here saying they
+ * would move once the editor did; the invoice now opens in the row it stands
+ * in, and the tab is where that row is. The draft is named in the address, so
+ * it is expanded on arrival rather than merely somewhere on the list.
  */
 function BillableSummary({ contactId }: { contactId: string }) {
   const navigate = useNavigate()
@@ -454,7 +457,11 @@ function BillableSummary({ contactId }: { contactId: string }) {
       }),
     onSuccess: (created) => {
       toast.success(strings.invoice.created)
-      void navigate({ to: '/invoices/$invoiceId', params: { invoiceId: created.id } })
+      void navigate({
+        to: '/contacts/$contactId',
+        params: { contactId },
+        search: { tab: 'invoices', invoiceId: created.id },
+      })
     },
     onError: (error) =>
       toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed),
@@ -484,8 +491,9 @@ function BillableSummary({ contactId }: { contactId: string }) {
             {draft ? (
               <Link
                 className="text-primary hover:underline"
-                to="/invoices/$invoiceId"
-                params={{ invoiceId: draft.id }}
+                to="/contacts/$contactId"
+                params={{ contactId }}
+                search={{ tab: 'invoices', invoiceId: draft.id }}
               >
                 {strings.contact.openDraft}
               </Link>

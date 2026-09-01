@@ -112,6 +112,48 @@ export async function listBillableItems(
 }
 
 /**
+ * The same selection as a triple of numbers: how many activities it touches,
+ * how many positions it holds, and what they come to (B3).
+ *
+ * The fifth reader of `claimedByAnActiveInvoice`, and here for the reason all
+ * of them are: it is the "Offene Vorgänge" tile on Zahlungen, and a tile that
+ * counted differently from the list under it would be a second definition of
+ * what is still owed. The filters are `listBillableItems`' filters, minus the
+ * joins it needs only to name a row.
+ *
+ * It exists at all because the tile used to count the array the list had
+ * fetched. That was right as long as one request returned everything and would
+ * stop being right the day this list is paged — and by then nothing would say
+ * so.
+ */
+export async function billableSummary(
+  reader: DbReader,
+  tenantId: string,
+  contactId?: string,
+): Promise<{ activities: number; items: number; cents: number }> {
+  const filters = [
+    eq(activityItem.tenantId, tenantId),
+    eq(activityItem.billable, true),
+    sql`not ${claimedByAnActiveInvoice}`,
+  ]
+  if (contactId) filters.push(eq(activity.contactId, contactId))
+
+  const [row] = await reader
+    .select({
+      activities: sql<number>`count(distinct ${activity.id})::int`.mapWith(Number),
+      items: sql<number>`count(*)::int`.mapWith(Number),
+      cents: sql<number>`coalesce(sum(
+        ${activityItem.quantity} * ${activityItem.unitPriceCents}
+      ), 0)::int`.mapWith(Number),
+    })
+    .from(activityItem)
+    .innerJoin(activity, eq(activity.id, activityItem.activityId))
+    .where(and(...filters))
+
+  return { activities: row?.activities ?? 0, items: row?.items ?? 0, cents: row?.cents ?? 0 }
+}
+
+/**
  * Whether an activity's work has been claimed yet — `none` when there is
  * nothing to claim, `billed` when every billable item sits on an active
  * invoice, `open` while one does not.

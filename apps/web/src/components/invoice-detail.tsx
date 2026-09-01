@@ -68,12 +68,14 @@ const RECIPIENT_SELF = 'self'
  * One invoice, read or edited (L8).
  *
  * **One component, two containers**, the shape `ActivityDetail` established:
- * the contact's Rechnungen tab expands it inside the row that was clicked, and
- * `/invoices/$invoiceId` is a thin page around the same thing. Four places
- * link to that route — the Vorgang detail, the overview card, the invoice row
- * and the Zahlungen page — so it stays; what must not exist is a second
- * rendering of the same record, because two screens saying different things
- * about an invoice is how a document gets issued that nobody read.
+ * both invoice lists expand it inside the row that was clicked — the Zahlungen
+ * page as well as the contact's Rechnungen tab since B3 — and
+ * `/invoices/$invoiceId` is a thin page around the same thing. Three places
+ * still lead to that route: a Vorgang's rail, the draft a collect from a
+ * Vorgang produced, and the link between an invoice and its cancellation. What
+ * must not exist is a second *rendering* of the record, because two screens
+ * saying different things about an invoice is how a document gets issued that
+ * nobody read.
  *
  * **Read mode renders no fields** (K2). This screen never had that pass: it
  * showed every value in a disabled input, so a finalized invoice — which can

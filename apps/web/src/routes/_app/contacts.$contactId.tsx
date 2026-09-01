@@ -3,16 +3,12 @@ import {
   activityTypeLabel,
   type ContactRoleInput,
   type ContactUpdate,
-  dueDate,
   formatBerlinDate,
-  formatBerlinMonth,
   formatBerlinTime,
-  formatEuro,
-  type Invoice,
   invoicePaymentState,
+  matchesInvoiceListFilter,
   type Note,
   occupiesSlot,
-  type PaymentState,
   toBerlinDate,
 } from '@praxi/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -28,12 +24,11 @@ import { ContactForm } from '@/components/contact-form'
 import { ContactHeader } from '@/components/contact-header'
 import { ContactOverview } from '@/components/contact-overview'
 import { ContentWidth } from '@/components/content-width'
-import { useInlineDetail } from '@/components/inline-detail-row'
-import { InvoiceDetail } from '@/components/invoice-detail'
+import { InvoiceFilterBar, useInvoiceColumns } from '@/components/invoice-filter-bar'
+import { InvoiceList } from '@/components/invoice-list'
 import { NoteChainDialog } from '@/components/note-chain-dialog'
 import { NoteForm, type NoteFormTarget } from '@/components/note-form'
 import { NotePanel, NoteReader, orderNotes } from '@/components/note-panel'
-import { PaymentStatusBadge } from '@/components/payment-status'
 import { RecordTab, RecordTabsList } from '@/components/record-tabs'
 import {
   AlertDialog,
@@ -69,11 +64,11 @@ import {
   setContactRoles,
   updateContact,
 } from '@/lib/contacts'
-import { billableQueryOptions, createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
+import { type InvoiceFilterValue, invoiceFilterSearchSchema } from '@/lib/invoice-filters'
+import { invoiceListQueryOptions, invoiceSummaryQueryOptions } from '@/lib/invoices'
 import { noteTypeListQueryOptions } from '@/lib/note-types'
 import { noteListQueryOptions } from '@/lib/notes'
 import { strings } from '@/lib/strings'
-import { cn } from '@/lib/utils'
 
 /**
  * The tab lives in the URL so a record can be linked to on the tab that
@@ -103,6 +98,13 @@ const searchSchema = z.object({
    * narrows.
    */
   ...activityFilterSearchSchema.shape,
+  /**
+   * What the Rechnungen tab is narrowed to and which invoice is expanded, out
+   * of the same schema the Zahlungen page validates its own address with (B3).
+   * Here for the reason the Vorgänge filter is: a narrowed view of one record
+   * is a link, and the overview points at the draft it just started.
+   */
+  ...invoiceFilterSearchSchema.shape,
 })
 
 export const Route = createFileRoute('/_app/contacts/$contactId')({
@@ -311,7 +313,13 @@ function ContactDetailPage() {
 
         <TabsContent value="invoices">
           <ContentWidth>
-            <ContactInvoices contactId={contactId} />
+            <ContactInvoices
+              contactId={contactId}
+              filter={search}
+              onFilterChange={(change) =>
+                void navigate({ search: (previous) => ({ ...previous, ...change }) })
+              }
+            />
           </ContentWidth>
         </TabsContent>
       </div>
@@ -398,243 +406,89 @@ function ContactActivities({
 }
 
 /**
- * The contact's invoices, plus the shortcut that starts a draft from whatever
- * is still open for them. The draft is created empty and filled on its own
- * page — the billable picker lives there, where the lines are edited.
+ * The contact's invoices — **the same filter bar and the same table as the
+ * Zahlungen page** (B3). Not similar: `InvoiceFilterBar` and `InvoiceList`,
+ * out of one filter schema, with the same seven columns and the same column
+ * preference.
+ *
+ * It used to be a screen of its own: three chips nobody else had, a
+ * hand-written list of rows, a summary sentence of its own wording, and a card
+ * of what was still billable. The chips and the rows are gone into the shared
+ * pair; the card is gone for a different reason, and it is the design's — open
+ * Vorgänge live under Zahlungen and nowhere else. Nothing is lost with it: the
+ * position list inside the editor offers everything still open for this
+ * contact, ticked or not, which is where one would put it on an invoice
+ * anyway (L8).
+ *
+ * **The "Empfänger" column stays here**, and it is not the surrounding page
+ * repeated: since L8 the document may be addressed to somebody else, and which
+ * rows those are is exactly what one wants to see.
+ *
+ * The one difference from the page is inside the editor — `contactId` means
+ * the recipient is already known, so "Neue Rechnung" writes the draft at once
+ * instead of asking who it is for.
  */
-function ContactInvoices({ contactId }: { contactId: string }) {
-  const queryClient = useQueryClient()
+function ContactInvoices({
+  contactId,
+  filter,
+  onFilterChange,
+}: {
+  contactId: string
+  /** In the URL beside `tab=invoices`, so a narrowed view of this record is a
+   *  link. */
+  filter: InvoiceFilterValue
+  onFilterChange: (change: Partial<InvoiceFilterValue>) => void
+}) {
   const invoices = useQuery(invoiceListQueryOptions({ contactId }))
-  const billable = useQuery(billableQueryOptions(contactId))
-  const [filter, setFilter] = useState<string | undefined>()
-  const detail = useInlineDetail()
-  /** The draft just created, so it can open straight in edit mode — that way
-   *  in means "write an invoice", every other one means "read this one". */
-  const [created, setCreated] = useState<string | null>(null)
+  /** The chips count on the server, over every document of this contact —
+   *  never over the rows a request returned (B3). */
+  const summary = useQuery(invoiceSummaryQueryOptions(contactId))
+  const { columns, setColumns } = useInvoiceColumns()
+  const [creating, setCreating] = useState(false)
 
-  /**
-   * **"Rechnung erstellen" twice over, and they are not the same action.**
-   *
-   * The button beside the chips opens an empty draft: it means "I want to
-   * write an invoice", and what goes on it is the next decision. The one in
-   * the billable card means "bill what is standing there", so it hands the
-   * items over and they arrive ticked.
-   *
-   * Both land in the same place — a draft, open for editing, in the row at the
-   * top of the list — because there is one invoice editor and one way an
-   * invoice comes into being.
-   */
-  const create = useMutation({
-    mutationFn: (activityItemIds: string[]) =>
-      createInvoice({
-        contactId,
-        invoiceDate: toBerlinDate(new Date().toISOString()),
-        activityItemIds,
-      }),
-    onSuccess: async (draft) => {
-      await queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      await queryClient.invalidateQueries({ queryKey: ['activities'] })
-      setCreated(draft.id)
-      detail.open(draft.id)
-      toast.success(strings.invoice.created)
-    },
-    onError: (error) => {
-      toast.error(error instanceof ApiError ? error.message : strings.invoice.saveFailed)
-    },
-  })
-
-  const rows = invoices.data ?? []
   const today = toBerlinDate(new Date().toISOString())
-  const withState = rows.map((invoice) => ({
-    invoice,
-    state: invoicePaymentState(invoice, invoice.paidCents, today),
-  }))
-
-  type Row = (typeof withState)[number]
-  const invoiceChips = [
-    { id: 'open', label: strings.counts.invoicesOpen, matches: (r: Row) => r.state.openCents > 0 },
-    {
-      id: 'paid',
-      label: strings.counts.invoicesPaid,
-      matches: (r: Row) => r.state.status === 'paid',
-    },
-    {
-      /* Overdue is a second axis, not a status (CLAUDE.md rule 9) — an invoice
-         can be partly paid and overdue at once, so this filters the axis. */
-      id: 'overdue',
-      label: strings.counts.invoicesOverdue,
-      matches: (r: Row) => r.state.daysOverdue !== null,
-    },
-  ]
-
-  const active = invoiceChips.find((chip) => chip.id === filter)
-  const shown = active ? withState.filter(active.matches) : withState
+  const rows = (invoices.data ?? []).filter(
+    (invoice) =>
+      filter.invoiceFilter === undefined ||
+      matchesInvoiceListFilter(
+        invoice,
+        invoicePaymentState(invoice, invoice.paidCents, today),
+        filter.invoiceFilter,
+      ),
+  )
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <FilterRow
-          summary={strings.counts.invoices(rows.length)}
-          chips={invoiceChips.map((chip) => ({
-            id: chip.id,
-            label: chip.label,
-            count: withState.filter(chip.matches).length,
-          }))}
-          active={filter}
-          onChange={setFilter}
-        />
-        <Button className="ml-auto" onClick={() => create.mutate([])} disabled={create.isPending}>
-          <Plus className="size-4" aria-hidden />
-          {strings.invoice.createAction}
-        </Button>
-      </div>
-
-      <BillableCard
-        contactId={contactId}
-        onCreate={() => create.mutate((billable.data ?? []).map((item) => item.id))}
+      <InvoiceFilterBar
+        className="mb-4"
+        summary={summary.data}
+        filter={filter.invoiceFilter}
+        onFilterChange={(next) => onFilterChange({ invoiceFilter: next })}
+        columns={columns}
+        onColumnsChange={setColumns}
+        action={
+          /* The container's own button, as on the page — there it sits in the
+             page header, and a contact record has none to sit in. */
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="size-4" aria-hidden />
+            {strings.invoice.create}
+          </Button>
+        }
       />
 
-      {shown.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          {invoices.isPending
-            ? strings.status.loading
-            : rows.length === 0
-              ? strings.invoice.empty
-              : strings.invoice.emptyFiltered}
-        </p>
-      ) : (
-        <ul className="overflow-hidden rounded-[10px] border bg-card">
-          {shown.map(({ invoice: entry, state }) => {
-            const open = detail.isOpen(entry.id)
-            return (
-              <li key={entry.id} className={cn('border-t first:border-t-0', open && 'bg-muted/25')}>
-                <button
-                  type="button"
-                  onClick={() => detail.toggle(entry.id)}
-                  className="flex w-full items-center gap-3.5 px-4 py-3 text-left hover:bg-accent"
-                >
-                  <span className="w-[84px] shrink-0 font-semibold tabular-nums">
-                    {entry.number ?? strings.invoice.statuses.draft}
-                  </span>
-                  <span className="w-[84px] shrink-0 text-[13.5px] text-muted-foreground tabular-nums">
-                    {formatBerlinDate(`${entry.invoiceDate}T12:00:00Z`)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] text-muted-foreground">
-                    {invoiceScope(entry)}
-                  </span>
-                  <span className="w-[84px] shrink-0 text-right tabular-nums">
-                    {formatEuro(entry.totalCents)}
-                  </span>
-                  {entry.status === 'draft' ? (
-                    <Badge variant="outline">{strings.invoice.statuses.draft}</Badge>
-                  ) : (
-                    <PaymentStatusBadge state={state} withDays={false} />
-                  )}
-                  <span className="shrink-0 whitespace-nowrap text-right text-[12.5px] text-muted-foreground tabular-nums">
-                    {invoiceHint(entry, state)}
-                  </span>
-                </button>
-
-                {open && (
-                  <div className="border-t bg-card px-4 py-5">
-                    <InvoiceDetail
-                      key={entry.id}
-                      invoice={entry}
-                      startEditing={created === entry.id}
-                      onClose={detail.close}
-                      onDiscarded={detail.close}
-                    />
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      <InvoiceList
+        invoices={rows}
+        columns={columns}
+        contactId={contactId}
+        creating={creating}
+        onCreated={() => setCreating(false)}
+        onCancelCreate={() => setCreating(false)}
+        openInvoiceId={filter.invoiceId}
+        filtered={filter.invoiceFilter !== undefined}
+        emptyText={invoices.isPending ? strings.status.loading : strings.invoice.empty}
+        emptyFilteredText={strings.invoice.emptyFiltered}
+      />
     </>
-  )
-}
-
-/**
- * What an invoice covers — "2 Vorgänge · Juli" — for the middle of a row.
- *
- * Activities, not lines: several lines routinely come out of one session, so
- * counting lines would answer a different question. `line.activityId` is
- * derived on read and null on a free line typed by hand (K7); an invoice made
- * only of those falls back to counting its lines, because "0 Vorgänge" would
- * be a strange way to describe something that plainly has content.
- */
-function invoiceScope(entry: Invoice): string {
-  const activities = new Set(
-    entry.lines.map((line) => line.activityId).filter((id): id is string => id !== null),
-  )
-  const count =
-    activities.size > 0
-      ? strings.invoice.scopeActivities(activities.size)
-      : strings.invoice.scopeLines(entry.lines.length)
-
-  const months = [
-    ...new Set(
-      entry.lines
-        .map((line) => line.dateOfService)
-        .filter((date): date is string => date !== null)
-        .map((date) => formatBerlinMonth(`${date}T12:00:00Z`)),
-    ),
-  ]
-  if (months.length === 0) return count
-
-  const span = months.length === 1 ? months[0] : `${months[0]} – ${months[months.length - 1]}`
-  return `${count} · ${span}`
-}
-
-/** When it is due, since when it was due, or when it was paid — the last thing
- *  a row says. A draft says nothing: it is not a claim yet. */
-function invoiceHint(entry: Invoice, state: PaymentState): string {
-  if (entry.status === 'draft') return ''
-
-  if (state.status === 'paid' || state.status === 'overpaid') {
-    return entry.lastPaidOn
-      ? strings.invoice.paidOn(formatBerlinDate(`${entry.lastPaidOn}T12:00:00Z`))
-      : strings.payment.statuses[state.status]
-  }
-  if (state.status === 'cancelled' || state.status === 'cancellation') return ''
-
-  const due = formatBerlinDate(`${dueDate(entry.invoiceDate, entry.paymentTermDays)}T12:00:00Z`)
-  return state.daysOverdue === null ? strings.invoice.dueOn(due) : strings.invoice.overdueSince(due)
-}
-
-/**
- * What is billable but on no invoice, over the list — the card the design puts
- * there, with the way into a draft on it.
- *
- * It reads the same query the overview's own summary does, so standing on this
- * tab costs no extra request. It appears only when there is something: a card
- * saying "0,00 €" would be a claim that something is waiting.
- */
-function BillableCard({ contactId, onCreate }: { contactId: string; onCreate: () => void }) {
-  const billable = useQuery(billableQueryOptions(contactId))
-  const items = billable.data ?? []
-
-  if (items.length === 0) return null
-
-  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPriceCents, 0)
-  const activities = new Set(items.map((item) => item.activityId))
-
-  return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[10px] border bg-muted/45 px-4 py-3.5">
-      <div>
-        <p className="font-semibold">{strings.billable.cardTitle}</p>
-        <p className="mt-[3px] text-[13px] text-muted-foreground">
-          {strings.billable.cardLine(activities.size)}
-        </p>
-      </div>
-      <span className="flex items-center gap-3.5">
-        <span className="font-semibold text-[19px] tabular-nums">{formatEuro(total)}</span>
-        <Button size="sm" variant="outline" onClick={onCreate}>
-          {strings.invoice.createAction}
-        </Button>
-      </span>
-    </div>
   )
 }
 

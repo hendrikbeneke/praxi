@@ -5,6 +5,7 @@ import type {
   InvoiceCollectResult,
   InvoiceCreate,
   InvoiceStatus,
+  InvoiceSummary,
   InvoiceUpdate,
   NumberRange,
   NumberRangeCode,
@@ -27,6 +28,29 @@ export const invoiceListQueryOptions = (params: ListParams) =>
           ...(params.status ? { status: params.status } : {}),
           ...(params.limit === undefined ? {} : { limit: String(params.limit) }),
         },
+      })
+      if (!res.ok) throw await apiError(res)
+      return res.json()
+    },
+  })
+
+/**
+ * The figures above the list — the chips, and the two tiles on Zahlungen (B3).
+ *
+ * Its own request, and that is the point: both screens folded the rows the
+ * list had returned until B3, and that request is capped at 200. A number that
+ * changes as one scrolls is a wrong number, not a partial one.
+ *
+ * It takes a contact and deliberately no filter — the counts describe the
+ * selection, not the narrowing, so pressing a chip cannot change the number
+ * written on it. Same reasoning as `activitySummaryParams` (L7).
+ */
+export const invoiceSummaryQueryOptions = (contactId?: string) =>
+  queryOptions({
+    queryKey: ['invoices', 'summary', contactId ?? 'all'],
+    queryFn: async (): Promise<InvoiceSummary> => {
+      const res = await api.api.invoices.summary.$get({
+        query: contactId ? { contactId } : {},
       })
       if (!res.ok) throw await apiError(res)
       return res.json()

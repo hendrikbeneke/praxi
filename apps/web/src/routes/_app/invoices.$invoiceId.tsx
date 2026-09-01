@@ -23,10 +23,12 @@ export const Route = createFileRoute('/_app/invoices/$invoiceId')({
  * the same reason: two renderings of one record eventually say two different
  * things about it, and here the record is a document with legal weight.
  *
- * The route stays although the design puts the invoice in the contact tab,
- * because four places lead here: the Vorgang detail's rail, the contact
- * overview's card, the Zahlungen page and the cancellation link on the invoice
- * itself. A record that several screens point at needs an address.
+ * The route stays although both invoice lists now expand the editor in the row
+ * itself (B3), because three places still lead here: a Vorgang's rail, the
+ * draft a collect from a Vorgang produced, and the link between an invoice and
+ * its cancellation. A record that several screens point at needs an address —
+ * what it must not have is a second rendering, which is why this page holds
+ * nothing of its own.
  */
 function InvoiceDetailPage() {
   const { invoiceId } = Route.useParams()

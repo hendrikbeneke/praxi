@@ -7,10 +7,18 @@ import type {
   InvoiceLine,
   InvoiceLineInput,
   InvoiceListQuery,
+  InvoiceSummary,
+  InvoiceSummaryQuery,
   InvoiceUpdate,
   RecipientSnapshot,
 } from '@praxi/shared'
-import { formatContactName, sumLines } from '@praxi/shared'
+import {
+  formatContactName,
+  invoiceListFilters,
+  invoicePaymentState,
+  matchesInvoiceListFilter,
+  sumLines,
+} from '@praxi/shared'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database, DbReader, Transaction } from '../db/client.js'
@@ -28,7 +36,7 @@ import {
   textTemplate,
 } from '../db/schema.js'
 import { newId } from '../id.js'
-import { listBillableItems } from './billable.js'
+import { billableSummary, listBillableItems } from './billable.js'
 import { lastSendByInvoice } from './invoice-send.js'
 import { type PaymentSummary, paymentSummaryByInvoice } from './payment.js'
 
@@ -314,6 +322,88 @@ export async function listInvoices(
       sent.get(row.id),
     ),
   )
+}
+
+/**
+ * The numbers above the invoice list: the chips, and the two tiles (B3).
+ *
+ * **Counted over every row of the selection, never over a page of it.** Both
+ * screens folded whatever the list request had returned until B3, and that
+ * request is capped at 200 — so a tile said "3 offen" of the first two hundred
+ * documents. A figure that changes as one scrolls is a wrong figure, not a
+ * partial one.
+ *
+ * **It folds in TypeScript rather than in SQL, and that is deliberate.** What
+ * "offen", "bezahlt" or "überfällig" mean is `invoicePaymentState()` and
+ * `matchesInvoiceListFilter()` in `packages/shared`, which rule 9 makes the
+ * only place that decides — the rows use them, and restating them as a `WHERE`
+ * clause here would be a second definition that agrees until it does not. The
+ * columns loaded are exactly the six those two functions read, so this stays a
+ * count over narrow rows and not a second `listInvoices`.
+ *
+ * The counts are built as a `Record` over `invoiceListFilters`: a sixth chip
+ * cannot be added without its number coming with it.
+ */
+export async function invoiceSummary(
+  reader: DbReader,
+  tenantId: string,
+  query: InvoiceSummaryQuery,
+  today: string,
+): Promise<InvoiceSummary> {
+  const filters = [eq(invoice.tenantId, tenantId)]
+  if (query.contactId) filters.push(eq(invoice.contactId, query.contactId))
+
+  const [rows, billable] = await Promise.all([
+    reader
+      .select({
+        id: invoice.id,
+        type: invoice.type,
+        status: invoice.status,
+        totalCents: invoice.totalCents,
+        invoiceDate: invoice.invoiceDate,
+        paymentTermDays: invoice.paymentTermDays,
+      })
+      .from(invoice)
+      .where(and(...filters)),
+    billableSummary(reader, tenantId, query.contactId),
+  ])
+
+  /* The same grouped query `listInvoices` uses for the same number, rather
+     than a subquery of its own: what has been received on an invoice is asked
+     in one place. */
+  const paid = await paymentSummaryByInvoice(
+    reader,
+    tenantId,
+    rows.map((row) => row.id),
+  )
+
+  const counts: Record<(typeof invoiceListFilters)[number], number> = {
+    draft: 0,
+    open: 0,
+    overdue: 0,
+    paid: 0,
+    cancelled: 0,
+  }
+  let openCents = 0
+
+  for (const row of rows) {
+    const state = invoicePaymentState(row, paid.get(row.id)?.paidCents ?? 0, today)
+    for (const filter of invoiceListFilters) {
+      if (matchesInvoiceListFilter(row, state, filter)) counts[filter] += 1
+    }
+    // A draft is not a claim, so it owes nothing — `invoicePaymentState`
+    // reports its total as open, which is right for the row and wrong here.
+    if (row.status !== 'draft') openCents += state.openCents
+  }
+
+  return {
+    total: rows.length,
+    ...counts,
+    openCents,
+    billableActivities: billable.activities,
+    billableItems: billable.items,
+    billableCents: billable.cents,
+  }
 }
 
 export async function getInvoice(

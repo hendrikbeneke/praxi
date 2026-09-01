@@ -32,7 +32,14 @@ import { cn } from '@/lib/utils'
  * API has no status parameter at all — see `billableQuerySchema`, and the
  * comment on `listBillableItems` in the domain.
  */
-export function BillableList() {
+export function BillableList({
+  onCollected,
+}: {
+  /** Where the drafts land on the screen one is already on (B3): Zahlungen
+   *  switches to its Rechnungen tab and opens the new draft in the row it now
+   *  stands in, instead of navigating to a page of its own. */
+  onCollected?: ((invoiceId: string | undefined) => void) | undefined
+}) {
   const items = useQuery(billableQueryOptions())
   const types = useQuery(activityTypeListQueryOptions(true))
   // The drafts that already exist, so the confirmation can say "appended to"
@@ -292,6 +299,7 @@ export function BillableList() {
 
       <CollectDialog
         plan={confirmedPlan}
+        {...(onCollected ? { onCollected } : {})}
         open={confirming !== undefined}
         onOpenChange={(next) => {
           if (next) return

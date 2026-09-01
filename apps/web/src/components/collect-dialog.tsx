@@ -44,11 +44,19 @@ export function CollectDialog({
   /** Where there is exactly one draft to look at afterwards, go there. The
    *  bulk action over several contacts has no single "it". */
   jumpToInvoice = false,
+  onCollected,
 }: {
   plan: CollectPlanEntry[]
   open: boolean
   onOpenChange: (open: boolean) => void
   jumpToInvoice?: boolean
+  /**
+   * Where the drafts have somewhere to appear on the screen one is already on
+   * (B3): Zahlungen switches to its Rechnungen tab and opens the new draft
+   * there rather than navigating to a page of its own. The id is given only
+   * when a single draft came of it — several have no "it" to open.
+   */
+  onCollected?: ((invoiceId: string | undefined) => void) | undefined
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -71,7 +79,9 @@ export function CollectDialog({
       toast.success(strings.billable.collected(results.length))
 
       const first = results[0]
-      if (jumpToInvoice && first) {
+      if (onCollected) {
+        onCollected(results.length === 1 && first ? first.invoiceId : undefined)
+      } else if (jumpToInvoice && first) {
         void navigate({ to: '/invoices/$invoiceId', params: { invoiceId: first.invoiceId } })
       }
     },

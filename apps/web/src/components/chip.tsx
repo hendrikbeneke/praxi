@@ -88,24 +88,46 @@ export function listTabClass(active: boolean): string {
  * (B2).
  *
  * The behaviour is a rule and not a call site's choice: **the active chip
- * switches itself off when it is pressed again**, which is what takes the place
- * of an "Alle" chip. The Vorgänge page had one and the contact's Vorgänge tab
- * did not, so the same row of pills answered the same question in two ways.
+ * switches itself off when it is pressed again.** The Vorgänge page had an
+ * "Alle" chip and the contact's Vorgänge tab did not, so the same row of pills
+ * answered the same question in two ways; the toggle is what settled it.
+ *
+ * **`all` puts that chip back where the design draws one** (B3). The invoice
+ * band has it, and there the number earns its place: it is how many documents
+ * the practice has, which is a fact one goes looking for rather than a
+ * consequence of the other five. On Vorgänge no such chip is passed and the
+ * toggle alone still clears the row, so the two behaviours do not compete —
+ * pressing "Alle" and pressing the active chip again do the same thing.
  *
  * `count` may be missing while the figures are still on their way. A chip
  * without one is still a chip: it filters, it just cannot say yet how many.
  */
 export function FilterChips<Id extends string>({
   chips,
+  all,
   active,
   onChange,
 }: {
   chips: readonly { id: Id; label: string; count: number | undefined }[]
+  /** The unfiltered state as a chip of its own, where the design draws one. */
+  all?: { label: string; count: number | undefined } | undefined
   active: Id | undefined
   onChange: (next: Id | undefined) => void
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {all && (
+        <button
+          type="button"
+          className={filterChipClass(active === undefined)}
+          onClick={() => onChange(undefined)}
+        >
+          {all.count !== undefined && (
+            <span className="font-semibold tabular-nums">{all.count}</span>
+          )}
+          {all.label}
+        </button>
+      )}
       {chips.map((chip) => (
         <button
           key={chip.id}

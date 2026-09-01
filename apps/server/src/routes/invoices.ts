@@ -4,7 +4,9 @@ import {
   invoiceCollectSchema,
   invoiceCreateSchema,
   invoiceListQuerySchema,
+  invoiceSummaryQuerySchema,
   invoiceUpdateSchema,
+  toBerlinDate,
 } from '@praxi/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -31,6 +33,7 @@ import {
   InvoiceEmptyError,
   InvoiceNotADraftError,
   ItemAlreadyBilledError,
+  invoiceSummary,
   listInvoices,
   UnknownRecipientError,
   updateInvoice,
@@ -121,6 +124,21 @@ export const invoicesRoute = new Hono<AppEnv>()
   /** Static segment before `/:invoiceId`, which is validated as a uuid. */
   .get('/billable', validate('query', billableQuerySchema), async (c) => {
     return c.json(await listBillableItems(db(), tenantId(c), c.req.valid('query').contactId))
+  })
+
+  /**
+   * The figures above the list — the chips and, on Zahlungen, the two tiles
+   * (B3). Static segment, like `/billable` above.
+   *
+   * Its own request rather than a fold over the rows the list returned: that
+   * list is capped, so every number drawn from it was the number in the first
+   * page. It takes a contact and deliberately no filter — the counts describe
+   * the selection and not the narrowing, so pressing a chip cannot change the
+   * number written on it.
+   */
+  .get('/summary', validate('query', invoiceSummaryQuerySchema), async (c) => {
+    const today = toBerlinDate(new Date().toISOString())
+    return c.json(await invoiceSummary(db(), tenantId(c), c.req.valid('query'), today))
   })
 
   /** Who an invoice for this contact may be addressed to — the contact's

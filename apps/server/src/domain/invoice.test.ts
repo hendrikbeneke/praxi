@@ -2,7 +2,13 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { type Invoice, sumItems } from '@praxi/shared'
+import {
+  type Invoice,
+  invoiceListFilters,
+  invoicePaymentState,
+  matchesInvoiceListFilter,
+  sumItems,
+} from '@praxi/shared'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
@@ -41,10 +47,13 @@ import {
   InvoiceEmptyError,
   InvoiceNotADraftError,
   ItemAlreadyBilledError,
+  invoiceSummary,
+  listInvoices,
   UnknownRecipientError,
   updateInvoice,
 } from './invoice.js'
 import { upsertNumberRange } from './number-range.js'
+import { addPayment } from './payment.js'
 
 let tenantId: string
 let sessionTypeId: string
@@ -1191,5 +1200,160 @@ describe('unbilled cents in a window', () => {
     expect(await unbilledCentsOf(db(), tenantId, WINDOW)).toBe(
       sumItems(planned.items, { billableOnly: true }),
     )
+  })
+})
+
+/**
+ * The figures above the list (B3). Every assertion here is really about one
+ * thing: the summary and the rows have to answer alike, because both screens
+ * draw the chip and the row it produces side by side.
+ */
+describe('the invoice summary', () => {
+  it('counts every document, not a page of them', async () => {
+    // The list is capped at 200; the summary is not, and that is the whole
+    // reason it exists. Three is enough to say the count is over the table.
+    for (let i = 0; i < 3; i++) {
+      await makeActivityWithItem()
+      await draftFromBillable()
+    }
+
+    const summary = await invoiceSummary(db(), tenantId, {}, INVOICE_DATE)
+    expect(summary.total).toBe(3)
+    expect(summary.draft).toBe(3)
+  })
+
+  it('says the same as the filter does, chip by chip', async () => {
+    await makeActivityWithItem()
+    const paid = await finalizeDocument(
+      db(),
+      tenantId,
+      store,
+      (await draftFromBillable()).id,
+      render,
+    )
+    if (!paid) throw new Error('not finalized')
+    await addPayment(db(), tenantId, paid.id, {
+      paidOn: INVOICE_DATE,
+      amountCents: paid.totalCents,
+      method: 'bank_transfer',
+      note: null,
+    })
+
+    await makeActivityWithItem()
+    await finalizeDocument(db(), tenantId, store, (await draftFromBillable()).id, render)
+
+    await makeActivityWithItem()
+    await draftFromBillable()
+
+    const today = '2026-09-30'
+    const summary = await invoiceSummary(db(), tenantId, {}, today)
+    const rows = await listInvoices(db(), tenantId, { limit: 200, offset: 0 })
+
+    expect(summary.total).toBe(rows.length)
+    for (const filter of invoiceListFilters) {
+      const counted = rows.filter((row) =>
+        matchesInvoiceListFilter(row, invoicePaymentState(row, row.paidCents, today), filter),
+      ).length
+      expect({ filter, count: summary[filter] }).toEqual({ filter, count: counted })
+    }
+
+    // One paid, one open and overdue by then, one draft.
+    expect(summary.paid).toBe(1)
+    expect(summary.open).toBe(1)
+    expect(summary.overdue).toBe(1)
+    expect(summary.draft).toBe(1)
+  })
+
+  it('owes nothing on a draft, whatever its total says', async () => {
+    await makeActivityWithItem()
+    const draft = await draftFromBillable()
+    expect(draft.totalCents).toBe(13_500)
+
+    const summary = await invoiceSummary(db(), tenantId, {}, INVOICE_DATE)
+    // A draft is not a claim. `invoicePaymentState` reports its total as open,
+    // which is right for the row's own state and wrong for a sum of demands.
+    expect(summary.openCents).toBe(0)
+  })
+
+  it('subtracts what has arrived from what is still owed', async () => {
+    await makeActivityWithItem()
+    const finalized = await finalizeDocument(
+      db(),
+      tenantId,
+      store,
+      (await draftFromBillable()).id,
+      render,
+    )
+    if (!finalized) throw new Error('not finalized')
+
+    await addPayment(db(), tenantId, finalized.id, {
+      paidOn: INVOICE_DATE,
+      amountCents: 5_000,
+      method: 'bank_transfer',
+      note: null,
+    })
+
+    const summary = await invoiceSummary(db(), tenantId, {}, INVOICE_DATE)
+    expect(summary.openCents).toBe(8_500)
+    // Partly paid is still owed, so it belongs under "Offen" — the chip and
+    // the sum have to agree about that (K8).
+    expect(summary.open).toBe(1)
+  })
+
+  /**
+   * The condition the whole billing side hangs on (rule 6). Cancelling frees
+   * the items again, so the tile has to grow back on its own — a stored figure
+   * or a second query would pass every other case here and fail this one.
+   */
+  it('gives the items back to the billable tile when an invoice is cancelled', async () => {
+    await makeActivityWithItem()
+    const finalized = await finalizeDocument(
+      db(),
+      tenantId,
+      store,
+      (await draftFromBillable()).id,
+      render,
+    )
+    if (!finalized) throw new Error('not finalized')
+
+    const claimed = await invoiceSummary(db(), tenantId, {}, INVOICE_DATE)
+    expect(claimed.billableItems).toBe(0)
+    expect(claimed.billableCents).toBe(0)
+
+    await cancelInvoice(db(), tenantId, store, finalized.id, render)
+
+    const freed = await invoiceSummary(db(), tenantId, {}, INVOICE_DATE)
+    expect(freed.billableActivities).toBe(1)
+    expect(freed.billableItems).toBe(1)
+    expect(freed.billableCents).toBe(13_500)
+    // The cancellation is a document too, and it is not a claim.
+    expect(freed.cancelled).toBe(2)
+    expect(freed.openCents).toBe(0)
+  })
+
+  it('counts activities and positions apart on the billable tile', async () => {
+    await makeActivityWithItem()
+    const second = await activityFor(contactId, '2026-08-10T07:00:00.000Z')
+    expect(second.items).toHaveLength(1)
+
+    const summary = await invoiceSummary(db(), tenantId, {}, INVOICE_DATE)
+    expect(summary.billableActivities).toBe(2)
+    expect(summary.billableItems).toBe(2)
+    expect(summary.billableCents).toBe(27_000)
+  })
+
+  it('narrows to one contact, on both halves', async () => {
+    const other = await secondContact()
+    await makeActivityWithItem()
+    await activityFor(other)
+    await draftFromBillable()
+
+    const mine = await invoiceSummary(db(), tenantId, { contactId }, INVOICE_DATE)
+    expect(mine.total).toBe(1)
+    expect(mine.billableItems).toBe(0)
+
+    const theirs = await invoiceSummary(db(), tenantId, { contactId: other }, INVOICE_DATE)
+    expect(theirs.total).toBe(0)
+    expect(theirs.billableItems).toBe(1)
   })
 })

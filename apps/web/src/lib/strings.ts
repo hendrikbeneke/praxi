@@ -1263,8 +1263,17 @@ export const strings = {
      *  the lesson of the one-string-two-purposes bugs in K4 and K5. */
     create: 'Neue Rechnung',
     createAction: 'Rechnung erstellen',
+    /** The picker in the create row asks for the **contact**, not for the
+     *  Rechnungsempfänger the editor asks for further down (L8): whose
+     *  treatment is billed, and who the document goes to, are two questions.
+     *  The design writes the same word over both, which is the
+     *  one-string-two-purposes bug K4 and K5 each fixed once. */
+    forContact: 'Kontakt',
     createHint: 'Für welchen Kontakt? Die Positionen kommen danach im Entwurf dazu.',
     createConfirm: 'Entwurf anlegen',
+    /** While the draft of a contact whose name is already known is being
+     *  written — the row exists for a moment before it is a row. */
+    creating: 'Entwurf wird angelegt …',
     empty: 'Noch keine Rechnungen.',
     emptyDraft: 'Diese Rechnung hat noch keine Position.',
 
@@ -1291,19 +1300,10 @@ export const strings = {
       cancelled: 'Storniert',
     },
     emptyFiltered: 'Keine Rechnung passt zu diesem Filter.',
-    /** The hint at the end of a row in the contact's invoice list (K7): when
-     *  it is due, since when it was due, or when it was paid. */
-    dueOn: (date: string) => `fällig ${date}`,
-    overdueSince: (date: string) => `fällig seit ${date}`,
+    /** In the invoice's own rail, where the day it was settled stands under
+     *  the status. The row in the list says it differently — see `paidOnDay`
+     *  below, which is a cell and not a sentence. */
     paidOn: (date: string) => `bezahlt ${date}`,
-    /** What an invoice covers — how many activities its lines came out of,
-     *  and in which month or months those fell. */
-    scopeActivities: (n: number) => `${n} ${n === 1 ? 'Vorgang' : 'Vorgänge'}`,
-    scopeLines: (n: number) => `${n} ${n === 1 ? 'Position' : 'Positionen'}`,
-    /** The summary left of the chips: what the list is made of, and what it
-     *  comes to. */
-    listSummary: (drafts: number, open: number, amount: string) =>
-      `${drafts} ${drafts === 1 ? 'Entwurf' : 'Entwürfe'} · ${open} offen · ${amount} ausstehend`,
     /** In the status cell, beside the badge. */
     partPaid: (amount: string) => `${amount} bezahlt`,
     paidOnDay: (date: string) => `bezahlt am ${date}`,
@@ -1312,6 +1312,10 @@ export const strings = {
     overdueSinceDays: (days: number) => (days === 1 ? 'seit 1 Tag' : `seit ${days} Tagen`),
 
     number: 'Nummer',
+    /** The column header, and it says "Empfänger" because that is what the
+     *  cell holds since L8: the snapshot's name, else the chosen recipient,
+     *  else the contact. It read `contactName` until B3, which was the
+     *  contact under a heading promising the recipient. */
     contact: 'Empfänger',
     invoiceDate: 'Rechnungsdatum',
     dueDate: 'Zahlbar bis',
@@ -1636,16 +1640,6 @@ export const strings = {
      *  already in the group header above. */
     openContact: 'Zur Akte',
 
-    /** The card above the contact's invoice list (K7). */
-    cardTitle: 'Abrechenbar, noch nicht in Rechnung',
-    /** The design writes "seit der letzten Rechnung" here, which the data does
-     *  not support: an item that was never billed can be older than the last
-     *  invoice. See `docs/design-korrektur/abweichungen.md`. */
-    /** "3 Vorgänge seit der letzten Rechnung" — what the card is really about
-     *  is the gap since the last one was written, not a property of the rows
-     *  ("noch nicht abgerechnet" was what the chip beside it already says). */
-    cardLine: (activities: number) =>
-      `${activities} ${activities === 1 ? 'Vorgang' : 'Vorgänge'} seit der letzten Rechnung`,
     draftExists: 'Entwurf vorhanden',
     total: 'Summe:',
 
@@ -1692,10 +1686,6 @@ export const strings = {
       `${total} ${total === 1 ? 'Vorgang' : 'Vorgänge'} · ${upcoming} kommend`,
     activitiesBilled: 'Abgerechnet',
     activitiesUnbilled: 'Nicht abgerechnet',
-    invoices: (n: number) => `${n} ${n === 1 ? 'Rechnung' : 'Rechnungen'}`,
-    invoicesOpen: 'Offen',
-    invoicesPaid: 'Bezahlt',
-    invoicesOverdue: 'Überfällig',
   },
   catalogue: {
     active: 'Aktiv',
