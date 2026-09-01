@@ -151,7 +151,21 @@ async function appointmentRow(id: string) {
   return row
 }
 
-const NOW = new Date('2026-09-01T10:00:00.000Z')
+/**
+ * The instant the pushes are run at, and it has to lie **after** the rows were
+ * enqueued: `enqueue` writes `next_attempt_at` as the database's own `now()`,
+ * and `claimDue` takes only what is due by the instant it is handed.
+ *
+ * It was the fixed date `2026-09-01T10:00Z` until B3, which was a time bomb
+ * with a known fuse: every push test went red the day the real clock passed
+ * that instant, because every queue row was then enqueued into the future and
+ * nothing was ever due. Anchoring it to the clock the rows themselves are
+ * written by is what makes the suite say the same thing on every day.
+ *
+ * A minute ahead rather than exactly now: the rows are written after this is
+ * read, and `lte` on the same millisecond is a coin toss.
+ */
+const NOW = new Date(Date.now() + 60_000)
 
 beforeEach(async () => {
   tenantId = await createTenant(db())
