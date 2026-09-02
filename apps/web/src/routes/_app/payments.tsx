@@ -78,24 +78,35 @@ function PaymentsPage() {
   }
 
   return (
-    // The whole page is capped, header included — where the prototype
-    // puts it on the three list screens (K1).
-    <ContentWidth>
-      <Tabs
-        value={tab}
-        onValueChange={(value) =>
-          void navigate({
-            // The filter belongs to the invoice tab alone. Carrying it over
-            // would leave a filter set on a list that does not show it —
-            // a state nobody could explain a week later.
-            search: value === 'invoices' ? { tab: 'invoices' } : {},
-          })
-        }
-      >
-        {/* Title and tiles stay put while the list scrolls under them: on this
-            screen the two numbers up here are what one keeps glancing back at
-            (design). */}
-        <div className="sticky top-0 z-5 bg-background pb-4">
+    /* The screen owns the window's height and the table scrolls inside its own
+       card, so the band up here stays put without being sticky and the
+       scrollbar belongs to the rows rather than to the window — the shape the
+       contact list has had since L4 and Vorgänge since B2, and the one the
+       design draws here (B3). The shell gives this route no padding
+       (`lib/page-chrome.ts`). */
+    <Tabs
+      value={tab}
+      onValueChange={(value) =>
+        void navigate({
+          // The filter belongs to the invoice tab alone. Carrying it over
+          // would leave a filter set on a list that does not show it —
+          // a state nobody could explain a week later.
+          search: value === 'invoices' ? { tab: 'invoices' } : {},
+        })
+      }
+      className="flex h-full min-h-0 flex-col gap-0"
+    >
+      {/*
+          Title, tiles and the chip row are one full-bleed band in card colour,
+          and its bottom border is the rule the design runs across the whole
+          width — the same shape as the Vorgänge filter band (B2) and the
+          contact record's header strip (K6). The rule is why the band runs to
+          the window edge while its *content* is capped: drawn under a capped
+          block it would stop where the table stops, which is a line in the
+          middle of the screen rather than a division of it.
+        */}
+      <div className="border-b bg-card px-8 pt-5 pb-3.5">
+        <ContentWidth>
           <PageHeader
             className="mb-0"
             title={strings.payments.title}
@@ -138,27 +149,35 @@ function PaymentsPage() {
               onColumnsChange={setColumns}
             />
           )}
-        </div>
+        </ContentWidth>
+      </div>
 
-        <TabsContent value="billable">
-          <BillableList onCollected={showInvoices} />
-        </TabsContent>
+      {/* Only the content below the rule is capped, and the cap sits on the
+          column the two tabs fill — the invoice card scrolls inside itself,
+          the billable list scrolls as a whole under its own fixed footer. */}
+      <div className="flex min-h-0 flex-1 px-8">
+        <ContentWidth className="flex min-h-0 flex-col pt-[18px] pb-7">
+          <TabsContent value="billable" className="flex min-h-0 flex-1 flex-col">
+            <BillableList onCollected={showInvoices} />
+          </TabsContent>
 
-        <TabsContent value="invoices">
-          <InvoiceList
-            invoices={rows}
-            columns={columns}
-            creating={creating}
-            onCreated={() => setCreating(false)}
-            onCancelCreate={() => setCreating(false)}
-            openInvoiceId={openInvoiceId}
-            filtered={search.invoiceFilter !== undefined}
-            emptyText={invoices.isPending ? strings.status.loading : strings.invoice.empty}
-            emptyFilteredText={strings.invoice.emptyFiltered}
-          />
-        </TabsContent>
-      </Tabs>
-    </ContentWidth>
+          <TabsContent value="invoices" className="flex min-h-0 flex-1 flex-col">
+            <InvoiceList
+              className="min-h-0 flex-1"
+              invoices={rows}
+              columns={columns}
+              creating={creating}
+              onCreated={() => setCreating(false)}
+              onCancelCreate={() => setCreating(false)}
+              openInvoiceId={openInvoiceId}
+              filtered={search.invoiceFilter !== undefined}
+              emptyText={invoices.isPending ? strings.status.loading : strings.invoice.empty}
+              emptyFilteredText={strings.invoice.emptyFiltered}
+            />
+          </TabsContent>
+        </ContentWidth>
+      </div>
+    </Tabs>
   )
 }
 

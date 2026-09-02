@@ -106,10 +106,15 @@ export function BillableList({
   }
 
   return (
-    <>
+    /* A column that fills the tab: the groups scroll in the middle of it and
+       the footer sits on the bottom edge (B3). It was `sticky bottom-0` inside
+       one long page until then, which is the same thing while the page is
+       taller than the window — and with the tab a scroller of its own, a short
+       list left the bar standing in the middle of the screen. */
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Before anything is picked the line explains the tab; afterwards it
           reports the selection. One place, two sentences (design). */}
-      <p className="mb-2.5 flex min-h-8 items-center text-[13px] text-muted-foreground">
+      <p className="mb-2.5 flex min-h-8 shrink-0 items-center text-[13px] text-muted-foreground">
         {selected.size === 0
           ? strings.payments.billableHint
           : strings.payments.billableSelection(
@@ -119,8 +124,7 @@ export function BillableList({
             )}
       </p>
 
-      {/* Room for the sticky footer, so the last row is never underneath it. */}
-      <div className="space-y-2.5 pb-20">
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-auto pb-4">
         {groups.map((group) => {
           const all = group.activities.flatMap((activity) => activity.items)
           const ids = all.map((item) => item.id)
@@ -277,8 +281,13 @@ export function BillableList({
           rather than in the page header, because with many contacts the button
           scrolled out of sight exactly when the selection got interesting
           (D7). Recorded in `docs/design-korrektur/abweichungen.md`.
+
+          It bled into the page inset with `-mx-8` until B3, when the groups
+          became a scroller of their own: an element wider than its scrollport
+          buys a horizontal scrollbar. The content is capped here anyway, so
+          the bar spans what the cards above it span.
         */}
-      <div className="sticky bottom-0 -mx-8 flex flex-wrap items-center gap-4 border-t bg-card px-8 py-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-4 border-t bg-card px-4 py-3">
         <span className="text-sm">
           {selected.size === 0
             ? strings.payments.selectionEmpty
@@ -309,7 +318,7 @@ export function BillableList({
           setSelected(new Set())
         }}
       />
-    </>
+    </div>
   )
 }
 

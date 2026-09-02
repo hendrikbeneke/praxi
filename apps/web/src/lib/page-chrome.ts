@@ -39,7 +39,12 @@ const byRouteId: Record<string, string> = {
   // same as the contact list above: the scrollbar then belongs to the entries
   // rather than to the window.
   '/_app/activities': 'p-0',
-  '/_app/payments': 'px-8 pt-5 pb-7',
+  // Its band — title, tiles, chips — is full-bleed with a rule under it, and
+  // the invoice table below it scrolls inside its own card, so the page owns
+  // the window's height and sets its own inset (B3). The design draws that
+  // scrollbar at the card's edge; before it, the whole page scrolled and the
+  // heading row went with it.
+  '/_app/payments': 'p-0',
   '/_app/services': 'px-8 pt-[22px] pb-10',
   '/_app/settings': 'px-8 pt-[22px] pb-12',
   // The calendar carries no page padding at all: its toolbar starts at the

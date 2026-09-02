@@ -477,6 +477,22 @@ function ContactInvoices({
       />
 
       <InvoiceList
+        /**
+         * **The card is bounded against the window, so its heading can stick**
+         * — the same table as on Zahlungen, and there the page owns the
+         * height and the card simply fills what is left.
+         *
+         * Here it cannot: this record scrolls as a whole, with the header
+         * strip sticky inside `main`. A heading anchored to that scrollport
+         * would slide under the strip. The number is measured — topbar, strip,
+         * the tab's inset, the chip row — the same shape `note-panel.tsx` uses
+         * one tab over, and for the same reason.
+         *
+         * What would take both numbers away is the record owning the window's
+         * height like the contact list, Vorgänge and Zahlungen do. That is a
+         * change to all six tabs and belongs in a package of its own.
+         */
+        className="max-h-[calc(100svh-318px)]"
         invoices={rows}
         columns={columns}
         contactId={contactId}

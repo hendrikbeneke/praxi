@@ -68,6 +68,7 @@ export function InvoiceList({
   emptyText,
   emptyFilteredText,
   filtered = false,
+  className,
 }: {
   invoices: readonly Invoice[]
   /** From `useInvoiceColumns()` — one preference for both screens. */
@@ -88,6 +89,11 @@ export function InvoiceList({
   /** Whether a chip is pressed, so an empty list can say which kind of empty
    *  it is. */
   filtered?: boolean
+  /** **How tall the card may get, which is what makes the header stick.** The
+   *  rows scroll inside the card, so the card needs a bound, and only the
+   *  container knows it: on Zahlungen it is a flex child filling what is left
+   *  of the window, in a contact record it is capped against the viewport. */
+  className?: string
 }) {
   const detail = useInlineDetail(openInvoiceId)
   const today = toBerlinDate(new Date().toISOString())
@@ -107,81 +113,99 @@ export function InvoiceList({
   }
 
   return (
-    <div className="overflow-hidden rounded-[10px] border bg-card">
-      <Table>
-        {/* 14px in mixed case, like the contact list — the small caps of
-            `listHeaderClass` are the catalogue lists' shape (K5), not this
-            table's (K8). */}
-        <TableHeader>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            {shown.map((key) => (
-              <TableHead
-                key={key}
-                className={cn('h-10 px-4 font-medium text-sm', isNumeric(key) && 'text-right')}
-              >
-                {invoiceColumnDefinitions.find((entry) => entry.key === key)?.label}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {creating && (
-            <InlineDetailRow colSpan={shown.length} className="bg-card">
-              <CreatePanel
-                {...(contactId ? { contactId } : {})}
-                onCreated={(draft) => {
-                  setCreated(draft.id)
-                  detail.open(draft.id)
-                  onCreated?.()
-                }}
-                onCancel={() => onCancelCreate?.()}
-              />
-            </InlineDetailRow>
-          )}
+    <div
+      className={cn(
+        'flex min-h-0 flex-col overflow-hidden rounded-[10px] border bg-card',
+        className,
+      )}
+    >
+      {/* **The rows scroll in here and the heading stays put** — the design
+          draws the scrollbar inside the card, not at the window edge, and the
+          same shape the contact list has had since L4. The wrapper `Table`
+          brings is told to keep out of the way: an element that scrolls in one
+          axis is a scrollport in both, so a sticky heading would anchor to it
+          instead of to this box. */}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <Table containerClassName="overflow-visible">
+          {/* 14px in mixed case, like the contact list — the small caps of
+              `listHeaderClass` are the catalogue lists' shape (K5), not this
+              table's (K8).
 
-          {invoices.map((invoice) => {
-            const state = invoicePaymentState(invoice, invoice.paidCents, today)
-            const open = detail.isOpen(invoice.id)
+              `bg-card` sits on the heading itself and the tint stays on the
+              row: sticky means the rows pass *underneath*, and a 40 % tint on
+              its own would let them show through. Composited the two are the
+              colour the design draws. */}
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              {shown.map((key) => (
+                <TableHead
+                  key={key}
+                  className={cn('h-10 px-4 font-medium text-sm', isNumeric(key) && 'text-right')}
+                >
+                  {invoiceColumnDefinitions.find((entry) => entry.key === key)?.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {creating && (
+              <InlineDetailRow colSpan={shown.length} className="bg-card">
+                <CreatePanel
+                  {...(contactId ? { contactId } : {})}
+                  onCreated={(draft) => {
+                    setCreated(draft.id)
+                    detail.open(draft.id)
+                    onCreated?.()
+                  }}
+                  onCancel={() => onCancelCreate?.()}
+                />
+              </InlineDetailRow>
+            )}
 
-            return (
-              <Fragment key={invoice.id}>
-                <TableRow
-                  className={cn(
-                    'cursor-pointer',
-                    /* The one place this screen carries colour of its own.
+            {invoices.map((invoice) => {
+              const state = invoicePaymentState(invoice, invoice.paidCents, today)
+              const open = detail.isOpen(invoice.id)
+
+              return (
+                <Fragment key={invoice.id}>
+                  <TableRow
+                    className={cn(
+                      'cursor-pointer',
+                      /* The one place this screen carries colour of its own.
                        `/10` rather than `/5`: on the dark theme a five-percent
                        tint over an already dark surface is not a marking. */
-                    state.daysOverdue !== null && 'bg-destructive/10',
-                    open && 'bg-muted/40',
-                  )}
-                  onClick={() => detail.toggle(invoice.id)}
-                >
-                  {shown.map((key) => (
-                    <TableCell
-                      key={key}
-                      className={cn('px-4', isNumeric(key) && 'text-right tabular-nums')}
-                    >
-                      <Cell column={key} invoice={invoice} state={state} />
-                    </TableCell>
-                  ))}
-                </TableRow>
+                      state.daysOverdue !== null && 'bg-destructive/10',
+                      open && 'bg-muted/40',
+                    )}
+                    onClick={() => detail.toggle(invoice.id)}
+                  >
+                    {shown.map((key) => (
+                      <TableCell
+                        key={key}
+                        className={cn('px-4', isNumeric(key) && 'text-right tabular-nums')}
+                      >
+                        <Cell column={key} invoice={invoice} state={state} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
 
-                {open && (
-                  <InlineDetailRow colSpan={shown.length} className="bg-card">
-                    <InvoiceDetail
-                      key={invoice.id}
-                      invoice={invoice}
-                      startEditing={created === invoice.id}
-                      onClose={detail.close}
-                      onDiscarded={detail.close}
-                    />
-                  </InlineDetailRow>
-                )}
-              </Fragment>
-            )
-          })}
-        </TableBody>
-      </Table>
+                  {open && (
+                    <InlineDetailRow colSpan={shown.length} className="bg-card">
+                      <InvoiceDetail
+                        key={invoice.id}
+                        invoice={invoice}
+                        startEditing={created === invoice.id}
+                        onClose={detail.close}
+                        onDiscarded={detail.close}
+                      />
+                    </InlineDetailRow>
+                  )}
+                </Fragment>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

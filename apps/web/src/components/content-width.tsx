@@ -27,6 +27,13 @@ import { cn } from '@/lib/utils'
  * On Vorgänge the cap sits on the **scrolling** element (B2) — the list has its
  * own `overflow-auto` there, and a cap inside it would have left the scrollbar
  * at the window edge, a hand's width away from the cards it belongs to.
+ *
+ * Zahlungen is the same shape since B3 and one step further in: the cap wraps
+ * the band's content and the column the two tabs fill, and the *scrolling*
+ * happens inside that column — in the invoice card, whose heading row stays put
+ * while the rows pass under it. So the scrollbar lands at the card's edge,
+ * which is where the design draws it.
+ *
  * The page padding around all of this comes from `lib/page-chrome.ts`.
  */
 export function ContentWidth({
