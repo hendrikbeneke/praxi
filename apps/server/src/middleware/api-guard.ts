@@ -62,10 +62,13 @@ const publicKeys = new Set(PUBLIC_API_ROUTES.map((route) => `${route.method} ${r
  * registration order, so a `use()` after the routes would run after their
  * handlers and guard nothing.
  *
- * One consequence worth knowing: an unknown path under `/api` answers 401
- * rather than 404 now, because this runs before the router finds out that
- * nothing matches. That is the better answer — someone without a session
- * learns nothing about the route table — but it is a changed one.
+ * **A 401 under `/api` does not necessarily mean "not signed in". It can also
+ * mean "there is no such route."** This middleware matches on the path before
+ * the router finds out that nothing does, so a typo in a URL answers 401 just
+ * as a real endpoint would without a session. That is a side effect and not a
+ * goal — a welcome one, because a mistyped URL then reveals nothing about
+ * which endpoints exist — but it is the thing to know first when debugging an
+ * unexpected 401: check the path before checking the session.
  */
 export const apiGuard = createMiddleware<AppEnv>(async (c, next) => {
   if (publicKeys.has(`${c.req.method} ${c.req.path}`)) return next()
