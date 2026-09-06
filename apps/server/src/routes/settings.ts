@@ -18,15 +18,12 @@ import {
   updatePracticeSettings,
 } from '../domain/practice-settings.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 import { assertUsableTemplate, InvalidTemplateError } from '../pdf/overlay.js'
 import { fileStore } from '../storage.js'
 
 export const settingsRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', async (c) => {
     const settings = await getPracticeSettings(db(), tenantId(c))
     if (!settings) throw new HTTPException(404, { message: messages.settings.missing })

@@ -12,8 +12,7 @@ import {
   listPayments,
 } from '../domain/payment.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -43,8 +42,6 @@ function translate(error: unknown): never {
 }
 
 export const paymentsRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/:invoiceId/payments', validate('param', invoiceParam), async (c) => {
     return c.json(await listPayments(db(), tenantId(c), c.req.valid('param').invoiceId))
   })

@@ -14,8 +14,7 @@ import { loadSmtpConfig } from '../domain/smtp-settings.js'
 import { logger } from '../logger.js'
 import { createSmtpTransport } from '../mail/transport.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 import { EncryptionKeyMismatchError } from '../secrets.js'
 import { fileStore } from '../storage.js'
@@ -32,8 +31,6 @@ const invoiceParam = z.object({ invoiceId: z.uuid() })
  * client that navigated away loses only its response — the record is there.
  */
 export const invoiceSendRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   /**
    * What the dialog opens with: recipient, subject and body with the
    * placeholders already filled, plus why it cannot be sent if it cannot.

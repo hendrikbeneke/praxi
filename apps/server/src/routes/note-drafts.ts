@@ -11,8 +11,8 @@ import {
   saveNoteDraft,
 } from '../domain/note-draft.js'
 import { messages } from '../messages.js'
-import { requireAuth, userId } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { userId } from '../middleware/auth.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -38,8 +38,6 @@ function translate(error: unknown): never {
 }
 
 export const noteDraftsRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   /** Answers `null` rather than 404 when there is none: "is there a draft" is
    *  the question, and having none is an ordinary answer to it. */
   .get('/', validate('query', noteDraftQuerySchema), async (c) => {

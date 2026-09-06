@@ -4,8 +4,7 @@ import { z } from 'zod'
 import type { AppEnv } from '../context.js'
 import { db } from '../db/client.js'
 import { listNumberRanges, upsertNumberRange } from '../domain/number-range.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -20,8 +19,6 @@ import { validate } from '../middleware/validate.js'
 const rangeParam = z.object({ code: numberRangeCodeSchema })
 
 export const numberRangesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', async (c) => {
     return c.json(await listNumberRanges(db(), tenantId(c)))
   })

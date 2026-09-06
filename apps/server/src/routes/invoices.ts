@@ -42,8 +42,7 @@ import { NumberAlreadyIssuedError } from '../domain/number-range.js'
 import { loadInvoiceTemplate } from '../domain/practice-settings.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 import { renderInvoicePdf } from '../pdf/render.js'
 import { fileStore } from '../storage.js'
@@ -115,8 +114,6 @@ function pdfResponse(bytes: Uint8Array, fileName: string, inline: boolean): Resp
 }
 
 export const invoicesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', invoiceListQuerySchema), async (c) => {
     return c.json(await listInvoices(db(), tenantId(c), c.req.valid('query')))
   })

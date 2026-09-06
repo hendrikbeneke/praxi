@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { AppEnv } from './context.js'
+import { apiGuard } from './middleware/api-guard.js'
 import { errorHandler, notFoundHandler } from './middleware/error.js'
 import { sameOrigin } from './middleware/origin.js'
 import { requestLog } from './middleware/request-log.js'
@@ -30,6 +31,12 @@ const app = new Hono<AppEnv>()
 
 app.use('*', requestLog)
 app.use('/api/*', sameOrigin)
+/**
+ * The auth boundary, on the group rather than on each router — see
+ * `middleware/api-guard.ts`. It has to be registered before the `route()`
+ * chain below: Hono runs middleware in registration order.
+ */
+app.use('/api/*', apiGuard)
 app.onError(errorHandler)
 app.notFound(notFoundHandler)
 

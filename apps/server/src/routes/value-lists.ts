@@ -18,8 +18,7 @@ import {
   ValueInUseError,
 } from '../domain/value-list.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -55,8 +54,6 @@ function translate(error: unknown): never {
 function labelRoute(list: 'salutation' | 'gender') {
   return (
     new Hono<AppEnv>()
-      .use('*', requireAuth, withTenant)
-
       .get('/', async (c) => {
         const rows =
           list === 'salutation'
@@ -130,8 +127,6 @@ export const gendersRoute = labelRoute('gender')
  * maintains here is which countries the contact form offers, and in what order.
  */
 export const countriesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', async (c) => c.json(await listCountries(db(), tenantId(c))))
 
   .post('/', validate('json', countryEntryInputSchema), async (c) => {

@@ -16,8 +16,7 @@ import {
   updateServiceGroup,
 } from '../domain/service.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const groupParam = z.object({ groupId: z.uuid() })
@@ -41,8 +40,6 @@ function translate(error: unknown): never {
 }
 
 export const serviceGroupsRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', catalogueListQuerySchema), async (c) => {
     return c.json(await listServiceGroups(db(), tenantId(c), c.req.valid('query')))
   })

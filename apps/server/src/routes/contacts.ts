@@ -32,8 +32,7 @@ import {
 import { MissingNumberRangeError } from '../domain/counter.js'
 import { InvalidCursorError } from '../domain/keyset.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const contactParam = z.object({ contactId: z.uuid() })
@@ -84,8 +83,6 @@ function translate(error: unknown): never {
 }
 
 export const contactsRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', contactListQuerySchema), async (c) => {
     const result = await listContacts(db(), tenantId(c), c.req.valid('query')).catch(translate)
     return c.json(result)

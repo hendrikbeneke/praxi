@@ -110,7 +110,8 @@ praxi/
 │  │  │  ├─ domain/        business logic, transactions
 │  │  │  ├─ pdf/           invoice.tsx, overlay.ts, din5008.ts
 │  │  │  ├─ google/        (last slice)
-│  │  │  ├─ middleware/    error.ts, request-log.ts, auth.ts, tenant.ts
+│  │  │  ├─ middleware/    error.ts, request-log.ts, auth.ts, tenant.ts,
+│  │  │  │                api-guard.ts, origin.ts, validate.ts
 │  │  │  ├─ env.ts         Zod-validated environment
 │  │  │  ├─ logger.ts      pino
 │  │  │  ├─ messages.ts    German user-facing strings
@@ -141,6 +142,16 @@ serves API and SPA from one process on 3000. The client always calls the
 relative path `/api`, so no code branches on the mode.
 
 The split between `routes/` (HTTP, auth, validation, error translation) and `domain/` (business rules, transactions) is mandatory. A route handler contains no business rule. Business rules are unit-tested; route handlers usually are not.
+
+**A route is protected because it is a route, not because somebody remembered.** `requireAuth` and `withTenant` sit on the `/api` group in `app.ts`, in `middleware/api-guard.ts`, and no router mounts them itself. Until then each of the twenty-two route files carried its own `.use('*', requireAuth, withTenant)` as the first line of its chain — which meant a **new route was open by default**, and forgetting the line produced no error, no warning and no failing test. That was the one place in this project where the default pointed the unsafe way.
+
+What replaces it is one list, `PUBLIC_API_ROUTES`, and it has three properties that are the whole point:
+
+- **Exact matches on method and path, never prefixes.** `/api/auth/*` would wave `GET /api/auth/me` through — the shortcut that turns the test below into a formality. A test asserts that no entry contains `*` or `:`.
+- **A reason per entry, in a field rather than a comment**, because the test reads it. There are four: the health check (the Dockerfile fetches it), signing in, signing out (a dead session must still be able to clear its cookie), and the Google OAuth callback (it comes back on `127.0.0.1`, where the cookie does not travel, and authenticates through its single-use `state`).
+- **No orphans.** `routes/api-guard.test.ts` walks Hono's own `app.routes` — which `route()` flattens the mounted routers into, so it cannot fall behind the code — calls every endpoint without a cookie and expects 401, and asserts in the other direction that every exception still names a route that exists. An orphan is the worse of the two failures: nobody notices it while cleaning up, and the day a route of that name and method is created again, it is silently open.
+
+One consequence, deliberate: **an unknown path under `/api` answers 401, not 404.** The guard matches before the router finds out that nothing matched. Someone without a session learns nothing about the route table, not even which paths exist. The German 404 body is still asserted, on a path outside `/api`.
 
 ## Core domain rules
 

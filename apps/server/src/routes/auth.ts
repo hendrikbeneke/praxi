@@ -13,7 +13,6 @@ import { db } from '../db/client.js'
 import { login, logout } from '../domain/auth.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
 import { validate } from '../middleware/validate.js'
 
 export const authRoute = new Hono<AppEnv>()
@@ -37,7 +36,7 @@ export const authRoute = new Hono<AppEnv>()
   })
 
   .post('/logout', async (c) => {
-    // Deliberately not behind requireAuth: logging out with an already dead
+    // In PUBLIC_API_ROUTES on purpose: logging out with an already dead
     // session must still clear the cookie instead of answering 401.
     const token = readSessionCookie(c)
     if (token) await logout(db(), token)
@@ -48,4 +47,6 @@ export const authRoute = new Hono<AppEnv>()
     return c.body(null, 204)
   })
 
-  .get('/me', requireAuth, (c) => c.json(c.get('user') satisfies CurrentUser))
+  /** Guarded by `apiGuard` like everything else — being under `/api/auth` is
+   *  not what decides it; not being in `PUBLIC_API_ROUTES` is. */
+  .get('/me', (c) => c.json(c.get('user') satisfies CurrentUser))

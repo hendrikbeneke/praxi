@@ -23,8 +23,7 @@ import {
 } from '../domain/activity.js'
 import { InvalidCursorError } from '../domain/keyset.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const activityParam = z.object({ activityId: z.uuid() })
@@ -62,8 +61,6 @@ function translate(error: unknown): never {
 }
 
 export const activitiesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', activityListQuerySchema), async (c) => {
     return c.json(await listActivities(db(), tenantId(c), c.req.valid('query')).catch(translate))
   })

@@ -22,8 +22,8 @@ import {
 import { lockNote, NoteAlreadyLockedError, verifyChain } from '../domain/note-lock.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
-import { requireAuth, userId } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { userId } from '../middleware/auth.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 import { fileStore } from '../storage.js'
 
@@ -71,8 +71,6 @@ function translate(error: unknown): never {
 }
 
 export const notesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', noteListQuerySchema), async (c) => {
     return c.json(await listNotes(db(), tenantId(c), c.req.valid('query')))
   })

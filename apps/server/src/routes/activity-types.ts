@@ -15,8 +15,7 @@ import {
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { UnknownServiceError } from '../domain/service.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const typeParam = z.object({ typeId: z.uuid() })
@@ -51,8 +50,6 @@ function translate(error: unknown): never {
 }
 
 export const activityTypesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', listQuery), async (c) => {
     return c.json(await listActivityTypes(db(), tenantId(c), c.req.valid('query').includeInactive))
   })

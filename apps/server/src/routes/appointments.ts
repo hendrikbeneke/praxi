@@ -21,8 +21,7 @@ import { type BusyLookup, findFreeSlots } from '../domain/free-slots.js'
 import { busyIntervals } from '../domain/google-connection.js'
 import { openGoogleApi } from '../google/api.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const appointmentParam = z.object({ appointmentId: z.uuid() })
@@ -42,8 +41,6 @@ const appointmentParam = z.object({ appointmentId: z.uuid() })
  * but the two instants and is the same call.
  */
 export const appointmentsRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', appointmentRangeQuerySchema), async (c) => {
     return c.json(await listCalendarEntries(db(), tenantId(c), c.req.valid('query')))
   })

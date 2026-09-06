@@ -21,8 +21,14 @@ describe('GET /api/health', () => {
     expect(healthResponseSchema.safeParse(await res.json()).success).toBe(true)
   })
 
-  it('answers unknown API paths with a German 404 body', async () => {
-    const res = await app.request('/api/does-not-exist')
+  /**
+   * The German 404 body, checked on a path that is not under `/api` — since
+   * the guard sits on that group, an unknown path there answers 401 before the
+   * router ever finds out that nothing matches (`routes/api-guard.test.ts`
+   * asserts that). The handler being tested is the same one either way.
+   */
+  it('answers an unknown path with a German 404 body', async () => {
+    const res = await app.request('/does-not-exist')
 
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: { message: string; errorId: string } }

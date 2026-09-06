@@ -14,8 +14,7 @@ import {
   updateTextTemplate,
 } from '../domain/text-template.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const templateParam = z.object({ templateId: z.uuid() })
@@ -44,8 +43,6 @@ function translate(error: unknown): never {
 }
 
 export const textTemplatesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', listQuery), async (c) => {
     return c.json(await listTextTemplates(db(), tenantId(c), c.req.valid('query').includeInactive))
   })

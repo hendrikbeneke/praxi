@@ -15,8 +15,7 @@ import {
 } from '../domain/note-type.js'
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 /** The rules live in `domain/note-type.ts` and in the constraints; this only
@@ -42,8 +41,6 @@ function translate(error: unknown): never {
 }
 
 export const noteTypesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', async (c) => c.json(await listNoteTypes(db(), tenantId(c))))
 
   .post('/', validate('json', noteTypeInputSchema), async (c) => {

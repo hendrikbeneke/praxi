@@ -28,8 +28,7 @@ import { beginAuthorization, exchangeCode, oauthConfigured, takeFlow } from '../
 import { syncNow } from '../google/worker.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 import { EncryptionKeyMismatchError } from '../secrets.js'
 
@@ -86,9 +85,14 @@ async function primaryCalendarAddress(accessToken: string): Promise<string | nul
 }
 
 /**
- * The OAuth callback, mounted before the auth middleware on purpose: it
- * authenticates through the single-use `state` it issued, because the session
- * cookie does not travel to `127.0.0.1`.
+ * The OAuth callback. It authenticates through the single-use `state` it
+ * issued, because the redirect comes back on `127.0.0.1` — a different origin
+ * than `localhost`, so the session cookie does not travel with it.
+ *
+ * It used to be guarded by its POSITION, mounted above the `requireAuth` line
+ * of this router. Now it is an entry in `PUBLIC_API_ROUTES` with that reason
+ * written next to it, which is the same exemption in a place that cannot be
+ * lost by reordering a chain.
  */
 const callbackRoute = new Hono<AppEnv>().get(
   '/oauth/callback',
@@ -131,8 +135,6 @@ const callbackRoute = new Hono<AppEnv>().get(
 
 export const googleRoute = new Hono<AppEnv>()
   .route('/', callbackRoute)
-
-  .use('*', requireAuth, withTenant)
 
   .get('/status', async (c) => c.json(await getStatus(db(), tenantId(c))))
 

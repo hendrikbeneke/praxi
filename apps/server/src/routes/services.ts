@@ -15,8 +15,7 @@ import {
   updateService,
 } from '../domain/service.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const serviceParam = z.object({ serviceId: z.uuid() })
@@ -43,8 +42,6 @@ function translate(error: unknown): never {
  * one outcome would be worse than the inconsistency.
  */
 export const servicesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', catalogueListQuerySchema), async (c) => {
     return c.json(await listServices(db(), tenantId(c), c.req.valid('query')))
   })

@@ -22,8 +22,7 @@ import {
 } from '../domain/smtp-settings.js'
 import { createSmtpTransport } from '../mail/transport.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 import { EncryptionKeyMismatchError, MissingEncryptionKeyError } from '../secrets.js'
 
@@ -47,8 +46,6 @@ function translate(error: unknown): never {
 }
 
 export const smtpRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   /** Never carries a password, in any shape — only whether one is stored. */
   .get('/', async (c) => c.json(await getSmtpSettings(db(), tenantId(c))))
 
@@ -84,8 +81,6 @@ export const smtpRoute = new Hono<AppEnv>()
   })
 
 export const emailTemplatesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', async (c) => c.json(await listEmailTemplates(db(), tenantId(c))))
 
   .post('/', validate('json', emailTemplateInputSchema), async (c) => {

@@ -2956,21 +2956,44 @@ Keine Migration, kein Schema.
   unsere eigene Regel und nicht die von Tailwind.
 
 
+## S-A — Routen sind standardmäßig geschützt
+
+Die erste von zwei Scheiben am Authentifizierungsrand. Sie hakt die ersten beiden Zeilen
+aus "Before going live" ab und ändert kein Verhalten für einen angemeldeten Benutzer.
+
+- **`middleware/api-guard.ts`** ist neu und ist ab jetzt der einzige Ort, an dem die
+  Anwendung entscheidet, ob eine Anfrage eine Sitzung braucht. `app.use('/api/*', apiGuard)`
+  steht in `app.ts` hinter `sameOrigin` und **vor** der `route()`-Kette — Hono führt
+  Middleware in Registrierungsreihenfolge aus, ein `use()` hinter den Routen käme nach deren
+  Handlern und bewachte nichts.
+- **25 Zeilen `.use('*', requireAuth, withTenant)`** sind aus 20 Routendateien verschwunden,
+  samt der überflüssig gewordenen Importe. `requireAuth` und `withTenant` selbst sind
+  unverändert, ebenso `tenantId(c)` und `userId(c)`.
+- **Zwei Sonderfälle sind damit verschwunden statt dokumentiert zu werden.**
+  `GET /api/auth/me` trug `requireAuth` inline und kein `withTenant`;
+  `/api/user-preferences` ebenso. Beide bekommen jetzt beides, was nichts kostet — eine
+  Sitzung hat immer einen Mandanten — und einen Grund weniger zum Nachdenken.
+- **Der Google-OAuth-Callback war durch seine Position geschützt**: er stand über der
+  `requireAuth`-Zeile seines Routers. Jetzt ist er ein Eintrag in `PUBLIC_API_ROUTES` mit
+  seiner Begründung daneben. Dieselbe Ausnahme, an einer Stelle, die kein Umsortieren einer
+  Kette verlieren kann.
+- **Es war keine Route vergessen worden.** Die vier offenen Endpunkte waren genau die vier
+  beabsichtigten. Das Risiko war strukturell, nicht aktuell — und der Test ist das, was es
+  strukturell bleibt.
+- **`routes/api-guard.test.ts`**, acht Zusicherungen über `app.routes`. Gegenprobe gemacht:
+  ohne die `apiGuard`-Zeile meldet der Test 157 offene Endpunkte, `GET /api/auth/me`
+  als ersten — ein Test, der nur grün ist, beweist nichts.
+- **Unbekannte Pfade unter `/api` antworten jetzt 401 statt 404.** Die Zusicherung über den
+  deutschen 404-Körper in `routes/health.test.ts` prüft ihn deshalb an einem Pfad außerhalb
+  von `/api`; derselbe Handler, dieselbe Antwort.
+- Im Browser gegen beide Dev-Server geprüft: Anmeldung, Kontakte, Vorgänge, Kalender,
+  Zahlungen, Leistungen, Einstellungen, Übersicht — kein 401 im Netzwerkprotokoll der SPA.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
 each line names the reason, not the solution.
 
-- **Move `requireAuth` from the individual route groups onto the `/api` group,
-  with the four exceptions stated explicitly** — health, login, logout and the
-  Google OAuth callback. Today a newly added route is *open by default*: the
-  middleware is the first line of each router chain, and forgetting it produces
-  no error, no warning and no failing test.
-- **A route test over `app.routes` with an exact exception list**, asserting
-  401 without a session — and asserting in the other direction too, that no
-  exception names a path that no longer exists. The list must be exact and not
-  by prefix: `/api/auth/*` would wave `GET /api/auth/me` through, which is the
-  shortcut that makes such a test worthless.
 - **A second test with two tenants and real data**, asserting that every route
   actually filters by `tenant_id`. `tenantId(c)` being the only sanctioned
   source says where the value comes from; it does not say that a handler used

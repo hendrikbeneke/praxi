@@ -27,8 +27,7 @@ import {
 } from '../domain/contact-type.js'
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { messages } from '../messages.js'
-import { requireAuth } from '../middleware/auth.js'
-import { tenantId, withTenant } from '../middleware/tenant.js'
+import { tenantId } from '../middleware/tenant.js'
 import { validate } from '../middleware/validate.js'
 
 const typeParam = z.object({ typeId: z.uuid() })
@@ -83,8 +82,6 @@ function translate(error: unknown): never {
 }
 
 export const contactRoleTypesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', async (c) => {
     return c.json(await listRoleTypes(db(), tenantId(c)))
   })
@@ -138,8 +135,6 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
   )
 
 export const contactRelationTypesRoute = new Hono<AppEnv>()
-  .use('*', requireAuth, withTenant)
-
   .get('/', validate('query', relationListQuery), async (c) => {
     return c.json(await listRelationTypes(db(), tenantId(c), c.req.valid('query').includeInactive))
   })
