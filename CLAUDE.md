@@ -76,12 +76,15 @@ The practice does not only treat patients. It also sells courses, exam preparati
 - UI: Tailwind + shadcn/ui, TanStack Table for lists
 - Forms: react-hook-form with `@hookform/resolvers/zod`
 - PDF: **@react-pdf/renderer** for content, **pdf-lib** to overlay it onto the uploaded template (no Puppeteer, no Chromium)
-- Passwords: `@node-rs/argon2`
+- Auth: **Better Auth** — sessions, cookies, CSRF on its own endpoints, the login rate limit, and later password reset, 2FA and organizations
+- Passwords: `@node-rs/argon2`, handed to Better Auth rather than replaced by its scrypt
 - Logging: pino
 - Tests: Vitest
 - Lint and format: **Biome** — one tool, one config, no ESLint and no Prettier
 
-**Never introduce:** Next.js, Redis, BullMQ, Prisma, Auth.js/NextAuth, tRPC, Docker for the application itself, any cloud service or SaaS dependency.
+**Never introduce:** Next.js, Redis, BullMQ, Prisma, tRPC, Docker for the application itself, any cloud service or SaaS dependency.
+
+**Auth.js/NextAuth stood on that list and Better Auth replaced the hand-rolled sessions instead** (S-B). The reason to adopt a library at all was the future — several users and tenants, password reset, 2FA, a sign-in through Google or Microsoft — and the reason it is not Auth.js is that Auth.js would have delivered none of it: its Credentials provider forces `strategy: 'jwt'`, so the database session goes and with it revocation and `active` taking effect at once, and reset, 2FA and the rate limit stay hand-written anyway. What would have been left is `authorize()`, which is our own argon2 and our own user lookup — the exact code the change was meant to remove. Better Auth keeps the session in the database, takes our argon2 as a parameter, and brings the four things on the list.
 
 Client-server typing via Hono's `hc<AppType>` client. No separate codegen step.
 
@@ -149,6 +152,7 @@ What replaces it is one list, `PUBLIC_API_ROUTES`, and it has three properties t
 
 - **Exact matches on method and path, never prefixes.** `/api/auth/*` would wave `GET /api/auth/me` through — the shortcut that turns the test below into a formality. A test asserts that no entry contains `*` or `:`.
 - **A reason per entry, in a field rather than a comment**, because the test reads it. There are four: the health check (the Dockerfile fetches it), signing in, signing out (a dead session must still be able to clear its cookie), and the Google OAuth callback (it comes back on `127.0.0.1`, where the cookie does not travel, and authenticates through its single-use `state`).
+- **One prefix, and it is fenced.** `/api/auth/*` is Better Auth's own router: its sub-paths live inside the library and never reach Hono's table, so the entry cannot be anything but a prefix. What keeps that from being a hole is an assertion that **no route of ours may be mounted under `/api/auth/`** — the exception therefore covers the library and nothing else, checked rather than remembered. `GET /api/auth/me` was ours until S-B and is exactly what such a prefix would otherwise have waved through.
 - **No orphans.** `routes/api-guard.test.ts` walks Hono's own `app.routes` — which `route()` flattens the mounted routers into, so it cannot fall behind the code — calls every endpoint without a cookie and expects 401, and asserts in the other direction that every exception still names a route that exists. An orphan is the worse of the two failures: nobody notices it while cleaning up, and the day a route of that name and method is created again, it is silently open.
 
 One consequence, deliberate: **an unknown path under `/api` answers 401, not 404.** The guard matches before the router finds out that nothing matched. Someone without a session learns nothing about the route table, not even which paths exist. The German 404 body is still asserted, on a path outside `/api`.
@@ -159,9 +163,13 @@ These rules are the actual value of this software. They live in `domain/` and ar
 
 ### 1. Tenant scoping
 
-Every domain table has `tenant_id uuid not null` referencing `tenant`. There is exactly one tenant for now, but every query filters on it. Row-level-security policies are created and left disabled (`ALTER TABLE ... DISABLE ROW LEVEL SECURITY`) with a comment in the migration.
+Every domain table has `tenant_id uuid not null` referencing `tenant`.
+
+**Three tables have none, and it is named rather than overlooked**: `account`, `verification` and `rate_limit`, all three Better Auth's. They hold facts about a *person* or about a connection, not about a practice — a user who is a member of two organizations still has one password — which is the same reasoning that makes the unique index on `app_user.email` global rather than per tenant. With no tenant column there is nothing for an RLS policy to key on, so those three get none either. There is exactly one tenant for now, but every query filters on it. Row-level-security policies are created and left disabled (`ALTER TABLE ... DISABLE ROW LEVEL SECURITY`) with a comment in the migration.
 
 The tenant id comes from the session via `middleware/tenant.ts` and is never accepted from a request body or query string.
+
+**It still comes from a row in the database, and that survived the move to Better Auth on purpose.** `session.tenant_id` is written by `databaseHooks.session.create.before` from the user's own row, is `not null`, and carries a composite foreign key against `app_user (id, tenant_id)` — so a session can only ever hold the tenant of its own user, and the database says so rather than a function. Every request reads it back from that row. A JWT strategy would have put it in a token held by the client, which is what "never from the request" was written to exclude; a session row is why this rule can still be read literally.
 
 ### 2. Money
 
@@ -460,6 +468,8 @@ Everything else follows from "projection":
 
 **A draft cannot be sent**, guarded the same way a draft cannot be paid: `domain/invoice-send.ts` refuses first for the message, and the foreign key against a finalized document makes the state unreachable.
 
+**There are two secrets in the environment and they do different things.** `BETTER_AUTH_SECRET` signs the session cookie; `ENCRYPTION_KEY` is what stored credentials are encrypted *with*. Both obey the same rule and the rule is the point: **each holds a key things are protected with, never a credential being protected.** Nothing a human would otherwise remember belongs in the environment — those are entered in the application and stored encrypted. Losing `ENCRYPTION_KEY` costs one reconnect and one re-entered password; losing `BETTER_AUTH_SECRET` costs one sign-in. Neither loses data.
+
 Secrets are one mechanism, not two: `src/secrets.ts` (AES-256-GCM) encrypts the SMTP password and the Google refresh token alike. It lived in `google/crypto.ts` until this slice and moved because it is not Google's. The environment variable is **`ENCRYPTION_KEY`**, and the name carries a rule: it holds the key things are encrypted *with*, never a credential being protected. It was `SECRET_KEY` briefly and `GOOGLE_TOKEN_KEY` before that — "secret key" leaves open what is in it and invites a real password to be pasted there one day. Nothing that a human would otherwise remember belongs in the environment; those are entered in the application and stored encrypted.
 
 ## Target data model
@@ -568,12 +578,37 @@ opening_hour          tenant_id uuid not null -> tenant(id),
                       -- table beside this one; this pattern does not change
                       -- for it.
 
--- as built (slice 1)
+-- as built (slice 1), Better Auth's `user` model since S-B/0043
 app_user              tenant_id uuid not null -> tenant(id),
                       email text not null,
-                      password_hash text not null,           (argon2id)
                       name text not null,
+                      email_verified boolean not null default false,
+                      image text                             -- both required
+                        -- by Better Auth's user model; nothing reads either
+                        -- yet. Email verification arrives with password reset.
                       active boolean not null default true,
+                        -- Better Auth has NO notion of this, so nothing in the
+                        -- library reads it — `requireAuth` does, on every
+                        -- request, which is what makes deactivating take
+                        -- effect at once instead of whenever the session
+                        -- happens to expire. Left `not null` although the
+                        -- library would allow null: it always writes a value,
+                        -- and "not recorded" is not a state this column has.
+                      -- DELIBERATELY ABSENT since 0043: password_hash. The
+                      -- credential lives in `account` with
+                      -- provider_id = 'credential', which is where Better Auth
+                      -- keeps every authentication method. The argon2 string
+                      -- moved there verbatim — the library is handed this
+                      -- application's own hash/verify functions, so nothing
+                      -- was re-hashed and no password had to be reset.
+                      --
+                      -- The table is NOT renamed to `user`, and not only
+                      -- because that word is reserved in Postgres:
+                      -- `modelName: 'app_user'` points the library here, which
+                      -- leaves the four composite foreign keys onto
+                      -- (id, tenant_id) untouched — note.created_by,
+                      -- note.locked_by, note_draft.user_id,
+                      -- invoice_send.sent_by.
                       preferences jsonb not null default '{}' (slice 12)
                         -- What this user prefers, never what the practice
                         -- does — theme, start page, sidebar state, a list's
@@ -592,20 +627,43 @@ app_user              tenant_id uuid not null -> tenant(id),
                       unique (id, tenant_id)                 -- for the FK below
                       index on (tenant_id)
 
--- as built (slice 1)
+-- as built (slice 1), Better Auth's `session` model since S-B/0043
 session               tenant_id uuid not null -> tenant(id),
                       user_id uuid not null,
-                      token_hash text not null,              (sha256 of the
-                        -- cookie token; the token itself is never stored)
-                      expires_at timestamptz not null,       (sliding, 14 days)
-                      last_seen_at timestamptz not null default now()
+                      token text not null,                   -- the cookie
+                        -- value, stored AS IT IS. Only its sha256 was stored
+                        -- until 0043, so a dump of this table did not hand out
+                        -- live sessions; Better Auth compares the value. A
+                        -- step down, taken deliberately: what protects it is
+                        -- that the cookie is signed with BETTER_AUTH_SECRET,
+                        -- so the token alone does not make a valid cookie —
+                        -- and reversing it would mean a custom session layer
+                        -- at exactly the security-critical spot the library
+                        -- was adopted to own. COMMENT ON COLUMN says so in the
+                        -- database too.
+                      expires_at timestamptz not null,       (sliding, 14 days,
+                        -- refreshed after an hour of use — the same two
+                        -- numbers the hand-rolled version used)
+                      ip_address text, user_agent text       -- written by the
+                        -- library, read by nothing yet. The beginning of the
+                        -- access log the go-live list wants.
                       foreign key (user_id, tenant_id)
                         -> app_user (id, tenant_id) on delete cascade
                         -- composite on purpose: tenant_id is denormalized onto
                         -- the session so auth resolves in one select, and this
-                        -- key makes a mismatching tenant impossible
-                      unique index on (token_hash)
+                        -- key makes a mismatching tenant impossible. It is
+                        -- also what keeps rule 1 literally true after the
+                        -- move: the tenant is a column of this row, written
+                        -- from the user's row by the session-create hook and
+                        -- read back on every request — never a claim in a
+                        -- token held by the client.
+                      unique index on (token)
                       index on (user_id), index on (expires_at)
+                      -- DELIBERATELY ABSENT since 0043: last_seen_at. Better
+                      -- Auth slides the expiry off `updated_at`, which
+                      -- set_updated_at already maintains, so a second column
+                      -- saying when the session was last used would be a
+                      -- second truth about it.
 
 -- as built (slice 2), person fields and the address split in slice 10.5,
 -- three fields turned into catalogues in D-R3/0037
@@ -1419,6 +1477,92 @@ note_file             tenant_id uuid not null -> tenant(id),
                       check note_file_path_relative (no leading /, no ..)
                       -- trigger protect_locked_note_file fires on INSERT too;
                       -- set_updated_at; RLS created and disabled.
+
+-- as built (S-B/0043)
+account               user_id uuid not null -> app_user(id) on delete cascade,
+                      issuer text not null,                  -- 'local:credential'
+                        -- for a password; an OAuth provider's issuer URL
+                        -- otherwise. Part of the unique key BELOW, which the
+                        -- library declares itself — it is on `issuer`, not on
+                        -- `provider_id`, and neither that nor this column
+                        -- appears in the documentation. Both were found by
+                        -- asking the installed library
+                        -- (`getAuthTables()` from better-auth/db); the CLI is
+                        -- two minor versions behind and marked unsupported.
+                      account_id text not null,              -- the user's id
+                        -- at the provider — for a password, our own user id
+                      provider_id text not null,             -- 'credential'
+                      password text,                         -- THE ARGON2 HASH,
+                        -- moved here verbatim from app_user.password_hash.
+                        -- Better Auth is handed this application's own
+                        -- hashPassword/verifyPassword, so it never hashes
+                        -- anything itself and old hashes keep verifying.
+                      access_token, refresh_token, id_token  (text, nullable)
+                      access_token_expires_at,
+                      refresh_token_expires_at               (timestamptz)
+                      scope text
+                        -- The six OAuth columns are empty and are what the
+                        -- model IS. They are why a Google or Microsoft sign-in
+                        -- later needs no migration — see "not built, not
+                        -- blocked" in WORKPLAN.md under S-B.
+                      unique index account_issuer_account_key on
+                        (issuer, account_id),
+                      index on (user_id)
+                      -- set_updated_at. NO tenant_id and therefore no RLS
+                      -- policy: this is a fact about a PERSON, not about a
+                      -- practice — a user who is a member of two organizations
+                      -- still has one password. Named exception to rule 1, the
+                      -- same one the global unique index on app_user.email is.
+                      --
+                      -- The field names are the library's — provider_id,
+                      -- account_id, issuer — however oddly they read for a
+                      -- password. Renaming a field of a foreign library is a
+                      -- special case that surfaces at the next update.
+
+-- as built (S-B/0043)
+verification          identifier text not null,
+                      value text not null,
+                      expires_at timestamptz not null
+                      index on (identifier)
+                      -- set_updated_at; no tenant_id, no RLS — see `account`.
+                      --
+                      -- Created while NOTHING WRITES TO IT, on purpose. It is
+                      -- the table password reset and email verification will
+                      -- need; creating it costs an empty table, retrofitting
+                      -- it would cost a migration at the moment the feature is
+                      -- wanted. Not building and not blocking are different
+                      -- things.
+
+-- as built (S-B/0043)
+rate_limit            key text not null,
+                      count integer not null,
+                      last_request bigint not null           -- EPOCH
+                        -- MILLISECONDS, written and compared as a number by
+                        -- the library. The one column in this schema that
+                        -- holds a time and is not timestamptz, and it is not
+                        -- an exception to rule 3 so much as not a timestamp at
+                        -- all. COMMENT ON COLUMN says so in the database.
+                      unique index rate_limit_key on (key)
+                      -- No updated_at and therefore no trigger; no tenant_id,
+                      -- no RLS — see `account`.
+                      --
+                      -- The login rate limit, in the database rather than in
+                      -- the process: in memory a restart is the cheapest reset
+                      -- an attacker can get, and there is a second process the
+                      -- day this is deployed twice.
+                      --
+                      -- It limits BY IP AND NEVER LOCKS AN ACCOUNT, which is
+                      -- the right shape here rather than a limitation: with
+                      -- one practitioner, an account lockout is a denial of
+                      -- service against exactly that person the moment
+                      -- somebody knows the address. Five attempts a minute on
+                      -- /sign-in/email; the check runs BEFORE argon2, so a
+                      -- refused attempt costs no 19 MiB.
+                      --
+                      -- Rows are swept after a day (deleteStaleRateLimits,
+                      -- called from the session-create hook). They are
+                      -- meaningless minutes after they are written; tracing an
+                      -- attack pattern needs a log, not a counter table.
 
 -- as built (slice 2), extended in slice 6
 number_range          tenant_id uuid not null -> tenant(id),

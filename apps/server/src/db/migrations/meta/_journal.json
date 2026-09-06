@@ -302,6 +302,13 @@
       "when": 1787000700000,
       "tag": "0042_google_event_title_template",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1787087100000,
+      "tag": "0043_better_auth",
+      "breakpoints": true
     }
   ]
 }

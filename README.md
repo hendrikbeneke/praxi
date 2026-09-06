@@ -21,16 +21,31 @@ holds the production deployment steps.
 ```bash
 corepack enable          # provides the pinned pnpm
 pnpm install
-cp .env.example .env     # then set SEED_USER_PASSWORD
+cp .env.example .env     # then set SEED_USER_PASSWORD and BETTER_AUTH_SECRET
 pnpm db:up               # starts Postgres 17 on host port 55432
 pnpm db:migrate          # creates the tables
 pnpm db:seed             # tenant, practice settings, user, example catalogue
 pnpm dev                 # http://localhost:5173
 ```
 
+`BETTER_AUTH_SECRET` signs the session cookie and is the one variable the
+server refuses to start without — without it nobody could sign in, which is
+better said at startup than at the login form:
+
+```bash
+openssl rand -hex 32      # BETTER_AUTH_SECRET
+```
+
+Like `ENCRYPTION_KEY` below, it holds a key things are protected *with*, never
+a credential being protected. Changing it invalidates every open session and
+costs one sign-in; it loses no data.
+
 Sign in with `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` from your `.env`. The
 seed is idempotent and never overwrites the password of a user that already
-exists — to change it, delete the user and seed again.
+exists — to change it, delete the user and seed again. Authentication runs on
+[Better Auth](https://www.better-auth.com); the password is hashed with argon2
+by this application's own functions, which the library is handed rather than
+using its own scrypt.
 
 `pnpm dev` starts three processes: the shared package in watch mode, the Hono
 server on port 3000, and Vite on port 5173. Work happens on **5173** — Vite

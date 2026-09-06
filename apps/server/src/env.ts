@@ -52,6 +52,18 @@ const envSchema = z.object({
    * `GOOGLE_REDIRECT_URI` is the only thing that changes on a server
    * deployment. Everything else in this software is relative.
    */
+  /**
+   * What Better Auth signs the session cookie with. Required — not optional
+   * like the Google block, because without it nobody can sign in and the
+   * server may as well refuse to start rather than fail at the login form.
+   *
+   * It is the second half of the rule stated for `ENCRYPTION_KEY` above: a key
+   * things are protected *with*, never a credential being protected. Generated
+   * once with `openssl rand -hex 32` and never typed by a human. Losing it
+   * invalidates every open session and costs one sign-in.
+   */
+  BETTER_AUTH_SECRET: z.string().min(32, 'must be at least 32 characters'),
+
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
   ENCRYPTION_KEY: z

@@ -12,7 +12,7 @@ import { withTenant } from './tenant.js'
  * the whole point of this file.
  */
 export type PublicApiRoute = {
-  readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'ALL'
   readonly path: string
   readonly why: string
 }
@@ -20,10 +20,17 @@ export type PublicApiRoute = {
 /**
  * The exceptions to "everything under `/api` needs a session".
  *
- * **Exact matches, never prefixes.** `/api/auth/*` would wave `GET
- * /api/auth/me` through, and that is exactly the shortcut that turns the test
- * over this list into a formality. Every path here is static; there is no
- * pattern matching and no `startsWith` anywhere below.
+ * **Exact matches, never prefixes — with exactly one exception, and it is
+ * fenced.** A prefix would wave through whatever is mounted under it, which is
+ * the shortcut that turns the test over this list into a formality. Every
+ * entry below is a static path except `/api/auth/*`, which cannot be anything
+ * else: Better Auth is one Hono route with its own router behind it, so its
+ * sub-paths never appear in Hono's table and cannot be enumerated here.
+ *
+ * What fences it is an assertion in `routes/api-guard.test.ts`: **no route of
+ * ours may be mounted under `/api/auth/`.** The prefix therefore covers the
+ * library and nothing else, which is a property that is checked rather than
+ * remembered.
  */
 export const PUBLIC_API_ROUTES: readonly PublicApiRoute[] = [
   {
@@ -32,14 +39,9 @@ export const PUBLIC_API_ROUTES: readonly PublicApiRoute[] = [
     why: 'The HEALTHCHECK in the Dockerfile fetches it, and Coolify decides from it whether the container came up. It answers a status and a timestamp and reads nothing.',
   },
   {
-    method: 'POST',
-    path: '/api/auth/login',
-    why: 'Signing in is what produces the session; it cannot require one.',
-  },
-  {
-    method: 'POST',
-    path: '/api/auth/logout',
-    why: 'Signing out with an already dead session must clear the cookie rather than answer 401 — otherwise a browser holding an expired token can never get rid of it.',
+    method: 'ALL',
+    path: '/api/auth/*',
+    why: "Better Auth's own surface: signing in cannot require a session, signing out with a dead one must still clear the cookie, and the library guards the rest itself. The one prefix in this list, and the only one there will be — a test asserts that nothing of ours is mounted under it.",
   },
   {
     method: 'GET',
@@ -48,7 +50,16 @@ export const PUBLIC_API_ROUTES: readonly PublicApiRoute[] = [
   },
 ]
 
-const publicKeys = new Set(PUBLIC_API_ROUTES.map((route) => `${route.method} ${route.path}`))
+const publicKeys = new Set(
+  PUBLIC_API_ROUTES.filter((route) => route.method !== 'ALL').map(
+    (route) => `${route.method} ${route.path}`,
+  ),
+)
+
+/** The prefixes of the `ALL` entries — see the note on `PUBLIC_API_ROUTES`. */
+const publicPrefixes = PUBLIC_API_ROUTES.filter((route) => route.path.endsWith('/*')).map((route) =>
+  route.path.slice(0, -1),
+)
 
 /**
  * The auth boundary of the whole application, in one place.
@@ -72,6 +83,7 @@ const publicKeys = new Set(PUBLIC_API_ROUTES.map((route) => `${route.method} ${r
  */
 export const apiGuard = createMiddleware<AppEnv>(async (c, next) => {
   if (publicKeys.has(`${c.req.method} ${c.req.path}`)) return next()
+  if (publicPrefixes.some((prefix) => c.req.path.startsWith(prefix))) return next()
 
   // Two middlewares rather than one call: `requireAuth` puts the session on the
   // context and `withTenant` is the checkpoint that says the tenant came from

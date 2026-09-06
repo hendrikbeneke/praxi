@@ -2,6 +2,7 @@ import type { Invoice } from '@praxi/shared'
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import {
+  account,
   activityType as activityTypeTable,
   appUser,
   contactRoleType,
@@ -195,13 +196,23 @@ export async function createUser(
   const email = options.email ?? `test.user.${id.slice(0, 8)}@praxi.invalid`
   const password = options.password ?? 'correct horse battery staple'
 
+  // The user and its credential, as the seed writes them: since S-B the
+  // password lives in `account` with `provider_id = 'credential'`, and a user
+  // without that row exists but cannot sign in.
   await database.insert(appUser).values({
     id,
     tenantId: options.tenantId,
     email,
-    passwordHash: await hashPassword(password),
     name: options.name ?? 'Test Behandler',
     active: options.active ?? true,
+  })
+  await database.insert(account).values({
+    id: newId(),
+    userId: id,
+    issuer: 'local:credential',
+    accountId: id,
+    providerId: 'credential',
+    password: await hashPassword(password),
   })
 
   return { id, tenantId: options.tenantId, email, password }

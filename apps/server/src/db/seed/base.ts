@@ -11,7 +11,7 @@ import { hashPassword } from '../../domain/auth.js'
 import { getEnv } from '../../env.js'
 import { newId } from '../../id.js'
 import type { Database } from '../client.js'
-import { appUser, practiceSettings, tenant } from '../schema.js'
+import { account, appUser, practiceSettings, tenant } from '../schema.js'
 
 /** Obviously fake master data — never a realistic person or practice. */
 const SEED_PRACTICE = {
@@ -75,12 +75,33 @@ export async function seedBase(database: Database): Promise<string> {
   if (existingUser) {
     console.info(`user ${seedUser.email} already exists — password left unchanged`)
   } else {
-    await database.insert(appUser).values({
-      id: newId(),
-      tenantId,
-      email: seedUser.email,
-      passwordHash: await hashPassword(seedUser.password),
-      name: seedUser.name,
+    /**
+     * The user and its credential, in one transaction. Since S-B the password
+     * does not live on `app_user` but in `account` with `provider_id =
+     * 'credential'`, which is where Better Auth keeps every authentication
+     * method — so a user without that row exists and cannot sign in, and the
+     * two have to be written together or not at all.
+     *
+     * `issuer` and `account_id` are what the library itself writes for a
+     * password account (`createLocalAccountIssuer('credential')`, and the
+     * user's own id); the unique index is on those two.
+     */
+    const userId = newId()
+    await database.transaction(async (tx) => {
+      await tx.insert(appUser).values({
+        id: userId,
+        tenantId,
+        email: seedUser.email,
+        name: seedUser.name,
+      })
+      await tx.insert(account).values({
+        id: newId(),
+        userId,
+        issuer: 'local:credential',
+        accountId: userId,
+        providerId: 'credential',
+        password: await hashPassword(seedUser.password),
+      })
     })
     console.info(`created user ${seedUser.email}`)
   }

@@ -76,9 +76,16 @@ describe('the /api guard', () => {
 
   it('lets every public route through without a session', async () => {
     for (const route of PUBLIC_API_ROUTES) {
-      const res = await app.request(route.path, { method: route.method })
+      // The wildcard stands for a router; probe the one path under it that
+      // signing in actually needs.
+      const path = route.path.endsWith('/*')
+        ? `${route.path.slice(0, -1)}sign-in/email`
+        : route.path
+      const method = route.method === 'ALL' ? 'POST' : route.method
 
-      expect(`${route.method} ${route.path} → ${res.status}`).not.toContain('→ 401')
+      const res = await app.request(path, { method })
+
+      expect(`${method} ${path} → ${res.status}`).not.toContain('→ 401')
     }
   })
 
@@ -86,7 +93,10 @@ describe('the /api guard', () => {
     // An orphan is worse than a missing entry: nobody notices it while
     // cleaning up, and the day a route of that name and method is created
     // again it is silently open.
-    const endpoints = apiEndpoints()
+    //
+    // The wildcard is checked by the two assertions below instead — it names a
+    // router, not a handler, so it never appears in Hono's table.
+    const endpoints = app.routes.map((route) => ({ method: route.method, path: route.path }))
     const orphans = PUBLIC_API_ROUTES.filter(
       (route) =>
         !endpoints.some(
@@ -95,6 +105,27 @@ describe('the /api guard', () => {
     ).map((route) => `${route.method} ${route.path}`)
 
     expect(orphans).toEqual([])
+  })
+
+  it('mounts nothing of ours under a wildcard exception', () => {
+    // THIS is what fences the one prefix in the list. `/api/auth/*` is Better
+    // Auth's own router — its sub-paths live inside the library and cannot be
+    // enumerated here, so the entry has to be a prefix. What keeps that from
+    // becoming a hole is that no route of ours may hide behind it: the
+    // exception covers the library and nothing else, checked rather than
+    // remembered.
+    //
+    // `/api/auth/me` was ours until S-B, and it is exactly the kind of route
+    // this would have waved through.
+    const prefixes = PUBLIC_API_ROUTES.filter((route) => route.path.endsWith('/*')).map((route) =>
+      route.path.slice(0, -1),
+    )
+
+    const ours = apiEndpoints().filter((endpoint) =>
+      prefixes.some((prefix) => endpoint.path.startsWith(prefix)),
+    )
+
+    expect(ours).toEqual([])
   })
 
   it('states a reason for every exception', () => {
@@ -109,12 +140,18 @@ describe('the /api guard', () => {
     expect(new Set(keys).size).toBe(keys.length)
   })
 
-  it('has no exception that is a pattern rather than a path', () => {
-    // Exact matches, never prefixes: `/api/auth/*` would wave `GET
-    // /api/auth/me` through, and that is the shortcut that would turn this
-    // whole file into a formality.
+  it('has at most the one wildcard exception, and no path parameters at all', () => {
+    // Exact matches, never prefixes — because a prefix waves through whatever
+    // is mounted under it. The single exception is the library's own router,
+    // and the assertion above is what makes it safe; a second one would have
+    // to earn the same fence, so it has to be a deliberate act to add it.
+    const wildcards = PUBLIC_API_ROUTES.filter((route) => route.path.endsWith('/*'))
+    expect(wildcards.map((route) => route.path)).toEqual(['/api/auth/*'])
+
+    // A path parameter would be a pattern of a different kind and is never
+    // needed: a public route is a specific route.
     for (const route of PUBLIC_API_ROUTES) {
-      expect(route.path, route.why).not.toMatch(/[*:]/)
+      expect(route.path, route.why).not.toMatch(/:/)
     }
   })
 })

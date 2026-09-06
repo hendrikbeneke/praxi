@@ -2989,6 +2989,97 @@ aus "Before going live" ab und ändert kein Verhalten für einen angemeldeten Be
 - Im Browser gegen beide Dev-Server geprüft: Anmeldung, Kontakte, Vorgänge, Kalender,
   Zahlungen, Leistungen, Einstellungen, Übersicht — kein 401 im Netzwerkprotokoll der SPA.
 
+## S-B — Better Auth
+
+Die Eigenbaulösung für Sitzungen ist ersetzt. Der Grund ist die Zukunft und nicht ein Fehler
+im Ersetzten: mehrere Benutzer und Mandanten, Passwort-Zurücksetzen, 2FA, später Anmeldung
+über Google oder Microsoft. Und der Zeitpunkt gehört zum Argument — heute war die Migration
+ein Benutzer und eine Sitzung.
+
+- **Warum nicht Auth.js**, das auf der Verbotsliste in `CLAUDE.md` stand und dort gegen Better
+  Auth getauscht ist: sein Credentials-Provider erzwingt `strategy: 'jwt'`. Damit fällt die
+  Datenbank-Sitzung weg, und mit ihr der Widerruf und `active` mit sofortiger Wirkung;
+  Zurücksetzen, 2FA und Rate-Limit blieben trotzdem selbst gebaut. Übrig bliebe `authorize()`
+  — unser argon2 und unsere Benutzersuche, also genau der Code, den der Wechsel loswerden
+  sollte.
+- **`app_user` und `session` behalten ihren Namen und jede Spalte.** `modelName` zeigt die
+  Bibliothek auf unsere Tabellen statt umgekehrt. Nichts wird umbenannt (`user` ist in
+  Postgres reserviert), und die vier zusammengesetzten Fremdschlüssel auf
+  `app_user (id, tenant_id)` bleiben unberührt: `note.created_by`, `note.locked_by`,
+  `note_draft.user_id`, `invoice_send.sent_by`.
+- **Der argon2-Hash ist wörtlich umgezogen**, von `app_user.password_hash` nach
+  `account.password`. Better Auth bekommt unsere eigenen `hashPassword`/`verifyPassword` als
+  Parameter, hasht also nie selbst — deshalb war es eine Bewegung eines Strings und kein
+  erzwungenes Zurücksetzen. Das Seed-Passwort gilt unverändert.
+- **Der Mandant bleibt eine Spalte der Sitzungszeile.** `session.tenant_id` wird von
+  `databaseHooks.session.create.before` aus der Benutzerzeile geschrieben, ist `not null` und
+  trägt den zusammengesetzten Fremdschlüssel — eine Sitzung kann nur den Mandanten ihres
+  eigenen Benutzers führen, und das sagt die Datenbank. Regel 1 bleibt wörtlich wahr, was bei
+  einem JWT nicht so gewesen wäre.
+- **Die Organisation wird später der Mandant, nicht ein zweiter Begriff.** Kommt das
+  Organisations-Plugin, zeigt `organization: { modelName: 'tenant' }` es auf unsere Tabelle
+  und `session: { fields: { activeOrganizationId: 'tenant_id' } }` auf unsere Spalte. Ein
+  Begriff, zwei Namen, kein Umbenennen von dreißig Tabellen. Was dann wirklich umgebaut wird,
+  ist `app_user.tenant_id` → `member`, und die vier Fremdschlüssel zeigen danach auf
+  `member (user_id, organization_id)` — dieselbe Zusicherung, auf der dann zuständigen Tabelle.
+  **`tenant.name` darf dabei nicht wiederbelebt werden**: das Plugin bringt `name` und `slug`
+  mit, und die Entscheidung ist dann, dass `organization.name` `practice_settings.practice_name`
+  *ersetzt* statt danebenzustehen (D7.5).
+- **Das Theme-Cookie behält seinen Weg**: `hooks.after` auf `/sign-in/email` schreibt
+  `praxi_theme` in **derselben Antwort** wie das Sitzungscookie. Das ist die ganze Mechanik und
+  keine Bequemlichkeit — das Inline-Script in `index.html` liest es vor dem ersten Byte. Am
+  Script hat sich nichts geändert, nur der Ort, an dem der Server das Cookie setzt.
+- **Der Google-OAuth-Callback ist unberührt.** Er authentifiziert über den einmaligen `state`,
+  hat nie ein Cookie gelesen und liegt unter `/api/google/oauth/callback`, also nicht in
+  Kollision mit `/api/auth/*`.
+- **Rate-Limit am Login**, in der Datenbank statt im Prozess: im Speicher wäre ein Neustart
+  das billigste Zurücksetzen, das ein Angreifer bekommt. Fünf Versuche pro Minute auf
+  `/sign-in/email`, gezählt **nach IP und nie nach Konto** — bei einer Behandlerin wäre ein
+  Konto-Lockout ein Denial-of-Service gegen genau diese Person. Auch in der Entwicklung an: ein
+  Limit, das nur in Produktion existiert, hat nie jemand arbeiten sehen. Die geplante Tabelle
+  `login_attempt` entfällt ersatzlos.
+- **`/api/auth/*` ist der eine Präfix in `PUBLIC_API_ROUTES`** und der einzige, den es geben
+  wird. Er muss einer sein — die Unterpfade liegen im Router der Bibliothek und erreichen
+  Honos Tabelle nie. Eingezäunt ist er durch eine Zusicherung: **unter `/api/auth/` darf keine
+  Route von uns liegen.** `GET /api/auth/me` war bis hierher unsere und ist genau das, was ein
+  Präfix sonst durchwinkt.
+- **Was schlechter wird, benannt statt entdeckt:** der Sitzungstoken liegt im Klartext in der
+  Datenbank (vorher nur sein sha256). Was ihn schützt, ist die Signatur des Cookies mit
+  `BETTER_AUTH_SECRET` — ein Dump allein baut kein gültiges Cookie. Das umzudrehen hieße, eine
+  eigene Sitzungsschicht an genau der Sicherheitsstelle zu schreiben, für die die Bibliothek
+  geholt wurde.
+- **Nicht gebaut, nur nicht verbaut:** `verification` ist angelegt und leer (Passwort-
+  Zurücksetzen, E-Mail-Bestätigung), `account` trägt alle sechs OAuth-Spalten (Google-,
+  Microsoft-Anmeldung), und 2FA braucht nichts als das Plugin — es bringt seine Tabelle und
+  seine Spalte selbst mit.
+
+### Was beim Bauen auffiel
+
+- **Die `@better-auth/cli` ist unbrauchbar** — Version 1.4.21 gegen Bibliothek 1.7.2, und als
+  „no longer supported" markiert. Stattdessen `getAuthTables()` aus der **installierten**
+  Bibliothek fragen; die Funktion, die die CLI ohnehin nur einpackt. Nur so kamen
+  `account.issuer` (`not null`, in keiner Doku) und der Unique-Index auf `(issuer, account_id)`
+  statt `(provider_id, account_id)` heraus. Ohne den ersten wäre der `INSERT` der Migration
+  gescheitert, ohne den zweiten hätte es niemand gemerkt bis zur ersten OAuth-Verknüpfung.
+  Der Befehl steht als Kommentar in `0043_better_auth.sql`, samt der Anweisung, ihn nach jedem
+  Update der Bibliothek laufen zu lassen.
+- **`drizzle-kit generate` ist hier nicht mehr benutzbar.** Der Snapshot-Verlauf in
+  `meta/` endet bei 0032, die Migrationen laufen bis 0042 — seit 0033 wird von Hand
+  geschrieben, Journal-Eintrag inklusive. Ein Generierungsversuch legte `country`, `gender`
+  und `note_type` neu an. 0043 ist deshalb von Hand geschrieben wie seine neun Vorgänger.
+- **Der Drizzle-Adapter sucht Tabellen über den SCHLÜSSEL des Schema-Objekts**, nicht über den
+  Tabellennamen. `schema` als Ganzes zu übergeben scheitert an `rate_limit` (der Export heißt
+  `rateLimit`) — und wäre auch zu viel: übergeben werden genau die fünf Tabellen, die die
+  Bibliothek anfassen darf, damit sie `contact` und `note` gar nicht erst erreichen kann.
+- **`auth()` ist ein fauler Zugriff wie `db()` und `logger()`.** Ein `betterAuth({…})` auf
+  Modulebene liest die Umgebung, bevor `index.ts` sie geladen hat. Und der Typ wird aus dem
+  Builder **abgeleitet**: `ReturnType<typeof betterAuth>` weitet ihn auf den generischen
+  Default und lässt `session.tenantId` und `user.active` still verschwinden — die zwei Felder,
+  für die die Middleware existiert.
+- **`routes/auth.test.ts` geht durch `auth().handler` mit echten `Request`s**, nicht durch
+  `auth.api.*`: die Server-API umgeht den Rate-Limiter absichtlich, der wichtigste Test wäre
+  also gegen nichts grün gewesen.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
@@ -2998,9 +3089,6 @@ each line names the reason, not the solution.
   actually filters by `tenant_id`. `tenantId(c)` being the only sanctioned
   source says where the value comes from; it does not say that a handler used
   it, and one that forgets simply does not filter.
-- **Rate limit and lockout after failed attempts on the login.** There is
-  neither today, so a password can be tried against the one account as fast as
-  the process answers.
 - **Decide and write down whether the database itself is encrypted.** Patient
   data currently sits unencrypted in Postgres, protected only by FileVault —
   which covers a stolen machine that is switched off and nothing else. This is

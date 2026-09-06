@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { auth } from './auth.js'
 import type { AppEnv } from './context.js'
 import { apiGuard } from './middleware/api-guard.js'
 import { errorHandler, notFoundHandler } from './middleware/error.js'
@@ -7,7 +8,6 @@ import { requestLog } from './middleware/request-log.js'
 import { activitiesRoute } from './routes/activities.js'
 import { activityTypesRoute } from './routes/activity-types.js'
 import { appointmentsRoute } from './routes/appointments.js'
-import { authRoute } from './routes/auth.js'
 import { contactRelationTypesRoute, contactRoleTypesRoute } from './routes/contact-types.js'
 import { contactsRoute } from './routes/contacts.js'
 import { googleRoute } from './routes/google.js'
@@ -37,6 +37,17 @@ app.use('/api/*', sameOrigin)
  * chain below: Hono runs middleware in registration order.
  */
 app.use('/api/*', apiGuard)
+
+/**
+ * Better Auth owns everything under `/api/auth`: signing in and out, the
+ * session endpoint, and later the password reset and the OAuth callbacks. It
+ * is one Hono route with the library's own router behind it, which is why
+ * `PUBLIC_API_ROUTES` carries a single wildcard entry for it — the only one,
+ * and `api-guard.test.ts` asserts that nothing of ours is ever mounted under
+ * that prefix, so the exception can only ever cover the library.
+ */
+app.all('/api/auth/*', (c) => auth().handler(c.req.raw))
+
 app.onError(errorHandler)
 app.notFound(notFoundHandler)
 
@@ -47,7 +58,6 @@ app.notFound(notFoundHandler)
  */
 const routes = app
   .route('/api/health', healthRoute)
-  .route('/api/auth', authRoute)
   .route('/api/settings', settingsRoute)
   .route('/api/contacts', contactsRoute)
   .route('/api/contact-role-types', contactRoleTypesRoute)

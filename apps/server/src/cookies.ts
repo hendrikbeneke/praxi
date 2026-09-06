@@ -1,8 +1,6 @@
 import type { Theme } from '@praxi/shared'
 import type { Context } from 'hono'
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
-
-export const SESSION_COOKIE = 'praxi_session'
+import { deleteCookie, setCookie } from 'hono/cookie'
 
 /**
  * The signed-in user's colour theme, so the page can be painted in it **before
@@ -39,32 +37,11 @@ function isSecureRequest(c: Context): boolean {
   return c.req.header('x-forwarded-proto') === 'https'
 }
 
-export function setSessionCookie(c: Context, token: string, expiresAt: Date): void {
-  setCookie(c, SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'Lax',
-    path: '/',
-    secure: isSecureRequest(c),
-    expires: expiresAt,
-  })
-}
-
-export function clearSessionCookie(c: Context): void {
-  deleteCookie(c, SESSION_COOKIE, {
-    httpOnly: true,
-    sameSite: 'Lax',
-    path: '/',
-    secure: isSecureRequest(c),
-  })
-}
-
-export function readSessionCookie(c: Context): string | undefined {
-  return getCookie(c, SESSION_COOKIE)
-}
-
 /** A year: it is a cache, and the value it caches changes when the user
- *  changes it, not when it expires. */
-const THEME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
+ *  changes it, not when it expires. Exported because `src/auth.ts` writes this
+ *  cookie too — in the same response as the session cookie, which is what
+ *  keeps the first paint after signing in from flashing. */
+export const THEME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
 
 /**
  * Writes the theme, or clears it where there is none to write — `schiefer` is
@@ -86,7 +63,9 @@ export function setThemeCookie(c: Context, theme: Theme | undefined): void {
   })
 }
 
-export function clearThemeCookie(c: Context): void {
+/** Private since S-B: signing out clears this cookie through Better Auth's
+ *  after-hook now, so `setThemeCookie` is the only caller left. */
+function clearThemeCookie(c: Context): void {
   deleteCookie(c, THEME_COOKIE, {
     httpOnly: false,
     sameSite: 'Lax',

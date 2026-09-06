@@ -58,6 +58,10 @@ export const strings = {
     submit: 'Anmelden',
     submitting: 'Anmeldung läuft …',
     failed: 'E-Mail-Adresse oder Passwort ist falsch.',
+    /** The login rate limit (S-B). One message for the whole window rather
+     *  than a countdown: a remaining time is a number the screen would have to
+     *  keep true, and it tells whoever is guessing exactly when to come back. */
+    tooManyAttempts: 'Zu viele Anmeldeversuche. Bitte warten Sie einen Moment.',
   },
   /** The left-hand section list of `/settings` (D4) — one hint per entry,
    *  reused as both the nav's secondary line and the panel's own title-bar

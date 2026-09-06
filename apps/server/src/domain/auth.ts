@@ -1,12 +1,18 @@
-import { createHash, randomBytes } from 'node:crypto'
 import { type Algorithm, hash as argonHash, verify as argonVerify } from '@node-rs/argon2'
-import type { CurrentUser, Theme } from '@praxi/shared'
-import { userPreferencesSchema } from '@praxi/shared'
-import { eq, lt } from 'drizzle-orm'
+import { lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
-import { appUser, session } from '../db/schema.js'
-import { newId } from '../id.js'
+import { rateLimit, session } from '../db/schema.js'
 import { deleteStaleNoteDrafts } from './note-draft.js'
+
+/**
+ * What is left of the hand-rolled authentication after S-B: the password
+ * functions, which Better Auth is handed rather than replacing (see
+ * `src/auth.ts`), and the housekeeping that used to hang off `login()`.
+ *
+ * Sessions, tokens, the sliding expiry and the login flow itself are the
+ * library's from here on. Keeping a second implementation of any of them
+ * beside it would be the thing adopting a library is meant to avoid.
+ */
 
 /**
  * Argon2id with the parameters OWASP lists as the low-memory baseline
@@ -28,24 +34,12 @@ const argon2Options = {
   parallelism: 1,
 } as const
 
-/*
- * Of everything down to `needsRefresh`, only `hashPassword` is called from
- * outside this module — the rest are exported so `auth.test.ts` can take the
- * expiry and refresh arithmetic apart one function at a time. That is a use,
- * not a leftover: the pieces are what the tests assert on, and inlining them
- * would leave `login` and `validateSession` testable only end to end.
- */
-
-/** How long a session lives from its last use. */
-export const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000
-
 /**
- * A session is only written back once its last use is this old. Without it
- * every authenticated request — including every poll of `/me` — would be a
- * write.
+ * Handed to Better Auth as `emailAndPassword.password.hash` / `.verify`, so
+ * the library never hashes anything itself and the hashes written by the
+ * implementation this replaced keep verifying unchanged. That is what made the
+ * migration a move of one string rather than a forced password reset.
  */
-export const SESSION_REFRESH_AFTER_MS = 60 * 60 * 1000
-
 export function hashPassword(plain: string): Promise<string> {
   return argonHash(plain, argon2Options)
 }
@@ -61,167 +55,38 @@ export async function verifyPassword(passwordHash: string, plain: string): Promi
 }
 
 /**
- * A hash of a password nobody has, produced with exactly the parameters above,
- * so that verifying against it costs the same as verifying a real one. Used
- * when the email is unknown, so the response time does not reveal which
- * accounts exist. Computed once per process and reused.
+ * The housekeeping that used to hang off `login()` — the only moment a session
+ * was created, and therefore a free one. Better Auth owns signing in now, so
+ * this is called from `databaseHooks.session.create.after` in `src/auth.ts`:
+ * the same free moment, one layer out.
+ *
+ * Expired sessions are swept here because Better Auth does not sweep them; it
+ * refuses an expired row but leaves it lying.
  */
-let dummyHash: Promise<string> | undefined
-function getDummyHash(): Promise<string> {
-  dummyHash ??= hashPassword(`no-such-account-${randomBytes(16).toString('hex')}`)
-  return dummyHash
-}
-
-/** 256 bits of entropy, URL-safe so it survives a cookie unencoded. */
-export function generateSessionToken(): string {
-  return randomBytes(32).toString('base64url')
-}
-
-/**
- * Only the hash is stored. A dump of `session` therefore does not hand out
- * live sessions. SHA-256 without a salt is deliberate: the input is 256 random
- * bits, so there is nothing to guess and the lookup stays a single indexed
- * equality.
- */
-export function hashSessionToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex')
-}
-
-export function sessionExpiryFrom(now: Date): Date {
-  return new Date(now.getTime() + SESSION_TTL_MS)
-}
-
-export function isSessionExpired(expiresAt: Date, now: Date): boolean {
-  return expiresAt.getTime() <= now.getTime()
-}
-
-export function needsRefresh(lastSeenAt: Date, now: Date): boolean {
-  return now.getTime() - lastSeenAt.getTime() >= SESSION_REFRESH_AFTER_MS
-}
-
-export type LoginResult = {
-  token: string
-  expiresAt: Date
-  user: CurrentUser
-  tenantId: string
-  /** Travels with the session so the response can prime the theme cookie —
-   *  see `cookies.ts`. Read off the row that was loaded anyway. */
-  theme: Theme | undefined
-}
-
-/**
- * Verifies the credentials and opens a session. Returns `null` for every kind
- * of failure — unknown email, wrong password, deactivated user — because the
- * caller must not be able to tell them apart.
- */
-export async function login(
-  database: Database,
-  input: { email: string; password: string },
-  now: Date = new Date(),
-): Promise<LoginResult | null> {
-  const [user] = await database
-    .select()
-    .from(appUser)
-    .where(eq(appUser.email, input.email))
-    .limit(1)
-
-  // Unknown email and deactivated account take the same path, including the
-  // cost of a hash, so neither the answer nor the timing tells them apart.
-  if (!user?.active) {
-    await verifyPassword(await getDummyHash(), input.password)
-    return null
-  }
-
-  if (!(await verifyPassword(user.passwordHash, input.password))) return null
-
-  // Cheap housekeeping at the only moment a session is created. No job needed.
+export async function sweepOnSignIn(database: Database, now: Date = new Date()): Promise<void> {
   await deleteExpiredSessions(database, now)
-  // The same reasoning for the drafts of unfinished notes — see
-  // `domain/note-draft.ts`. Not a session concern, but the same free moment.
   await deleteStaleNoteDrafts(database, now)
-
-  const token = generateSessionToken()
-  const expiresAt = sessionExpiryFrom(now)
-
-  await database.insert(session).values({
-    id: newId(),
-    tenantId: user.tenantId,
-    userId: user.id,
-    tokenHash: hashSessionToken(token),
-    expiresAt,
-    lastSeenAt: now,
-  })
-
-  return {
-    token,
-    expiresAt,
-    tenantId: user.tenantId,
-    user: { id: user.id, email: user.email, name: user.name },
-    theme: userPreferencesSchema.parse(user.preferences ?? {}).theme,
-  }
-}
-
-export type ValidatedSession = {
-  sessionId: string
-  tenantId: string
-  user: CurrentUser
-}
-
-/**
- * Resolves a cookie token to its user, refreshing the sliding expiry when the
- * session has not been touched for a while. Returns `null` if the token is
- * unknown, expired or belongs to a deactivated user.
- */
-export async function validateSession(
-  database: Database,
-  token: string,
-  now: Date = new Date(),
-): Promise<ValidatedSession | null> {
-  const [row] = await database
-    .select({
-      sessionId: session.id,
-      tenantId: session.tenantId,
-      expiresAt: session.expiresAt,
-      lastSeenAt: session.lastSeenAt,
-      userId: appUser.id,
-      email: appUser.email,
-      name: appUser.name,
-      active: appUser.active,
-    })
-    .from(session)
-    .innerJoin(appUser, eq(appUser.id, session.userId))
-    .where(eq(session.tokenHash, hashSessionToken(token)))
-    .limit(1)
-
-  if (!row) return null
-
-  if (isSessionExpired(row.expiresAt, now)) {
-    await database.delete(session).where(eq(session.id, row.sessionId))
-    return null
-  }
-
-  if (!row.active) return null
-
-  if (needsRefresh(row.lastSeenAt, now)) {
-    await database
-      .update(session)
-      .set({ lastSeenAt: now, expiresAt: sessionExpiryFrom(now) })
-      .where(eq(session.id, row.sessionId))
-  }
-
-  return {
-    sessionId: row.sessionId,
-    tenantId: row.tenantId,
-    user: { id: row.userId, email: row.email, name: row.name },
-  }
-}
-
-/** Ends a session by deleting the row — clearing the cookie alone would leave
- *  a token that still works if it was captured. */
-export async function logout(database: Database, token: string): Promise<void> {
-  await database.delete(session).where(eq(session.tokenHash, hashSessionToken(token)))
+  await deleteStaleRateLimits(database, now)
 }
 
 export async function deleteExpiredSessions(database: Database, now: Date): Promise<void> {
   await database.delete(session).where(lt(session.expiresAt, now))
+}
+
+/** How long a counter row outlives the window it counts. */
+export const RATE_LIMIT_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+/**
+ * A rate-limit row is meaningless minutes after it is written — the window is
+ * a minute, and `/sign-in/email` is five attempts in it. A day is already
+ * generous; keeping them for weeks would turn a counter table into a bad
+ * substitute for an access log, which is a separate thing and belongs in one.
+ *
+ * `last_request` is epoch milliseconds, so the comparison is arithmetic on a
+ * number rather than on a timestamp — see the column in `db/schema.ts`.
+ */
+export async function deleteStaleRateLimits(database: Database, now: Date): Promise<void> {
+  await database
+    .delete(rateLimit)
+    .where(lt(rateLimit.lastRequest, now.getTime() - RATE_LIMIT_MAX_AGE_MS))
 }

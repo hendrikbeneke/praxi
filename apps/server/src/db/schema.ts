@@ -28,6 +28,7 @@ import type {
 import { DEFAULT_EVENT_TITLE_TEMPLATE } from '@praxi/shared'
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -135,8 +136,22 @@ export const appUser = pgTable(
       .notNull()
       .references(() => tenant.id),
     email: text().notNull(),
-    passwordHash: text().notNull(),
     name: text().notNull(),
+    /**
+     * Better Auth's `user` model, two required columns of it. The password is
+     * deliberately NOT here — it lives in `account` with `providerId =
+     * 'credential'`, which is where the library keeps every authentication
+     * method. `password_hash` stood here until 0043 and moved there verbatim.
+     */
+    emailVerified: boolean().notNull().default(false),
+    image: text(),
+    /**
+     * Better Auth has no notion of a deactivated user, so nothing in the
+     * library reads this — `apiGuard` does, right after resolving the session,
+     * which is what keeps "deactivated is out immediately" true. Left
+     * `not null` although the library would allow null: it always writes a
+     * value, and "not recorded" is not a state this column has.
+     */
     active: boolean().notNull().default(true),
     /**
      * A preference of this user, never a property of the practice — it does
@@ -177,9 +192,29 @@ export const session = pgTable(
       .notNull()
       .references(() => tenant.id),
     userId: uuid().notNull(),
-    tokenHash: text().notNull(),
+    /**
+     * The token that is in the cookie, stored as it is.
+     *
+     * Only its SHA-256 was stored until 0043, so a dump of this table did not
+     * hand out live sessions. Better Auth compares the value, so the column
+     * holds it — a step down, taken deliberately: what protects it now is that
+     * the cookie is signed with `BETTER_AUTH_SECRET`, so the token alone does
+     * not make a valid cookie. Reversing this would mean a custom session
+     * layer at exactly the security-critical spot the library was adopted to
+     * own, which is the opposite of adopting it.
+     */
+    token: text().notNull(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
-    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Where the request came from. Better Auth fills both; nothing reads them
+     * yet. They are the beginning of the access log the go-live list wants.
+     */
+    ipAddress: text(),
+    userAgent: text(),
+    // `last_seen_at` stood here until 0043. Better Auth slides the expiry off
+    // `updated_at`, which the set_updated_at trigger already maintains, so a
+    // second column saying when the session was last used would be a second
+    // truth about it.
     ...timestamps,
   },
   (t) => [
@@ -188,10 +223,118 @@ export const session = pgTable(
       foreignColumns: [appUser.id, appUser.tenantId],
       name: 'session_user_tenant_fk',
     }).onDelete('cascade'),
-    uniqueIndex('session_token_hash_key').on(t.tokenHash),
+    uniqueIndex('session_token_key').on(t.token),
     index('session_user_idx').on(t.userId),
     index('session_expires_idx').on(t.expiresAt),
   ],
+)
+
+/**
+ * Better Auth's `account` model: one row per authentication method of a user.
+ *
+ * Today there is exactly one kind — `providerId = 'credential'`, holding the
+ * argon2 hash that `app_user.password_hash` held until 0043. The OAuth columns
+ * are empty and are here because they are what the model *is*; a Google or
+ * Microsoft sign-in later writes rows here and needs no migration.
+ *
+ * **The field names are the library's** — `providerId`, `accountId`, `issuer`
+ * — however oddly they read for a password. Renaming a field of a foreign
+ * library is a special case that surfaces at the next update; this way the
+ * column and the documentation of the thing that writes it agree.
+ *
+ * **No `tenant_id`, deliberately** — and the same goes for `verification` and
+ * `rate_limit` below. These are facts about a *person* or about a connection,
+ * not about a practice: a user who is a member of two organizations still has
+ * one password. That is the named exception to CLAUDE.md rule 1, the same one
+ * the global unique index on `app_user.email` is. With no tenant column there
+ * is nothing for an RLS policy to key on, so these three get none.
+ */
+export const account = pgTable(
+  'account',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid().notNull(),
+    /** `local:credential` for a password; an OAuth provider's issuer URL
+     *  otherwise. Part of the unique key the library declares. */
+    issuer: text().notNull(),
+    /** The user's id at the provider — for a password, our own user id. */
+    accountId: text().notNull(),
+    providerId: text().notNull(),
+    /** The argon2 hash, verified by our own `verifyPassword` (see auth.ts). */
+    password: text(),
+    accessToken: text(),
+    refreshToken: text(),
+    idToken: text(),
+    accessTokenExpiresAt: timestamp({ withTimezone: true }),
+    refreshTokenExpiresAt: timestamp({ withTimezone: true }),
+    scope: text(),
+    ...timestamps,
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.userId],
+      foreignColumns: [appUser.id],
+      name: 'account_user_fk',
+    }).onDelete('cascade'),
+    // Declared by Better Auth itself (`getAuthTables().account.indexes`), not
+    // invented here — it is on `issuer`, not on `providerId`.
+    uniqueIndex('account_issuer_account_key').on(t.issuer, t.accountId),
+    index('account_user_idx').on(t.userId),
+  ],
+)
+
+/**
+ * Better Auth's `verification` model: short-lived tokens for verifying an
+ * email address and for resetting a password.
+ *
+ * Deliberately created while nothing writes to it. Password reset is not being
+ * built now — this is the table it will need, and creating it costs an empty
+ * table while retrofitting it would cost a migration at the moment the feature
+ * is wanted. Not building and not blocking are different things.
+ */
+export const verification = pgTable(
+  'verification',
+  {
+    id: uuid().primaryKey(),
+    identifier: text().notNull(),
+    value: text().notNull(),
+    expiresAt: timestamp({ withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index('verification_identifier_idx').on(t.identifier)],
+)
+
+/**
+ * Better Auth's rate limiter, kept in the database rather than in the process.
+ *
+ * In memory is the library's default and would be enough for one process, but
+ * a restart is then the cheapest reset an attacker can get, and there is a
+ * second process the day this is deployed twice. One row per key, counted up
+ * inside a window.
+ *
+ * It limits by IP and **never locks an account**, which is the right shape
+ * here rather than a limitation: with one practitioner, an account lockout is
+ * a denial of service against exactly that person the moment someone knows the
+ * address.
+ *
+ * `lastRequest` is epoch milliseconds and therefore `bigint`, not a timestamp
+ * — the library writes and compares a number. It is the one column in this
+ * schema that holds a time and is not `timestamptz`, and it is not an
+ * exception to rule 3 so much as not a timestamp at all.
+ *
+ * Rows are meaningless ten minutes after they are written; they are swept
+ * after a day (`deleteStaleRateLimits`). Anyone wanting to trace an attack
+ * pattern needs a log, not a counter table.
+ */
+export const rateLimit = pgTable(
+  'rate_limit',
+  {
+    id: uuid().primaryKey(),
+    key: text().notNull(),
+    count: integer().notNull(),
+    lastRequest: bigint({ mode: 'number' }).notNull(),
+  },
+  (t) => [uniqueIndex('rate_limit_key').on(t.key)],
 )
 
 /**

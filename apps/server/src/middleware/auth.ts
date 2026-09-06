@@ -1,34 +1,38 @@
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
+import { auth } from '../auth.js'
 import type { AppEnv } from '../context.js'
-import { clearSessionCookie, readSessionCookie } from '../cookies.js'
-import { db } from '../db/client.js'
-import { validateSession } from '../domain/auth.js'
 import { messages } from '../messages.js'
 
 /**
- * Rejects anything without a valid session cookie and puts the user on the
- * context. Mount it on every route group except `/api/auth/login` and
- * `/api/health`.
+ * Rejects anything without a valid session and puts the user on the context.
  *
- * A cookie that no longer resolves is cleared on the way out, so a browser
- * holding an expired token stops sending it instead of retrying forever.
+ * Mounted once, on the `/api` group, through `middleware/api-guard.ts` — never
+ * on an individual router. See the paragraph in CLAUDE.md under Architecture
+ * for why the default has to point that way.
+ *
+ * Resolving the session is Better Auth's job since S-B; what this still does
+ * is the part the library has no notion of. **A deactivated user is refused
+ * here**, on every request, which is what keeps `active = false` taking effect
+ * at once rather than whenever the session happens to expire.
  */
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
-  const token = readSessionCookie(c)
-  if (!token) throw new HTTPException(401, { message: messages.auth.notSignedIn })
+  const result = await auth().api.getSession({ headers: c.req.raw.headers })
 
-  const validated = await validateSession(db(), token)
-  if (!validated) {
-    clearSessionCookie(c)
-    throw new HTTPException(401, { message: messages.auth.sessionExpired })
+  if (!result) throw new HTTPException(401, { message: messages.auth.notSignedIn })
+
+  if (!result.user.active) {
+    throw new HTTPException(401, { message: messages.auth.notSignedIn })
   }
 
-  c.set('sessionId', validated.sessionId)
-  c.set('user', validated.user)
-  // The tenant middleware reads this; see middleware/tenant.ts.
-  c.set('tenantId', validated.tenantId)
+  c.set('sessionId', result.session.id)
+  c.set('user', { id: result.user.id, email: result.user.email, name: result.user.name })
+  // The tenant comes off the session ROW, written there when the session was
+  // created (`databaseHooks.session.create.before`) and read back from the
+  // database on every request — never from the token, and never from anything
+  // the client sent. CLAUDE.md rule 1.
+  c.set('tenantId', result.session.tenantId)
 
   await next()
 })
