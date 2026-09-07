@@ -3,6 +3,7 @@ import { type QueryClient, queryOptions } from '@tanstack/react-query'
 import { createAuthClient } from 'better-auth/client'
 import { ApiError } from './api'
 import { strings } from './strings'
+import { applyTheme } from './theme'
 
 /**
  * The Better Auth browser client.
@@ -68,8 +69,21 @@ function signInMessage(status: number | undefined): string {
   return strings.login.failed
 }
 
+/**
+ * Ends the session and takes the theme off the document with it.
+ *
+ * The server clears `praxi_theme` in the same response — but that cookie only
+ * decides the *next* full page load, and signing out navigates to `/login`
+ * client-side without one. `applyTheme` runs in `_app.beforeLoad`, and `/login`
+ * lives outside `_app`, so nothing else would reset `data-theme`: the login
+ * screen kept the colours of whoever just left.
+ *
+ * Both halves of "the theme goes" therefore sit in the function named for the
+ * act, one on each side — the server the cookie, the client the attribute.
+ */
 export async function signOut(): Promise<void> {
   await authClient.signOut()
+  applyTheme(undefined)
 }
 
 /**

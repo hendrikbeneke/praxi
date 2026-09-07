@@ -3080,6 +3080,27 @@ ein Benutzer und eine Sitzung.
   `auth.api.*`: die Server-API umgeht den Rate-Limiter absichtlich, der wichtigste Test wäre
   also gegen nichts grün gewesen.
 
+### Nachtrag: das Farbschema überlebte das Abmelden
+
+Aufgefallen beim Durchklicken, nicht im Test. Der Server löschte `praxi_theme` korrekt — die
+Antwort auf `/sign-out` trug `Max-Age=0` — und trotzdem blieb der Login-Screen in den Farben
+dessen, der gerade gegangen war.
+
+Der Grund ist, dass das Cookie nur den **nächsten vollständigen Seitenaufbau** entscheidet.
+Abmelden navigiert clientseitig nach `/login`, ohne Neuladen; `applyTheme` läuft in
+`_app.beforeLoad`, und `/login` liegt außerhalb von `_app`. Also setzte niemand das
+`data-theme` am `<html>` zurück — es stand einfach weiter da.
+
+`signOut` in `apps/web/src/lib/auth.ts` ruft jetzt `applyTheme(undefined)`. Beide Hälften von
+„das Thema geht" sitzen damit in der Funktion, die nach der Handlung heißt: der Server das
+Cookie, der Client das Attribut.
+
+**Getestet ist nur die Server-Hälfte** (`routes/auth.test.ts`), und die hätte den Fehler nicht
+gefunden — sie war schon grün. Das Web-Paket hat bewusst eine Art Test und keine
+DOM-Umgebung; ein `jsdom` für diesen einen Fall wäre eine Abhängigkeit für eine Frage, die
+`CLAUDE.md` an den Browser verweist. Was bleibt, ist der Kommentar an `signOut`, der sagt,
+warum die Zeile dort steht.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

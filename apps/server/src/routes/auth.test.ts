@@ -118,6 +118,41 @@ describe('signing in', () => {
   })
 })
 
+describe('signing out', () => {
+  it('clears the theme cookie along with the session cookie', async () => {
+    const tenantId = await createTenant(db())
+    const user = await createUser(db(), { tenantId, password: PASSWORD })
+    await db()
+      .update(appUser)
+      .set({ preferences: { theme: 'nacht' } })
+      .where(eq(appUser.id, user.id))
+
+    const signedIn = await signIn(user.email, PASSWORD)
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((entry) => entry.split(';')[0])
+      .join('; ')
+
+    const res = await auth().handler(
+      new Request('http://localhost:3000/api/auth/sign-out', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: '{}',
+      }),
+    )
+
+    // This is one half of "the theme goes". It covers the cookie, which
+    // decides the next full page load — the other half is the `data-theme`
+    // attribute on the document, which `signOut` in the client's `lib/auth.ts`
+    // removes, and which no test here can see. That half is what actually
+    // broke: signing out navigates to /login client-side without a reload, so
+    // the login screen kept the colours of whoever had just left.
+    const cleared = res.headers.getSetCookie().filter((entry) => entry.includes('Max-Age=0'))
+    expect(cleared.some((entry) => entry.startsWith('praxi_theme='))).toBe(true)
+    expect(cleared.some((entry) => entry.startsWith('praxi_session='))).toBe(true)
+  })
+})
+
 describe('a deactivated user', () => {
   it('is refused by the guard even holding a valid session', async () => {
     const tenantId = await createTenant(db())
