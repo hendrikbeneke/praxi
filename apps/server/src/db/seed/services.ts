@@ -9,7 +9,7 @@
  * `fee_code` stays empty throughout. GebüH numbers are the practitioner's to
  * enter; inventing them here would put made-up billing codes on real invoices.
  */
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { newId } from '../../id.js'
 import type { Database } from '../client.js'
 import { service, serviceGroup, serviceGroupItem } from '../schema.js'
@@ -88,10 +88,13 @@ export async function seedServices(database: Database, tenantId: string): Promis
   }
   console.info(`services: ${missing.length} created, ${existing.length} already present`)
 
+  // Scoped to the tenant, like every other query in this file. It was not, and
+  // nothing noticed for as long as there was one tenant: with a second, the
+  // first tenant's group answered this and the second was left without one.
   const [existingGroup] = await database
     .select({ id: serviceGroup.id })
     .from(serviceGroup)
-    .where(eq(serviceGroup.name, SEED_GROUP.name))
+    .where(and(eq(serviceGroup.tenantId, tenantId), eq(serviceGroup.name, SEED_GROUP.name)))
     .limit(1)
 
   if (existingGroup) {

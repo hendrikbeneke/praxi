@@ -73,7 +73,14 @@ process.env.DATABASE_URL = workerUrl
  * above rather than connecting to the developer's own database as `praxi_app`.
  * Without this every test in this worker silently talks to `praxi` instead of
  * to its own throwaway database — which is how it announced itself: twenty-two
- * tests failing on rows another test had left behind, in the wrong database.
+ * tests failing on rows another test had left behind, in the wrong database,
+ * and 488 tenants of test data in a development database that had one.
+ *
+ * **Whoever adds a third way to name a connection has to clear it here too.**
+ * The rewrite above is not "point DATABASE_URL somewhere else", it is "make
+ * this worker unable to reach any database but its own" — and a new variable
+ * that `db/client.ts` prefers silently defeats that, in exactly the way this
+ * one did. There is no test that would catch it; the tests are what breaks.
  *
  * The tests deliberately run as the OWNER, which bypasses row-level security.
  * They assert business rules, not tenant isolation; isolation is asserted where
