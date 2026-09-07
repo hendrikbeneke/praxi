@@ -69,24 +69,22 @@ await migrate(drizzle(sql), { migrationsFolder })
 
 process.env.DATABASE_URL = workerUrl
 /**
- * And the app role's URL is cleared, so `db/client.ts` falls back to the line
- * above rather than connecting to the developer's own database as `praxi_app`.
- * Without this every test in this worker silently talks to `praxi` instead of
- * to its own throwaway database — which is how it announced itself: twenty-two
- * tests failing on rows another test had left behind, in the wrong database,
- * and 488 tenants of test data in a development database that had one.
+ * The app role's URL is pointed at the same throwaway database — at the OWNER's
+ * credentials, deliberately, so the tests bypass row-level security. They assert
+ * business rules, not tenant isolation; isolation is asserted where it lives, in
+ * `routes/rls.test.ts`, which drops to the unprivileged role itself with
+ * `SET LOCAL ROLE` and therefore needs no second password.
  *
- * **Whoever adds a third way to name a connection has to clear it here too.**
- * The rewrite above is not "point DATABASE_URL somewhere else", it is "make
- * this worker unable to reach any database but its own" — and a new variable
- * that `db/client.ts` prefers silently defeats that, in exactly the way this
- * one did. There is no test that would catch it; the tests are what breaks.
- *
- * The tests deliberately run as the OWNER, which bypasses row-level security.
- * They assert business rules, not tenant isolation; isolation is asserted where
- * it lives, against the unprivileged role, in the RLS test that comes with S-C2.
+ * **Whoever adds a third way to name a connection has to rewrite it here too.**
+ * What these two lines do is not "point DATABASE_URL somewhere else", it is
+ * "make this worker unable to reach any database but its own" — and a new
+ * variable that `db/client.ts` prefers defeats that silently, in exactly the way
+ * this one did before it was rewritten here: twenty-two tests failing on rows
+ * another test had left behind, in the wrong database, and 488 tenants of test
+ * data in a development database that had one. No test catches it; the tests
+ * are what breaks.
  */
-delete process.env.APP_DATABASE_URL
+process.env.APP_DATABASE_URL = workerUrl
 
 /**
  * Every test starts on empty tables. The table list comes from the catalogue

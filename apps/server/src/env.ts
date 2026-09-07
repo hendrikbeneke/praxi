@@ -85,13 +85,14 @@ const envSchema = z.object({
    * security actually applies to — `praxi` is a superuser with BYPASSRLS and
    * owns every table, so a policy would never have been consulted for it.
    *
-   * Optional, and that is a decision rather than convenience: while row-level
-   * security is off (S-C1) the server works either way, and falling back to
-   * `DATABASE_URL` keeps a checkout that has not run `pnpm db:app-role` from
-   * failing to start. S-C2, the migration that turns the policies on, is where
-   * that stops being harmless — and where this becomes required.
+   * **Required since S-C2**, and the reason is that its absence is invisible.
+   * With the policies on, falling back to `DATABASE_URL` means running as the
+   * owner — which bypasses every one of them and answers every query exactly as
+   * it did before. Nothing fails, nothing is logged, and the isolation is
+   * simply not there. A server that refuses to start says so at the only moment
+   * anyone would notice.
    */
-  APP_DATABASE_URL: emptyAsUnset(z.url()),
+  APP_DATABASE_URL: z.url(),
   APP_DATABASE_PASSWORD: emptyAsUnset(z.string().min(1)),
 
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),

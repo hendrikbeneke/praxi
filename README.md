@@ -24,7 +24,7 @@ pnpm install
 cp .env.example .env     # then set SEED_USER_PASSWORD and BETTER_AUTH_SECRET
 pnpm db:up               # starts Postgres 17 on host port 55432
 pnpm db:migrate          # creates the tables
-pnpm db:app-role         # gives the server's own role its password
+pnpm db:app-role         # gives the server's own role its password (required)
 pnpm db:seed             # tenant, practice settings, user, example catalogue
 pnpm dev                 # http://localhost:5173
 ```

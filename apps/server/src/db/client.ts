@@ -16,16 +16,22 @@ let client: Sql | undefined
  * an error and without a hint. Migrations, the seed and the scripts keep the
  * owner's `DATABASE_URL`; only this pool is the unprivileged one.
  *
- * The fallback is deliberate and temporary: while the policies are still
- * disabled (S-C1) both roles behave identically, so a checkout that has not run
- * `pnpm db:app-role` yet still starts. S-C2 turns the policies on and makes
- * `APP_DATABASE_URL` required — under RLS, running as the owner would be a
- * silent hole rather than an inconvenience.
+ * There is no fallback to `DATABASE_URL`, and that is the point rather than
+ * strictness: with the policies on, running as the owner bypasses all of them
+ * and answers every query exactly as it did before — nothing fails and nothing
+ * is logged, the isolation is just gone. `env.ts` makes the variable required
+ * so a misconfigured server refuses to start, which is the only moment anyone
+ * would notice.
+ *
+ * The tests are the deliberate exception: `test/setup.ts` points this at their
+ * own throwaway database with the owner's credentials. They assert business
+ * rules, not isolation — that is `routes/rls.test.ts`, which drops to the
+ * unprivileged role itself with `SET LOCAL ROLE`.
  */
 function getClient(): Sql {
   if (!client) {
     const env = getEnv()
-    client = postgres(env.APP_DATABASE_URL ?? env.DATABASE_URL, {
+    client = postgres(env.APP_DATABASE_URL, {
       max: 10,
       // Postgres notices can quote row values; keep them out of the log.
       onnotice: () => {},

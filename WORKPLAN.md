@@ -3159,15 +3159,65 @@ Server verhält sich exakt wie vorher.
   der UUIDv7 ab — das ist der Zeitstempel, also kollidierten zwei in derselben Millisekunde
   angelegte Benutzer auf dem globalen Unique-Index. Fiel erst auf, als ein Test zwei brauchte.
 
+## S-C2 — Row Level Security an
+
+Eine Migration, 34 Tabellen, zwei Zeilen Anwendungscode. Der ganze Aufwand lag in S-C1; das
+hier ist der Moment, in dem die Datenbank anfängt, Zeilen zurückzuhalten.
+
+- **`0045_rls_enable.sql`** schaltet die 34 Tabellen scharf, die einen Mandanten haben. Die
+  fünf Auth-Tabellen bleiben draußen (Anmeldung geht der Mandantenkenntnis voraus), und
+  `FORCE ROW LEVEL SECURITY` wird **nicht** gesetzt: der Eigentümer soll weiter durchgreifen,
+  weil Migrationen und Seed mandantenübergreifend arbeiten — und weil kein Request je als
+  Eigentümer läuft.
+- **`APP_DATABASE_URL` ist jetzt Pflicht.** Ohne sie liefe der Server als Eigentümer, der
+  jede Policy umgeht und jede Abfrage exakt wie vorher beantwortet — nichts schlägt fehl,
+  nichts wird protokolliert, die Isolation ist einfach nicht da. Ein Server, der nicht
+  startet, sagt es zum einzigen Zeitpunkt, an dem es jemand merkt.
+- **`routes/rls.test.ts` geht per `SET LOCAL ROLE praxi_app` selbst auf die unprivilegierte
+  Rolle.** Kein zweites Passwort, kein zweiter Pool: der Rollenwechsel wird am
+  Transaktionsende zurückgenommen, genau wie `app.tenant_id`. Er läuft über `pg_policies`
+  statt über eine Liste, also fällt eine später hinzugefügte Tabelle mit Policy und ohne
+  `ALTER` hier durch.
+
+### Die Gegenprobe, und warum sie nötig war
+
+Mit ausgeschalteten Policies fallen **fünf der sechs** Zusicherungen, 34 Tabellen melden RLS
+aus, und **17 Tabellen geben die Zeilen des anderen Mandanten heraus**: `activity`,
+`activity_item`, `activity_type`, `appointment`, `contact`, `contact_relation_type`,
+`contact_role`, `contact_role_type`, `country`, `gender`, `invoice`, `invoice_line`, `note`,
+`note_type`, `number_range`, `salutation` und `tenant`.
+
+**Das ist die zweite Fassung des Tests.** Die erste war grün — auch ohne RLS. Ihre zwei
+Mandanten bestanden nur aus den Katalogen, die beim Anlegen mitgeseedet werden; in `contact`,
+`note`, `invoice` hatte der andere Mandant überhaupt keine Zeile, also konnte dort auch
+nichts lecken. Der Test sah gründlich aus und sagte über genau die Tabellen nichts, für die
+die ganze Übung gemacht wird. Beide Mandanten bekommen jetzt Kontakt, Vorgang, Notiz und
+Rechnung, geschrieben durch die Domänenfunktionen.
+
+**Ein Test einer Abwesenheit muss gegen seine eigene Negation laufen, sonst ist er Zierrat.**
+Dass die Gegenprobe beim ersten Versuch gar nicht ankam — die Worker-Datenbanken hatten den
+vorigen Lauf überlebt und wurden wiederverwendet, RLS war in Wahrheit an — gehört zur selben
+Lehre: auch die Gegenprobe muss man prüfen.
+
+### Das benannte Loch, im Betrieb belegt
+
+Ohne gesetzten Mandanten liest `praxi_app` `google_connection` **direkt: 0 Zeilen** — der
+Worker hätte still nichts getan, ohne Fehler und ohne Logzeile — und **über
+`google_connection_tenant_ids()`: beide Mandanten.** Genau die Größe, die die Funktion haben
+soll.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
 each line names the reason, not the solution.
 
-- **A second test with two tenants and real data**, asserting that every route
-  actually filters by `tenant_id`. `tenantId(c)` being the only sanctioned
-  source says where the value comes from; it does not say that a handler used
-  it, and one that forgets simply does not filter.
+- **A route-level test with two tenants and real data**, asserting that every
+  route filters by `tenant_id`. S-C2 covered the database — `routes/rls.test.ts`
+  proves the policies hold — but not the routes: `tenantId(c)` says where the
+  value comes from, not that a handler used it. Under RLS a handler that forgets
+  now answers with an empty list rather than with foreign rows, so this is no
+  longer a disclosure; it is a screen that is silently wrong, which is why it
+  stays on this list.
 - **Decide and write down whether the database itself is encrypted.** Patient
   data currently sits unencrypted in Postgres, protected only by FileVault —
   which covers a stolen machine that is switched off and nothing else. This is
@@ -3176,10 +3226,6 @@ each line names the reason, not the solution.
   "who looked at this record" is answerable from the fact that there is one;
   with two it is not, and § 630f and Art. 9 GDPR make it a question that gets
   asked.
-- **Enable the RLS policies** — S-C2, the one migration that flips them. S-C1
-  did everything that has to be true first; this is `ALTER TABLE … ENABLE ROW
-  LEVEL SECURITY` on 34 tables plus the two tests, and it is the one moment
-  behaviour can change.
 - **The seven routes that call a foreign service while holding the request
   transaction.** Six Google routes and the invoice mail send. Taken in hand in
   S-C1 rather than redesigned: `idle_in_transaction_session_timeout = '30s'` on
