@@ -193,7 +193,10 @@ export async function createUser(
   },
 ): Promise<TestUser> {
   const id = newId()
-  const email = options.email ?? `test.user.${id.slice(0, 8)}@praxi.invalid`
+  // The whole id, not its first eight characters: a UUIDv7 begins with the
+  // timestamp, so two users created in the same millisecond shared that prefix
+  // and collided on the global unique index on `email`.
+  const email = options.email ?? `test.user.${id}@praxi.invalid`
   const password = options.password ?? 'correct horse battery staple'
 
   // The user and its credential, as the seed writes them: since S-B the

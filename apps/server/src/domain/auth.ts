@@ -2,6 +2,7 @@ import { type Algorithm, hash as argonHash, verify as argonVerify } from '@node-
 import { lt } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
 import { rateLimit, session } from '../db/schema.js'
+import { asTenant } from '../middleware/tenant-db.js'
 import { deleteStaleNoteDrafts } from './note-draft.js'
 
 /**
@@ -62,11 +63,24 @@ export async function verifyPassword(passwordHash: string, plain: string): Promi
  *
  * Expired sessions are swept here because Better Auth does not sweep them; it
  * refuses an expired row but leaves it lying.
+ *
+ * **The draft sweep runs for the signing-in user's tenant and no other**, which
+ * is why this takes one. `session` and `rate_limit` are outside row-level
+ * security and are swept whole; `note_draft` is inside it, and the two ways to
+ * sweep it across tenants were both worse — a SECURITY DEFINER function would
+ * have restated "when is a draft stale" in SQL beside the TypeScript that
+ * already says it, and running as the owner would have been a hole with no
+ * edges. A tenant nobody signs into gathers no new drafts either, so the ones
+ * lying there wait for the sign-in that would have created more.
  */
-export async function sweepOnSignIn(database: Database, now: Date = new Date()): Promise<void> {
+export async function sweepOnSignIn(
+  database: Database,
+  tenantId: string,
+  now: Date = new Date(),
+): Promise<void> {
   await deleteExpiredSessions(database, now)
-  await deleteStaleNoteDrafts(database, now)
   await deleteStaleRateLimits(database, now)
+  await asTenant(tenantId, (tx) => deleteStaleNoteDrafts(tx, now))
 }
 
 export async function deleteExpiredSessions(database: Database, now: Date): Promise<void> {

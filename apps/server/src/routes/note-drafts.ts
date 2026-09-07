@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import {
   DraftNoteLockedError,
   deleteNoteDraft,
@@ -13,6 +12,7 @@ import {
 import { messages } from '../messages.js'
 import { userId } from '../middleware/auth.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -41,7 +41,7 @@ export const noteDraftsRoute = new Hono<AppEnv>()
   /** Answers `null` rather than 404 when there is none: "is there a draft" is
    *  the question, and having none is an ordinary answer to it. */
   .get('/', validate('query', noteDraftQuerySchema), async (c) => {
-    const draft = await getNoteDraft(db(), tenantId(c), userId(c), c.req.valid('query'))
+    const draft = await getNoteDraft(database(c), tenantId(c), userId(c), c.req.valid('query'))
     return c.json(draft)
   })
 
@@ -49,15 +49,18 @@ export const noteDraftsRoute = new Hono<AppEnv>()
    *  the key is `(user, note)` or `(user, contact)` and the server resolves
    *  it. */
   .put('/', validate('json', noteDraftInputSchema), async (c) => {
-    const saved = await saveNoteDraft(db(), tenantId(c), userId(c), c.req.valid('json')).catch(
-      translate,
-    )
+    const saved = await saveNoteDraft(
+      database(c),
+      tenantId(c),
+      userId(c),
+      c.req.valid('json'),
+    ).catch(translate)
     return c.json(saved)
   })
 
   .delete('/:draftId', validate('param', draftParam), async (c) => {
     const deleted = await deleteNoteDraft(
-      db(),
+      database(c),
       tenantId(c),
       userId(c),
       c.req.valid('param').draftId,

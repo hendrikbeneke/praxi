@@ -8,7 +8,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import {
   createRelationType,
@@ -28,6 +27,7 @@ import {
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const typeParam = z.object({ typeId: z.uuid() })
@@ -83,11 +83,13 @@ function translate(error: unknown): never {
 
 export const contactRoleTypesRoute = new Hono<AppEnv>()
   .get('/', async (c) => {
-    return c.json(await listRoleTypes(db(), tenantId(c)))
+    return c.json(await listRoleTypes(database(c), tenantId(c)))
   })
 
   .post('/', validate('json', contactRoleTypeInputSchema), async (c) => {
-    const created = await createRoleType(db(), tenantId(c), c.req.valid('json')).catch(translate)
+    const created = await createRoleType(database(c), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
     return c.json(created, 201)
   })
 
@@ -97,7 +99,7 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
     validate('json', contactRoleTypeInputSchema),
     async (c) => {
       const updated = await updateRoleType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json'),
@@ -109,9 +111,11 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:typeId', validate('param', typeParam), async (c) => {
-    const deleted = await deleteRoleType(db(), tenantId(c), c.req.valid('param').typeId).catch(
-      translate,
-    )
+    const deleted = await deleteRoleType(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').typeId,
+    ).catch(translate)
     if (!deleted) throw new HTTPException(404, { message: messages.contactType.notFound })
     return c.body(null, 204)
   })
@@ -125,7 +129,7 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveRoleType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json').delta,
@@ -136,11 +140,13 @@ export const contactRoleTypesRoute = new Hono<AppEnv>()
 
 export const contactRelationTypesRoute = new Hono<AppEnv>()
   .get('/', validate('query', relationListQuery), async (c) => {
-    return c.json(await listRelationTypes(db(), tenantId(c), c.req.valid('query').includeInactive))
+    return c.json(
+      await listRelationTypes(database(c), tenantId(c), c.req.valid('query').includeInactive),
+    )
   })
 
   .post('/', validate('json', contactRelationTypeCreateSchema), async (c) => {
-    const created = await createRelationType(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createRelationType(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(created, 201)
@@ -152,7 +158,7 @@ export const contactRelationTypesRoute = new Hono<AppEnv>()
     validate('json', contactRelationTypeInputSchema),
     async (c) => {
       const updated = await updateRelationType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json'),
@@ -164,9 +170,11 @@ export const contactRelationTypesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:typeId', validate('param', typeParam), async (c) => {
-    const deleted = await deleteRelationType(db(), tenantId(c), c.req.valid('param').typeId).catch(
-      translate,
-    )
+    const deleted = await deleteRelationType(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').typeId,
+    ).catch(translate)
     if (!deleted) throw new HTTPException(404, { message: messages.contactType.notFound })
     return c.body(null, 204)
   })
@@ -180,7 +188,7 @@ export const contactRelationTypesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveRelationType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json').delta,

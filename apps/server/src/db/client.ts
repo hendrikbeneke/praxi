@@ -7,9 +7,25 @@ type Sql = ReturnType<typeof postgres>
 
 let client: Sql | undefined
 
+/**
+ * The server connects as `praxi_app`, not as the owner.
+ *
+ * That is the whole precondition of row-level security here: `praxi` is a
+ * superuser, has BYPASSRLS and owns every table, so a policy would never have
+ * been consulted for it — enabling RLS under that role changes nothing, without
+ * an error and without a hint. Migrations, the seed and the scripts keep the
+ * owner's `DATABASE_URL`; only this pool is the unprivileged one.
+ *
+ * The fallback is deliberate and temporary: while the policies are still
+ * disabled (S-C1) both roles behave identically, so a checkout that has not run
+ * `pnpm db:app-role` yet still starts. S-C2 turns the policies on and makes
+ * `APP_DATABASE_URL` required — under RLS, running as the owner would be a
+ * silent hole rather than an inconvenience.
+ */
 function getClient(): Sql {
   if (!client) {
-    client = postgres(getEnv().DATABASE_URL, {
+    const env = getEnv()
+    client = postgres(env.APP_DATABASE_URL ?? env.DATABASE_URL, {
       max: 10,
       // Postgres notices can quote row values; keep them out of the log.
       onnotice: () => {},
@@ -35,18 +51,37 @@ export function db() {
   return database
 }
 
-export type Database = ReturnType<typeof db>
+/** The pool itself. Only `db()` hands this out, and only the seed, the
+ *  scripts, the tests and the worker's own entry point take it. */
+export type Pool = ReturnType<typeof db>
 
 /**
  * The handle inside `database.transaction(...)`. Domain functions that must
  * run within a caller's transaction — the number counter, for one — take this
  * instead of `Database`, so the type makes the requirement explicit.
  */
-export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+export type Transaction = Parameters<Parameters<Pool['transaction']>[0]>[0]
 
-/** For read helpers that are called both standalone and from inside a
- *  transaction. */
-export type DbReader = Database | Transaction
+/**
+ * What a domain function takes.
+ *
+ * A union since S-C1, and the reason is the request transaction: every request
+ * now runs inside one (`middleware/tenant-db.ts` opens it to carry
+ * `app.tenant_id` into the database), so what reaches a domain function from a
+ * route is a `Transaction`, while the seed, the scripts and the worker still
+ * hand it the pool. Both answer the same queries and both can open a nested
+ * transaction — a savepoint, in the transaction's case.
+ *
+ * Widening the type rather than editing 147 signatures is not a shortcut: those
+ * signatures were already right. `Database` always meant "something to run
+ * queries on", and it is only now that there is more than one such thing.
+ */
+export type Database = Pool | Transaction
+
+/** Kept as the name that says "reads only, either handle". Identical to
+ *  `Database` now — the distinction it drew disappeared when every request
+ *  became a transaction. */
+export type DbReader = Database
 
 /** Fails fast at startup if Postgres is not reachable. */
 export async function verifyDatabaseConnection(): Promise<void> {

@@ -1,9 +1,10 @@
 import type { GoogleSyncResult } from '@praxi/shared'
+import { sql } from 'drizzle-orm'
 import type { Database } from '../db/client.js'
-import { googleConnection } from '../db/schema.js'
 import { recordSyncError, runSync } from '../domain/google-sync.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
+import { asTenant } from '../middleware/tenant-db.js'
 import { EncryptionKeyMismatchError } from '../secrets.js'
 import { openGoogleApi } from './api.js'
 import { GoogleApiError, isAuthFailure } from './client.js'
@@ -60,11 +61,24 @@ export async function syncNow(database: Database, tenantId: string): Promise<Goo
   }
 }
 
-/** Which tenants have a connection at all. One row today; the query costs
- *  nothing and keeps the worker from assuming there is only ever one. */
+/**
+ * Which tenants have a connection at all. One row today; the query costs
+ * nothing and keeps the worker from assuming there is only ever one.
+ *
+ * It goes through `google_connection_tenant_ids()`, a SECURITY DEFINER
+ * function, because this is the one question the worker asks *across* tenants
+ * and it has no tenant of its own — no request, just a timer. Under row-level
+ * security a plain select here would answer with nothing, and the worker would
+ * then do nothing, log nothing and look exactly like a worker with no work.
+ * That silence is what the function is worth: it hands out one column of one
+ * table (migration 0044) and the rest of the sweep runs per tenant, inside
+ * `asTenant`.
+ */
 async function connectedTenants(database: Database): Promise<string[]> {
-  const rows = await database.select({ tenantId: googleConnection.tenantId }).from(googleConnection)
-  return rows.map((row) => row.tenantId)
+  const rows = await database.execute<{ google_connection_tenant_ids: string }>(
+    sql`select * from google_connection_tenant_ids()`,
+  )
+  return [...rows].map((row) => row.google_connection_tenant_ids)
 }
 
 /**
@@ -111,7 +125,10 @@ export async function runTick(database: Database): Promise<void> {
 
   for (const tenantId of tenants) {
     try {
-      await syncNow(database, tenantId)
+      // Each tenant's work in its own transaction, with `app.tenant_id` set —
+      // the same shape the guard gives a request, since the policies cannot
+      // tell the two apart and should not have to.
+      await asTenant(tenantId, (tx) => syncNow(tx, tenantId))
     } catch (error) {
       // IDs and the kind of fault, never content (rule 12).
       logger().warn({ tenantId, kind: errorKind(error) }, 'google sync tick failed')

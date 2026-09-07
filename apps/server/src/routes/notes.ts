@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import { MAX_UPLOAD_BYTES, mayRenderInline } from '../domain/file-type.js'
 import {
@@ -24,6 +23,7 @@ import { logger } from '../logger.js'
 import { messages } from '../messages.js'
 import { userId } from '../middleware/auth.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 import { fileStore } from '../storage.js'
 
@@ -72,26 +72,34 @@ function translate(error: unknown): never {
 
 export const notesRoute = new Hono<AppEnv>()
   .get('/', validate('query', noteListQuerySchema), async (c) => {
-    return c.json(await listNotes(db(), tenantId(c), c.req.valid('query')))
+    return c.json(await listNotes(database(c), tenantId(c), c.req.valid('query')))
   })
 
   /** Registered before `/:noteId` — and `noteId` is validated as a uuid, so
    *  the two cannot be confused either way. */
   .get('/chain', validate('query', chainQuery), async (c) => {
-    const report = await verifyChain(db(), tenantId(c), fileStore(), c.req.valid('query').contactId)
+    const report = await verifyChain(
+      database(c),
+      tenantId(c),
+      fileStore(),
+      c.req.valid('query').contactId,
+    )
     return c.json(report)
   })
 
   .post('/', validate('json', noteInputSchema), async (c) => {
-    const created = await createNote(db(), tenantId(c), userId(c), c.req.valid('json')).catch(
-      translate,
-    )
+    const created = await createNote(
+      database(c),
+      tenantId(c),
+      userId(c),
+      c.req.valid('json'),
+    ).catch(translate)
     return c.json(created, 201)
   })
 
   .put('/:noteId', validate('param', noteParam), validate('json', noteUpdateSchema), async (c) => {
     const updated = await updateNote(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('param').noteId,
       c.req.valid('json'),
@@ -102,7 +110,7 @@ export const notesRoute = new Hono<AppEnv>()
 
   .delete('/:noteId', validate('param', noteParam), async (c) => {
     const noteId = c.req.valid('param').noteId
-    const result = await deleteNote(db(), tenantId(c), fileStore(), noteId).catch(translate)
+    const result = await deleteNote(database(c), tenantId(c), fileStore(), noteId).catch(translate)
     if (!result.deleted) return notFound()
 
     if (!result.filesRemoved) {
@@ -115,9 +123,12 @@ export const notesRoute = new Hono<AppEnv>()
   })
 
   .post('/:noteId/lock', validate('param', noteParam), async (c) => {
-    const locked = await lockNote(db(), tenantId(c), userId(c), c.req.valid('param').noteId).catch(
-      translate,
-    )
+    const locked = await lockNote(
+      database(c),
+      tenantId(c),
+      userId(c),
+      c.req.valid('param').noteId,
+    ).catch(translate)
 
     return locked ? c.json(locked) : notFound()
   })
@@ -136,17 +147,23 @@ export const notesRoute = new Hono<AppEnv>()
       throw new HTTPException(400, { message: messages.note.fileMissing })
     }
 
-    const created = await addFile(db(), tenantId(c), fileStore(), c.req.valid('param').noteId, {
-      fileName: file.name,
-      bytes: new Uint8Array(await file.arrayBuffer()),
-    }).catch(translate)
+    const created = await addFile(
+      database(c),
+      tenantId(c),
+      fileStore(),
+      c.req.valid('param').noteId,
+      {
+        fileName: file.name,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+      },
+    ).catch(translate)
 
     return created ? c.json(created, 201) : notFound()
   })
 
   .get('/:noteId/files/:fileId', validate('param', fileParam), async (c) => {
     const { noteId, fileId } = c.req.valid('param')
-    const found = await getFileForDownload(db(), tenantId(c), noteId, fileId)
+    const found = await getFileForDownload(database(c), tenantId(c), noteId, fileId)
     if (!found) throw new HTTPException(404, { message: messages.note.fileNotFound })
 
     let bytes: Buffer
@@ -178,7 +195,9 @@ export const notesRoute = new Hono<AppEnv>()
 
   .delete('/:noteId/files/:fileId', validate('param', fileParam), async (c) => {
     const { noteId, fileId } = c.req.valid('param')
-    const result = await removeFile(db(), tenantId(c), fileStore(), noteId, fileId).catch(translate)
+    const result = await removeFile(database(c), tenantId(c), fileStore(), noteId, fileId).catch(
+      translate,
+    )
     if (!result.deleted) throw new HTTPException(404, { message: messages.note.fileNotFound })
 
     if (!result.fileRemoved) {

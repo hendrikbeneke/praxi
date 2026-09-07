@@ -20,6 +20,18 @@ export function loadEnvFile(): void {
   }
 }
 
+/**
+ * Treats an empty value as an absent one.
+ *
+ * `.env.example` ships these keys with nothing after the `=`, which is how a
+ * variable is documented without being set — and `z.url().optional()` rejects
+ * `''` rather than ignoring it, so a copied example file would refuse to start
+ * with a message about a URL nobody meant to configure.
+ */
+function emptyAsUnset<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((value) => (value === '' ? undefined : value), schema.optional())
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -63,6 +75,24 @@ const envSchema = z.object({
    * invalidates every open session and costs one sign-in.
    */
   BETTER_AUTH_SECRET: z.string().min(32, 'must be at least 32 characters'),
+
+  /**
+   * The connection the SERVER uses, as the unprivileged role `praxi_app`.
+   *
+   * `DATABASE_URL` above stays the owner's, and the two are deliberately not
+   * interchangeable: migrations, the seed and the scripts need to own tables
+   * and create roles, while the request path must be a role that row-level
+   * security actually applies to — `praxi` is a superuser with BYPASSRLS and
+   * owns every table, so a policy would never have been consulted for it.
+   *
+   * Optional, and that is a decision rather than convenience: while row-level
+   * security is off (S-C1) the server works either way, and falling back to
+   * `DATABASE_URL` keeps a checkout that has not run `pnpm db:app-role` from
+   * failing to start. S-C2, the migration that turns the policies on, is where
+   * that stops being harmless — and where this becomes required.
+   */
+  APP_DATABASE_URL: emptyAsUnset(z.url()),
+  APP_DATABASE_PASSWORD: emptyAsUnset(z.string().min(1)),
 
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),

@@ -2,7 +2,6 @@ import { openingHoursInputSchema, practiceSettingsPatchSchema } from '@praxi/sha
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { MAX_UPLOAD_BYTES } from '../domain/file-type.js'
 import {
   listOpeningHours,
@@ -19,13 +18,14 @@ import {
 } from '../domain/practice-settings.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 import { assertUsableTemplate, InvalidTemplateError } from '../pdf/overlay.js'
 import { fileStore } from '../storage.js'
 
 export const settingsRoute = new Hono<AppEnv>()
   .get('/', async (c) => {
-    const settings = await getPracticeSettings(db(), tenantId(c))
+    const settings = await getPracticeSettings(database(c), tenantId(c))
     if (!settings) throw new HTTPException(404, { message: messages.settings.missing })
 
     return c.json(settings)
@@ -37,14 +37,14 @@ export const settingsRoute = new Hono<AppEnv>()
    * clobber each other's column (see `updatePracticeSettings`).
    */
   .patch('/', validate('json', practiceSettingsPatchSchema), async (c) => {
-    const settings = await updatePracticeSettings(db(), tenantId(c), c.req.valid('json'))
+    const settings = await updatePracticeSettings(database(c), tenantId(c), c.req.valid('json'))
     if (!settings) throw new HTTPException(404, { message: messages.settings.missing })
 
     return c.json(settings)
   })
 
   .get('/opening-hours', async (c) => {
-    return c.json(await listOpeningHours(db(), tenantId(c)))
+    return c.json(await listOpeningHours(database(c), tenantId(c)))
   })
 
   /**
@@ -54,7 +54,7 @@ export const settingsRoute = new Hono<AppEnv>()
    * be overwritten by it.
    */
   .put('/opening-hours', validate('json', openingHoursInputSchema), async (c) => {
-    const saved = await replaceOpeningHours(db(), tenantId(c), c.req.valid('json')).catch(
+    const saved = await replaceOpeningHours(database(c), tenantId(c), c.req.valid('json')).catch(
       (error: unknown) => {
         if (error instanceof OverlappingWindowsError) {
           throw new HTTPException(409, {
@@ -112,7 +112,7 @@ export const settingsRoute = new Hono<AppEnv>()
     const tenant = tenantId(c)
     const path = invoiceTemplatePath(tenant)
     await fileStore().write(path, bytes)
-    await setInvoiceTemplatePath(db(), tenant, path)
+    await setInvoiceTemplatePath(database(c), tenant, path)
 
     return c.json({ pages }, 201)
   })
@@ -129,7 +129,9 @@ export const settingsRoute = new Hono<AppEnv>()
    * is set, and only the file itself can say it is still there.
    */
   .get('/invoice-template/pages', async (c) => {
-    const template = await loadInvoiceTemplate(db(), tenantId(c), fileStore()).catch(() => null)
+    const template = await loadInvoiceTemplate(database(c), tenantId(c), fileStore()).catch(
+      () => null,
+    )
     const pages = template ? await assertUsableTemplate(template).catch(() => null) : null
 
     return c.json({ pages })
@@ -139,12 +141,14 @@ export const settingsRoute = new Hono<AppEnv>()
    *  Idempotent — removing one that is not there is the state being asked
    *  for, not an error. */
   .delete('/invoice-template', async (c) => {
-    await clearInvoiceTemplate(db(), tenantId(c), fileStore())
+    await clearInvoiceTemplate(database(c), tenantId(c), fileStore())
     return c.body(null, 204)
   })
 
   .get('/invoice-template', async (c) => {
-    const template = await loadInvoiceTemplate(db(), tenantId(c), fileStore()).catch(() => null)
+    const template = await loadInvoiceTemplate(database(c), tenantId(c), fileStore()).catch(
+      () => null,
+    )
     if (!template) throw new HTTPException(404, { message: messages.invoice.templateMissing })
 
     return new Response(template, {

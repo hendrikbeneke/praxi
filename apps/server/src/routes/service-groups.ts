@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
@@ -17,6 +16,7 @@ import {
 } from '../domain/service.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const groupParam = z.object({ groupId: z.uuid() })
@@ -41,11 +41,11 @@ function translate(error: unknown): never {
 
 export const serviceGroupsRoute = new Hono<AppEnv>()
   .get('/', validate('query', catalogueListQuerySchema), async (c) => {
-    return c.json(await listServiceGroups(db(), tenantId(c), c.req.valid('query')))
+    return c.json(await listServiceGroups(database(c), tenantId(c), c.req.valid('query')))
   })
 
   .post('/', validate('json', serviceGroupInputSchema), async (c) => {
-    const created = await createServiceGroup(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createServiceGroup(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(created, 201)
@@ -57,7 +57,7 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
     validate('json', serviceGroupInputSchema),
     async (c) => {
       const updated = await updateServiceGroup(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').groupId,
         c.req.valid('json'),
@@ -68,9 +68,11 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
   )
 
   .delete('/:groupId', validate('param', groupParam), async (c) => {
-    const deleted = await deleteServiceGroup(db(), tenantId(c), c.req.valid('param').groupId).catch(
-      translate,
-    )
+    const deleted = await deleteServiceGroup(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').groupId,
+    ).catch(translate)
     if (!deleted) notFound()
     return c.body(null, 204)
   })
@@ -84,7 +86,7 @@ export const serviceGroupsRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveServiceGroup(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').groupId,
         c.req.valid('json').delta,

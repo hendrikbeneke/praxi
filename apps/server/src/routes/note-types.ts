@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import {
   createNoteType,
@@ -16,6 +15,7 @@ import {
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 /** The rules live in `domain/note-type.ts` and in the constraints; this only
@@ -41,10 +41,12 @@ function translate(error: unknown): never {
 }
 
 export const noteTypesRoute = new Hono<AppEnv>()
-  .get('/', async (c) => c.json(await listNoteTypes(db(), tenantId(c))))
+  .get('/', async (c) => c.json(await listNoteTypes(database(c), tenantId(c))))
 
   .post('/', validate('json', noteTypeInputSchema), async (c) => {
-    const created = await createNoteType(db(), tenantId(c), c.req.valid('json')).catch(translate)
+    const created = await createNoteType(database(c), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
     return c.json(created, 201)
   })
 
@@ -54,7 +56,7 @@ export const noteTypesRoute = new Hono<AppEnv>()
     validate('json', noteTypeInputSchema),
     async (c) => {
       const updated = await updateNoteType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json'),
@@ -66,9 +68,11 @@ export const noteTypesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:typeId', validate('param', typeParam), async (c) => {
-    const deleted = await deleteNoteType(db(), tenantId(c), c.req.valid('param').typeId).catch(
-      translate,
-    )
+    const deleted = await deleteNoteType(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').typeId,
+    ).catch(translate)
     if (!deleted) throw new HTTPException(404, { message: messages.noteType.notFound })
     return c.body(null, 204)
   })
@@ -81,7 +85,7 @@ export const noteTypesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveNoteType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json').delta,

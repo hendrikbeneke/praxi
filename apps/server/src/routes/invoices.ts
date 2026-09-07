@@ -12,7 +12,7 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
+import type { Database } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import { listBillableItems } from '../domain/billable.js'
 import {
@@ -43,6 +43,7 @@ import { loadInvoiceTemplate } from '../domain/practice-settings.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 import { renderInvoicePdf } from '../pdf/render.js'
 import { fileStore } from '../storage.js'
@@ -99,8 +100,8 @@ function translate(error: unknown): never {
 }
 
 /** The bytes of an invoice, rendered against the current template. */
-async function render(tenant: string, invoice: Invoice): Promise<Uint8Array> {
-  return renderInvoicePdf(invoice, await loadInvoiceTemplate(db(), tenant, fileStore()))
+async function render(db: Database, tenant: string, invoice: Invoice): Promise<Uint8Array> {
+  return renderInvoicePdf(invoice, await loadInvoiceTemplate(db, tenant, fileStore()))
 }
 
 function pdfResponse(bytes: Uint8Array, fileName: string, inline: boolean): Response {
@@ -115,12 +116,12 @@ function pdfResponse(bytes: Uint8Array, fileName: string, inline: boolean): Resp
 
 export const invoicesRoute = new Hono<AppEnv>()
   .get('/', validate('query', invoiceListQuerySchema), async (c) => {
-    return c.json(await listInvoices(db(), tenantId(c), c.req.valid('query')))
+    return c.json(await listInvoices(database(c), tenantId(c), c.req.valid('query')))
   })
 
   /** Static segment before `/:invoiceId`, which is validated as a uuid. */
   .get('/billable', validate('query', billableQuerySchema), async (c) => {
-    return c.json(await listBillableItems(db(), tenantId(c), c.req.valid('query').contactId))
+    return c.json(await listBillableItems(database(c), tenantId(c), c.req.valid('query').contactId))
   })
 
   /**
@@ -135,7 +136,7 @@ export const invoicesRoute = new Hono<AppEnv>()
    */
   .get('/summary', validate('query', invoiceSummaryQuerySchema), async (c) => {
     const today = toBerlinDate(new Date().toISOString())
-    return c.json(await invoiceSummary(db(), tenantId(c), c.req.valid('query'), today))
+    return c.json(await invoiceSummary(database(c), tenantId(c), c.req.valid('query'), today))
   })
 
   /** Who an invoice for this contact may be addressed to — the contact's
@@ -144,11 +145,13 @@ export const invoicesRoute = new Hono<AppEnv>()
   .get('/recipients', validate('query', billableQuerySchema), async (c) => {
     const contactId = c.req.valid('query').contactId
     if (!contactId) return c.json([])
-    return c.json(await billingRecipientsOf(db(), tenantId(c), contactId))
+    return c.json(await billingRecipientsOf(database(c), tenantId(c), contactId))
   })
 
   .post('/', validate('json', invoiceCreateSchema), async (c) => {
-    const created = await createInvoice(db(), tenantId(c), c.req.valid('json')).catch(translate)
+    const created = await createInvoice(database(c), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
     return c.json(created, 201)
   })
 
@@ -158,14 +161,14 @@ export const invoicesRoute = new Hono<AppEnv>()
    * on the billable list are the same call with a different number of ids.
    */
   .post('/collect', validate('json', invoiceCollectSchema), async (c) => {
-    const results = await collectBillableItems(db(), tenantId(c), c.req.valid('json')).catch(
+    const results = await collectBillableItems(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(results, 201)
   })
 
   .get('/:invoiceId', validate('param', invoiceParam), async (c) => {
-    const found = await getInvoice(db(), tenantId(c), c.req.valid('param').invoiceId)
+    const found = await getInvoice(database(c), tenantId(c), c.req.valid('param').invoiceId)
     return found ? c.json(found) : notFound()
   })
 
@@ -175,7 +178,7 @@ export const invoicesRoute = new Hono<AppEnv>()
     validate('json', invoiceUpdateSchema),
     async (c) => {
       const updated = await updateInvoice(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').invoiceId,
         c.req.valid('json'),
@@ -186,9 +189,11 @@ export const invoicesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:invoiceId', validate('param', invoiceParam), async (c) => {
-    const deleted = await deleteInvoice(db(), tenantId(c), c.req.valid('param').invoiceId).catch(
-      translate,
-    )
+    const deleted = await deleteInvoice(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').invoiceId,
+    ).catch(translate)
     return deleted ? c.body(null, 204) : notFound()
   })
 
@@ -198,10 +203,10 @@ export const invoicesRoute = new Hono<AppEnv>()
    * only document that is ever written is the one created by finalizing.
    */
   .get('/:invoiceId/preview', validate('param', invoiceParam), async (c) => {
-    const found = await getInvoice(db(), tenantId(c), c.req.valid('param').invoiceId)
+    const found = await getInvoice(database(c), tenantId(c), c.req.valid('param').invoiceId)
     if (!found) notFound()
 
-    const bytes = await render(tenantId(c), found)
+    const bytes = await render(database(c), tenantId(c), found)
     return pdfResponse(bytes, `${found.number ?? 'Entwurf'}.pdf`, true)
   })
 
@@ -225,11 +230,11 @@ export const invoicesRoute = new Hono<AppEnv>()
       const { settle } = c.req.valid('query')
 
       const finalized = await finalizeInvoice(
-        db(),
+        database(c),
         tenant,
         fileStore(),
         c.req.valid('param').invoiceId,
-        (invoice) => render(tenant, invoice),
+        (invoice) => render(database(c), tenant, invoice),
         settle ? { method: 'card' } : undefined,
       ).catch(translate)
 
@@ -247,11 +252,11 @@ export const invoicesRoute = new Hono<AppEnv>()
   .post('/:invoiceId/cancel', validate('param', invoiceParam), async (c) => {
     const tenant = tenantId(c)
     const cancellation = await cancelInvoice(
-      db(),
+      database(c),
       tenant,
       fileStore(),
       c.req.valid('param').invoiceId,
-      (invoice) => render(tenant, invoice),
+      (invoice) => render(database(c), tenant, invoice),
     ).catch(translate)
 
     return cancellation ? c.json(cancellation) : notFound()
@@ -260,13 +265,13 @@ export const invoicesRoute = new Hono<AppEnv>()
   /** The stored document, served from disk and never re-rendered (rule 9). */
   .get('/:invoiceId/pdf', validate('param', invoiceParam), async (c) => {
     const invoiceId = c.req.valid('param').invoiceId
-    const found = await getInvoice(db(), tenantId(c), invoiceId)
+    const found = await getInvoice(database(c), tenantId(c), invoiceId)
     if (!found) notFound()
     if (found.status === 'draft') {
       throw new HTTPException(409, { message: messages.invoice.notADraft })
     }
 
-    const path = await getStoredPdfPath(db(), tenantId(c), invoiceId)
+    const path = await getStoredPdfPath(database(c), tenantId(c), invoiceId)
     if (!path) notFound()
 
     let bytes: Uint8Array

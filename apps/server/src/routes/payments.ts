@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { raisedMessage } from '../db/errors.js'
 import {
   addPayment,
@@ -13,6 +12,7 @@ import {
 } from '../domain/payment.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -43,7 +43,7 @@ function translate(error: unknown): never {
 
 export const paymentsRoute = new Hono<AppEnv>()
   .get('/:invoiceId/payments', validate('param', invoiceParam), async (c) => {
-    return c.json(await listPayments(db(), tenantId(c), c.req.valid('param').invoiceId))
+    return c.json(await listPayments(database(c), tenantId(c), c.req.valid('param').invoiceId))
   })
 
   .post(
@@ -52,7 +52,7 @@ export const paymentsRoute = new Hono<AppEnv>()
     validate('json', paymentInputSchema),
     async (c) => {
       const created = await addPayment(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').invoiceId,
         c.req.valid('json'),
@@ -65,7 +65,7 @@ export const paymentsRoute = new Hono<AppEnv>()
 
   .delete('/:invoiceId/payments/:paymentId', validate('param', paymentParam), async (c) => {
     const { invoiceId, paymentId } = c.req.valid('param')
-    const deleted = await deletePayment(db(), tenantId(c), invoiceId, paymentId)
+    const deleted = await deletePayment(database(c), tenantId(c), invoiceId, paymentId)
     if (!deleted) throw new HTTPException(404, { message: messages.payment.notFound })
     return c.body(null, 204)
   })

@@ -24,8 +24,19 @@ pnpm install
 cp .env.example .env     # then set SEED_USER_PASSWORD and BETTER_AUTH_SECRET
 pnpm db:up               # starts Postgres 17 on host port 55432
 pnpm db:migrate          # creates the tables
+pnpm db:app-role         # gives the server's own role its password
 pnpm db:seed             # tenant, practice settings, user, example catalogue
 pnpm dev                 # http://localhost:5173
+```
+
+The server does **not** connect as the owner. `praxi` is a superuser, has
+`BYPASSRLS` and owns every table, so row-level security would never apply to it;
+the server uses `praxi_app` instead, through `APP_DATABASE_URL`. Migrations, the
+seed and the scripts keep `DATABASE_URL`. Generate the password once, put it in
+both `APP_DATABASE_PASSWORD` and `APP_DATABASE_URL`, and run `pnpm db:app-role`:
+
+```bash
+openssl rand -hex 24      # APP_DATABASE_PASSWORD
 ```
 
 `BETTER_AUTH_SECRET` signs the session cookie and is the one variable the

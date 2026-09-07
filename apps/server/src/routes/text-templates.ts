@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
@@ -15,6 +14,7 @@ import {
 } from '../domain/text-template.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const templateParam = z.object({ templateId: z.uuid() })
@@ -44,11 +44,13 @@ function translate(error: unknown): never {
 
 export const textTemplatesRoute = new Hono<AppEnv>()
   .get('/', validate('query', listQuery), async (c) => {
-    return c.json(await listTextTemplates(db(), tenantId(c), c.req.valid('query').includeInactive))
+    return c.json(
+      await listTextTemplates(database(c), tenantId(c), c.req.valid('query').includeInactive),
+    )
   })
 
   .post('/', validate('json', textTemplateInputSchema), async (c) => {
-    const created = await createTextTemplate(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createTextTemplate(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(created, 201)
@@ -60,7 +62,7 @@ export const textTemplatesRoute = new Hono<AppEnv>()
     validate('json', textTemplateInputSchema),
     async (c) => {
       const updated = await updateTextTemplate(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').templateId,
         c.req.valid('json'),
@@ -72,7 +74,11 @@ export const textTemplatesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:templateId', validate('param', templateParam), async (c) => {
-    const deleted = await deleteTextTemplate(db(), tenantId(c), c.req.valid('param').templateId)
+    const deleted = await deleteTextTemplate(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').templateId,
+    )
     if (!deleted) throw new HTTPException(404, { message: messages.textTemplate.notFound })
     return c.body(null, 204)
   })
@@ -86,7 +92,7 @@ export const textTemplatesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveTextTemplate(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').templateId,
         c.req.valid('json').delta,

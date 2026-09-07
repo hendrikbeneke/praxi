@@ -8,7 +8,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint } from '../db/errors.js'
 import {
   AppointmentHasActivityError,
@@ -22,6 +21,7 @@ import { busyIntervals } from '../domain/google-connection.js'
 import { openGoogleApi } from '../google/api.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const appointmentParam = z.object({ appointmentId: z.uuid() })
@@ -42,7 +42,7 @@ const appointmentParam = z.object({ appointmentId: z.uuid() })
  */
 export const appointmentsRoute = new Hono<AppEnv>()
   .get('/', validate('query', appointmentRangeQuerySchema), async (c) => {
-    return c.json(await listCalendarEntries(db(), tenantId(c), c.req.valid('query')))
+    return c.json(await listCalendarEntries(database(c), tenantId(c), c.req.valid('query')))
   })
 
   /**
@@ -61,16 +61,18 @@ export const appointmentsRoute = new Hono<AppEnv>()
      *  "not checked" — the same answer a failed query gives, because to the
      *  practitioner the two mean the same thing. */
     const lookup: BusyLookup = async (from, to) => {
-      const api = await openGoogleApi(db(), tenant)
+      const api = await openGoogleApi(database(c), tenant)
       if (!api) throw new Error('google is not connected')
-      return busyIntervals(db(), tenant, api, from, to)
+      return busyIntervals(database(c), tenant, api, from, to)
     }
 
-    return c.json(await findFreeSlots(db(), tenant, c.req.valid('query'), lookup, new Date()))
+    return c.json(
+      await findFreeSlots(database(c), tenant, c.req.valid('query'), lookup, new Date()),
+    )
   })
 
   .post('/', validate('json', appointmentCreateSchema), async (c) => {
-    const created = await createAppointment(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createAppointment(database(c), tenantId(c), c.req.valid('json')).catch(
       (error: unknown) => {
         // A contact that was archived away or never belonged to this tenant.
         if (foreignKeyViolationConstraint(error) === 'appointment_contact_tenant_fk') {
@@ -89,7 +91,7 @@ export const appointmentsRoute = new Hono<AppEnv>()
     validate('json', appointmentPatchSchema),
     async (c) => {
       const updated = await updateAppointment(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').appointmentId,
         c.req.valid('json'),
@@ -108,7 +110,7 @@ export const appointmentsRoute = new Hono<AppEnv>()
   /** Only an appointment without a Vorgang; the domain says why. */
   .delete('/:appointmentId', validate('param', appointmentParam), async (c) => {
     const deleted = await deleteAppointment(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('param').appointmentId,
     ).catch((error: unknown) => {

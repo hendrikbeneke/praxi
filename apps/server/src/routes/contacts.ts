@@ -9,7 +9,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import { listContactAppointments, nextContactAppointment } from '../domain/appointment.js'
 import {
@@ -33,6 +32,7 @@ import { MissingNumberRangeError } from '../domain/counter.js'
 import { InvalidCursorError } from '../domain/keyset.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const contactParam = z.object({ contactId: z.uuid() })
@@ -84,17 +84,21 @@ function translate(error: unknown): never {
 
 export const contactsRoute = new Hono<AppEnv>()
   .get('/', validate('query', contactListQuerySchema), async (c) => {
-    const result = await listContacts(db(), tenantId(c), c.req.valid('query')).catch(translate)
+    const result = await listContacts(database(c), tenantId(c), c.req.valid('query')).catch(
+      translate,
+    )
     return c.json(result)
   })
 
   .post('/', validate('json', contactInputSchema), async (c) => {
-    const created = await createContact(db(), tenantId(c), c.req.valid('json')).catch(translate)
+    const created = await createContact(database(c), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
     return c.json(created, 201)
   })
 
   .get('/:contactId', validate('param', contactParam), async (c) => {
-    const found = await getContact(db(), tenantId(c), c.req.valid('param').contactId)
+    const found = await getContact(database(c), tenantId(c), c.req.valid('param').contactId)
     return found ? c.json(found) : notFound()
   })
 
@@ -104,7 +108,7 @@ export const contactsRoute = new Hono<AppEnv>()
     validate('json', contactUpdateSchema),
     async (c) => {
       const updated = await updateContact(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').contactId,
         c.req.valid('json'),
@@ -126,7 +130,7 @@ export const contactsRoute = new Hono<AppEnv>()
     validate('json', contactRolesInputSchema),
     async (c) => {
       const updated = await setContactRoles(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').contactId,
         c.req.valid('json').roles,
@@ -142,7 +146,7 @@ export const contactsRoute = new Hono<AppEnv>()
    */
   .post('/:contactId/archive', validate('param', contactParam), async (c) => {
     const archived = await setContactArchived(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('param').contactId,
       true,
@@ -152,7 +156,7 @@ export const contactsRoute = new Hono<AppEnv>()
 
   .post('/:contactId/unarchive', validate('param', contactParam), async (c) => {
     const restored = await setContactArchived(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('param').contactId,
       false,
@@ -167,7 +171,7 @@ export const contactsRoute = new Hono<AppEnv>()
    * attachments in slice 5.
    */
   .get('/:contactId/relations', validate('param', contactParam), async (c) => {
-    return c.json(await listRelations(db(), tenantId(c), c.req.valid('param').contactId))
+    return c.json(await listRelations(database(c), tenantId(c), c.req.valid('param').contactId))
   })
 
   .post(
@@ -176,7 +180,7 @@ export const contactsRoute = new Hono<AppEnv>()
     validate('json', contactRelationInputSchema),
     async (c) => {
       const created = await addRelation(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').contactId,
         c.req.valid('json'),
@@ -202,7 +206,7 @@ export const contactsRoute = new Hono<AppEnv>()
     async (c) => {
       const param = c.req.valid('param')
       const saved = await updateRelation(
-        db(),
+        database(c),
         tenantId(c),
         param.contactId,
         param.relationId,
@@ -219,7 +223,12 @@ export const contactsRoute = new Hono<AppEnv>()
     validate('param', contactParam.extend({ relationId: z.uuid() })),
     async (c) => {
       const param = c.req.valid('param')
-      const deleted = await deleteRelation(db(), tenantId(c), param.contactId, param.relationId)
+      const deleted = await deleteRelation(
+        database(c),
+        tenantId(c),
+        param.contactId,
+        param.relationId,
+      )
       if (!deleted) throw new HTTPException(404, { message: messages.contact.relationNotFound })
       return c.body(null, 204)
     },
@@ -233,7 +242,7 @@ export const contactsRoute = new Hono<AppEnv>()
    */
   .get('/:contactId/appointments', validate('param', contactParam), async (c) => {
     const entries = await listContactAppointments(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('param').contactId,
       new Date(),
@@ -245,7 +254,7 @@ export const contactsRoute = new Hono<AppEnv>()
    *  than the first row of the list above — see the domain function. */
   .get('/:contactId/appointments/next', validate('param', contactParam), async (c) => {
     const entry = await nextContactAppointment(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('param').contactId,
       new Date(),

@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import {
   createActivityType,
@@ -16,6 +15,7 @@ import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import { UnknownServiceError } from '../domain/service.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const typeParam = z.object({ typeId: z.uuid() })
@@ -51,11 +51,13 @@ function translate(error: unknown): never {
 
 export const activityTypesRoute = new Hono<AppEnv>()
   .get('/', validate('query', listQuery), async (c) => {
-    return c.json(await listActivityTypes(db(), tenantId(c), c.req.valid('query').includeInactive))
+    return c.json(
+      await listActivityTypes(database(c), tenantId(c), c.req.valid('query').includeInactive),
+    )
   })
 
   .post('/', validate('json', activityTypeCreateSchema), async (c) => {
-    const created = await createActivityType(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createActivityType(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(created, 201)
@@ -67,7 +69,7 @@ export const activityTypesRoute = new Hono<AppEnv>()
     validate('json', activityTypeInputSchema),
     async (c) => {
       const updated = await updateActivityType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json'),
@@ -79,9 +81,11 @@ export const activityTypesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:typeId', validate('param', typeParam), async (c) => {
-    const deleted = await deleteActivityType(db(), tenantId(c), c.req.valid('param').typeId).catch(
-      translate,
-    )
+    const deleted = await deleteActivityType(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').typeId,
+    ).catch(translate)
     if (!deleted) throw new HTTPException(404, { message: messages.activityType.notFound })
     return c.body(null, 204)
   })
@@ -95,7 +99,7 @@ export const activityTypesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveActivityType(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').typeId,
         c.req.valid('json').delta,

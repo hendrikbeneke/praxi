@@ -116,7 +116,7 @@ describe('sweepOnSignIn', () => {
       .insert(rateLimit)
       .values({ id: newId(), key: 'stale', count: 1, lastRequest: longAgo.getTime() })
 
-    await sweepOnSignIn(db(), now)
+    await sweepOnSignIn(db(), tenantId, now)
 
     expect(await db().select().from(session)).toEqual([])
     expect(await db().select().from(rateLimit)).toEqual([])

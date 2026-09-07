@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import {
   InvoiceNotSendableError,
   listSends,
@@ -15,6 +14,7 @@ import { logger } from '../logger.js'
 import { createSmtpTransport } from '../mail/transport.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 import { EncryptionKeyMismatchError } from '../secrets.js'
 import { fileStore } from '../storage.js'
@@ -46,7 +46,7 @@ export const invoiceSendRoute = new Hono<AppEnv>()
     validate('query', z.object({ templateId: z.uuid().optional() })),
     async (c) => {
       const draft = await prepareSend(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').invoiceId,
         c.req.valid('query').templateId,
@@ -57,7 +57,7 @@ export const invoiceSendRoute = new Hono<AppEnv>()
   )
 
   .get('/:invoiceId/sends', validate('param', invoiceParam), async (c) => {
-    return c.json(await listSends(db(), tenantId(c), c.req.valid('param').invoiceId))
+    return c.json(await listSends(database(c), tenantId(c), c.req.valid('param').invoiceId))
   })
 
   .post(
@@ -68,7 +68,7 @@ export const invoiceSendRoute = new Hono<AppEnv>()
       const tenant = tenantId(c)
       const invoiceId = c.req.valid('param').invoiceId
 
-      const smtp = await loadSmtpConfig(db(), tenant).catch((error: unknown) => {
+      const smtp = await loadSmtpConfig(database(c), tenant).catch((error: unknown) => {
         if (error instanceof EncryptionKeyMismatchError) {
           throw new HTTPException(409, { message: messages.smtp.keyMismatch })
         }
@@ -77,7 +77,7 @@ export const invoiceSendRoute = new Hono<AppEnv>()
       if (!smtp) throw new HTTPException(409, { message: messages.smtp.notConfigured })
 
       const result = await sendInvoice(
-        db(),
+        database(c),
         tenant,
         c.get('user').id,
         invoiceId,

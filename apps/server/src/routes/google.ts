@@ -10,7 +10,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import {
   busyIntervals,
   disconnect,
@@ -29,6 +28,7 @@ import { syncNow } from '../google/worker.js'
 import { logger } from '../logger.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { asTenant, database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 import { EncryptionKeyMismatchError } from '../secrets.js'
 
@@ -119,10 +119,17 @@ const callbackRoute = new Hono<AppEnv>().get(
        * the next time the picker is opened.
        */
       const accountEmail = await primaryCalendarAddress(tokens.accessToken)
-      await saveConnection(db(), flow.tenantId, {
-        refreshToken: tokens.refreshToken,
-        accountEmail,
-      })
+      // The tenant comes from the single-use `state`, not from a session —
+      // this route is public for exactly that reason (the redirect lands on
+      // 127.0.0.1, where the cookie does not travel). It still has to reach the
+      // database as that tenant, so it opens the same kind of transaction the
+      // guard opens for every other route.
+      await asTenant(flow.tenantId, (tx) =>
+        saveConnection(tx, flow.tenantId, {
+          refreshToken: tokens.refreshToken,
+          accountEmail,
+        }),
+      )
     } catch (error) {
       logger().warn({ tenantId: flow.tenantId }, 'google oauth exchange failed')
       const message = error instanceof Error ? error.message : messages.error.internal
@@ -136,7 +143,7 @@ const callbackRoute = new Hono<AppEnv>().get(
 export const googleRoute = new Hono<AppEnv>()
   .route('/', callbackRoute)
 
-  .get('/status', async (c) => c.json(await getStatus(db(), tenantId(c))))
+  .get('/status', async (c) => c.json(await getStatus(database(c), tenantId(c))))
 
   /** Hands back the URL rather than redirecting: the SPA opens it in a new
    *  window and keeps polling the status in this one. */
@@ -154,9 +161,9 @@ export const googleRoute = new Hono<AppEnv>()
      * absence must not stop the local cleanup — disconnecting has to work
      * offline, or a broken connection could never be got rid of.
      */
-    const api = await openGoogleApi(db(), tenant).catch(() => null)
+    const api = await openGoogleApi(database(c), tenant).catch(() => null)
 
-    const result = await disconnect(db(), tenant, {
+    const result = await disconnect(database(c), tenant, {
       deleteRemoteEvents: c.req.valid('json').deleteRemoteEvents,
       api,
     })
@@ -164,20 +171,20 @@ export const googleRoute = new Hono<AppEnv>()
   })
 
   .get('/calendars', async (c) => {
-    const api = await openGoogleApi(db(), tenantId(c)).catch(translate)
+    const api = await openGoogleApi(database(c), tenantId(c)).catch(translate)
     if (!api) throw new HTTPException(409, { message: messages.google.notConnected })
 
     const calendars = await api.listCalendars().catch(translate)
     // Self-healing: if the address was not learned at connect time — offline
     // then, say — this is the same data arriving anyway, at no extra call.
     const primary = calendars.find((calendar) => calendar.primary)
-    if (primary) await setAccountEmail(db(), tenantId(c), primary.id)
+    if (primary) await setAccountEmail(database(c), tenantId(c), primary.id)
 
     return c.json(calendars)
   })
 
   .put('/calendar', validate('json', googleCalendarSelectionSchema), async (c) => {
-    const ok = await setCalendar(db(), tenantId(c), c.req.valid('json').calendarId)
+    const ok = await setCalendar(database(c), tenantId(c), c.req.valid('json').calendarId)
     if (!ok) throw new HTTPException(409, { message: messages.google.notConnected })
     return c.body(null, 204)
   })
@@ -193,7 +200,7 @@ export const googleRoute = new Hono<AppEnv>()
    */
   .put('/event-title', validate('json', googleEventTitleSchema), async (c) => {
     const ok = await setEventTitleTemplate(
-      db(),
+      database(c),
       tenantId(c),
       c.req.valid('json').eventTitleTemplate,
     )
@@ -202,7 +209,7 @@ export const googleRoute = new Hono<AppEnv>()
   })
 
   .put('/freebusy-calendars', validate('json', googleFreebusySelectionSchema), async (c) => {
-    const ok = await setFreebusyCalendars(db(), tenantId(c), c.req.valid('json').calendarIds)
+    const ok = await setFreebusyCalendars(database(c), tenantId(c), c.req.valid('json').calendarIds)
     if (!ok) throw new HTTPException(409, { message: messages.google.notConnected })
     return c.body(null, 204)
   })
@@ -214,11 +221,11 @@ export const googleRoute = new Hono<AppEnv>()
    */
   .get('/freebusy', validate('query', busyRangeQuerySchema), async (c) => {
     const range = c.req.valid('query')
-    const api = await openGoogleApi(db(), tenantId(c)).catch(() => null)
+    const api = await openGoogleApi(database(c), tenantId(c)).catch(() => null)
     if (!api) return c.json([])
 
     const intervals = await busyIntervals(
-      db(),
+      database(c),
       tenantId(c),
       api,
       new Date(range.from),
@@ -228,7 +235,7 @@ export const googleRoute = new Hono<AppEnv>()
     return c.json(intervals)
   })
 
-  .get('/conflicts', async (c) => c.json(await listConflicts(db(), tenantId(c))))
+  .get('/conflicts', async (c) => c.json(await listConflicts(database(c), tenantId(c))))
 
   .post(
     '/conflicts/:appointmentId/resolve',
@@ -236,7 +243,7 @@ export const googleRoute = new Hono<AppEnv>()
     validate('json', conflictResolutionSchema),
     async (c) => {
       const resolved = await resolveConflict(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').appointmentId,
         c.req.valid('json').keep,
@@ -247,4 +254,4 @@ export const googleRoute = new Hono<AppEnv>()
     },
   )
 
-  .post('/sync', async (c) => c.json(await syncNow(db(), tenantId(c)).catch(translate)))
+  .post('/sync', async (c) => c.json(await syncNow(database(c), tenantId(c)).catch(translate)))

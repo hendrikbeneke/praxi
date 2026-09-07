@@ -7,7 +7,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint } from '../db/errors.js'
 import {
   ActivityHasNotesError,
@@ -24,6 +23,7 @@ import {
 import { InvalidCursorError } from '../domain/keyset.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 const activityParam = z.object({ activityId: z.uuid() })
@@ -62,22 +62,26 @@ function translate(error: unknown): never {
 
 export const activitiesRoute = new Hono<AppEnv>()
   .get('/', validate('query', activityListQuerySchema), async (c) => {
-    return c.json(await listActivities(db(), tenantId(c), c.req.valid('query')).catch(translate))
+    return c.json(
+      await listActivities(database(c), tenantId(c), c.req.valid('query')).catch(translate),
+    )
   })
 
   /** Registered before `/:activityId`, which is validated as a uuid — so the
    *  two cannot be confused either way. */
   .get('/summary', validate('query', activitySummaryQuerySchema), async (c) => {
-    return c.json(await activitySummary(db(), tenantId(c), c.req.valid('query'), new Date()))
+    return c.json(await activitySummary(database(c), tenantId(c), c.req.valid('query'), new Date()))
   })
 
   .post('/', validate('json', activityInputSchema), async (c) => {
-    const created = await createActivity(db(), tenantId(c), c.req.valid('json')).catch(translate)
+    const created = await createActivity(database(c), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
     return c.json(created, 201)
   })
 
   .get('/:activityId', validate('param', activityParam), async (c) => {
-    const found = await getActivity(db(), tenantId(c), c.req.valid('param').activityId)
+    const found = await getActivity(database(c), tenantId(c), c.req.valid('param').activityId)
     return found ? c.json(found) : notFound()
   })
 
@@ -87,7 +91,7 @@ export const activitiesRoute = new Hono<AppEnv>()
     validate('json', activityInputSchema),
     async (c) => {
       const updated = await updateActivity(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').activityId,
         c.req.valid('json'),
@@ -98,8 +102,10 @@ export const activitiesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:activityId', validate('param', activityParam), async (c) => {
-    const deleted = await deleteActivity(db(), tenantId(c), c.req.valid('param').activityId).catch(
-      translate,
-    )
+    const deleted = await deleteActivity(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').activityId,
+    ).catch(translate)
     return deleted ? c.body(null, 204) : notFound()
   })

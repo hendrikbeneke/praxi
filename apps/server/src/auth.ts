@@ -2,6 +2,7 @@ import type { Theme } from '@praxi/shared'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { createAuthMiddleware } from 'better-auth/api'
+import { z } from 'zod'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE } from './cookies.js'
 import { db } from './db/client.js'
 import * as schema from './db/schema.js'
@@ -181,8 +182,13 @@ function build() {
            * The free moment that used to sit inside `login()`. Floated
            * deliberately: housekeeping must not be able to fail a sign-in.
            */
-          after: async () => {
-            void sweepOnSignIn(db()).catch(() => {})
+          after: async (session) => {
+            // The `before` hook above put it there and the column is not null,
+            // but the library types this callback's argument without our
+            // additional fields — so it is parsed rather than asserted.
+            const tenant = z.uuid().safeParse(session.tenantId)
+            if (!tenant.success) return
+            void sweepOnSignIn(db(), tenant.data).catch(() => {})
           },
         },
       },

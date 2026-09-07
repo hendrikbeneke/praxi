@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory'
 import type { AppEnv } from '../context.js'
 import { requireAuth } from './auth.js'
 import { withTenant } from './tenant.js'
+import { withTenantDatabase } from './tenant-db.js'
 
 /**
  * One route that is reachable without a session, and why.
@@ -85,10 +86,14 @@ export const apiGuard = createMiddleware<AppEnv>(async (c, next) => {
   if (publicKeys.has(`${c.req.method} ${c.req.path}`)) return next()
   if (publicPrefixes.some((prefix) => c.req.path.startsWith(prefix))) return next()
 
-  // Two middlewares rather than one call: `requireAuth` puts the session on the
-  // context and `withTenant` is the checkpoint that says the tenant came from
-  // it (CLAUDE.md rule 1). Both throw, so reaching `next()` means both passed.
+  // Three in order, each depending on the one before: `requireAuth` puts the
+  // session on the context, `withTenant` is the checkpoint that says the tenant
+  // came from it (CLAUDE.md rule 1), and `withTenantDatabase` opens the
+  // transaction that carries it into the database. They throw, so reaching the
+  // route means all three passed.
   return requireAuth(c, async () => {
-    await withTenant(c, next)
+    await withTenant(c, async () => {
+      await withTenantDatabase(c, next)
+    })
   })
 })

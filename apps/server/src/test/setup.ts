@@ -68,6 +68,18 @@ const sql = postgres(workerUrl, { max: 1, onnotice: () => {} })
 await migrate(drizzle(sql), { migrationsFolder })
 
 process.env.DATABASE_URL = workerUrl
+/**
+ * And the app role's URL is cleared, so `db/client.ts` falls back to the line
+ * above rather than connecting to the developer's own database as `praxi_app`.
+ * Without this every test in this worker silently talks to `praxi` instead of
+ * to its own throwaway database — which is how it announced itself: twenty-two
+ * tests failing on rows another test had left behind, in the wrong database.
+ *
+ * The tests deliberately run as the OWNER, which bypasses row-level security.
+ * They assert business rules, not tenant isolation; isolation is asserted where
+ * it lives, against the unprivileged role, in the RLS test that comes with S-C2.
+ */
+delete process.env.APP_DATABASE_URL
 
 /**
  * Every test starts on empty tables. The table list comes from the catalogue

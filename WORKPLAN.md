@@ -3101,6 +3101,64 @@ DOM-Umgebung; ein `jsdom` für diesen einen Fall wäre eine Abhängigkeit für e
 `CLAUDE.md` an den Browser verweist. Was bleibt, ist der Kommentar an `signOut`, der sagt,
 warum die Zeile dort steht.
 
+## S-C1 — alles, was Row Level Security braucht, ohne es einzuschalten
+
+Vorbereitung in einer Scheibe, damit S-C2 ein einziger Moment ist, in dem sich etwas ändern
+kann, statt fünf. **Nichts an dieser Scheibe ist beobachtbar**: die Policies sind aus, der
+Server verhält sich exakt wie vorher.
+
+- **Der Befund, der den Rest bestimmte.** `praxi` ist Superuser, hat `BYPASSRLS` und ist
+  Eigentümer aller 39 Tabellen — jeder der drei Gründe allein genügt, jede Policy zu umgehen.
+  Nur Einschalten hätte **nichts** bewirkt, ohne Fehler und ohne Hinweis. Der Serverprozess
+  verbindet sich jetzt als `praxi_app` (`APP_DATABASE_URL`), ohne Superuser, ohne Bypass, nicht
+  Eigentümer; Migrationen, Seed und Skripte behalten `DATABASE_URL`. Das Passwort setzt
+  `pnpm db:app-role` aus der Umgebung — in einer Migration hätte es im Git gestanden.
+- **Alle 34 Policies waren falsch, auf dieselbe Weise.** `SET LOCAL` setzt eine eigene Variable
+  am Transaktionsende nicht auf NULL zurück, sondern auf den **Leerstring**, und `''::uuid`
+  wirft. `current_setting(…, true)` ist genau dafür gewählt, NULL statt Fehler zu liefern — und
+  der Fall, der real eintritt, ist nicht Abwesenheit. Jetzt `nullif(…, '')`. Wäre erst im
+  Betrieb aufgefallen, als Datenbankfehler statt leerer Antwort.
+- **Drei Tabellen hatten RLS scharf und keine Policy** (`account`, `verification`,
+  `rate_limit`, aus S-B). Das ist Default-Deny: null Zeilen für alle, die Anmeldung wäre tot
+  gewesen.
+- **`opening_hour` fehlte das `WITH CHECK`** — nachgeprüft und **kein Loch**: Postgres nimmt
+  bei `FOR ALL` das `USING` auch als Check, ein Insert für einen fremden Mandanten wird
+  refüsiert. Trotzdem vereinheitlicht.
+- **Transaktion pro Anfrage, mit `SET LOCAL`.** Der Pool-Leak ist nachgestellt statt
+  beschrieben, mit `max: 1`, was eine warme Verbindung ohnehin ist: bei `SET` sah die *nächste*
+  Anfrage ohne eigenes Zutun die Zeilen des vorigen Mandanten; bei `SET LOCAL` null, auch nach
+  einem Rollback. `middleware/tenant-db.ts` öffnet sie, Routen nehmen `database(c)` statt
+  `db()` — 140 Aufrufstellen, alle in `routes/`.
+- **Gesetzt wird dort, wo der Handle entsteht**, nicht in `withTenant`. Das ist ein Prüfpunkt
+  ohne Datenbankhandle; dort gesetzt läge die Variable auf *irgendeiner* Verbindung, während
+  die Route sich eine andere aus dem Pool greift.
+- **Keine einzige Domänensignatur angefasst.** `Database` ist jetzt `Pool | Transaction` statt
+  des Pools — was aus einer Route kommt, ist seit dieser Scheibe eine Transaktion, was aus Seed
+  und Worker kommt, der Pool. Die 147 Signaturen waren immer richtig; `Database` hieß stets
+  „etwas, worauf man Abfragen laufen lässt", und erst jetzt gibt es davon zwei.
+- **Ein benanntes Loch, nicht zwei.** `google_connection_tenant_ids()`, `SECURITY DEFINER`,
+  gibt eine Spalte einer Tabelle heraus — der Worker läuft auf einem Timer, hat keinen
+  Mandanten, und ohne das fände er nichts, protokollierte nichts und sähe aus wie ein Worker
+  ohne Arbeit. Der Rest läuft je Mandant über `asTenant()`, ebenso der OAuth-Callback, der
+  seinen Mandanten aus dem `state` hat.
+- **Der Entwurfs-Sweep wurde *keine* zweite solche Funktion.** Seine Regel ist „älter als 30
+  Tage **oder** älter als die eigene Notiz"; das in SQL neben dem TypeScript zu wiederholen wäre
+  eine zweite Definition davon, wann ein Entwurf veraltet ist. Er läuft jetzt für den Mandanten
+  dessen, der sich anmeldet — ein Mandant, in den sich niemand anmeldet, sammelt auch keine
+  neuen Entwürfe.
+- **`tenantOfUser` hat einen eigenen Test** (`domain/session.test.ts`). Sie entscheidet, welcher
+  Mandant überhaupt gilt, und liegt auf `app_user`, das absichtlich außerhalb der Policies
+  bleibt — eine vergessene Filterung dort fiele nicht auf. Der zweite Test ist so gebaut, dass
+  die erste Zeile der Tabelle absichtlich die falsche ist: ein `limit 1` ohne `where` fällt
+  durch.
+- **Die Geschwindigkeit ist gemessen, nicht geschätzt.** 200 000 Zeilen, Listenabfrage: 0,179 ms
+  mit gegen 0,125 ms ohne — der Planer macht aus der Policy einen *One-Time Filter*, der
+  Index-Scan bleibt identisch. Kindtabelle über den Elternschlüssel, 600 000 Zeilen, ohne
+  eigenes `tenant_id` im `WHERE`: 0,109 ms, Index unverändert.
+- **Nebenbefund in den Fixtures:** `createUser` leitete die E-Mail aus den ersten acht Zeichen
+  der UUIDv7 ab — das ist der Zeitstempel, also kollidierten zwei in derselben Millisekunde
+  angelegte Benutzer auf dem globalen Unique-Index. Fiel erst auf, als ein Test zwei brauchte.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
@@ -3118,8 +3176,16 @@ each line names the reason, not the solution.
   "who looked at this record" is answerable from the fact that there is one;
   with two it is not, and § 630f and Art. 9 GDPR make it a question that gets
   asked.
-- **Enable the RLS policies.** They are created and deliberately disabled on
-  every table; the tenant filter is application code until they are on.
+- **Enable the RLS policies** — S-C2, the one migration that flips them. S-C1
+  did everything that has to be true first; this is `ALTER TABLE … ENABLE ROW
+  LEVEL SECURITY` on 34 tables plus the two tests, and it is the one moment
+  behaviour can change.
+- **The seven routes that call a foreign service while holding the request
+  transaction.** Six Google routes and the invoice mail send. Taken in hand in
+  S-C1 rather than redesigned: `idle_in_transaction_session_timeout = '30s'` on
+  the role bounds it, and one practitioner with ten connections is not where it
+  becomes a correctness problem. The tidier shape is to read what is needed,
+  commit, and only then talk to the network.
 - **A deletion concept for the retention periods.** Records are kept because
   the law requires it for a time — nothing today marks when that time is up or
   removes anything afterwards, and keeping health data longer than the purpose

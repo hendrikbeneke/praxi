@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import {
   createEmailTemplate,
@@ -23,6 +22,7 @@ import {
 import { createSmtpTransport } from '../mail/transport.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 import { EncryptionKeyMismatchError, MissingEncryptionKeyError } from '../secrets.js'
 
@@ -47,15 +47,17 @@ function translate(error: unknown): never {
 
 export const smtpRoute = new Hono<AppEnv>()
   /** Never carries a password, in any shape — only whether one is stored. */
-  .get('/', async (c) => c.json(await getSmtpSettings(db(), tenantId(c))))
+  .get('/', async (c) => c.json(await getSmtpSettings(database(c), tenantId(c))))
 
   .put('/', validate('json', smtpSettingsInputSchema), async (c) => {
-    const saved = await saveSmtpSettings(db(), tenantId(c), c.req.valid('json')).catch(translate)
+    const saved = await saveSmtpSettings(database(c), tenantId(c), c.req.valid('json')).catch(
+      translate,
+    )
     return c.json(saved)
   })
 
   .delete('/', async (c) => {
-    await deleteSmtpSettings(db(), tenantId(c))
+    await deleteSmtpSettings(database(c), tenantId(c))
     return c.body(null, 204)
   })
 
@@ -72,7 +74,7 @@ export const smtpRoute = new Hono<AppEnv>()
    * what the server said" is the result the practitioner asked for.
    */
   .post('/test', async (c) => {
-    const smtp = await loadSmtpConfig(db(), tenantId(c)).catch(translate)
+    const smtp = await loadSmtpConfig(database(c), tenantId(c)).catch(translate)
     if (!smtp) throw new HTTPException(409, { message: messages.smtp.notConfigured })
 
     return c.json(
@@ -81,10 +83,10 @@ export const smtpRoute = new Hono<AppEnv>()
   })
 
 export const emailTemplatesRoute = new Hono<AppEnv>()
-  .get('/', async (c) => c.json(await listEmailTemplates(db(), tenantId(c))))
+  .get('/', async (c) => c.json(await listEmailTemplates(database(c), tenantId(c))))
 
   .post('/', validate('json', emailTemplateInputSchema), async (c) => {
-    const created = await createEmailTemplate(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createEmailTemplate(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(created, 201)
@@ -96,7 +98,7 @@ export const emailTemplatesRoute = new Hono<AppEnv>()
     validate('json', emailTemplateInputSchema),
     async (c) => {
       const updated = await updateEmailTemplate(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').templateId,
         c.req.valid('json'),
@@ -108,7 +110,11 @@ export const emailTemplatesRoute = new Hono<AppEnv>()
   )
 
   .delete('/:templateId', validate('param', templateParam), async (c) => {
-    const deleted = await deleteEmailTemplate(db(), tenantId(c), c.req.valid('param').templateId)
+    const deleted = await deleteEmailTemplate(
+      database(c),
+      tenantId(c),
+      c.req.valid('param').templateId,
+    )
     if (!deleted) throw new HTTPException(404, { message: messages.emailTemplate.notFound })
     return c.body(null, 204)
   })
@@ -122,7 +128,7 @@ export const emailTemplatesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveEmailTemplate(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').templateId,
         c.req.valid('json').delta,

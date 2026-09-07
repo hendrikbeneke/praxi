@@ -2,9 +2,9 @@ import { numberRangeCodeSchema, numberRangeInputSchema } from '@praxi/shared'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { listNumberRanges, upsertNumberRange } from '../domain/number-range.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -20,7 +20,7 @@ const rangeParam = z.object({ code: numberRangeCodeSchema })
 
 export const numberRangesRoute = new Hono<AppEnv>()
   .get('/', async (c) => {
-    return c.json(await listNumberRanges(db(), tenantId(c)))
+    return c.json(await listNumberRanges(database(c), tenantId(c)))
   })
 
   .put(
@@ -29,7 +29,7 @@ export const numberRangesRoute = new Hono<AppEnv>()
     validate('json', numberRangeInputSchema),
     async (c) => {
       const saved = await upsertNumberRange(
-        db(),
+        database(c),
         tenantId(c),
         c.req.valid('param').code,
         c.req.valid('json'),

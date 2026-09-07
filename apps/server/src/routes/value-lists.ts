@@ -3,7 +3,6 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import type { AppEnv } from '../context.js'
-import { db } from '../db/client.js'
 import { foreignKeyViolationConstraint, uniqueViolationConstraint } from '../db/errors.js'
 import { MoveTargetNotFoundError } from '../domain/reorder.js'
 import {
@@ -19,6 +18,7 @@ import {
 } from '../domain/value-list.js'
 import { messages } from '../messages.js'
 import { tenantId } from '../middleware/tenant.js'
+import { database } from '../middleware/tenant-db.js'
 import { validate } from '../middleware/validate.js'
 
 /**
@@ -57,15 +57,18 @@ function labelRoute(list: 'salutation' | 'gender') {
       .get('/', async (c) => {
         const rows =
           list === 'salutation'
-            ? await listSalutations(db(), tenantId(c))
-            : await listGenders(db(), tenantId(c))
+            ? await listSalutations(database(c), tenantId(c))
+            : await listGenders(database(c), tenantId(c))
         return c.json(rows)
       })
 
       .post('/', validate('json', valueListEntryInputSchema), async (c) => {
-        const created = await createLabelEntry(db(), tenantId(c), list, c.req.valid('json')).catch(
-          translate,
-        )
+        const created = await createLabelEntry(
+          database(c),
+          tenantId(c),
+          list,
+          c.req.valid('json'),
+        ).catch(translate)
         return c.json(created, 201)
       })
 
@@ -75,7 +78,7 @@ function labelRoute(list: 'salutation' | 'gender') {
         validate('json', valueListEntryInputSchema),
         async (c) => {
           const updated = await updateLabelEntry(
-            db(),
+            database(c),
             tenantId(c),
             list,
             c.req.valid('param').entryId,
@@ -89,7 +92,7 @@ function labelRoute(list: 'salutation' | 'gender') {
 
       .delete('/:entryId', validate('param', entryParam), async (c) => {
         const deleted = await deleteEntry(
-          db(),
+          database(c),
           tenantId(c),
           list,
           c.req.valid('param').entryId,
@@ -106,7 +109,7 @@ function labelRoute(list: 'salutation' | 'gender') {
         validate('json', moveInputSchema),
         async (c) => {
           await moveEntry(
-            db(),
+            database(c),
             tenantId(c),
             list,
             c.req.valid('param').entryId,
@@ -127,10 +130,10 @@ export const gendersRoute = labelRoute('gender')
  * maintains here is which countries the contact form offers, and in what order.
  */
 export const countriesRoute = new Hono<AppEnv>()
-  .get('/', async (c) => c.json(await listCountries(db(), tenantId(c))))
+  .get('/', async (c) => c.json(await listCountries(database(c), tenantId(c))))
 
   .post('/', validate('json', countryEntryInputSchema), async (c) => {
-    const created = await createCountryEntry(db(), tenantId(c), c.req.valid('json')).catch(
+    const created = await createCountryEntry(database(c), tenantId(c), c.req.valid('json')).catch(
       translate,
     )
     return c.json(created, 201)
@@ -138,7 +141,7 @@ export const countriesRoute = new Hono<AppEnv>()
 
   .delete('/:entryId', validate('param', entryParam), async (c) => {
     const deleted = await deleteEntry(
-      db(),
+      database(c),
       tenantId(c),
       'country',
       c.req.valid('param').entryId,
@@ -153,7 +156,7 @@ export const countriesRoute = new Hono<AppEnv>()
     validate('json', moveInputSchema),
     async (c) => {
       await moveEntry(
-        db(),
+        database(c),
         tenantId(c),
         'country',
         c.req.valid('param').entryId,
