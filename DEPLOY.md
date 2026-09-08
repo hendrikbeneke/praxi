@@ -195,7 +195,17 @@ out of the secret store for longer than it needs to be there.
 ## What is still open after this
 
 This slice is infrastructure only. `WORKPLAN.md`'s "Before going live"
-section lists what is deliberately not part of it — rate limiting, RLS,
-an access log, a retention/deletion concept, and squashing the migration
-history into a `pg_dump` baseline. Backups are not covered there either and
-are being handled separately, outside this document.
+section lists what is deliberately not part of it — an access log, a
+retention/deletion concept, a route-level tenant test, and the question of
+whether the database itself is encrypted. Rate limiting arrived with S-B,
+row-level security with S-C2, and the migration history was squashed into
+`0000_baseline.sql` after S-D. Backups are not covered there either and are
+being handled separately, outside this document.
+
+**A database created before that squash cannot be migrated onto it.** Its
+`drizzle.__drizzle_migrations` holds the old 47 entries, the baseline's
+timestamp is newer than all of them, and the migrator will try to create a
+schema that is already there — `type "contact_kind" already exists`, and the
+container never starts. There is nothing in the Coolify database that the seed
+does not put back, so the answer is to drop it and let the first deployment
+build it from the baseline.

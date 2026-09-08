@@ -89,9 +89,10 @@ Set `NODE_ENV=production` for the static file serving to be registered.
 | `pnpm lint` | Biome (lint + format check) |
 | `pnpm format` | Biome, writing fixes |
 | `pnpm db:up` / `pnpm db:down` | start / stop Postgres |
-| `pnpm db:generate` | generate a migration from the Drizzle schema |
-| `pnpm db:migrate` | apply pending migrations |
+| `pnpm db:migrate` | apply pending migrations (written by hand — see below) |
+| `pnpm db:app-role` | give the server's own role its password |
 | `pnpm db:seed` | tenant, practice settings, user and example catalogue |
+| `pnpm db:seed:demo` | contacts with activities, notes and invoices, plus a second practice |
 | `pnpm db:seed:services` | the example service catalogue on its own |
 | `pnpm db:studio` | Drizzle Studio |
 
@@ -103,6 +104,20 @@ a bind mount under `.docker-data/`, which is not in version control.
 
 The server refuses to start when Postgres is unreachable, rather than failing at
 the first request.
+
+### Migrations are written by hand
+
+There is no `pnpm db:generate`. drizzle-kit sees only what stands in
+`db/schema.ts` — not the triggers, the row-level-security policies, the
+`EXCLUDE` constraint, the partial indexes or the ICU locale guard — so a
+generated migration would look complete and be half a schema. Write the file
+out in full, including `set_updated_at`, `ENABLE ROW LEVEL SECURITY` and the
+table's tenant policy; `routes/rls.test.ts` fails if the last of those is
+missing.
+
+`src/db/migrations/0000_baseline.sql` is the whole schema at go-live, produced
+with `pg_dump --schema-only` against a database the old migrations had built.
+Its header says what it contains and what it must never be regenerated from.
 
 ### Tests need the database
 

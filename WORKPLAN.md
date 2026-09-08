@@ -3334,6 +3334,77 @@ Workers über `google_connection_tenant_ids()`, und die vier Aufrufe in `auth.ts
 `app_user`, `session` und `rate_limit` — die drei Tabellen, die bewusst außerhalb von RLS
 stehen. Bleibt nichts.
 
+## S-E — der Squash, und die Theme-Werte auf englisch
+
+### Die Baseline
+
+47 Migrationen und 24 Snapshots, 2,0 MB, werden zu **einer Datei von 140 KB**:
+`0000_baseline.sql`. Die alten liegen in der Git-Historie und sonst nirgends.
+
+Erzeugt mit `pg_dump --schema-only --no-owner --exclude-schema=drizzle` gegen eine
+Datenbank, die die 47 Migrationen wirklich gebaut haben — nie aus dem Drizzle-Schema, und
+das ist keine Vorliebe: drizzle-kit sieht weder die Trigger noch die RLS-Policies noch die
+`EXCLUDE`-Constraint noch die partiellen Indizes, weil nichts davon in `db/schema.ts` steht.
+Eine erzeugte Baseline hätte vollständig ausgesehen und wäre ein halbes Schema gewesen.
+
+**Was sie beweist, ist ein Diff und keine Lektüre:**
+
+```
+47 Migrationen  vs.  0000_baseline.sql   —   diff: 0 Zeilen
+188 Objekte · 39 Tabellen · 34 Policies · 34× RLS an · 48 Trigger
+```
+
+Drei Dinge bringt `pg_dump` nicht mit und stehen von Hand darüber, im Kopf der Datei
+benannt: die ICU-Prüfung (eine Behauptung, kein Objekt), `CREATE ROLE praxi_app` (clusterweit,
+und muss **vor** den Grants stehen, die sie nennen) und deren
+`idle_in_transaction_session_timeout`. Zwei mechanische Eingriffe: `\restrict` und
+`\unrestrict` sind psql-Metabefehle, an denen ein Treiber abbricht.
+
+`pnpm db:generate` ist weg — aus beiden `package.json` und aus der README. `pnpm db:migrate`
+bleibt und ist der wichtigere von beiden: Migrationen anzuwenden darf von niemandes lokalem
+Werkzeug abhängen.
+
+### Zwei Fehler, die der Squash selbst produziert hat
+
+- **Der Kopf der Baseline hat sich selbst zerschnitten.** Er erklärte, dass die Datei keine
+  Statement-Breakpoints enthält — und schrieb die Markierung dabei wörtlich hin. Der Migrator
+  teilt die Datei an genau dieser Zeichenkette und fragt nicht, ob sie auskommentiert ist:
+  ``syntax error at or near "`"``, Position 1. Steht jetzt als Regel in `CLAUDE.md` und im Kopf
+  der Datei selbst.
+- **Zwölf Testworker gegen eine clusterweite Katalogzeile.** `tuple concurrently updated`:
+  jeder Worker migriert seine eigene Datenbank, aber `CREATE ROLE praxi_app` und das
+  `ALTER ROLE … SET` treffen für alle dieselbe Zeile. Das Rennen gab es vorher schon — dieselben
+  Anweisungen standen in 0044 —, es ging nur nie verloren, weil jeder Worker sie erst nach
+  43 Dateien erreichte. Eine Datei von 4300 Zeilen nimmt diesen zufälligen Versatz weg.
+  Der Vorbereitungs-Lock in `test/setup.ts` umfasst jetzt die Migration und nicht mehr nur
+  das `CREATE DATABASE`. **Die Art Fehler, die ein Squash aufdeckt statt verursacht.**
+
+Und ein dritter, der beim Aufräumen auffiel und nichts mit dem Squash zu tun hat: `pnpm
+db:app-role` stand in der README als Schritt der Einrichtung und war im Wurzel-`package.json`
+gar nicht eingetragen. Jetzt schon, `db:seed:demo` daneben.
+
+### Die Theme-Werte
+
+`schiefer · blau · salbei · rose · nacht` → **`slate · blue · sage · rose · night`**. `rose`
+liest sich in beiden Sprachen gleich und blieb stehen. Die deutschen Beschriftungen sind
+unverändert; sie stehen in `strings.ts` und heißen weiter Schiefer, Blau, Salbei, Rosé, Nacht.
+
+Nicht, weil es zum Squash gehört, sondern weil es die letzte Gelegenheit war: Das sind Werte
+*innerhalb* von `app_user.preferences`, und nach dem Livegang wäre eine Umbenennung eine
+Datenmigration über die Einstellungen aller Benutzer — für einen Namen.
+
+**Der alte Cookie ist harmlos, und zwar nachweislich statt hoffentlich.** Das Inline-Skript in
+`index.html` prüft den Wert gegen seine eigene Liste, bevor es das Attribut setzt: Ein
+`praxi_theme=nacht` aus der Zeit davor setzt gar nichts, und ohne Attribut gilt `:root`, also
+der Standard. Beim nächsten Anmelden schreibt der Server den Cookie ohnehin neu — und wo keine
+Vorliebe gespeichert ist, *löscht* er ihn.
+
+Was daran gefährlich ist, ist die Stille: Die Liste im Inline-Skript ist eine Kopie, weil so
+früh nichts importierbar ist, und wenn sie von `themeOptions` abweicht, fällt das nirgends auf
+— die Seite malt einfach den Standard. Der Kommentar dort bat bisher darum, beide von Hand
+gleich zu halten. `apps/web/src/lib/theme-options.test.ts` behauptet es jetzt, und ich habe
+ihn gegen seine eigene Negation laufen lassen: mit `blau` in der einen Liste schlägt er fehl.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
@@ -3364,15 +3435,6 @@ each line names the reason, not the solution.
   the law requires it for a time — nothing today marks when that time is up or
   removes anything afterwards, and keeping health data longer than the purpose
   allows is its own breach.
-- **Squash the migration history into a single `pg_dump --schema-only`
-  baseline**, per the rule under Conventions in `CLAUDE.md`. Deliberately not
-  done for the Coolify deployment in slice 11 — that slice is the
-  infrastructure step, not the point real patient data starts flowing
-  through the system, and squashing is a one-way door with no benefit before
-  then. Produce it from the actual running database, never regenerated from
-  the Drizzle schema, so the hand-written parts — triggers, the `EXCLUDE`
-  constraint, RLS policies, the ICU locale check, partial indexes — survive
-  the squash.
 - **Whether `practice_settings` needs a VAT id (`Umsatzsteuer-ID`).** The design
   prototype's "Praxis" section shows a field for it; the real schema has only
   `tax_number`. Not added retroactively as part of a layout pass (D4) — same
@@ -3386,9 +3448,3 @@ each line names the reason, not the solution.
   der Parser in `packages/shared` und nicht im Frontend, und genau deshalb ist das Format auf
   fünf Konstrukte begrenzt: vier Blockarten im PDF nachzubauen ist ein Nachmittag, dreißig
   sind es nicht.
-
-- **`themeOptions` (German: `schiefer`, `blau`, …) vs. `startPageOptions` (English:
-  `overview`, `contacts`, …)** in `packages/shared/src/user-preferences.ts` — the same kind of
-  enum, named two different ways, because `theme` predates identifiers being applied
-  consistently to this file. Not touched retroactively; the migration squash is the point
-  where straightening it would cost nothing extra, if it still bothers anyone by then.

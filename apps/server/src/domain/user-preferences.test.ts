@@ -21,9 +21,9 @@ describe('getUserPreferences', () => {
 
 describe('updateUserPreferences', () => {
   it('sets a preference', async () => {
-    const result = await updateUserPreferences(db(), userId, { theme: 'blau' })
-    expect(result).toEqual({ theme: 'blau' })
-    expect(await getUserPreferences(db(), userId)).toEqual({ theme: 'blau' })
+    const result = await updateUserPreferences(db(), userId, { theme: 'blue' })
+    expect(result).toEqual({ theme: 'blue' })
+    expect(await getUserPreferences(db(), userId)).toEqual({ theme: 'blue' })
   })
 
   it('rejects an unknown theme', async () => {
@@ -50,13 +50,13 @@ describe('updateUserPreferences', () => {
       })
       .where(eq(appUser.id, userId))
 
-    await updateUserPreferences(database, userId, { theme: 'nacht' })
+    await updateUserPreferences(database, userId, { theme: 'night' })
 
     const [row] = await database
       .select({ preferences: appUser.preferences })
       .from(appUser)
       .where(eq(appUser.id, userId))
       .limit(1)
-    expect(row?.preferences).toEqual({ theme: 'nacht', futureSetting: true })
+    expect(row?.preferences).toEqual({ theme: 'night', futureSetting: true })
   })
 })

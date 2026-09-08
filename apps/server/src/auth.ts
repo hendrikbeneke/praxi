@@ -25,7 +25,7 @@ type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]
  * library, which decides it the same way for every cookie it sets.
  */
 function writeThemeCookie(ctx: HookContext, theme: Theme | undefined): void {
-  const clearing = !theme || theme === 'schiefer'
+  const clearing = !theme || theme === 'slate'
   ctx.setCookie(THEME_COOKIE, clearing ? '' : theme, {
     path: '/',
     httpOnly: false,
@@ -211,7 +211,7 @@ function build() {
         if (ctx.path === '/sign-in/email') {
           const user = ctx.context.newSession?.user
           if (!user) return
-          // `undefined` where the theme is `schiefer`: the default is stored as
+          // `undefined` where the theme is `slate`: the default is stored as
           // the *absence* of a value on both sides, the convention `cookies.ts`,
           // `theme-picker.tsx` and the inline script all keep.
           writeThemeCookie(ctx, await themeOfUser(db(), user.id))

@@ -31,11 +31,11 @@ export const strings = {
     theme: {
       label: 'Farbschema',
       options: {
-        schiefer: 'Schiefer',
-        blau: 'Blau',
-        salbei: 'Salbei',
+        slate: 'Schiefer',
+        blue: 'Blau',
+        sage: 'Salbei',
         rose: 'Rosé',
-        nacht: 'Nacht',
+        night: 'Nacht',
       },
     },
     startPage: {

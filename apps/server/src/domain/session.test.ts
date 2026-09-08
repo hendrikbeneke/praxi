@@ -63,14 +63,14 @@ describe('themeOfUser', () => {
 
     await db()
       .update(appUser)
-      .set({ preferences: { theme: 'nacht' } })
+      .set({ preferences: { theme: 'night' } })
       .where(eq(appUser.id, userA.id))
     await db()
       .update(appUser)
       .set({ preferences: { theme: 'rose' } })
       .where(eq(appUser.id, userB.id))
 
-    expect(await themeOfUser(db(), userA.id)).toBe('nacht')
+    expect(await themeOfUser(db(), userA.id)).toBe('night')
     expect(await themeOfUser(db(), userB.id)).toBe('rose')
   })
 
@@ -78,7 +78,7 @@ describe('themeOfUser', () => {
     const tenantId = await createTenant(db())
     const user = await createUser(db(), { tenantId })
 
-    // `schiefer` is the default and is stored as the absence of a value, so
+    // `slate` is the default and is stored as the absence of a value, so
     // "nothing stored" and "the default" are the same answer on purpose.
     expect(await themeOfUser(db(), user.id)).toBeUndefined()
   })

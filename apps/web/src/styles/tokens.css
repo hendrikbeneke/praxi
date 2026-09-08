@@ -31,12 +31,12 @@
    1. Diese Datei als apps/web/src/styles/tokens.css ablegen (ersetzt die
       bestehende) und vor dem Tailwind-Import einbinden.
    2. Theme wählen: data-theme am <html>-Element setzen, z. B.
-      <html data-theme="blau">. Ohne Attribut gilt :root (schiefer).
+      <html data-theme="blue">. Ohne Attribut gilt :root (slate).
    3. Der Wert kommt aus den Benutzereinstellungen (app_user.preferences);
       beim Schreiben nur das Attribut tauschen, keine Komponente muss
       angefasst werden.
 
-   Varianten: schiefer (Standard) · blau · salbei · rose · nacht
+   Varianten: slate (Standard) · blue · sage · rose · night
    ========================================================================== */
 
 :root {
@@ -111,7 +111,7 @@ input,
    Werte auf einem Vorfahren reicht, alles darunter zieht mit. Angewendet
    über data-theme am Wurzelelement des Screens.
    ========================================================================== */
-[data-theme="blau"] {
+[data-theme="blue"] {
   --primary: oklch(48% 0.11 252);
   --ring: oklch(60% 0.11 252);
   --secondary: oklch(94.6% 0.018 250);
@@ -124,7 +124,7 @@ input,
   --input: oklch(87% 0.016 250);
 }
 
-[data-theme="salbei"] {
+[data-theme="sage"] {
   --primary: oklch(44% 0.06 165);
   --ring: oklch(58% 0.07 165);
   --secondary: oklch(94.8% 0.014 160);
@@ -137,7 +137,7 @@ input,
   --input: oklch(87.4% 0.014 160);
 }
 
-[data-theme="nacht"] {
+[data-theme="night"] {
   color-scheme: dark;
   --background: oklch(22% 0.008 62);
   --foreground: oklch(95% 0.004 85);

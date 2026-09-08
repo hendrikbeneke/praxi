@@ -8,11 +8,11 @@ import type { Theme } from '@praxi/shared'
  * cache the inline script in `index.html` reads before first paint is a cookie
  * the *server* writes (`cookies.ts`) — this side only paints.
  *
- * `schiefer` is the default and is expressed as the absence of an attribute,
+ * `slate` is the default and is expressed as the absence of an attribute,
  * the same convention on every side of this.
  */
 export function applyTheme(theme: Theme | undefined): void {
-  if (theme && theme !== 'schiefer') {
+  if (theme && theme !== 'slate') {
     document.documentElement.dataset.theme = theme
   } else {
     delete document.documentElement.dataset.theme

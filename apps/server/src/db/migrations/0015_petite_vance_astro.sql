@@ -1,1 +1,0 @@
-ALTER TABLE "invoice_line" ALTER COLUMN "amount_cents" SET NOT NULL;

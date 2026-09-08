@@ -1,2 +1,0 @@
-ALTER TABLE "app_user" ADD COLUMN "preferences" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "app_user" ADD CONSTRAINT "app_user_preferences_is_object" CHECK (jsonb_typeof("app_user"."preferences") = 'object');

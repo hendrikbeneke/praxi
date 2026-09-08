@@ -44,12 +44,12 @@ function isSecureRequest(c: Context): boolean {
 export const THEME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
 
 /**
- * Writes the theme, or clears it where there is none to write — `schiefer` is
+ * Writes the theme, or clears it where there is none to write — `slate` is
  * the default and is stored as the *absence* of a value on both sides, the
  * same convention `theme-picker.tsx` and the inline script keep.
  */
 export function setThemeCookie(c: Context, theme: Theme | undefined): void {
-  if (!theme || theme === 'schiefer') {
+  if (!theme || theme === 'slate') {
     clearThemeCookie(c)
     return
   }

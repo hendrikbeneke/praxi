@@ -36,22 +36,47 @@ const databaseName = workerDatabaseName()
 const migrationsFolder = fileURLToPath(new URL('../db/migrations', import.meta.url))
 
 /**
- * `CREATE DATABASE` briefly locks the template database, so two workers doing
- * it at the same moment can fail even though their target names differ. One
- * advisory lock on the shared maintenance database serializes them. The key is
- * arbitrary but has to be the same for all workers. Two 32-bit halves rather
- * than one 64-bit key, because the driver does not bind bigint parameters.
+ * Two workers preparing their own database at the same moment collide on
+ * things neither of them owns, so one advisory lock on the shared maintenance
+ * database serializes the whole preparation. The key is arbitrary but has to
+ * be the same for all workers. Two 32-bit halves rather than one 64-bit key,
+ * because the driver does not bind bigint parameters.
+ *
+ * It covers **the migration as well as the `CREATE DATABASE`**, and that
+ * second half arrived with the squash. `CREATE DATABASE` briefly locks the
+ * template database, which is the older reason. The baseline additionally
+ * writes to two cluster-wide catalogues — `CREATE ROLE praxi_app` and its
+ * `ALTER ROLE … SET idle_in_transaction_session_timeout` — and those rows are
+ * the same rows for every worker, however separate their databases are.
+ * Twelve of them arriving together answers `tuple concurrently updated` and
+ * the suite fails wholesale.
+ *
+ * The race was there before and simply never lost: the same statements sat in
+ * migration 0044, but each worker reached them after forty-three files of its
+ * own, so they were spread out. One file of 4300 lines removes that accidental
+ * stagger — the kind of latent fault a squash surfaces rather than causes.
+ *
+ * The cost is that the workers migrate one after another instead of at once.
+ * That is the correct trade here and not merely an acceptable one: a shared
+ * catalogue is shared, and a lock is what it takes.
  */
-const CREATE_DATABASE_LOCK: readonly [number, number] = [814_723, 69_101]
+const PREPARE_DATABASE_LOCK: readonly [number, number] = [814_723, 69_101]
 
-async function ensureDatabaseExists(): Promise<void> {
+async function prepareDatabase(): Promise<void> {
   const admin = postgres(databaseUrlFor(MAINTENANCE_DATABASE), { max: 1, onnotice: () => {} })
   try {
-    const [lockA, lockB] = CREATE_DATABASE_LOCK
+    const [lockA, lockB] = PREPARE_DATABASE_LOCK
     await admin`select pg_advisory_lock(${lockA}, ${lockB})`
     try {
       const [existing] = await admin`select 1 from pg_database where datname = ${databaseName}`
       if (!existing) await admin.unsafe(`create database "${databaseName}"`)
+
+      const own = postgres(databaseUrlFor(databaseName), { max: 1, onnotice: () => {} })
+      try {
+        await migrate(drizzle(own), { migrationsFolder })
+      } finally {
+        await own.end({ timeout: 5 })
+      }
     } finally {
       await admin`select pg_advisory_unlock(${lockA}, ${lockB})`
     }
@@ -62,10 +87,9 @@ async function ensureDatabaseExists(): Promise<void> {
 
 const workerUrl = databaseUrlFor(databaseName)
 
-await ensureDatabaseExists()
+await prepareDatabase()
 
 const sql = postgres(workerUrl, { max: 1, onnotice: () => {} })
-await migrate(drizzle(sql), { migrationsFolder })
 
 process.env.DATABASE_URL = workerUrl
 /**

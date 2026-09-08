@@ -6,13 +6,22 @@ import { z } from 'zod'
  * a display setting like a per-view column list belongs here too, as its
  * own optional key, never as a new column.
  */
-export const themeOptions = ['schiefer', 'blau', 'salbei', 'rose', 'nacht'] as const
+/**
+ * English, like every other identifier here — `schiefer`, `blau`, `salbei` and
+ * `nacht` until the migration squash, which was the last moment a rename was
+ * free: these are *values inside* `app_user.preferences`, so after go-live
+ * changing them would mean a data migration over everybody's settings for the
+ * sake of a name. `rose` reads the same in both languages and did not move.
+ *
+ * The German labels live in `apps/web/src/lib/strings.ts`, keyed by these, and
+ * `apps/web/index.html` repeats the list because nothing can be imported that
+ * early — `theme-options.test.ts` in the web package asserts the two agree.
+ */
+export const themeOptions = ['slate', 'blue', 'sage', 'rose', 'night'] as const
 export const themeSchema = z.enum(themeOptions)
 export type Theme = z.infer<typeof themeSchema>
 
-/** Where to land after signing in. English identifiers, unlike `themeOptions`
- *  above — that one predates this rule being applied consistently; left as
- *  it is for now, see WORKPLAN.md "Before going live". */
+/** Where to land after signing in. */
 export const startPageOptions = ['overview', 'contacts', 'calendar', 'activities'] as const
 export const startPageSchema = z.enum(startPageOptions)
 export type StartPage = z.infer<typeof startPageSchema>

@@ -22,10 +22,10 @@
       // Source of truth for the value set is
       // packages/shared/src/user-preferences.ts (themeOptions) — duplicated
       // here on purpose, because nothing can be imported this early; keep the
-      // two in sync by hand. Absent means schiefer, the same convention
+      // two in sync by hand. Absent means slate, the same convention
       // components/theme-picker.tsx and cookies.ts keep.
       ;(() => {
-        var THEME_OPTIONS = ['blau', 'salbei', 'rose', 'nacht']
+        var THEME_OPTIONS = ['blue', 'sage', 'rose', 'night']
         var found = document.cookie.match(/(?:^|;\s*)praxi_theme=([^;]*)/)
         var theme = found ? decodeURIComponent(found[1]) : null
         if (theme && THEME_OPTIONS.indexOf(theme) !== -1) {

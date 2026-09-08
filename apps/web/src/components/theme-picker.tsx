@@ -24,7 +24,7 @@ import {
 export function ThemePicker() {
   const queryClient = useQueryClient()
   const { data } = useQuery(userPreferencesQueryOptions)
-  const theme = data?.theme ?? 'schiefer'
+  const theme = data?.theme ?? 'slate'
 
   const mutation = useMutation({
     mutationFn: (value: Theme) => updateUserPreferences({ theme: value }),
@@ -53,7 +53,7 @@ export function ThemePicker() {
               <span className="flex items-center gap-2">
                 <span
                   aria-hidden
-                  data-theme={option === 'schiefer' ? undefined : option}
+                  data-theme={option === 'slate' ? undefined : option}
                   className="inline-block size-3 shrink-0 rounded-full border border-border bg-primary"
                 />
                 {strings.preferences.theme.options[option]}

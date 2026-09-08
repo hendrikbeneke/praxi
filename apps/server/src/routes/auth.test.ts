@@ -90,7 +90,7 @@ describe('signing in', () => {
     const user = await createUser(db(), { tenantId, password: PASSWORD })
     await db()
       .update(appUser)
-      .set({ preferences: { theme: 'nacht' } })
+      .set({ preferences: { theme: 'night' } })
       .where(eq(appUser.id, user.id))
 
     const res = await signIn(user.email, PASSWORD)
@@ -100,7 +100,7 @@ describe('signing in', () => {
     // painted in the wrong scheme.
     const cookies = res.headers.getSetCookie().join('\n')
     expect(cookies).toContain('praxi_session=')
-    expect(cookies).toMatch(/praxi_theme=nacht/)
+    expect(cookies).toMatch(/praxi_theme=night/)
   })
 
   it('clears the theme cookie where the theme is the default', async () => {
@@ -109,7 +109,7 @@ describe('signing in', () => {
 
     const res = await signIn(user.email, PASSWORD)
 
-    // `schiefer` is stored as the absence of a value on both sides, so an
+    // `slate` is stored as the absence of a value on both sides, so an
     // unset theme has to actively clear a cookie the last user may have left.
     const themeCookie = res.headers
       .getSetCookie()
@@ -124,7 +124,7 @@ describe('signing out', () => {
     const user = await createUser(db(), { tenantId, password: PASSWORD })
     await db()
       .update(appUser)
-      .set({ preferences: { theme: 'nacht' } })
+      .set({ preferences: { theme: 'night' } })
       .where(eq(appUser.id, user.id))
 
     const signedIn = await signIn(user.email, PASSWORD)
