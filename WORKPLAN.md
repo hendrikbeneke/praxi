@@ -3263,6 +3263,77 @@ gespiegelt, `guardian` 2/2/0, `parent_of` 2/2/0, `spouse_of` 2/2/0. Danach wiede
   `number_range`, nicht `contact_relation_type`. Der Typechecker hat es gefangen; ohne ihn wäre
   der Nummernkreis-Code nullable geworden.
 
+## Nach S-D — Beziehungen im Demo-Seed, und die Suche nach weiteren mandantenlosen Schreibern
+
+Zwei Dinge, ausgelöst von derselben Frage: Der Seed-Fund aus S-D war nur *ein* Aufruf von
+`db()` ohne Mandanten. Gibt es weitere?
+
+### Beziehungen im Demo-Seed
+
+`pnpm db:seed:demo` legt jetzt je Praxis eine Familie an — ein minderjähriges Kind und ein
+Elternteil — und daran beide Systembeziehungen: `guardian` und `billing_recipient`, beide vom
+Kind aus, nach der Richtungskonvention aus Regel 4 (`from` ist der Kontakt, dessen Eigenschaft
+die Tatsache ist).
+
+**Vor dem Sammeln der abrechenbaren Positionen, nicht danach**, und das ist der Punkt der
+Übung: Ein neuer Entwurf startet auf dem `billing_recipient`, wo es einen gibt (L8). Erst
+dadurch ist es ein Demo, in dem eine Rechnung für ein Kind tatsächlich an den Elternteil
+adressiert ist, statt eines, in dem irgendwo eine Beziehung herumliegt.
+
+Der Elternteil trägt **keine Rolle**: Ein Rechnungsempfänger ist nicht in Behandlung, und eine
+Rolle, die niemand braucht, steht im Weg. Das Geburtsdatum wird bei jedem Lauf aus `ageYears`
+abgeleitet statt hingeschrieben — ein Minderjähriger im Demo soll nicht an einem festen Datum
+volljährig werden.
+
+Nebenbei aufgefallen und dort behoben, wo der Fehler sitzt: Die Demo-Adressen werden aus den
+Namen gebaut, und das E-Mail-Schema nimmt keinen Umlaut im lokalen Teil an — ein Kontakt namens
+Müller hätte den Seed zum Scheitern gebracht, nicht ein Formular. `localPart()` transliteriert
+beim Erfinden der Adresse; das Schema bleibt, wie es ist, denn es geht um echte Adressen.
+
+### `recordSyncError` schrieb ins Leere
+
+Die Suche nach weiteren mandantenlosen `db()` hat genau eine Stelle gefunden, und es ist die
+unangenehmste Sorte: der `catch`-Block des Sync-Workers.
+
+`runTick` fängt einen Fehler pro Mandant und schreibt einen Satz auf `google_connection`, damit
+die Einstellungen ihn zeigen — mit dem **blanken Pool**, während die Synchronisation selbst
+längst durch `asTenant()` lief. `google_connection` steht unter RLS. Gemessen, in einer
+zurückgerollten Transaktion:
+
+```
+ohne Mandant (wie heute im Worker) | 0 betroffene Zeilen
+mit Mandant (asTenant)             | 1
+```
+
+Kein Fehler, keine Warnung — der Satz, für den der ganze Mechanismus da ist, wurde nie
+geschrieben. Und er läuft nur, wenn ohnehin schon etwas schiefgegangen ist, also genau dann,
+wenn niemand nachsieht. Jetzt durch `asTenant`, wie die Synchronisation darüber.
+
+### Der Test dafür war seit S-C1 eine Dekoration
+
+Beim Nachziehen aufgefallen: `worker.test.ts` reichte zwei gefälschte Datenbanken herein, und
+die zweite sollte den Fall "das Protokollieren des Fehlers scheitert auch" abdecken. Sie tat es
+seit S-C1 nicht mehr, aus zwei Gründen gleichzeitig — die Attrappe kannte nur `select`, während
+die Mandantenabfrage seither `execute` benutzt (also brach der Tick vorher ab), und selbst
+danach hätte sie nichts erreicht, weil hinter der Abfrage alles über `asTenant()` auf den
+echten Pool geht.
+
+Der Test war grün und hat nichts geprüft. Jetzt provoziert er den Fehler dort, wo er noch echt
+provozierbar ist: eine Mandanten-id, auf die jede Abfrage mit 22P02 läuft. Beide verschachtelten
+`catch` werden nachweislich betreten — die Logzeilen des Laufs sagen es.
+
+Dasselbe Muster wie die Gegenprobe in S-C2: **Ein Test einer Abwesenheit muss gegen seine eigene
+Negation laufen, sonst ist er Zierrat.**
+
+### Was sonst noch geprüft wurde
+
+`files:orphans`, `invoices:verify` und beide Seeds laufen über `ownerDb()` — in S-D umgestellt.
+`db/migrate.ts` und `scripts/app-role.ts` verbinden mit `DATABASE_URL` direkt. Der
+Entwurfs-Sweep läuft schon seit L2 über `asTenant(tenantId, …)`, die Mandantenabfrage des
+Workers über `google_connection_tenant_ids()`, und die vier Aufrufe in `auth.ts` betreffen
+`app_user`, `session` und `rate_limit` — die drei Tabellen, die bewusst außerhalb von RLS
+stehen. Bleibt nichts.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

@@ -13,9 +13,21 @@ import { runTick } from './worker.js'
  * from working because a projection could not run is the inversion of the rule
  * it serves.
  *
- * No database and no service here: the point is what happens when the database
- * is *not* reachable, and a real one would be the wrong instrument for that.
- * The fakes below throw the way the driver throws.
+ * ## What the handle passed in still reaches, and what it no longer does
+ *
+ * `runTick(database)` uses that handle for **one** thing: the tenant lookup.
+ * Everything after it goes through `asTenant()`, which opens its own
+ * transaction on the pool — so since S-C1 a fake database cannot make the
+ * per-tenant branch fail, and the second test below said it did for as long as
+ * that was no longer true. It passed the whole time, because the fake had no
+ * `execute` either: the lookup threw a TypeError, the tick returned early, and
+ * the branch the test is named after was never entered.
+ *
+ * So the failure is provoked where it can still be provoked for real — a
+ * malformed tenant id, which every query for that tenant raises on (22P02),
+ * against this worker's own database. Contrived as an id, honest as a failure:
+ * the sync throws, and recording the failure throws for the same reason, which
+ * is the nested `catch` this is about.
  */
 
 /** A database that refuses at the first thing the tick asks of it — the tenant
@@ -25,25 +37,18 @@ function refusingDatabase(): Database {
     code: 'CONNECT_TIMEOUT',
   })
   return {
-    select: () => {
+    execute: () => {
       throw error
     },
   } as unknown as Database
 }
 
-/** One that answers the lookup and then fails — so the failure lands in the
- *  per-tenant branch, where recording it fails for the same reason. */
-function halfDeadDatabase(): Database {
-  let answered = false
+/** One that answers the lookup with a tenant id no query can be run for, so the
+ *  failure lands in the per-tenant branch — and recording it fails there for
+ *  exactly the same reason. */
+function answeringWithABadTenant(): Database {
   return {
-    select: () => {
-      if (answered) throw new Error('gone')
-      answered = true
-      return { from: async () => [{ tenantId: '01927b3c-4d5e-7f80-9abc-def012345678' }] }
-    },
-    update: () => {
-      throw new Error('gone')
-    },
+    execute: async () => [{ google_connection_tenant_ids: 'not-a-tenant-id' }],
   } as unknown as Database
 }
 
@@ -58,6 +63,6 @@ describe('the sync tick', () => {
    * reason the sync did.
    */
   it('resolves when recording the failure fails too', async () => {
-    await expect(runTick(halfDeadDatabase())).resolves.toBeUndefined()
+    await expect(runTick(answeringWithABadTenant())).resolves.toBeUndefined()
   })
 })

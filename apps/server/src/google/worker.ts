@@ -140,33 +140,32 @@ export async function runTick(database: Database): Promise<void> {
          * matches the configured key. Both stop the pass — no number of
          * retries fixes either — and both are shown in the settings.
          */
-        if (isAuthFailure(error)) {
-          await recordSyncError(
-            database,
-            tenantId,
-            'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.',
-          )
-        } else if (error instanceof EncryptionKeyMismatchError) {
-          await recordSyncError(
-            database,
-            tenantId,
-            'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. Bitte neu verbinden.',
-          )
-        } else {
-          /**
-           * Everything else gets a sentence and a kind, never the error's own
-           * message: `GoogleApiError` carries a German one written for this
-           * screen, but a driver error carries the failed query with its
-           * parameters bound in.
-           */
-          await recordSyncError(
-            database,
-            tenantId,
-            error instanceof GoogleApiError
+        const sentence = isAuthFailure(error)
+          ? 'Die Verbindung zu Google ist abgelaufen. Bitte neu verbinden.'
+          : error instanceof EncryptionKeyMismatchError
+            ? 'Der hinterlegte Schlüssel passt nicht zum gespeicherten Token. Bitte neu verbinden.'
+            : /**
+               * Everything else gets a sentence and a kind, never the error's
+               * own message: `GoogleApiError` carries a German one written for
+               * this screen, but a driver error carries the failed query with
+               * its parameters bound in.
+               */
+              error instanceof GoogleApiError
               ? error.message
-              : messages.google.syncFailed(errorKind(error)),
-          )
-        }
+              : messages.google.syncFailed(errorKind(error))
+
+        /**
+         * Through `asTenant`, exactly like the sync above it, and that is not
+         * symmetry for its own sake: `google_connection` is under row-level
+         * security, so this UPDATE run on the bare pool matches **no row** —
+         * no error, no warning, and the sentence the settings screen exists to
+         * show is simply never written. Measured: 0 rows without the tenant, 1
+         * with it.
+         *
+         * It is the failure mode the whole S-C package is about, in the one
+         * place that only runs when something else has already gone wrong.
+         */
+        await asTenant(tenantId, (tx) => recordSyncError(tx, tenantId, sentence))
       } catch (fatal) {
         /**
          * Recording the failure failed too — the database being away is

@@ -19,12 +19,14 @@ import {
   activityInputSchema,
   type ContactInput,
   contactInputSchema,
+  contactRelationInputSchema,
   noteInputSchema,
 } from '@praxi/shared'
 import { and, eq } from 'drizzle-orm'
 import { createActivity } from '../../domain/activity.js'
 import { hashPassword } from '../../domain/auth.js'
 import { createContact } from '../../domain/contact.js'
+import { addRelation } from '../../domain/contact-relation.js'
 import { collectBillableItems } from '../../domain/invoice.js'
 import { createNote } from '../../domain/note.js'
 import { newId } from '../../id.js'
@@ -34,6 +36,7 @@ import {
   activityType,
   appUser,
   contact,
+  contactRelationType,
   contactRoleType,
   noteType,
   practiceSettings,
@@ -74,6 +77,24 @@ type DemoContact = {
   /** Sessions to write, counted back from today in weeks. */
   sessions: number
   notes: readonly string[]
+  /** Derived into a date of birth on every run rather than typed in, so the
+   *  minor below stays a minor. */
+  ageYears?: number
+  /** Shared by the two halves of a family, so guardian and child live at one
+   *  address instead of two doors apart. */
+  houseNumber?: string
+  /**
+   * The role to tick, by label. `null` for the paying parent: a billing
+   * recipient is not in treatment, and a role nobody needs is a role in the
+   * way. Absent means `Patient`, which is what everyone else here is.
+   */
+  role?: string | null
+  /**
+   * Another contact of this practice, `"Vorname Nachname"`: this one's
+   * guardian **and** the recipient of their invoices — the case rule 9 was
+   * built for, and the one the practice actually bills that way.
+   */
+  guardedBy?: string
 }
 
 /**
@@ -87,6 +108,28 @@ const PRACTICES: readonly Practice[] = [
     tenant: 'existing',
     city: 'Musterstadt',
     contacts: [
+      /* The family first, deliberately: `fillPractice` bills the first 60 % of
+         what it produced, so putting them at the head is what makes the draft
+         addressed to the mother one of the ones that exists. */
+      {
+        firstName: 'Mia',
+        lastName: 'Dohrmann',
+        city: 'Bremen',
+        ageYears: 14,
+        houseNumber: '3',
+        sessions: 3,
+        notes: ['Erstgespräch im Beisein der Mutter. Weiteres Vorgehen abgestimmt.'],
+        guardedBy: 'Rita Dohrmann',
+      },
+      {
+        firstName: 'Rita',
+        lastName: 'Dohrmann',
+        city: 'Bremen',
+        houseNumber: '3',
+        role: null,
+        sessions: 0,
+        notes: [],
+      },
       {
         firstName: 'Alma',
         lastName: 'Ackermann',
@@ -132,6 +175,25 @@ const PRACTICES: readonly Practice[] = [
     userName: 'Zweite Behandlerin',
     city: 'Beispielhafen',
     contacts: [
+      {
+        firstName: 'Finn',
+        lastName: 'Petersen',
+        city: 'Beispielhafen',
+        ageYears: 9,
+        houseNumber: '12',
+        sessions: 2,
+        notes: ['Erstgespräch. Die Rechnungen gehen an den Vater.'],
+        guardedBy: 'Sönke Petersen',
+      },
+      {
+        firstName: 'Sönke',
+        lastName: 'Petersen',
+        city: 'Beispielhafen',
+        houseNumber: '12',
+        role: null,
+        sessions: 0,
+        notes: [],
+      },
       {
         firstName: 'Gustav',
         lastName: 'Nordmann',
@@ -246,6 +308,51 @@ async function idByLabel(
   return row.id
 }
 
+/**
+ * A system relation type, by the code it keeps for exactly this: the uuid is
+ * different in every installation, and the label is the practitioner's to
+ * change. The same lookup `domain/invoice.ts` makes for `billing_recipient`.
+ */
+async function relationTypeIdByCode(
+  database: Database,
+  tenantId: string,
+  code: string,
+): Promise<string> {
+  const [row] = await database
+    .select({ id: contactRelationType.id })
+    .from(contactRelationType)
+    .where(and(eq(contactRelationType.tenantId, tenantId), eq(contactRelationType.code, code)))
+    .limit(1)
+  if (!row) throw new Error(`no relation type with code "${code}"`)
+  return row.id
+}
+
+/**
+ * `Sönke` → `soenke`. The demo addresses are built from the names, and the
+ * email schema does not accept an umlaut in the local part — so a contact
+ * called Müller or Sönke would fail the seed rather than a form. Transliterate
+ * here, where the address is made up, instead of loosening the schema, which
+ * is about real addresses.
+ */
+function localPart(name: string): string {
+  return name
+    .toLowerCase()
+    .replaceAll('ä', 'ae')
+    .replaceAll('ö', 'oe')
+    .replaceAll('ü', 'ue')
+    .replaceAll('ß', 'ss')
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+}
+
+/** Today minus a whole number of years. Derived on every run rather than
+ *  written down, so a demo minor does not come of age on a fixed date. */
+function bornYearsAgo(years: number): string {
+  const day = new Date()
+  day.setFullYear(day.getFullYear() - years)
+  return day.toISOString().slice(0, 10)
+}
+
 async function serviceIdByCode(
   database: Database,
   tenantId: string,
@@ -280,21 +387,26 @@ async function fillPractice(
   const sessionService = await serviceIdByCode(database, tenantId, 'FS')
 
   const billableItemIds: string[] = []
+  /** By `"Vorname Nachname"`, which is what `guardedBy` names. */
+  const contactIds = new Map<string, string>()
 
   for (const person of practice.contacts) {
+    const role = person.role === undefined ? 'Patient' : person.role
     const input: ContactInput = contactInputSchema.parse({
       kind: 'person',
       firstName: person.firstName,
       lastName: person.lastName,
+      dateOfBirth: person.ageYears === undefined ? null : bornYearsAgo(person.ageYears),
       street: 'Musterstraße',
-      houseNumber: String(7 + person.sessions),
+      houseNumber: person.houseNumber ?? String(7 + person.sessions),
       postalCode: '28199',
       city: person.city,
-      email: `${person.firstName.toLowerCase()}.${person.lastName.toLowerCase()}@praxi.invalid`,
-      roles: [{ roleTypeId: patientRole }],
+      email: `${localPart(person.firstName)}.${localPart(person.lastName)}@praxi.invalid`,
+      roles: role === null ? [] : [{ roleTypeId: patientRole }],
     } satisfies Record<string, unknown>)
 
     const created = await createContact(database, tenantId, input)
+    contactIds.set(`${person.firstName} ${person.lastName}`, created.id)
 
     const activityIds: string[] = []
     for (let index = 0; index < person.sessions; index++) {
@@ -338,6 +450,47 @@ async function fillPractice(
       )
     }
   }
+
+  /**
+   * The family, and it is written **before** the drafts below on purpose: a
+   * new draft starts on the contact's `billing_recipient` where there is one
+   * (L8), so this is the difference between a demo that merely has a relation
+   * somewhere and one where an invoice for a child is actually addressed to
+   * the parent — which is the case the practice bills that way.
+   *
+   * Both relations hang from the **child**, per the direction convention in
+   * rule 4: `from` is the contact the fact is a property of. The child's
+   * record then reads "Sorgeberechtigt: …" and "Rechnungsempfänger: …", and
+   * the parent's shows the inverse of each.
+   */
+  const guardianType = await relationTypeIdByCode(database, tenantId, 'guardian')
+  const billingType = await relationTypeIdByCode(database, tenantId, 'billing_recipient')
+
+  let relations = 0
+  for (const person of practice.contacts) {
+    if (!person.guardedBy) continue
+
+    const childId = contactIds.get(`${person.firstName} ${person.lastName}`)
+    const guardianId = contactIds.get(person.guardedBy)
+    if (!childId || !guardianId) {
+      throw new Error(`guardedBy names nobody in this practice: "${person.guardedBy}"`)
+    }
+
+    for (const relationTypeId of [guardianType, billingType]) {
+      await addRelation(
+        database,
+        tenantId,
+        childId,
+        contactRelationInputSchema.parse({
+          relationTypeId,
+          direction: 'forward',
+          otherContactId: guardianId,
+        }),
+      )
+      relations += 1
+    }
+  }
+  if (relations > 0) console.info(`  ${relations} Beziehungen`)
 
   // Drafts for some of the work and not all of it, so both states are on
   // screen: invoices to look at, and open items under "Abrechenbar" and in the
