@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import type { ContactRelationType } from './contact-relation-type.js'
-import { typeCodeSchema } from './type-code.js'
 
 /**
  * A relation between two contacts, always stored as a single row. Both records
@@ -33,7 +32,7 @@ export type RelationDirection = z.infer<typeof relationDirectionSchema>
  * single-transaction guarantee. Two ways to say one thing is one too many.
  */
 export const contactRelationInputSchema = z.object({
-  relationCode: typeCodeSchema,
+  relationTypeId: z.uuid(),
   direction: relationDirectionSchema,
   otherContactId: z.uuid(),
   since: z.iso.date().nullable().default(null),
@@ -51,7 +50,7 @@ export type ContactRelationInput = z.infer<typeof contactRelationInputSchema>
  */
 export const contactRelationSchema = z.object({
   id: z.uuid(),
-  relationCode: z.string(),
+  relationTypeId: z.uuid(),
   direction: relationDirectionSchema,
   otherContactId: z.uuid(),
   otherContactName: z.string(),
@@ -72,7 +71,7 @@ export function relationLabel(type: LabelledType, direction: RelationDirection):
 }
 
 export type RelationOption = {
-  code: string
+  id: string
   direction: RelationDirection
   label: string
 }
@@ -84,18 +83,15 @@ export type RelationOption = {
  *
  * The order of `types` is kept — the caller passes them sorted.
  */
-export function relationOptions(types: (LabelledType & { code: string })[]): RelationOption[] {
+export function relationOptions(types: (LabelledType & { id: string })[]): RelationOption[] {
   return types.flatMap((type) => {
     const forward: RelationOption = {
-      code: type.code,
+      id: type.id,
       direction: 'forward',
       label: relationLabel(type, 'forward'),
     }
     if (type.isSymmetric) return [forward]
 
-    return [
-      forward,
-      { code: type.code, direction: 'inverse', label: relationLabel(type, 'inverse') },
-    ]
+    return [forward, { id: type.id, direction: 'inverse', label: relationLabel(type, 'inverse') }]
   })
 }

@@ -24,7 +24,7 @@
 
 import { createHash } from 'node:crypto'
 import { and, eq, isNotNull } from 'drizzle-orm'
-import { closeDatabase, db } from '../db/client.js'
+import { closeDatabase, ownerDb } from '../db/client.js'
 import { invoice } from '../db/schema.js'
 import { loadEnvFile } from '../env.js'
 import { fileStore } from '../storage.js'
@@ -34,7 +34,7 @@ loadEnvFile()
 try {
   const store = fileStore()
 
-  const rows = await db()
+  const rows = await ownerDb()
     .select({
       number: invoice.number,
       status: invoice.status,

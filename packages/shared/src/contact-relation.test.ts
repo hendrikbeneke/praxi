@@ -3,14 +3,14 @@ import { relationLabel, relationOptions } from './contact-relation.js'
 
 /** The seeded types, reduced to what the label helpers read. */
 const guardian = {
-  code: 'guardian',
+  id: 'guardian',
   labelForward: 'Sorgeberechtigt',
   labelInverse: 'Sorgeberechtigt für',
   isSymmetric: false,
 }
 
 const spouse = {
-  code: 'spouse_of',
+  id: 'spouse_of',
   labelForward: 'Ehepartner von',
   labelInverse: null,
   isSymmetric: true,
@@ -34,14 +34,14 @@ describe('relationLabel', () => {
 describe('relationOptions', () => {
   it('offers a directed type from both sides and a symmetric one once', () => {
     expect(relationOptions([guardian, spouse])).toEqual([
-      { code: 'guardian', direction: 'forward', label: 'Sorgeberechtigt' },
-      { code: 'guardian', direction: 'inverse', label: 'Sorgeberechtigt für' },
-      { code: 'spouse_of', direction: 'forward', label: 'Ehepartner von' },
+      { id: 'guardian', direction: 'forward', label: 'Sorgeberechtigt' },
+      { id: 'guardian', direction: 'inverse', label: 'Sorgeberechtigt für' },
+      { id: 'spouse_of', direction: 'forward', label: 'Ehepartner von' },
     ])
   })
 
   it('keeps the order it is given, so the caller decides it', () => {
-    expect(relationOptions([spouse, guardian]).map((option) => option.code)).toEqual([
+    expect(relationOptions([spouse, guardian]).map((option) => option.id)).toEqual([
       'spouse_of',
       'guardian',
       'guardian',

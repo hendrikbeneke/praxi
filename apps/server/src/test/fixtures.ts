@@ -5,6 +5,7 @@ import {
   account,
   activityType as activityTypeTable,
   appUser,
+  contactRelationType,
   contactRoleType,
   country,
   gender,
@@ -92,6 +93,35 @@ export async function activityTypeId(
  * `roleTypeId` above and for the same reason: a note type has no code either
  * (migration 0038), and a note cannot be written without one.
  */
+/**
+ * The id of a seeded relation type, by its forward label.
+ *
+ * `contact_relation` points at the id since 0046, so a test that wants "the
+ * guardian relation" has to look it up — `relationCode: 'guardian'` was a
+ * string a fixture could write down, and this is what replaced it. By label
+ * rather than by code, because most types no longer have one; the two system
+ * entries are `Sorgeberechtigt` and `Rechnungsempfänger`.
+ */
+export async function relationTypeId(
+  database: Database,
+  tenantId: string,
+  labelForward: string,
+): Promise<string> {
+  const [row] = await database
+    .select({ id: contactRelationType.id })
+    .from(contactRelationType)
+    .where(
+      and(
+        eq(contactRelationType.tenantId, tenantId),
+        eq(contactRelationType.labelForward, labelForward),
+      ),
+    )
+    .limit(1)
+
+  if (!row) throw new Error(`no relation type labelled "${labelForward}"`)
+  return row.id
+}
+
 export async function noteTypeId(
   database: Database,
   tenantId: string,

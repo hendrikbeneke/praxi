@@ -24,7 +24,13 @@ import {
 } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { activityTypeId, createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
+import {
+  activityTypeId,
+  createTenant,
+  createUser,
+  finalizeDocument,
+  relationTypeId,
+} from '../test/fixtures.js'
 import {
   activitySummary,
   BilledItemError,
@@ -728,7 +734,7 @@ describe('the recipient of an invoice', () => {
     })
 
     await addRelation(db(), tenantId, childId, {
-      relationCode: 'billing_recipient',
+      relationTypeId: await relationTypeId(db(), tenantId, 'Rechnungsempfänger'),
       direction: 'forward',
       otherContactId: motherId,
       since: null,

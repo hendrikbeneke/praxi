@@ -7,7 +7,7 @@
  */
 
 import { loadEnvFile } from '../../env.js'
-import { closeDatabase, db } from '../client.js'
+import { closeDatabase, ownerDb } from '../client.js'
 import { seedActivityTypes } from './activity-types.js'
 import { seedBase } from './base.js'
 import { seedContactTypes } from './contact-types.js'
@@ -18,7 +18,7 @@ import { seedValueLists } from './value-lists.js'
 loadEnvFile()
 
 try {
-  const database = db()
+  const database = ownerDb()
   const tenantId = await seedBase(database)
   await seedContactTypes(database, tenantId)
   await seedValueLists(database, tenantId)

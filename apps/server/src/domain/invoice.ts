@@ -606,14 +606,17 @@ export async function billingRecipientsOf(
       contactRelationType,
       and(
         eq(contactRelationType.tenantId, contactRelation.tenantId),
-        eq(contactRelationType.code, contactRelation.relationCode),
+        eq(contactRelationType.id, contactRelation.relationTypeId),
       ),
     )
     .where(
       and(
         eq(contactRelation.tenantId, tenantId),
         eq(contactRelation.fromContactId, contactId),
-        eq(contactRelation.relationCode, BILLING_RECIPIENT_CODE),
+        // By the type's CODE, one join further out since 0046. The uuid
+        // differs per installation and cannot be written here; the code is
+        // exactly what system entries keep it for.
+        eq(contactRelationType.code, BILLING_RECIPIENT_CODE),
       ),
     )
     .orderBy(asc(contact.sortName))

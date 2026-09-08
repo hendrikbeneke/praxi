@@ -29,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { pastActivitiesQueryOptions } from '@/lib/activities'
 import { activityTypeListQueryOptions } from '@/lib/activity-types'
 import { ApiError } from '@/lib/api'
-import { relationListQueryOptions } from '@/lib/contact-types'
+import { relationListQueryOptions, relationTypeListQueryOptions } from '@/lib/contact-types'
 import { nextAppointmentQueryOptions } from '@/lib/contacts'
 import { billableQueryOptions, createInvoice, invoiceListQueryOptions } from '@/lib/invoices'
 import { noteListQueryOptions } from '@/lib/notes'
@@ -95,14 +95,18 @@ function Pending() {
  */
 function GuardianHint({ contact }: { contact: Contact }) {
   const relations = useQuery(relationListQueryOptions(contact.id))
+  // The guardian type is found by its CODE — a uuid differs per installation,
+  // which is why system entries keep one (migration 0046). The relation itself
+  // points at the id, so the code has to be resolved to one first.
+  const relationTypes = useQuery(relationTypeListQueryOptions())
 
   if (contact.kind !== 'person' || !contact.dateOfBirth) return null
   if (ageInYears(contact.dateOfBirth, new Date()) >= 18) return null
-  if (!relations.data) return null
+  if (!relations.data || !relationTypes.data) return null
 
+  const guardianTypeId = relationTypes.data.find((type) => type.code === GUARDIAN_RELATION_CODE)?.id
   const hasGuardian = relations.data.some(
-    (relation) =>
-      relation.relationCode === GUARDIAN_RELATION_CODE && relation.direction === 'forward',
+    (relation) => relation.relationTypeId === guardianTypeId && relation.direction === 'forward',
   )
   if (hasGuardian) return null
 

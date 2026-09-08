@@ -1,10 +1,11 @@
 import type { ContactInput } from '@praxi/shared'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { uniqueViolationConstraint } from '../db/errors.js'
 import { contactRelation, contactRelationType } from '../db/schema.js'
-import { createTenant } from '../test/fixtures.js'
+import { newId } from '../id.js'
+import { createTenant, relationTypeId } from '../test/fixtures.js'
 import { createContact } from './contact.js'
 import {
   addRelation,
@@ -20,6 +21,13 @@ let tenantId: string
 let child: string
 let mother: string
 let father: string
+/** The seeded relation types, resolved once per test. `contact_relation`
+ *  points at the id since 0046; `relationCode: 'guardian'` used to be a string
+ *  a fixture could simply write down. */
+let guardianType: string
+let billingType: string
+let parentType: string
+let spouseType: string
 
 function testPerson(lastName: string): ContactInput {
   return {
@@ -51,6 +59,11 @@ beforeEach(async () => {
   child = (await createContact(db(), tenantId, testPerson('Testkind'))).id
   mother = (await createContact(db(), tenantId, testPerson('Testmutter'))).id
   father = (await createContact(db(), tenantId, testPerson('Testvater'))).id
+
+  guardianType = await relationTypeId(db(), tenantId, 'Sorgeberechtigt')
+  billingType = await relationTypeId(db(), tenantId, 'Rechnungsempfänger')
+  parentType = await relationTypeId(db(), tenantId, 'Elternteil von')
+  spouseType = await relationTypeId(db(), tenantId, 'Ehepartner von')
 })
 
 /**
@@ -78,18 +91,10 @@ async function ownRelationType() {
   })
 }
 
-function relationTypeId(code: string) {
-  return db()
-    .select({ id: contactRelationType.id })
-    .from(contactRelationType)
-    .where(and(eq(contactRelationType.tenantId, tenantId), eq(contactRelationType.code, code)))
-    .limit(1)
-}
-
 describe('adding a relation', () => {
   it('shows up in both records with the matching side', async () => {
     await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -108,7 +113,7 @@ describe('adding a relation', () => {
 
   it('stores the same row when entered from the other side', async () => {
     await addRelation(db(), tenantId, mother, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'inverse',
       otherContactId: child,
       since: null,
@@ -126,7 +131,7 @@ describe('adding a relation', () => {
   it('refuses a relation of a contact to itself', async () => {
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: 'guardian',
+        relationTypeId: guardianType,
         direction: 'forward',
         otherContactId: child,
         since: null,
@@ -141,7 +146,7 @@ describe('adding a relation', () => {
         tenantId,
         fromContactId: child,
         toContactId: child,
-        relationCode: 'guardian',
+        relationTypeId: guardianType,
         since: null,
       }),
     ).rejects.toThrow()
@@ -149,7 +154,7 @@ describe('adding a relation', () => {
 
   it('refuses the same relation between the same two contacts twice', async () => {
     const input = {
-      relationCode: 'guardian' as const,
+      relationTypeId: guardianType,
       direction: 'forward' as const,
       otherContactId: mother,
       since: null,
@@ -164,7 +169,7 @@ describe('adding a relation', () => {
   it('refuses an unknown relation type', async () => {
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: 'nonsense',
+        relationTypeId: newId(),
         direction: 'forward',
         otherContactId: mother,
         since: null,
@@ -173,10 +178,7 @@ describe('adding a relation', () => {
   })
 
   it('refuses an inactive one', async () => {
-    const [type] = await relationTypeId('parent_of')
-    if (!type) throw new Error('the seed did not create the parent_of relation type')
-
-    await updateRelationType(db(), tenantId, type.id, {
+    await updateRelationType(db(), tenantId, parentType, {
       labelForward: 'Elternteil von',
       labelInverse: 'Kind von',
       isSymmetric: false,
@@ -187,7 +189,7 @@ describe('adding a relation', () => {
 
     await expect(
       addRelation(db(), tenantId, mother, {
-        relationCode: 'parent_of',
+        relationTypeId: parentType,
         direction: 'forward',
         otherContactId: child,
         since: null,
@@ -199,7 +201,7 @@ describe('adding a relation', () => {
 describe('exclusive types', () => {
   it('allow only one relation per contact', async () => {
     await addRelation(db(), tenantId, child, {
-      relationCode: 'billing_recipient',
+      relationTypeId: billingType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -207,7 +209,7 @@ describe('exclusive types', () => {
 
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: 'billing_recipient',
+        relationTypeId: billingType,
         direction: 'forward',
         otherContactId: father,
         since: null,
@@ -223,13 +225,13 @@ describe('exclusive types', () => {
     const secondChild = (await createContact(db(), tenantId, testPerson('Testkind zwei'))).id
 
     await addRelation(db(), tenantId, child, {
-      relationCode: 'billing_recipient',
+      relationTypeId: billingType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
     await addRelation(db(), tenantId, secondChild, {
-      relationCode: 'billing_recipient',
+      relationTypeId: billingType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -240,13 +242,13 @@ describe('exclusive types', () => {
 
   it('are what a non-exclusive type is not', async () => {
     await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
     await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -257,7 +259,7 @@ describe('exclusive types', () => {
 
   it('refuse a second one on the same contact', async () => {
     await addRelation(db(), tenantId, child, {
-      relationCode: 'billing_recipient',
+      relationTypeId: billingType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -265,7 +267,7 @@ describe('exclusive types', () => {
 
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: 'billing_recipient',
+        relationTypeId: billingType,
         direction: 'forward',
         otherContactId: father,
         since: null,
@@ -283,13 +285,13 @@ describe('exclusive types', () => {
     const type = await ownRelationType()
 
     await addRelation(db(), tenantId, child, {
-      relationCode: type.code,
+      relationTypeId: type.id,
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
     await addRelation(db(), tenantId, child, {
-      relationCode: type.code,
+      relationTypeId: type.id,
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -320,7 +322,7 @@ describe('exclusive types', () => {
     const type = await ownRelationType()
 
     await addRelation(db(), tenantId, child, {
-      relationCode: type.code,
+      relationTypeId: type.id,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -341,7 +343,7 @@ describe('exclusive types', () => {
 
     await expect(
       addRelation(db(), tenantId, child, {
-        relationCode: type.code,
+        relationTypeId: type.id,
         direction: 'forward',
         otherContactId: father,
         since: null,
@@ -356,11 +358,8 @@ describe('exclusive types', () => {
    * being at most one.
    */
   it('cannot be switched off on a system type', async () => {
-    const [type] = await relationTypeId('billing_recipient')
-    if (!type) throw new Error('the seed did not create the billing_recipient relation type')
-
     await expect(
-      updateRelationType(db(), tenantId, type.id, {
+      updateRelationType(db(), tenantId, billingType, {
         labelForward: 'Rechnungsempfänger',
         labelInverse: 'Rechnungsempfänger für',
         isSymmetric: false,
@@ -374,10 +373,7 @@ describe('exclusive types', () => {
   /** …but switching it off entirely is allowed: a practice that never bills a
    *  third party can take the entry out of the picker. */
   it('lets a system type be deactivated', async () => {
-    const [type] = await relationTypeId('billing_recipient')
-    if (!type) throw new Error('the seed did not create the billing_recipient relation type')
-
-    const saved = await updateRelationType(db(), tenantId, type.id, {
+    const saved = await updateRelationType(db(), tenantId, billingType, {
       labelForward: 'Rechnungsempfänger',
       labelInverse: 'Rechnungsempfänger für',
       isSymmetric: false,
@@ -393,7 +389,7 @@ describe('exclusive types', () => {
 describe('symmetric types', () => {
   it('store one row whichever side enters it', async () => {
     await addRelation(db(), tenantId, mother, {
-      relationCode: 'spouse_of',
+      relationTypeId: spouseType,
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -402,7 +398,7 @@ describe('symmetric types', () => {
     // The same fact from the other side must not become a second row.
     await expect(
       addRelation(db(), tenantId, father, {
-        relationCode: 'spouse_of',
+        relationTypeId: spouseType,
         direction: 'forward',
         otherContactId: mother,
         since: null,
@@ -419,7 +415,7 @@ describe('symmetric types', () => {
 describe('changing a relation', () => {
   it('swaps the counterpart of an exclusive type without ever leaving none', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'billing_recipient',
+      relationTypeId: billingType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -427,7 +423,7 @@ describe('changing a relation', () => {
     if (!created) throw new Error('the relation was not created')
 
     const changed = await updateRelation(db(), tenantId, child, created.id, {
-      relationCode: 'billing_recipient',
+      relationTypeId: billingType,
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -445,7 +441,7 @@ describe('changing a relation', () => {
 
   it('changes the kind, and with it which end the row is stored on', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -453,7 +449,7 @@ describe('changing a relation', () => {
     if (!created) throw new Error('the relation was not created')
 
     await updateRelation(db(), tenantId, child, created.id, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'inverse',
       otherContactId: mother,
       since: null,
@@ -467,7 +463,7 @@ describe('changing a relation', () => {
 
   it('works from either end, like removing does', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -475,7 +471,7 @@ describe('changing a relation', () => {
     if (!created) throw new Error('the relation was not created')
 
     const changed = await updateRelation(db(), tenantId, mother, created.id, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'inverse',
       otherContactId: child,
       since: null,
@@ -487,7 +483,7 @@ describe('changing a relation', () => {
 
   it('leaves the row alone when the id belongs to contacts this one is not part of', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -498,7 +494,7 @@ describe('changing a relation', () => {
 
     expect(
       await updateRelation(db(), tenantId, stranger, created.id, {
-        relationCode: 'guardian',
+        relationTypeId: guardianType,
         direction: 'forward',
         otherContactId: mother,
         since: null,
@@ -511,13 +507,13 @@ describe('changing a relation', () => {
 
   it('rolls the removal back when the new row cannot be written', async () => {
     const kept = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
     })
     const doomed = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: father,
       since: null,
@@ -528,7 +524,7 @@ describe('changing a relation', () => {
     // pair, same code. The delete inside the transaction has to go with it.
     await expect(
       updateRelation(db(), tenantId, child, doomed.id, {
-        relationCode: 'guardian',
+        relationTypeId: guardianType,
         direction: 'forward',
         otherContactId: mother,
         since: null,
@@ -542,7 +538,7 @@ describe('changing a relation', () => {
 
   it('refuses an unknown type and a relation to the contact itself', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -551,7 +547,7 @@ describe('changing a relation', () => {
 
     await expect(
       updateRelation(db(), tenantId, child, created.id, {
-        relationCode: 'gibt_es_nicht',
+        relationTypeId: newId(),
         direction: 'forward',
         otherContactId: mother,
         since: null,
@@ -560,7 +556,7 @@ describe('changing a relation', () => {
 
     await expect(
       updateRelation(db(), tenantId, child, created.id, {
-        relationCode: 'guardian',
+        relationTypeId: guardianType,
         direction: 'forward',
         otherContactId: child,
         since: null,
@@ -572,7 +568,7 @@ describe('changing a relation', () => {
 describe('removing a relation', () => {
   it('works from either end', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,
@@ -585,7 +581,7 @@ describe('removing a relation', () => {
 
   it('does not touch a relation of contacts this one is not part of', async () => {
     const created = await addRelation(db(), tenantId, child, {
-      relationCode: 'guardian',
+      relationTypeId: guardianType,
       direction: 'forward',
       otherContactId: mother,
       since: null,

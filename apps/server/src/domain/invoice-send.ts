@@ -12,6 +12,7 @@ import {
   appUser,
   contact,
   contactRelation,
+  contactRelationType,
   invoice,
   invoiceSend,
   smtpSettings,
@@ -86,11 +87,21 @@ export async function resolveRecipient(
     })
     .from(contactRelation)
     .innerJoin(recipientContact, eq(recipientContact.id, contactRelation.toContactId))
+    // The type, to reach its code. The relation points at the id since 0046,
+    // and the code is what a constant in this file can name — a uuid reads
+    // differently in every installation.
+    .innerJoin(
+      contactRelationType,
+      and(
+        eq(contactRelationType.tenantId, contactRelation.tenantId),
+        eq(contactRelationType.id, contactRelation.relationTypeId),
+      ),
+    )
     .where(
       and(
         eq(contactRelation.tenantId, tenantId),
         eq(contactRelation.fromContactId, contactId),
-        eq(contactRelation.relationCode, BILLING_RECIPIENT),
+        eq(contactRelationType.code, BILLING_RECIPIENT),
       ),
     )
     .limit(1)

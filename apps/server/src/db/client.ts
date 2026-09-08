@@ -82,6 +82,34 @@ export type Transaction = Parameters<Parameters<Pool['transaction']>[0]>[0]
  * signatures were already right. `Database` always meant "something to run
  * queries on", and it is only now that there is more than one such thing.
  */
+let ownerClient: Sql | undefined
+let ownerDatabase: ReturnType<typeof createDatabase> | undefined
+
+/**
+ * The OWNER's connection — `DATABASE_URL`, the role that owns every table and
+ * therefore bypasses row-level security.
+ *
+ * For the seed, the maintenance scripts and nothing else. Those legitimately
+ * work across tenants: the seed creates the tenant it is about to fill, and
+ * `files:orphans` compares every stored file against every note there is. Under
+ * `db()` they would run as `praxi_app` with no `app.tenant_id` set, and every
+ * query would answer with nothing — the seed's very first insert into `tenant`
+ * fails, which is exactly what happened when S-C2 turned the policies on and
+ * nobody had re-seeded since.
+ *
+ * **Never from a route, and never from the worker.** A request has a tenant and
+ * belongs in `database(c)`; the worker has one per tick and belongs in
+ * `asTenant()`. This is the deliberate way past the policies, and it is a
+ * separate function so that using it is a decision rather than a default.
+ */
+export function ownerDb() {
+  if (!ownerDatabase) {
+    ownerClient ??= postgres(getEnv().DATABASE_URL, { max: 4, onnotice: () => {} })
+    ownerDatabase = createDatabase(ownerClient)
+  }
+  return ownerDatabase
+}
+
 export type Database = Pool | Transaction
 
 /** Kept as the name that says "reads only, either handle". Identical to
@@ -96,6 +124,9 @@ export async function verifyDatabaseConnection(): Promise<void> {
 
 export async function closeDatabase(): Promise<void> {
   await client?.end({ timeout: 5 })
+  await ownerClient?.end({ timeout: 5 })
   client = undefined
   database = undefined
+  ownerClient = undefined
+  ownerDatabase = undefined
 }

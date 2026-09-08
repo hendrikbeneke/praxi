@@ -51,7 +51,6 @@ const RELATION_TYPES = [
     sortOrder: 20,
   },
   {
-    code: 'parent_of',
     labelForward: 'Elternteil von',
     labelInverse: 'Kind von',
     isSymmetric: false,
@@ -60,7 +59,6 @@ const RELATION_TYPES = [
     sortOrder: 30,
   },
   {
-    code: 'spouse_of',
     labelForward: 'Ehepartner von',
     labelInverse: null,
     isSymmetric: true,
@@ -83,6 +81,11 @@ export async function seedContactTypes(database: Database, tenantId: string): Pr
     await database
       .insert(contactRelationType)
       .values({ id: newId(), tenantId, ...type })
-      .onConflictDoNothing({ target: [contactRelationType.tenantId, contactRelationType.code] })
+      // The label, not the code: since 0046 only system entries have one, and
+      // NULL does not collide — a second run would have inserted the other two
+      // all over again. Same target the role loop above uses.
+      .onConflictDoNothing({
+        target: [contactRelationType.tenantId, contactRelationType.labelForward],
+      })
   }
 }

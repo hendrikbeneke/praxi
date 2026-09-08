@@ -13,13 +13,13 @@
  * other's contacts, notes or invoices may be anywhere.
  */
 import { loadEnvFile } from '../../env.js'
-import { closeDatabase, db } from '../client.js'
+import { closeDatabase, ownerDb } from '../client.js'
 import { DEMO_PASSWORD, seedDemo } from './demo.js'
 
 loadEnvFile()
 
 try {
-  await seedDemo(db())
+  await seedDemo(ownerDb())
   console.info(`\nBoth demo users share the password: ${DEMO_PASSWORD}`)
 } catch (error) {
   console.error(error instanceof Error ? error.message : error)

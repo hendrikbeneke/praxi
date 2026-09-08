@@ -16,7 +16,7 @@
 
 import { readdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { closeDatabase, db } from '../db/client.js'
+import { closeDatabase, ownerDb } from '../db/client.js'
 import { noteFile } from '../db/schema.js'
 import { loadEnvFile } from '../env.js'
 import { fileStore } from '../storage.js'
@@ -39,7 +39,7 @@ try {
   const root = store.filesRoot()
 
   const known = new Set(
-    (await db().select({ storagePath: noteFile.storagePath }).from(noteFile)).map(
+    (await ownerDb().select({ storagePath: noteFile.storagePath }).from(noteFile)).map(
       (row) => row.storagePath,
     ),
   )

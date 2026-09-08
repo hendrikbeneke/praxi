@@ -73,7 +73,9 @@ export type ContactRelationTypeCreate = ContactRelationTypeInput
 
 export const contactRelationTypeSchema = z.object({
   id: z.uuid(),
-  code: z.string(),
+  /** Null on everything but a system entry, since 0046. The read detail shows
+   *  it only where it is set, which is where the software greps for it. */
+  code: z.string().nullable(),
   labelForward: z.string(),
   labelInverse: z.string().nullable(),
   isSymmetric: z.boolean(),

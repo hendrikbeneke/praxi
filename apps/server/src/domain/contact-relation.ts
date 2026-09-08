@@ -42,7 +42,7 @@ export async function listRelations(
   const rows = await database
     .select({
       id: contactRelation.id,
-      relationCode: contactRelation.relationCode,
+      relationTypeId: contactRelation.relationTypeId,
       since: contactRelation.since,
       isFrom: sql<boolean>`${contactRelation.fromContactId} = ${contactId}`,
       otherContactId: contact.id,
@@ -62,7 +62,7 @@ export async function listRelations(
       contactRelationType,
       and(
         eq(contactRelationType.tenantId, contactRelation.tenantId),
-        eq(contactRelationType.code, contactRelation.relationCode),
+        eq(contactRelationType.id, contactRelation.relationTypeId),
       ),
     )
     .where(
@@ -78,7 +78,7 @@ export async function listRelations(
 
   return rows.map((row) => ({
     id: row.id,
-    relationCode: row.relationCode,
+    relationTypeId: row.relationTypeId,
     direction: row.isFrom ? 'forward' : 'inverse',
     otherContactId: row.otherContactId,
     otherContactName: formatContactName(row),
@@ -119,7 +119,7 @@ async function endsOf(
     .where(
       and(
         eq(contactRelationType.tenantId, tenantId),
-        eq(contactRelationType.code, input.relationCode),
+        eq(contactRelationType.id, input.relationTypeId),
         eq(contactRelationType.active, true),
       ),
     )
@@ -162,7 +162,7 @@ export async function addRelation(
       id: newId(),
       tenantId,
       ...ends,
-      relationCode: input.relationCode,
+      relationTypeId: input.relationTypeId,
       since: input.since,
       // `exclusive` is left at its default on purpose — the
       // `contact_relation_exclusive` trigger fills it from the type.
@@ -221,7 +221,7 @@ export async function updateRelation(
         id: newId(),
         tenantId,
         ...ends,
-        relationCode: input.relationCode,
+        relationTypeId: input.relationTypeId,
         since: input.since,
       })
       .returning({ id: contactRelation.id })

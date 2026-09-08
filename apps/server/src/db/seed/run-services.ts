@@ -8,14 +8,14 @@
  */
 
 import { loadEnvFile } from '../../env.js'
-import { closeDatabase, db } from '../client.js'
+import { closeDatabase, ownerDb } from '../client.js'
 import { requireTenantId } from './base.js'
 import { seedServices } from './services.js'
 
 loadEnvFile()
 
 try {
-  const database = db()
+  const database = ownerDb()
   await seedServices(database, await requireTenantId(database))
   console.info('service seed complete')
 } catch (error) {

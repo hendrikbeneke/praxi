@@ -444,7 +444,10 @@ export function RelationTypeSettings() {
 
                           <dl className="flex flex-wrap gap-8">
                             {type.isSystem && (
-                              <DetailField label={strings.contactType.code} value={type.code} />
+                              <DetailField
+                                label={strings.contactType.code}
+                                value={type.code ?? DASH}
+                              />
                             )}
                             <DetailField
                               label={strings.contactType.labelInverse}

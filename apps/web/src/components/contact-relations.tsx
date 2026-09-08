@@ -76,7 +76,7 @@ export function ContactRelations({ contactId }: { contactId: string }) {
   // Every type for the labels — a relation entered before its type was
   // deactivated still has to read correctly — but only the active ones are
   // offered.
-  const typesByCode = new Map((types.data ?? []).map((type) => [type.code, type]))
+  const typesById = new Map((types.data ?? []).map((type) => [type.id, type]))
   const options = relationOptions((types.data ?? []).filter((type) => type.active))
 
   const invalidate = async () => {
@@ -86,12 +86,12 @@ export function ContactRelations({ contactId }: { contactId: string }) {
   const save = useMutation({
     mutationFn: (input: {
       relationId: string | null
-      code: string
+      id: string
       direction: RelationDirection
       other: string
     }) => {
       const payload = {
-        relationCode: input.code,
+        relationTypeId: input.id,
         direction: input.direction,
         otherContactId: input.other,
         since: todayInBerlin(),
@@ -125,13 +125,13 @@ export function ContactRelations({ contactId }: { contactId: string }) {
 
   /** An exclusive type this contact already owns cannot be taken a second
    *  time — the menu says so instead of letting the database say it. */
-  const takenCodes = new Set(
+  const takenTypeIds = new Set(
     rows
       .filter(
         (row) =>
-          row.direction === 'forward' && Boolean(typesByCode.get(row.relationCode)?.isExclusive),
+          row.direction === 'forward' && Boolean(typesById.get(row.relationTypeId)?.isExclusive),
       )
-      .map((row) => row.relationCode),
+      .map((row) => row.relationTypeId),
   )
 
   return (
@@ -164,12 +164,12 @@ export function ContactRelations({ contactId }: { contactId: string }) {
               <li key={relation.id} className="border-t bg-muted/30 px-6 py-4">
                 <RelationForm
                   options={options}
-                  takenCodes={takenCodes}
+                  takenTypeIds={takenTypeIds}
                   relation={relation}
                   pending={save.isPending}
                   onCancel={() => setEditing(null)}
-                  onSave={(code, direction, other) =>
-                    save.mutate({ relationId: relation.id, code, direction, other })
+                  onSave={(id, direction, other) =>
+                    save.mutate({ relationId: relation.id, id, direction, other })
                   }
                 />
               </li>
@@ -177,7 +177,7 @@ export function ContactRelations({ contactId }: { contactId: string }) {
               <RelationRow
                 key={relation.id}
                 relation={relation}
-                type={typesByCode.get(relation.relationCode)}
+                type={typesById.get(relation.relationTypeId)}
                 onEdit={() => setEditing(relation.id)}
                 onRemove={() => remove.mutate(relation.id)}
               />
@@ -192,11 +192,11 @@ export function ContactRelations({ contactId }: { contactId: string }) {
             <div className="rounded-[10px] border bg-muted/30 px-4 py-4">
               <RelationForm
                 options={options}
-                takenCodes={takenCodes}
+                takenTypeIds={takenTypeIds}
                 pending={save.isPending}
                 onCancel={() => setEditing(null)}
-                onSave={(code, direction, other) =>
-                  save.mutate({ relationId: null, code, direction, other })
+                onSave={(id, direction, other) =>
+                  save.mutate({ relationId: null, id, direction, other })
                 }
               />
             </div>
@@ -236,7 +236,7 @@ function RelationRow({
       <span className="truncate text-muted-foreground text-sm">
         {/* An unknown code should not happen — a type in use cannot be
             deleted — so it falls back to the code rather than to nothing. */}
-        {type ? relationLabel(type, relation.direction) : relation.relationCode}
+        {type ? relationLabel(type, relation.direction) : relation.relationTypeId}
       </span>
 
       {/* Reading is allowed everywhere: the name leads to that contact's own
@@ -295,22 +295,22 @@ function RelationRow({
  */
 function RelationForm({
   options,
-  takenCodes,
+  takenTypeIds,
   relation,
   pending,
   onSave,
   onCancel,
 }: {
-  options: { code: string; direction: RelationDirection; label: string }[]
-  takenCodes: Set<string>
+  options: { id: string; direction: RelationDirection; label: string }[]
+  takenTypeIds: Set<string>
   /** Absent while adding. */
   relation?: ContactRelation
   pending: boolean
-  onSave: (code: string, direction: RelationDirection, otherContactId: string) => void
+  onSave: (relationTypeId: string, direction: RelationDirection, otherContactId: string) => void
   onCancel: () => void
 }) {
   const [option, setOption] = useState(
-    relation ? optionKey({ code: relation.relationCode, direction: relation.direction }) : '',
+    relation ? optionKey({ id: relation.relationTypeId, direction: relation.direction }) : '',
   )
   const [otherContactId, setOtherContactId] = useState<string | null>(
     relation?.otherContactId ?? null,
@@ -338,10 +338,10 @@ function RelationForm({
               // value selectable, or it could not be saved unchanged.
               const taken =
                 entry.direction === 'forward' &&
-                takenCodes.has(entry.code) &&
+                takenTypeIds.has(entry.id) &&
                 optionKey(entry) !==
                   (relation
-                    ? optionKey({ code: relation.relationCode, direction: relation.direction })
+                    ? optionKey({ id: relation.relationTypeId, direction: relation.direction })
                     : '')
 
               return (
@@ -374,7 +374,7 @@ function RelationForm({
           disabled={!canSave || pending}
           onClick={() => {
             if (!chosen || !otherContactId) return
-            onSave(chosen.code, chosen.direction, otherContactId)
+            onSave(chosen.id, chosen.direction, otherContactId)
           }}
         >
           {strings.contact.relationSave}
@@ -385,8 +385,8 @@ function RelationForm({
 }
 
 /** One option per side, so the value has to carry both. */
-function optionKey(option: { code: string; direction: RelationDirection }): string {
-  return `${option.code}:${option.direction}`
+function optionKey(option: { id: string; direction: RelationDirection }): string {
+  return `${option.id}:${option.direction}`
 }
 
 /** Today in Europe/Berlin as `YYYY-MM-DD`. `toISOString()` would be UTC and

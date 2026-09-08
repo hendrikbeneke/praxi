@@ -10,7 +10,13 @@ import { newId } from '../id.js'
 import type { MailMessage } from '../mail/message.js'
 import type { MailTransport } from '../mail/transport.js'
 import { renderInvoicePdf } from '../pdf/render.js'
-import { activityTypeId, createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
+import {
+  activityTypeId,
+  createTenant,
+  createUser,
+  finalizeDocument,
+  relationTypeId,
+} from '../test/fixtures.js'
 import { createActivity } from './activity.js'
 import { listBillableItems } from './billable.js'
 import { createContact } from './contact.js'
@@ -327,7 +333,7 @@ describe('the recipient', () => {
       person({ firstName: 'Kasse', lastName: 'Zahlstelle', email: 'kasse@beispiel.test' }),
     )
     await addRelation(db(), tenantId, contactId, {
-      relationCode: 'billing_recipient',
+      relationTypeId: await relationTypeId(db(), tenantId, 'Rechnungsempfänger'),
       // `forward`: the fact belongs to this contact — they *have* a billing
       // recipient — which is the direction convention from rule 4.
       direction: 'forward',

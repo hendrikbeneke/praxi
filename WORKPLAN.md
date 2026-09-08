@@ -3206,6 +3206,63 @@ Worker hätte still nichts getan, ohne Fehler und ohne Logzeile — und **über
 `google_connection_tenant_ids()`: beide Mandanten.** Genau die Größe, die die Funktion haben
 soll.
 
+## S-D — `contact_relation` zeigt über die id
+
+Die letzte Katalogreferenz im Schema, die noch über einen `code` lief. Rollen (0035) und
+Vorgangsarten (B1/0041) waren längst auf der id; drei Tabellen, zwei Muster.
+
+- **Migration 0046.** `relation_type_id` dazu, aus dem Code per Join befüllt, die drei auf den
+  Code verschlüsselten Constraints auf der id neu gebaut, der Spiegel-Trigger liest den Typ per
+  id, `relation_code` fällt.
+- **Der Code bleibt — für Systemeinträge.** `guardian` und `billing_recipient` werden im Code
+  gesucht, weil eine UUID bei jeder Installation anders lautet. Was sich ändert: nur noch die
+  beiden tragen einen, alles Praktikerangelegte bekommt NULL. Neu
+  `contact_relation_type_system_needs_code`, das macht aus „ein Systemeintrag hat einen Anker"
+  eine Weigerung statt einer Gewohnheit.
+- **`unique (tenant_id, label_forward)`** — die Bezeichnung ist jetzt, wodurch ein Eintrag
+  erkannt wird, wie bei Rollen und Notizarten. Der Seed braucht sie als Konfliktziel, sobald
+  die Codes NULL sind, und zwei „Betreut von" im selben Auswahlfeld sind damit unmöglich.
+- **200 Zeilen weg, die niemand mehr aufruft:** `packages/shared/src/type-code.ts` samt Test
+  und `freeRelationCode` in `domain/contact-type.ts`. Beide leiteten einen Code aus der
+  Bezeichnung ab und machten ihn kollisionsfrei — nötig nur, solange ein Fremdschlüssel daran
+  hing. Die Formprüfung bleibt: `contact_relation_type_code_shape` steht in der Datenbank.
+- **Die Systemsuche zieht einen Join weiter nach außen.** `domain/invoice.ts` filterte auf
+  `contact_relation.relation_code`, jetzt auf `contact_relation_type.code`; `invoice-send.ts`
+  bekam den Join dafür neu. Dieselbe Konstante, dieselbe Lesbarkeit.
+
+### Der Backfill, an echten Zeilen gemessen
+
+Ein Backfill, der nie eine Zeile berührt hat, ist ungetestet — und beim Livegang kommen echte
+Daten. Vor der Migration wurden deshalb acht Beziehungen angelegt, je vier pro Mandant, jeden
+Typ einmal, und der Vorher-Zustand in einer Hilfstabelle festgehalten:
+
+```
+Zeilen vorher                                     | 8
+Zeilen nachher                                    | 8
+davon mit relation_type_id                        | 8
+zeigt auf DENSELBEN Typ wie vorher über den Code  | 8
+ABWEICHUNGEN                                      | 0
+```
+
+Je Typ, mit dem Exklusiv-Spiegel: `billing_recipient` 2 Zeilen / 2 richtig / 2 exklusiv
+gespiegelt, `guardian` 2/2/0, `parent_of` 2/2/0, `spouse_of` 2/2/0. Danach wieder entfernt.
+
+### Was beim Bauen auffiel
+
+- **Der Seed war unter RLS kaputt, seit S-C2.** `pnpm db:seed` scheitert auf einer frischen
+  Datenbank am allerersten `insert into tenant`: er lief über `db()`, also als `praxi_app` ohne
+  gesetzten Mandanten. Nicht bemerkt worden, weil meine Entwicklungsdatenbank vor 0045 geseedet
+  wurde. Neu `ownerDb()` in `db/client.ts` — die Verbindung des Eigentümers, ausdrücklich für
+  Seed und Wartungsskripte, nie für eine Route und nie für den Worker. Eine eigene Funktion,
+  damit ihr Gebrauch eine Entscheidung ist und kein Standard.
+- **Die Reihenfolge im DDL war beim ersten Versuch falsch.** Postgres weigert sich, den
+  Unique-Constraint auf `(tenant_id, code)` zu löschen, solange der alte Fremdschlüssel daran
+  hängt — also erst der Fremdschlüssel, dann der Schlüssel. Gefunden in einer Transaktion mit
+  `ROLLBACK`, bevor irgendetwas lief.
+- **`code: text()` traf die falsche Tabelle.** Die erste Fundstelle im Schema war
+  `number_range`, nicht `contact_relation_type`. Der Typechecker hat es gefangen; ohne ihn wäre
+  der Nummernkreis-Code nullable geworden.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;
@@ -3258,15 +3315,6 @@ each line names the reason, not the solution.
   der Parser in `packages/shared` und nicht im Frontend, und genau deshalb ist das Format auf
   fünf Konstrukte begrenzt: vier Blockarten im PDF nachzubauen ist ein Nachmittag, dreißig
   sind es nicht.
-- **Point `contact_relation` at the id instead of at the code.** It is the last
-  link in the schema that still references a catalogue by its `code`; the roles
-  went to the id in migration 0035 and the activity types in B1/0041. Three
-  tables, two patterns, for no reason anyone can name. Once it is done the code
-  can leave practitioner-made relation types altogether — B1d derives one from
-  the label today only because a foreign key cannot point at a NULL — and the
-  check constraint "`is_system` requires a code" becomes possible, which is
-  what would make an unanchored system entry unreachable rather than merely
-  unlikely.
 
 - **`themeOptions` (German: `schiefer`, `blau`, …) vs. `startPageOptions` (English:
   `overview`, `contacts`, …)** in `packages/shared/src/user-preferences.ts` — the same kind of

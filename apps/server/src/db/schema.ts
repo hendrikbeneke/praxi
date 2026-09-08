@@ -668,7 +668,20 @@ export const contactRelationType = pgTable(
     tenantId: uuid()
       .notNull()
       .references(() => tenant.id),
-    code: text().notNull(),
+    /**
+     * Only a SYSTEM entry has one, since 0046.
+     *
+     * `guardian` and `billing_recipient` are looked up by it in the
+     * application — `domain/invoice.ts` cannot hold a uuid, because a uuid
+     * reads differently in every installation. Everything a practitioner
+     * creates is recognised by `label_forward` and carries NULL; nothing in
+     * the software points at those, so a second name for them was one name to
+     * keep in step for nothing.
+     *
+     * `contact_relation_type_system_needs_code` is what makes "a system entry
+     * has an anchor" a refusal rather than a habit.
+     */
+    code: text(),
     labelForward: text().notNull(),
     labelInverse: text(),
     isSymmetric: boolean().notNull().default(false),
@@ -679,7 +692,19 @@ export const contactRelationType = pgTable(
     ...timestamps,
   },
   (t) => [
-    unique('contact_relation_type_tenant_code_key').on(t.tenantId, t.code),
+    // Partial since 0046: NULL is the normal case, not a gap. A plain unique
+    // constraint would tolerate the NULLs too, but would not say so.
+    uniqueIndex('contact_relation_type_tenant_code_key')
+      .on(t.tenantId, t.code)
+      .where(sql`${t.code} is not null`),
+    // What an entry is recognised by, now that most carry no code — the same
+    // anchor the roles took in 0035 and the note types in 0038.
+    unique('contact_relation_type_tenant_label_key').on(t.tenantId, t.labelForward),
+    unique('contact_relation_type_id_tenant_key').on(t.id, t.tenantId),
+    check(
+      'contact_relation_type_system_needs_code',
+      sql`not ${t.isSystem} or ${t.code} is not null`,
+    ),
     index('contact_relation_type_tenant_sort_idx').on(t.tenantId, t.sortOrder, t.labelForward),
     check('contact_relation_type_code_shape', sql`${t.code} ~ '^[a-z][a-z0-9_]{0,39}$'`),
     check(
@@ -749,7 +774,9 @@ export const contactRelation = pgTable(
       .references(() => tenant.id),
     fromContactId: uuid().notNull(),
     toContactId: uuid().notNull(),
-    relationCode: text().notNull(),
+    /** The type, by id since 0046 — this was the last catalogue reference in
+     *  the schema that ran over a `code`. */
+    relationTypeId: uuid().notNull(),
     since: date({ mode: 'string' }),
     /**
      * A mirror of `contact_relation_type.is_exclusive`, written **only** by
@@ -773,13 +800,13 @@ export const contactRelation = pgTable(
       name: 'contact_relation_to_fk',
     }).onDelete('cascade'),
     foreignKey({
-      columns: [t.relationCode, t.tenantId],
-      foreignColumns: [contactRelationType.code, contactRelationType.tenantId],
+      columns: [t.relationTypeId, t.tenantId],
+      foreignColumns: [contactRelationType.id, contactRelationType.tenantId],
       name: 'contact_relation_type_fk',
     })
       .onUpdate('restrict')
       .onDelete('restrict'),
-    unique('contact_relation_pair_key').on(t.fromContactId, t.toContactId, t.relationCode),
+    unique('contact_relation_pair_key').on(t.fromContactId, t.toContactId, t.relationTypeId),
     /**
      * At most one relation of an exclusive type per `from` contact.
      *
@@ -788,8 +815,9 @@ export const contactRelation = pgTable(
      * relation that ended years ago blocks the new one forever.
      */
     uniqueIndex('contact_relation_exclusive_key')
-      .on(t.fromContactId, t.relationCode)
+      .on(t.fromContactId, t.relationTypeId)
       .where(sql`${t.exclusive}`),
+    index('contact_relation_type_idx').on(t.relationTypeId),
     // The other end: both records show the relation.
     index('contact_relation_to_idx').on(t.toContactId),
     check('contact_relation_not_self', sql`${t.fromContactId} <> ${t.toContactId}`),

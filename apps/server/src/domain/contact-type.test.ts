@@ -2,7 +2,11 @@ import type { ContactInput } from '@praxi/shared'
 import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
-import { foreignKeyViolationConstraint, raisedMessage } from '../db/errors.js'
+import {
+  foreignKeyViolationConstraint,
+  raisedMessage,
+  uniqueViolationConstraint,
+} from '../db/errors.js'
 import { contactRelationType, contactRole, contactRoleType } from '../db/schema.js'
 import { newId } from '../id.js'
 import { createTenant, roleTypeId } from '../test/fixtures.js'
@@ -94,7 +98,8 @@ describe('the seeded catalogue', () => {
       labelForward: 'Rechnungsempfänger',
       labelInverse: 'Rechnungsempfänger für',
     })
-    expect(types.find((type) => type.code === 'spouse_of')).toMatchObject({
+    // By label, because a type nothing points at carries no code since 0046.
+    expect(types.find((type) => type.labelForward === 'Ehepartner von')).toMatchObject({
       isSymmetric: true,
       labelInverse: null,
     })
@@ -269,78 +274,122 @@ describe('the symmetry rule', () => {
 })
 
 /**
- * The code of a practitioner-made relation type is derived, never typed (B1d).
- * The deriving itself is tested in `packages/shared/src/type-code.test.ts`;
- * what needs a database is that the result is free, and that a rename leaves
- * it alone.
+ * Who carries a code, since 0046.
+ *
+ * It used to be everyone, derived from the label, because `contact_relation`
+ * hung from it. The relation points at the id now, so the code is left with
+ * the one job it was ever really for: letting `domain/invoice.ts` name
+ * `billing_recipient` without writing down a uuid that differs per
+ * installation.
  */
-describe('the code of an own relation type', () => {
-  const own = (labelForward: string) =>
-    createRelationType(db(), tenantId, {
-      labelForward,
-      labelInverse: 'Gegenstück',
+describe('the code after the relation moved to the id', () => {
+  it('gives a practitioner-made type none at all', async () => {
+    const own = await createRelationType(db(), tenantId, {
+      labelForward: 'Betreut von',
+      labelInverse: 'Betreut',
       isSymmetric: false,
       isExclusive: false,
-      sortOrder: 90,
+      sortOrder: 100,
       active: true,
     })
 
-  it('comes from the label', async () => {
-    expect((await own('Betreut von')).code).toBe('betreut_von')
-    expect((await own('Ärztin für')).code).toBe('aerztin_fuer')
+    // Nothing in the software points at this entry, so there is nothing to
+    // anchor — and a derived code would have been a second name to keep in
+    // step for no reader.
+    expect(own.code).toBeNull()
   })
 
-  it('counts up rather than colliding with an existing one', async () => {
-    expect((await own('Betreut von')).code).toBe('betreut_von')
-    expect((await own('Betreut von')).code).toBe('betreut_von_2')
-    expect((await own('Betreut von')).code).toBe('betreut_von_3')
+  it('lets two of them exist without colliding', async () => {
+    // The old derivation appended `_2` to keep the codes unique for the
+    // foreign key. With NULLs there is nothing to collide, and the labels are
+    // what tell the two apart.
+    const first = await createRelationType(db(), tenantId, {
+      labelForward: 'Betreut von',
+      labelInverse: 'Betreut',
+      isSymmetric: false,
+      isExclusive: false,
+      sortOrder: 100,
+      active: true,
+    })
+    const second = await createRelationType(db(), tenantId, {
+      labelForward: 'Begleitet von',
+      labelInverse: 'Begleitet',
+      isSymmetric: false,
+      isExclusive: false,
+      sortOrder: 110,
+      active: true,
+    })
+
+    expect([first.code, second.code]).toEqual([null, null])
+    expect(first.id).not.toBe(second.id)
   })
 
-  /**
-   * The seeded system entries are in the same namespace, so the query that
-   * looks for a free code has to see them. An own type labelled "guardian"
-   * must not try to take the code the minor's notice reads.
-   */
-  it('gets out of the way of a system code', async () => {
-    const created = await own('guardian')
+  it('refuses two types with the same label', async () => {
+    const input = {
+      labelForward: 'Betreut von',
+      labelInverse: 'Betreut',
+      isSymmetric: false,
+      isExclusive: false,
+      sortOrder: 100,
+      active: true,
+    }
+    await createRelationType(db(), tenantId, input)
 
-    expect(created.code).toBe('guardian_2')
-
-    const [seeded] = await db()
-      .select({ isSystem: contactRelationType.isSystem })
-      .from(contactRelationType)
-      .where(
-        and(eq(contactRelationType.tenantId, tenantId), eq(contactRelationType.code, 'guardian')),
-      )
-    expect(seeded?.isSystem).toBe(true)
+    // The label is what an entry is recognised by now — two of them in the
+    // same picker would be indistinguishable, which is exactly the argument
+    // the roles (0035) and the note types (0038) already settled.
+    await expect(createRelationType(db(), tenantId, input)).rejects.toSatisfy(
+      (error: unknown) =>
+        uniqueViolationConstraint(error) === 'contact_relation_type_tenant_label_key',
+    )
   })
 
-  /**
-   * The one that matters most. `contact_relation.relation_code` points at this
-   * column, so following a rename would orphan every relation of the type —
-   * the foreign key's ON UPDATE RESTRICT refuses it outright. The label is what
-   * a human reads and is free to change; the code is where the type is nailed
-   * down.
-   */
-  it('stays as it is when the type is renamed', async () => {
-    const created = await own('Betreut von')
+  it('keeps it on the system entries, which is what it is for', async () => {
+    const types = await listRelationTypes(db(), tenantId, false)
+    const withCode = types.filter((type) => type.code !== null).map((type) => type.code)
 
-    const renamed = await updateRelationType(db(), tenantId, created.id, {
+    expect(withCode.sort()).toEqual(['billing_recipient', 'guardian'])
+  })
+
+  it('will not let a system entry exist without one', async () => {
+    // The check constraint, which is what turns "a system entry has an anchor"
+    // from a habit into something the database refuses to break.
+    await expect(
+      db().insert(contactRelationType).values({
+        id: newId(),
+        tenantId,
+        code: null,
+        labelForward: 'Erfundene Systemart',
+        labelInverse: 'Erfundene Systemart für',
+        isSymmetric: false,
+        isSystem: true,
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('leaves a rename alone on an own type, as it always did', async () => {
+    const own = await createRelationType(db(), tenantId, {
+      labelForward: 'Betreut von',
+      labelInverse: 'Betreut',
+      isSymmetric: false,
+      isExclusive: false,
+      sortOrder: 100,
+      active: true,
+    })
+
+    const renamed = await updateRelationType(db(), tenantId, own.id, {
       labelForward: 'Bezugsperson',
-      labelInverse: 'Bezugsperson von',
+      labelInverse: 'Bezugsperson für',
       isSymmetric: false,
       isExclusive: false,
-      sortOrder: 90,
+      sortOrder: 100,
       active: true,
     })
 
+    // The relations hang from the id, so the label is free to change and
+    // nothing has to follow it anywhere.
     expect(renamed?.labelForward).toBe('Bezugsperson')
-    expect(renamed?.code).toBe('betreut_von')
-  })
-
-  /** A label that yields nothing still produces a usable handle. */
-  it('falls back where a label slugs to nothing', async () => {
-    expect((await own('———')).code).toBe('relation')
-    expect((await own('!!!')).code).toBe('relation_2')
+    expect(renamed?.id).toBe(own.id)
+    expect(renamed?.code).toBeNull()
   })
 })

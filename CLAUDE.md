@@ -223,7 +223,9 @@ Both sets are **configurable**. `contact_role_type` and `contact_relation_type` 
 
 **Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. The first of those was a promise until L8: the code was seeded, flagged `is_system` and named in this sentence, and nothing outside a comment read it. `invoice.recipient_contact_id` is where it became true, and the shape it took is worth keeping in mind for the next such code — the relation is read **once**, when the document is finalized, and the address goes into `recipient_snapshot`; a relation dissolved next week cannot reach an invoice already posted. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. **A system entry is read-only apart from `active` and its order** (B1), and the reason is not the exclusivity. Rename `billing_recipient` to "Sorgeberechtigt" and the contact record says one thing while `updateInvoice` and `prepareSend` do another, because both of them look the relation up by its code: the label is what a human reads, the code is what the software obeys, and letting the two drift apart makes a screen lie without anything failing. So `code`, both labels, `is_symmetric` and `is_exclusive` are frozen — `SystemTypeReadOnlyError` in `domain/contact-type.ts`, beside the trigger that already froze the code — and **a system entry has no "Bearbeiten" at all** (B1e). It led to a form of five values one could not touch and a single checkbox, which is a control promising an edit and delivering almost none. `active` is reachable from the read detail instead, where it acts immediately and has no save button — a single decision rather than a record being edited, the same shape as ticking a role in the contact header. `active` stays, because a practice that never bills a third party may take the entry out of the picker, and so does `sort_order`, which moves through `/move`. `is_system` appears in no input schema; only the seed sets it.
 
-**The `code` is never typed** (B1d). It is derived from `labelForward` when the entry is created — `relationTypeCodeFrom` in `packages/shared/src/type-code.ts`, with a counter appended where the tenant already has that code, system entries included. No screen offers a field for it, and it is shown only on a system entry, where the software greps for it and the read-only form explains why. It is fixed for every entry, system or not, and **a rename does not follow it**: `contact_relation.relation_code` is a foreign key onto this column, so rewriting it would orphan every relation of the type — `ON UPDATE RESTRICT` says the same thing in the database. The label is what a human reads and may change; the code is where the type is nailed down. Derived rather than random because it is invisible on screen and very visible in `psql`: `sorgeberechtigt_2` says what the row is, `rel_k3m9x2p1` sends the reader to a join.
+**Only a system entry has a `code`** (0046). It is what lets `domain/invoice.ts` name `billing_recipient` without writing down a uuid, which differs per installation — and that is the whole of what the code was ever for. Everything the practitioner creates carries `NULL` and is recognised by `labelForward`, which is unique per tenant like the roles' and the note types' labels; two entries reading "Betreut von" would be indistinguishable in the same picker. `contact_relation_type_system_needs_code` makes "a system entry has an anchor" a refusal rather than a habit, and no screen offers a field for the code — it is shown only where it is set, on the entry the software greps for.
+
+It was derived from the label for every entry until then (B1d), with a counter appended on collision, because `contact_relation.relation_code` was a foreign key onto it and a foreign key cannot point at NULL. `contact_relation.relation_type_id` ended that: **the relation hangs from the id**, so a practitioner-made type needs no second name, and `relationTypeCodeFrom` and `freeRelationCode` lost every caller and were deleted with the two hundred lines around them. What has not changed is that a rename never touches the code of a system entry — `protect_system_type` freezes it, and the label is what a human reads while the code is what the software obeys.
 
 **Direction of a relation**: `from` is the contact in whose record the fact is a property *of that contact*, `to` is the counterpart. A child is the `from` of `guardian`, a patient is the `from` of `billing_recipient`. This is not cosmetic — `is_exclusive` is enforced per `from_contact_id`, so with the convention exclusivity always reads as "this contact has at most one X", and the next exclusive type needs no fresh thinking. `parent_of` is the deliberate exception: with kinship neither side owns the fact, and "Elternteil von / Kind von" is the more common reading direction.
 
@@ -881,15 +883,24 @@ contact_role_type     tenant_id uuid not null -> tenant(id),
 
 -- as built (slice 6.5)
 contact_relation_type tenant_id uuid not null -> tenant(id),
-                      code text not null,                       -- DERIVED from
-                        -- label_forward when the entry is created (B1d), never
-                        -- typed: no screen has a field for it. A counter is
-                        -- appended where the code is taken, system entries
-                        -- included. It does NOT follow a rename —
-                        -- contact_relation points at it, and ON UPDATE RESTRICT
-                        -- refuses. Still the last catalogue reference that runs
-                        -- over a code rather than an id; see WORKPLAN.md,
-                        -- "Before going live".
+                      code text,                              -- ONLY on a
+                        -- system entry, since 0046. It is what lets
+                        -- domain/invoice.ts name `billing_recipient` without a
+                        -- uuid, which differs per installation — the whole of
+                        -- what a code was ever for. Everything the practitioner
+                        -- creates carries NULL and is recognised by
+                        -- label_forward.
+                        --
+                        -- It was derived from the label for every entry until
+                        -- then (B1d), counter appended on collision, because
+                        -- contact_relation was a foreign key onto it and a
+                        -- foreign key cannot point at NULL. That reference runs
+                        -- over the id now, so `relationTypeCodeFrom` and
+                        -- `freeRelationCode` lost every caller and went, with
+                        -- packages/shared/src/type-code.ts around them.
+                        --
+                        -- Frozen on a system entry by protect_system_type; a
+                        -- rename never follows it.
 
                       label_forward text not null,              -- what the
                         -- `from` record says about the `to` contact
@@ -902,8 +913,20 @@ contact_relation_type tenant_id uuid not null -> tenant(id),
                       is_system boolean not null default false,
                       sort_order integer not null default 0,
                       active boolean not null default true
-                      unique (tenant_id, code),
+                      unique index on (tenant_id, code) where code is not null
+                        -- partial, because NULL is the normal case and a plain
+                        -- unique constraint would tolerate it without saying so
+                      unique (tenant_id, label_forward)        -- what an entry
+                        -- is recognised by, the same anchor the roles took in
+                        -- 0035 and the note types in 0038. Two "Betreut von" in
+                        -- one picker are indistinguishable.
+                      unique (id, tenant_id)                  -- the target of
+                        -- contact_relation's composite foreign key since 0046
                       index on (tenant_id, sort_order, label_forward)
+                      check contact_relation_type_system_needs_code (
+                        not is_system or code is not null)
+                        -- turns "a system entry has an anchor" from a habit
+                        -- into something the database refuses to break
                       check contact_relation_type_code_shape,
                       check contact_relation_type_inverse_label (
                         (label_inverse is not null) = (not is_symmetric))
@@ -941,7 +964,12 @@ contact_relation      tenant_id uuid not null -> tenant(id),
                       from_contact_id uuid not null,            -- the contact
                         -- the fact belongs to; see rule 4
                       to_contact_id uuid not null,
-                      relation_code text not null,
+                      relation_type_id uuid not null,         -- the type,
+                        -- BY ID since 0046. It was `relation_code text` with a
+                        -- composite key onto contact_relation_type(code,
+                        -- tenant_id) — the last catalogue reference in the
+                        -- schema that ran over a code, after the roles went to
+                        -- the id in 0035 and the activity types in B1/0041.
                       since date,
                       exclusive boolean not null default false
                         -- a mirror of contact_relation_type.is_exclusive,
@@ -954,12 +982,13 @@ contact_relation      tenant_id uuid not null -> tenant(id),
                         -> contact (id, tenant_id) on delete cascade,
                       foreign key (to_contact_id, tenant_id)
                         -> contact (id, tenant_id) on delete cascade,
-                      foreign key (relation_code, tenant_id)
-                        -> contact_relation_type (code, tenant_id)
+                      foreign key (relation_type_id, tenant_id)
+                        -> contact_relation_type (id, tenant_id)
                         on update restrict on delete restrict
-                      unique (from_contact_id, to_contact_id, relation_code)
+                      unique (from_contact_id, to_contact_id, relation_type_id)
                       unique index contact_relation_exclusive_key
-                        on (from_contact_id, relation_code) where exclusive
+                        on (from_contact_id, relation_type_id) where exclusive
+                      index on (relation_type_id)
                         -- if relations ever gain an end date, narrow this to
                         -- the ones still running
                       index on (to_contact_id)                  -- the other
