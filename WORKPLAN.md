@@ -3407,6 +3407,25 @@ ihn gegen seine eigene Negation laufen lassen: mit `blau` in der einen Liste sch
 
 ## Before going live
 
+Two things found while writing `DEPLOY.md`, both about the first production
+deployment and neither fixed in that package (it was documentation only):
+
+- **The baseline names the owner role.** `pg_dump` wrote
+  `ALTER DEFAULT PRIVILEGES FOR ROLE praxi …` into `0000_baseline.sql`, twice.
+  Run by any other role it answers `permission denied to change default
+  privileges` — and the baseline is one statement, so the whole schema fails
+  and the container never starts. Measured against a database owned by a
+  differently-named role. Two answers: name the production owner `praxi`
+  (what `DEPLOY.md` says, and it needs no code), or drop `FOR ROLE praxi` from
+  those two lines, which makes them apply to whoever runs the migration —
+  verified to work. The second is two lines and removes a foot-gun that only
+  fires on a machine nobody has built yet.
+- **`index.ts` gives laptop advice on a server.** A failed
+  `verifyDatabaseConnection()` logs `database unreachable — is Postgres
+  running? (pnpm db:up)`. The most likely production cause is a `praxi_app`
+  without `LOGIN` or with the wrong password, and that sentence points away
+  from it.
+
 Findings of a security review of the auth concept. Nothing here is built yet;
 each line names the reason, not the solution.
 
