@@ -31,9 +31,12 @@
 -- 3. **`ALTER ROLE praxi_app SET idle_in_transaction_session_timeout`** (was
 --    0044), for the same reason: a role property, not a database object.
 --
--- Two edits to pg_dump's own output, both mechanical: `\restrict` and
--- `\unrestrict` are removed. They are psql meta-commands, not SQL, and a
--- driver stops at them.
+-- Three edits to pg_dump's own output. `\restrict` and `\unrestrict` are
+-- removed — psql meta-commands, not SQL, and a driver stops at them. And the
+-- two `ALTER DEFAULT PRIVILEGES` statements at the very end lose their
+-- `FOR ROLE praxi`, so that they apply to whoever runs the migration rather
+-- than to a role that may not exist there; the reason stands at the statements
+-- themselves, because that is where pg_dump will put the clause back.
 --
 -- ## It runs as one statement
 --
@@ -4311,14 +4314,26 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.verification TO praxi_app;
 -- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: -
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE praxi IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO praxi_app;
+-- `FOR ROLE praxi` REMOVED BY HAND, and it has to be removed again the next
+-- time this file is regenerated — pg_dump writes the owner's name in, because
+-- that is what it found. Without the clause the default privileges belong to
+-- the role that is connected, which during a migration is the owner, whatever
+-- it is called. With it, the baseline is a trap on a machine that does not
+-- exist yet: on a cluster with no role of that name it fails outright
+-- (`role "praxi" does not exist`) and takes the whole schema with it, since
+-- this file applies as one statement; and under a superuser owner of another
+-- name it is worse — it succeeds and hangs the privileges on the wrong role,
+-- so the first table a later migration creates is unreachable for praxi_app
+-- and nothing says so until a request touches it.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO praxi_app;
 
 
 --
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: -
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE praxi IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO praxi_app;
+-- Same removal, same reason as the block above.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO praxi_app;
 
 
 --

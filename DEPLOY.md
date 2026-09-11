@@ -35,7 +35,7 @@ Add a PostgreSQL database resource in Coolify:
 | Setting | Value | Why |
 |---|---|---|
 | Image | `postgres:17-alpine` | the same major version as local development |
-| `POSTGRES_USER` | `praxi` | **the name matters — see 2.1** |
+| `POSTGRES_USER` | `praxi` | any name works; this one matches local development (2.1) |
 | `POSTGRES_DB` | `praxi` | |
 | `POSTGRES_PASSWORD` | generated, `openssl rand -hex 24` | goes into `DATABASE_URL` |
 | `POSTGRES_INITDB_ARGS` | `--locale-provider=icu --icu-locale=de-DE --encoding=UTF8` | see 1.2 |
@@ -134,29 +134,27 @@ policies unless `FORCE ROW LEVEL SECURITY` is set, and it is not. Enabling RLS
 under such a role changes nothing, with no error and no hint, which is the
 worst outcome a safeguard can have: one that is believed.
 
-### 2.1 The owner has to be called `praxi`
+### 2.1 The owner may be called anything
 
-Not a preference — a hard requirement of the current baseline. It ends with
+`POSTGRES_USER=praxi` in section 1.1 is for consistency with local development
+and nothing more. If your Postgres hands you an owner whose name you cannot
+choose — `postgres`, or something generated — that is fine, and only the two
+connection strings have to say so.
 
-```sql
-ALTER DEFAULT PRIVILEGES FOR ROLE praxi IN SCHEMA public
-  GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO praxi_app;
-```
+Worth knowing because it was not always true: `pg_dump` writes the owner's name
+into the two `ALTER DEFAULT PRIVILEGES` statements at the end of the baseline,
+and the first draft of that file carried `FOR ROLE praxi`. On a cluster with no
+role of that name it fails outright — and since the baseline applies as one
+statement, all or nothing, the whole schema would have failed and the container
+never started. Worse under a superuser owner of another name: there it
+*succeeds* and hangs the privileges on `praxi`, so the first table a later
+migration creates is unreachable for `praxi_app` and nothing says so until a
+request touches it.
 
-which `pg_dump` wrote with the owner's name in it. Run by any other role, that
-statement answers
-
-```
-ERROR:  permission denied to change default privileges
-```
-
-and because the baseline is a single statement — all or nothing — the whole
-schema fails to apply and the container never starts.
-
-So set `POSTGRES_USER=praxi`. If your Postgres hands you an owner whose name
-you cannot choose, say so before deploying: dropping `FOR ROLE praxi` from
-those two lines makes them apply to whoever runs the migration, which is a
-two-line change and not a redesign.
+The clause is gone, the reason stands at those two statements, and it says that
+**pg_dump will put it back the next time this file is regenerated.** If you ever
+produce a new baseline, that is the one edit to make by hand besides stripping
+`\restrict`.
 
 ### 2.2 Creating `praxi_app`
 
@@ -696,17 +694,23 @@ Section 1.2. The migration refuses before creating a single table, which is the
 loud version of a defect that would otherwise surface as a wrongly sorted
 contact list months later.
 
-### `permission denied to change default privileges`
+### `role "praxi" does not exist` or `permission denied to change default privileges`
 
-The database owner is not called `praxi`. Section 2.1.
+A baseline regenerated with `pg_dump` and not edited: it wrote `FOR ROLE praxi`
+back into the last two statements. Section 2.1.
 
-### `password authentication failed for user "praxi_app"`
+### `cannot reach the database …` at startup
 
-The role exists but has no password or no `LOGIN` — the baseline creates it
-`NOLOGIN` on purpose. Section 2.2. Note that the server's own message for this
-is `database unreachable — is Postgres running? (pnpm db:up)`, which is written
-for a laptop and is misleading here; the real cause is in the Postgres log or
-in the connection string.
+Two causes, and the `code` beside the message tells them apart:
+
+- **`28P01`** — Postgres refused the credentials. On a server this is almost
+  always `praxi_app` with no password or no `LOGIN`, because the baseline
+  creates it `NOLOGIN` on purpose. Section 2.2.
+- **`ECONNREFUSED`** — Postgres is not there at all. Check the service name and
+  port in `APP_DATABASE_URL`; inside Coolify's network it is not `localhost`.
+
+The message names both, because the container exits before anything else can be
+asked of it.
 
 ### The Google button says the connection is not set up
 
@@ -751,10 +755,10 @@ Named rather than guessed at.
 - **How Sliplane exposes Postgres.** This file assumes Postgres is a *Coolify
   database resource* — a container in the same Coolify environment, where you
   set `POSTGRES_USER`, `POSTGRES_INITDB_ARGS` and so on. If you are instead
-  using a Postgres that Sliplane manages for you, three things need checking
-  before section 1 applies: whether you can name the owner (2.1), whether you
-  can create a role (2.2), and whether ICU is available (1.2, path (b) is the
-  fallback and needs only `CREATEDB`).
+  using a Postgres that Sliplane manages for you, two things need checking
+  before section 1 applies: whether you can create a role (2.2), and whether
+  ICU is available (1.2, path (b) is the fallback and needs only `CREATEDB`).
+  The owner's name is not one of them any more (2.1).
 - **Sliplane's own volume and backup mechanics.** Section 4 is written for a
   host path on the server's disk, which is what Coolify's persistent storage
   gives you. If Sliplane provides volumes or snapshots of its own, they may be

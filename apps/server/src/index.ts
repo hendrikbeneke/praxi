@@ -13,10 +13,49 @@ loadEnvFile()
 const env = getEnv()
 const log = logger()
 
+/**
+ * The SQLSTATE, and nothing around it.
+ *
+ * Rule 12: a driver error's `message` is the failed connection or query with
+ * its parameters — here the connection string, password included — so what may
+ * travel to the log is the code. It sits on the driver error for Postgres's own
+ * refusals and on the `AggregateError` Node builds when no socket could be
+ * opened at all; walk down `cause` so a future wrapper does not swallow it.
+ */
+function connectionErrorCode(error: unknown): string {
+  let current: unknown = error
+  for (let depth = 0; depth < 5 && current !== null && current !== undefined; depth += 1) {
+    if (typeof current !== 'object') break
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string' && code !== '') return code
+    current = (current as { cause?: unknown }).cause
+  }
+  return 'unknown'
+}
+
 try {
   await verifyDatabaseConnection()
-} catch {
-  log.fatal('database unreachable — is Postgres running? (pnpm db:up)')
+} catch (error) {
+  /**
+   * Two causes, and the code tells them apart: `ECONNREFUSED` is Postgres not
+   * being there, `28P01` is Postgres refusing the credentials — which covers
+   * both a wrong password and a role that may not log in, and on a server it is
+   * almost always the latter. The baseline creates `praxi_app` NOLOGIN on
+   * purpose, because a password does not belong in a file committed to git, so
+   * the very first deployment fails exactly this way until `pnpm db:app-role`
+   * or one line of SQL has given the role its own.
+   *
+   * This line said "is Postgres running? (pnpm db:up)" and nothing else until
+   * the go-live checklist was written against it. That is advice for a laptop,
+   * and it points away from the likelier cause on the machine where being wrong
+   * costs a deployment and the container one cannot exec into to look.
+   */
+  log.fatal(
+    { code: connectionErrorCode(error) },
+    'cannot reach the database — either Postgres is not running (locally: pnpm db:up), ' +
+      'or it refused the credentials (28P01: check APP_DATABASE_URL, and whether praxi_app ' +
+      'has a password and LOGIN — pnpm db:app-role)',
+  )
   process.exit(1)
 }
 
