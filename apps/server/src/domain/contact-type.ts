@@ -225,8 +225,11 @@ export async function listRelationTypes(
  * the id now, so a code is no longer what a relation hangs from.
  *
  * `contact_relation_type_system_needs_code` keeps the other direction shut: a
- * system entry cannot come into being without one, and only the seed makes
- * those.
+ * system entry cannot come into being without one — and since this schema has
+ * no `isSystem` and no `code` field either, **this function provably cannot
+ * create one**. That is what makes `guardian` and `billing_recipient` part of
+ * what a tenant is rather than a starting value somebody edits in a file:
+ * `domain/tenant.ts` writes them, and nothing else can.
  */
 export async function createRelationType(
   database: Database,

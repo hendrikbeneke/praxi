@@ -25,7 +25,7 @@ cp .env.example .env     # then set SEED_USER_PASSWORD and BETTER_AUTH_SECRET
 pnpm db:up               # starts Postgres 17 on host port 55432
 pnpm db:migrate          # creates the tables
 pnpm db:app-role         # gives the server's own role its password (required)
-pnpm db:seed             # tenant, practice settings, user, example catalogue
+pnpm db:seed             # local development: tenant, user, catalogues, example prices
 pnpm dev                 # http://localhost:5173
 ```
 
@@ -91,10 +91,58 @@ Set `NODE_ENV=production` for the static file serving to be registered.
 | `pnpm db:up` / `pnpm db:down` | start / stop Postgres |
 | `pnpm db:migrate` | apply pending migrations (written by hand — see below) |
 | `pnpm db:app-role` | give the server's own role its password |
-| `pnpm db:seed` | tenant, practice settings, user and example catalogue |
-| `pnpm db:seed:demo` | contacts with activities, notes and invoices, plus a second practice |
-| `pnpm db:seed:services` | the example service catalogue on its own |
+| `pnpm db:seed` | `praxi dev seed` — local development only |
+| `pnpm db:seed:demo` | `praxi dev demo` — local development only |
 | `pnpm db:studio` | Drizzle Studio |
+| `pnpm praxi …` | the administration CLI, below |
+
+## The CLI
+
+Administration — creating tenants and users — is `praxi`, one entry point with
+subcommands:
+
+```bash
+pnpm praxi                       # the list
+pnpm praxi tenant create         # asks for what it needs
+pnpm praxi tenant create --help
+pnpm praxi user add --tenant "Praxis am Wall"
+```
+
+In the container there is no pnpm, and the image installs a wrapper, so it is
+`praxi tenant create` there too — that is what goes into Coolify's *Execute
+Command*.
+
+**A missing value is asked for, a given one is not**, and `--no-input` turns
+asking off and aborts naming the flag instead — which is also what happens on
+its own when there is no terminal, so a command in a pipe refuses rather than
+waiting for an answer that cannot come. Both paths validate with the same Zod
+schema the API uses; only the reaction differs, because a script cannot be asked
+twice.
+
+A password can be typed at a prompt (hidden, asked twice), passed as
+`--password`, or read with `--password-stdin`. Prefer the first by hand and the
+third in a script: `--password` lands in the shell history, in the process table
+while the command runs, and in Coolify's command log.
+
+Every command writes through one transaction scoped to one tenant, as
+`praxi_app`, under the row-level-security policies — `tenant create` included:
+the id is generated first, and the policy on `tenant` then permits that one
+tenant and no other. The owner's connection is handed out in `cli/owner.ts`
+alone, for the tenant directory, which is the one read that legitimately looks
+across tenants.
+
+**`praxi dev seed` and `praxi dev demo` are for local development only.** They
+write a made-up practice, invented prices and demo patients. The runner refuses
+them when `NODE_ENV` is `production`, and their data (`src/cli/seeds/demo/`) is
+not copied into the container image at all, so on a server they fail whatever
+`NODE_ENV` says. `praxi tenant create` is the one that creates a real practice,
+and it invents nothing: the practice name is asked for and every other field
+stays empty.
+
+The starting catalogues live in `apps/server/src/cli/seeds/default/` as one JSON
+file per catalogue, each validated against the same schema the settings form
+uses. `README.md` there says why the values are what they are — some of the
+orders carry a decision.
 
 ## Database
 

@@ -1,0 +1,15 @@
+{
+  "practiceName": "Praxis Musterfrau — Heilpraktikerin für Psychotherapie",
+  "street": "Beispielweg 1",
+  "postalCode": "12345",
+  "city": "Musterstadt",
+  "country": "DE",
+  "phone": "+49 30 000000",
+  "email": "kontakt@praxi.invalid",
+  "website": "https://www.praxi.invalid",
+  "taxNumber": "00/000/00000",
+  "bankName": "Musterbank",
+  "iban": "DE02120300000000202051",
+  "bic": "BYLADEM1001",
+  "defaultPaymentTermDays": 14
+}

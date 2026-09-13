@@ -1,25 +1,19 @@
 import type { Invoice } from '@praxi/shared'
 import { and, eq } from 'drizzle-orm'
+import { applyCatalogues, type CataloguePart } from '../cli/catalogues.js'
 import type { Database } from '../db/client.js'
 import {
-  account,
   activityType as activityTypeTable,
-  appUser,
   contactRelationType,
   contactRoleType,
   country,
   gender,
   noteType,
-  practiceSettings,
   salutation,
-  tenant,
 } from '../db/schema.js'
-import { seedActivityTypes } from '../db/seed/activity-types.js'
-import { seedContactTypes } from '../db/seed/contact-types.js'
-import { seedNoteTypes } from '../db/seed/note-types.js'
-import { seedValueLists } from '../db/seed/value-lists.js'
-import { hashPassword } from '../domain/auth.js'
 import { finalizeInvoice } from '../domain/finalize-invoice.js'
+import { createTenant as provisionTenant } from '../domain/tenant.js'
+import { createUser as provisionUser } from '../domain/user.js'
 import { newId } from '../id.js'
 
 /**
@@ -28,18 +22,46 @@ import { newId } from '../id.js'
  */
 
 /**
- * The catalogues come with the tenant, from the same functions the seed
- * uses. A tenant without them is not a state the application can reach — every
- * one of them is the target of a composite foreign key, so without them a
- * contact could hold no role and an activity could have no type at all.
+ * A test tenant, made **the one way a tenant is made** — `domain/tenant.ts`,
+ * the same call `praxi tenant create` makes — and furnished from the same
+ * `cli/seeds/default` files the tool applies.
+ *
+ * That is the point rather than tidiness: every domain test now runs against
+ * the provisioning path the tool uses, so a tenant the application cannot
+ * reach cannot be the thing the tests are written against. There were three
+ * implementations of this before — here, the seed and the demo seed — and they
+ * had already drifted: this one created no `practice_settings` at all, which
+ * is why three invoice tests carried an insert of their own.
+ *
+ * A tenant without the catalogues is not a state the application can reach:
+ * each of them is the target of a composite foreign key, so without them a
+ * contact could hold no role and an activity could have no type.
  */
+const TEST_PARTS: readonly CataloguePart[] = [
+  'roles',
+  'relationTypes',
+  'salutations',
+  'genders',
+  'countries',
+  'noteTypes',
+  'activityTypes',
+]
+
 export async function createTenant(database: Database): Promise<string> {
   const id = newId()
-  await database.insert(tenant).values({ id })
-  await seedContactTypes(database, id)
-  await seedValueLists(database, id)
-  await seedNoteTypes(database, id)
-  await seedActivityTypes(database, id)
+
+  // A narrower selection, not a second implementation: the services are the
+  // one part a test never points at, and they are the slowest to apply.
+  await provisionTenant(database, id, {
+    practiceName: 'Testpraxis',
+    user: testUserInput(id),
+  })
+  await applyCatalogues({
+    tenantId: id,
+    run: (work) => database.transaction(work),
+    parts: TEST_PARTS,
+  })
+
   return id
 }
 
@@ -190,21 +212,6 @@ export async function countryId(
   return row.id
 }
 
-export async function createPracticeSettings(
-  database: Database,
-  tenantId: string,
-  overrides: Partial<typeof practiceSettings.$inferInsert> = {},
-): Promise<string> {
-  const id = newId()
-  await database.insert(practiceSettings).values({
-    id,
-    tenantId,
-    practiceName: 'Testpraxis',
-    ...overrides,
-  })
-  return id
-}
-
 export type TestUser = {
   id: string
   tenantId: string
@@ -212,43 +219,45 @@ export type TestUser = {
   password: string
 }
 
+/** The default password every test user gets. Obviously not a secret. */
+const TEST_PASSWORD = 'correct horse battery staple'
+
+/**
+ * The whole id in the local part, not its first eight characters: a UUIDv7
+ * begins with the timestamp, so two users created in the same millisecond
+ * shared that prefix and collided on the global unique index on `email`.
+ */
+function testUserInput(seed: string): { email: string; name: string; password: string } {
+  return {
+    email: `test.user.${seed}@praxi.invalid`,
+    name: 'Test Behandler',
+    password: TEST_PASSWORD,
+  }
+}
+
+/**
+ * A user, through `domain/user.ts` — the same call `praxi user add` makes, and
+ * the reason a test proves the path the tool uses rather than a copy of it.
+ * The two inserts were written out here as well until this slice.
+ */
 export async function createUser(
   database: Database,
-  options: {
-    tenantId: string
-    email?: string
-    password?: string
-    name?: string
-    active?: boolean
-  },
+  options: { tenantId: string; email?: string; password?: string; name?: string },
 ): Promise<TestUser> {
-  const id = newId()
-  // The whole id, not its first eight characters: a UUIDv7 begins with the
-  // timestamp, so two users created in the same millisecond shared that prefix
-  // and collided on the global unique index on `email`.
-  const email = options.email ?? `test.user.${id}@praxi.invalid`
-  const password = options.password ?? 'correct horse battery staple'
+  const defaults = testUserInput(newId())
+  const input = {
+    email: options.email ?? defaults.email,
+    name: options.name ?? defaults.name,
+    password: options.password ?? defaults.password,
+  }
 
-  // The user and its credential, as the seed writes them: since S-B the
-  // password lives in `account` with `provider_id = 'credential'`, and a user
-  // without that row exists but cannot sign in.
-  await database.insert(appUser).values({
-    id,
+  const created = await provisionUser(database, options.tenantId, input)
+  return {
+    id: created.id,
     tenantId: options.tenantId,
-    email,
-    name: options.name ?? 'Test Behandler',
-    active: options.active ?? true,
-  })
-  await database.insert(account).values({
-    id: newId(),
-    userId: id,
-    issuer: 'local:credential',
-    accountId: id,
-    providerId: 'credential',
-    password: await hashPassword(password),
-  })
-
-  return { id, tenantId: options.tenantId, email, password }
+    email: created.email,
+    password: input.password,
+  }
 }
 
 /**

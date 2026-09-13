@@ -1,0 +1,16 @@
+[
+  {
+    "labelForward": "Elternteil von",
+    "labelInverse": "Kind von",
+    "isSymmetric": false,
+    "isExclusive": false,
+    "sortOrder": 30
+  },
+  {
+    "labelForward": "Ehepartner von",
+    "labelInverse": null,
+    "isSymmetric": true,
+    "isExclusive": false,
+    "sortOrder": 40
+  }
+]

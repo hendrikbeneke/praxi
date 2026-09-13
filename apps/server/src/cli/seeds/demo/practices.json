@@ -1,0 +1,106 @@
+[
+  {
+    "label": "die geseedete Praxis",
+    "tenant": "existing",
+    "city": "Musterstadt",
+    "contacts": [
+      {
+        "firstName": "Mia",
+        "lastName": "Dohrmann",
+        "city": "Bremen",
+        "ageYears": 14,
+        "houseNumber": "3",
+        "sessions": 3,
+        "notes": ["Erstgespräch im Beisein der Mutter. Weiteres Vorgehen abgestimmt."],
+        "guardedBy": "Rita Dohrmann"
+      },
+      {
+        "firstName": "Rita",
+        "lastName": "Dohrmann",
+        "city": "Bremen",
+        "houseNumber": "3",
+        "role": null,
+        "sessions": 0,
+        "notes": []
+      },
+      {
+        "firstName": "Alma",
+        "lastName": "Ackermann",
+        "city": "Bremen",
+        "sessions": 4,
+        "notes": [
+          "Erstgespräch geführt. Anliegen und bisheriger Verlauf aufgenommen, Rahmen und Frequenz besprochen.",
+          "Zweite Sitzung. Vereinbarte Übung wurde umgesetzt, Rückmeldung überwiegend positiv."
+        ]
+      },
+      {
+        "firstName": "Cordula",
+        "lastName": "Bergmann",
+        "city": "Delmenhorst",
+        "sessions": 3,
+        "notes": ["Erstgespräch. Termin für die Folgesitzung vereinbart."]
+      },
+      {
+        "firstName": "Detlef",
+        "lastName": "Brandt",
+        "city": "Stuhr",
+        "sessions": 2,
+        "notes": ["Erstgespräch geführt, weiteres Vorgehen abgestimmt."]
+      },
+      {
+        "firstName": "Elke",
+        "lastName": "Cordes",
+        "city": "Bremen",
+        "sessions": 5,
+        "notes": [
+          "Erstgespräch.",
+          "Verlauf stabil, Frequenz auf zweiwöchentlich umgestellt.",
+          "Zwischenbilanz besprochen."
+        ]
+      }
+    ]
+  },
+  {
+    "label": "Praxis Nordlicht",
+    "tenant": "own",
+    "practiceName": "Praxis Nordlicht — Heilpraktiker für Psychotherapie",
+    "userEmail": "zweitpraxis@praxi.invalid",
+    "userName": "Zweite Behandlerin",
+    "city": "Beispielhafen",
+    "contacts": [
+      {
+        "firstName": "Finn",
+        "lastName": "Petersen",
+        "city": "Beispielhafen",
+        "ageYears": 9,
+        "houseNumber": "12",
+        "sessions": 2,
+        "notes": ["Erstgespräch. Die Rechnungen gehen an den Vater."],
+        "guardedBy": "Sönke Petersen"
+      },
+      {
+        "firstName": "Sönke",
+        "lastName": "Petersen",
+        "city": "Beispielhafen",
+        "houseNumber": "12",
+        "role": null,
+        "sessions": 0,
+        "notes": []
+      },
+      {
+        "firstName": "Gustav",
+        "lastName": "Nordmann",
+        "city": "Beispielhafen",
+        "sessions": 3,
+        "notes": ["Erstgespräch in der zweiten Praxis. Gehört NICHT zu Praxis Musterfrau."]
+      },
+      {
+        "firstName": "Heike",
+        "lastName": "Ostermann",
+        "city": "Beispielhafen",
+        "sessions": 2,
+        "notes": ["Erstgespräch. Diese Notiz darf im ersten Mandanten nirgends auftauchen."]
+      }
+    ]
+  }
+]

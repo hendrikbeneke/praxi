@@ -1,0 +1,55 @@
+{
+  "services": [
+    {
+      "shortCode": "EG",
+      "description": "Erstgespräch",
+      "defaultPriceCents": 13500,
+      "defaultDurationMin": 90
+    },
+    {
+      "shortCode": "FS",
+      "description": "Folgesitzung",
+      "defaultPriceCents": 9000,
+      "defaultDurationMin": 50
+    },
+    {
+      "shortCode": "KS",
+      "description": "Kurzsitzung",
+      "defaultPriceCents": 5000,
+      "defaultDurationMin": 25
+    },
+    {
+      "shortCode": "TEL",
+      "description": "Telefonische Beratung",
+      "defaultPriceCents": 3500,
+      "defaultDurationMin": 20
+    },
+    {
+      "shortCode": "AUS",
+      "description": "Ausfallhonorar",
+      "defaultPriceCents": 6000,
+      "defaultDurationMin": null
+    },
+    {
+      "shortCode": null,
+      "description": "Prüfungsvorbereitung, Einzelstunde",
+      "defaultPriceCents": 15000,
+      "defaultDurationMin": 120
+    },
+    {
+      "shortCode": null,
+      "description": "Vortrag",
+      "defaultPriceCents": 35000,
+      "defaultDurationMin": 60
+    }
+  ],
+  "groups": [
+    {
+      "name": "Prüfungsvorbereitung Kompakttag",
+      "items": [
+        { "description": "Prüfungsvorbereitung, Einzelstunde", "quantity": 4 },
+        { "description": "Telefonische Beratung", "quantity": 1 }
+      ]
+    }
+  ]
+}

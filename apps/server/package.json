@@ -16,10 +16,8 @@
     "test": "vitest run",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:prod": "node dist/db/migrate.js",
+    "cli": "tsx src/cli/index.ts",
     "db:app-role": "tsx src/scripts/app-role.ts",
-    "db:seed": "tsx src/db/seed/run.ts",
-    "db:seed:demo": "tsx src/db/seed/run-demo.ts",
-    "db:seed:services": "tsx src/db/seed/run-services.ts",
     "db:studio": "drizzle-kit studio",
     "files:orphans": "tsx src/scripts/files-orphans.ts",
     "invoices:verify": "tsx src/scripts/invoices-verify.ts"

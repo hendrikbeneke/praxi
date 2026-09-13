@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
-import { createPracticeSettings, createTenant } from '../test/fixtures.js'
+import { createTenant } from '../test/fixtures.js'
 import { FileStore } from './file-store.js'
 import {
   clearInvoiceTemplate,
@@ -19,8 +19,9 @@ let storeRoot: string
 let store: FileStore
 
 beforeEach(async () => {
+  // The practice settings come with the tenant since the provisioning was
+  // made one path; there was a second insert here until then.
   tenantId = await createTenant(db())
-  await createPracticeSettings(db(), tenantId)
   storeRoot = await mkdtemp(join(tmpdir(), 'praxi-settings-'))
   store = new FileStore(storeRoot)
 })

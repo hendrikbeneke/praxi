@@ -57,6 +57,18 @@ COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 # (tsconfig.json excludes the folder) — copied separately, next to the
 # compiled migrate.js that reads them at runtime.
 COPY --from=build /app/apps/server/src/db/migrations ./apps/server/dist/db/migrations
+# The starting catalogues, the same way: read at runtime rather than imported,
+# so tsc does not emit them. `seeds/demo` is deliberately NOT copied — it holds
+# a made-up practice, invented prices and demo patients, and its absence is what
+# makes `praxi dev seed` and `praxi dev demo` impossible here whatever NODE_ENV
+# says. See apps/server/src/cli/seeds/demo/README.md.
+COPY --from=build /app/apps/server/src/cli/seeds/default ./apps/server/dist/cli/seeds/default
+
+# So that Coolify's *Execute Command* is `praxi tenant create` rather than a
+# path into dist/. There is no pnpm in this stage — corepack is enabled in
+# `base`, which the runtime does not build on.
+RUN printf '#!/bin/sh\nexec node /app/apps/server/dist/cli/index.js "$@"\n' > /usr/local/bin/praxi \
+  && chmod +x /usr/local/bin/praxi
 
 USER node
 

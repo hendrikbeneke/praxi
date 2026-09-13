@@ -1,0 +1,5 @@
+[
+  { "label": "Herr", "sortOrder": 10 },
+  { "label": "Frau", "sortOrder": 20 },
+  { "label": "Firma", "sortOrder": 30 }
+]

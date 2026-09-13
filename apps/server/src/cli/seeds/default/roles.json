@@ -1,0 +1,5 @@
+[
+  { "label": "Patient", "showAsTab": true, "sortOrder": 10 },
+  { "label": "Interessent", "showAsTab": false, "sortOrder": 20 },
+  { "label": "Teilnehmer", "showAsTab": false, "sortOrder": 30 }
+]

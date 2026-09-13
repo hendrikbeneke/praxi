@@ -3453,6 +3453,170 @@ Postgres nicht erreichbar            | code: "ECONNREFUSED"
 Nur der Code wandert ins Log, nie die Fehlermeldung: die zitiert die
 Verbindungszeichenfolge samt Passwort (Regel 12).
 
+## S-F — `praxi`, ein Einstiegspunkt für die Verwaltung
+
+Zwei Befehle heute, in einem Jahr vermutlich zwanzig — deshalb ging es in
+diesem Paket vor allem um die Form, die zwanzig trägt. Was dabei
+herauskam, ist an drei Stellen mehr als ein Werkzeug.
+
+### Es gab drei Wege, einen Mandanten anzulegen, und sie waren schon auseinander
+
+`db/seed/base.ts`, `db/seed/demo.ts` und `test/fixtures.ts` — jeder mit
+denselben zwei Inserts abgeschrieben, und sie waren sich bereits uneinig:
+
+```
+                     Kataloge        practice_settings    Leistungen
+seedBase             über run.ts     Platzhalter          über run.ts
+demo ensurePractice  alle fünf       eigene Werte         ja
+fixtures createTenant vier von fünf  KEINE                nein
+```
+
+Die fehlende Zeile in den Fixtures ist der Grund, warum `payment.test.ts`,
+`cancel-invoice.test.ts` und `invoice.test.ts` je ein eigenes
+`insert(practiceSettings)` trugen — ein vierter Weg, entstanden aus dem Mangel
+des dritten. Alle drei Zeilen sind weg.
+
+Jetzt: `domain/tenant.ts` und `domain/user.ts`, ein Weg, und **jeder
+Domänentest läuft durch den Pfad, den das Werkzeug geht**.
+
+### Die Grenze zwischen „strukturell" und „Anfangsausstattung" zieht das Schema
+
+`createTenant` schreibt den Mandanten, die Stammdaten mit dem Namen, den ersten
+Benutzer — und `guardian` und `billing_recipient`. Die beiden sind dort nicht
+aus Bequemlichkeit: `contactRelationTypeInputSchema` hat weder `isSystem` noch
+`code`, und `contact_relation_type_system_needs_code` verweigert einen
+Systemeintrag ohne Code. `createRelationType` *kann* sie also nicht erzeugen.
+Alles andere — Rollen, Anreden, Geschlechter, Länder, Notizarten, Vorgangsarten
+— legt die CLI danach an, **über dieselben Domänenfunktionen wie die
+Einstellungsbildschirme**. Das Werkzeug ist ein Benutzer, der schneller tippt;
+geht dort etwas nicht, fällt es beim nächsten Mandanten auf und nicht beim
+ersten Kunden. Aus einer leeren Datenbank heraus belegt: `dev demo` legte über
+diesen Weg zwei Praxen mit 10 Kontakten, 24 Vorgängen, 11 Notizen, 4 Beziehungen
+und 6 Rechnungsentwürfen an.
+
+### Kein Befehl braucht den Eigentümer — auch `tenant create` nicht
+
+Die Mandanten-Id wird vor der ersten Anweisung erzeugt, `app.tenant_id` darauf
+gesetzt, und die Policy auf `tenant` (`id = app.tenant_id`, WITH CHECK) lässt
+genau diesen einen zu. Gegen die laufende Datenbank gemessen und zurückgerollt:
+
+```
+insert into tenant … als praxi_app unter RLS   → ok
+insert into practice_settings …                → ok
+select count(*) from app_user                  → 2   (app_user hat keine RLS)
+```
+
+Das ist die stärkere Form, kein Trick: die Erzeugung *kann* keine Zeilen für
+einen zweiten Mandanten schreiben. Über Mandanten hinweg liest genau eine Datei,
+`cli/owner.ts` — id, Praxisname, Benutzerzahl, schreibend nie —, weil ein Befehl
+seinen Mandanten finden muss, bevor er sich auf ihn beschränken kann. Ein Test
+liest die Quelldateien und behauptet, dass `ownerDb` in `cli/` sonst nirgends
+vorkommt. Die `owner`-Reichweite bleibt deklariert und unbenutzt.
+
+### Die Wiederaufnahme ist der abgeleitete Zustand
+
+Kein Protokoll. Jeder Schritt liest, was da ist, und legt an, was fehlt —
+verglichen an dem, worauf der Katalog eindeutig ist. Belegt am laufenden System:
+
+```
+zweiter Lauf                                  0 created, 3/2/3/3/1/5/4 present
+nach `delete` einer Notizart und einer Vorgangsart:
+                                              note types    1 created, 4 present
+                                              activity types 1 created, 3 present
+                                              alle übrigen   0 created
+```
+
+Eine Transaktion je Schritt, also lässt ein Abbruch die Schritte davor stehen.
+Gelesen wird **einschließlich der inaktiven** Einträge: ein deaktivierter hält
+sein Etikett weiter gegen den Unique-Index, würde also als fehlend gezählt und
+am Insert scheitern.
+
+Vorher fragt `tenant create` das eine, was es fragen muss: ob eine bestehende
+Praxis gleichen Namens die gemeinte ist. Zwei Treffer werden mit ihren Ids
+abgelehnt und nie zum ersten aufgelöst.
+
+### Die Sperre in zwei Lagen, und nur die zweite ist mechanisch
+
+```
+NODE_ENV=production praxi dev seed   → `dev seed` creates invented data …  exit 1
+NODE_ENV=production praxi dev demo   → dieselbe Absage                     exit 1
+seeds/demo/ weggeschoben, dev seed   → Cannot read …/demo/practice.json    exit 1
+```
+
+Die erste trifft den Versehensfall und nicht den Entschlossenen — eine
+Umgebungsvariable davor läuft daran vorbei. Die zweite nicht: `seeds/demo`
+wird nicht ins Image kopiert, also scheitern beide Befehle dort an der
+fehlenden Datei, egal was `NODE_ENV` sagt. Erfundene Stammdaten und erfundene
+Preise existieren auf dem Server nicht.
+
+### Die Exit-Codes, und der Fund dabei
+
+`parseArgs` wirft bei einem unbekannten Flag einen `TypeError`. Der kam als
+Stacktrace und mit Code 1 heraus — also „ausgeführt und verweigert", obwohl
+nichts ausgeführt wurde. Jetzt:
+
+```
+praxi tenant create --nonsense  →  Unknown option '--nonsense'
+                                   Run `praxi tenant create --help` …    exit 2
+praxi tenant creat              →  Unknown command … Known: tenant create exit 2
+--tenant "Praxis Nirgendwo"     →  No practice found for …               exit 1
+E-Mail im anderen Mandanten     →  … unique across ALL tenants …         exit 1
+```
+
+Die letzte Zeile ist die, die überrascht, und sie bekommt drei Sätze statt
+eines Constraint-Namens. Dass `tenant create` dabei nichts zurücklässt, ist
+geprüft: nach der Absage stand keine `practice_settings`-Zeile.
+
+### Die Startwerte sind Dateien, gegen dieselben Schemata wie das Formular
+
+`cli/seeds/default/`, eine JSON-Datei je Katalog, geprüft mit
+`contactRoleTypeInputSchema`, `noteTypeInputSchema`, `activityTypeCreateSchema`
+und den übrigen — bis hierher waren die Listen `as const` und wurden von *nichts*
+geprüft. Zur Laufzeit gelesen, nicht importiert, damit der Dockerfile
+entscheidet, was mitgeht; `seeds/default` wird kopiert wie die Migrationen,
+`seeds/demo` nicht. Daneben je ein `README.md` mit dem, was die Werte bedeuten
+— warum „Sitzung" zuerst sortiert, warum „Firma" auch bei Organisationen
+erlaubt ist, warum ein Land und nicht acht. Ohne die sind es sieben Dateien mit
+Wörtern darin.
+
+**Kein neuer Mandant bekommt Leistungen.** Der Grund ist nicht Sparsamkeit: ein
+`activity_item` kopiert Beschreibung und Preis im Moment seiner Entstehung und
+schaut nicht zurück, also bleiben drei aus erfundenen 90,00 € abgerechnete
+Sitzungen bei 90,00 €, nachdem der Katalog korrigiert ist. Jeder andere Katalog
+ist strukturell — ohne Notizart keine Notiz.
+
+### Zwei Wege, ein Regal
+
+Kein `--scope=default|demo`. Kataloge sind eine flache Liste, am Etikett
+verglichen und wiederaufnehmbar; Demodaten sind ein Graph, dessen jeder Schritt
+Ids aus dem vorigen braucht und der gar nicht wiederholt werden darf. Ein
+Flagwert verspräche „dieselbe Mechanik, andere Werte" — und läge ein Zeichen
+neben der Produktion. `praxi dev demo` tippt sich nicht versehentlich statt
+`praxi tenant create`.
+
+### Nebenbei gefunden
+
+- Der Kommentar über `contactRelationTypeCreateSchema` sagte, der Code werde aus
+  `labelForward` abgeleitet. Seit 0046 nicht mehr wahr; korrigiert.
+- Ein `tenant delete` wird den Trigger `contact_relation_type_protect_system`
+  umgehen müssen — beim Aufräumen des Probemandanten hat er das Löschen
+  verweigert, korrekt und erwartbar. Das gehört in den Entwurf dieses Befehls,
+  nicht in eine Lockerung des Triggers.
+
+### Nicht in diesem Paket
+
+`db:app-role`, `files:orphans` und `invoices:verify` bleiben unter
+`src/scripts/`. Alle drei sind Dateien mit einem Rumpf auf oberster Ebene ohne
+exportierte Funktion; das Verschieben ist je ein kleiner, mechanischer Umbau
+plus Umbenennungen in `package.json`, `README.md` und `DEPLOY.md` — ein eigenes
+kurzes Paket.
+
+`DEPLOY.md` ebenfalls nicht: Abschnitt 6 Schritt 7 zeigt weiter auf
+`node apps/server/dist/db/seed/run.js`, den es nicht mehr gibt. Die Datei bekommt
+einen eigenen Durchgang, in dem auch die Sliplane-Annahme korrigiert wird
+(gehostetes Postgres, kein Coolify-Anbieter) — samt Abschnitt 1, dem internen
+Docker-Netz und der Superuser-Annahme. Das korrigiert man einmal, nicht zweimal.
+
 ## Before going live
 
 Findings of a security review of the auth concept. Nothing here is built yet;

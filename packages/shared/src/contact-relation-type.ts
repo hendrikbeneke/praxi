@@ -58,11 +58,16 @@ export const contactRelationTypeInputSchema = z
 export type ContactRelationTypeInput = z.infer<typeof contactRelationTypeInputSchema>
 
 /**
- * Creating takes the same fields as editing since B1d: the `code` is derived
- * from `labelForward` by `createRelationType`, never typed. There is no field
- * for it on any screen, and a system entry — the only kind whose code carries
- * meaning — cannot be created through this schema at all, because `is_system`
- * is set by the seed and by nothing else.
+ * Creating takes the same fields as editing. There is **no `code` field here
+ * and no `isSystem`**, and that was still described as a derivation from
+ * `labelForward` until the CLI slice — untrue since 0046, where an entry the
+ * practitioner creates simply carries NULL.
+ *
+ * What the two absences amount to is that a system entry — the only kind whose
+ * code carries meaning — cannot be created through this schema at all, which
+ * `contact_relation_type_system_needs_code` then makes a refusal rather than a
+ * habit. `guardian` and `billing_recipient` are written by `domain/tenant.ts`,
+ * because they are part of what a tenant is.
  *
  * `ContactRelationTypeCreate` stays as an alias so the two intents still read
  * differently at the call sites.

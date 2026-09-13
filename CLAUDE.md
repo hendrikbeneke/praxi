@@ -109,6 +109,7 @@ praxi/
 │  ├─ server/
 │  │  ├─ src/
 │  │  │  ├─ db/            schema.ts, client.ts, migrations/
+│  │  │  ├─ cli/           `praxi` — commands/, seeds/default/, seeds/demo/
 │  │  │  ├─ routes/        one file per resource
 │  │  │  ├─ domain/        business logic, transactions
 │  │  │  ├─ pdf/           invoice.tsx, overlay.ts, din5008.ts
@@ -156,6 +157,164 @@ What replaces it is one list, `PUBLIC_API_ROUTES`, and it has three properties t
 - **No orphans.** `routes/api-guard.test.ts` walks Hono's own `app.routes` — which `route()` flattens the mounted routers into, so it cannot fall behind the code — calls every endpoint without a cookie and expects 401, and asserts in the other direction that every exception still names a route that exists. An orphan is the worse of the two failures: nobody notices it while cleaning up, and the day a route of that name and method is created again, it is silently open.
 
 One consequence, deliberate: **an unknown path under `/api` answers 401, not 404.** The guard matches before the router finds out that nothing matched. Someone without a session learns nothing about the route table, not even which paths exist. The German 404 body is still asserted, on a path outside `/api`.
+
+## The administration CLI
+
+Creating tenants and users is a command line, `praxi`, with subcommands —
+`apps/server/src/cli/`, one entry point for argument parsing, help, exit codes,
+the refusal of a development command under production, and the database handle a
+command may have. A command file holds what that command does and nothing else,
+and a command more is a file plus a line in `registry.ts`.
+
+**There is no web interface for this and there will not be one.** An
+administration screen across tenants needs a connection as the owner, and would
+therefore have reach into the patient data of every practice — exactly what S-C
+exists to prevent. A command line runs briefly, on a known machine, and leaves
+no permanently reachable way in. If practices ever register themselves, the
+answer is Better Auth's organizations module, not an admin app.
+
+**No dependency for the argument parsing.** `node:util`'s `parseArgs`, with
+subcommands resolved from the registry before it runs; commander or yargs would
+be a runtime dependency in the production image for something run twice a year.
+Each command declares its options **once**, as a structure that is both the
+`parseArgs` specification and the help text, so the help cannot describe a flag
+that is not accepted.
+
+Three exit codes, because a script has to tell three things apart: `0` done, `1`
+ran and refused, `2` called wrongly — the last including a `parseArgs` failure,
+which would otherwise print a stack and exit 1.
+
+**Argument → otherwise ask → otherwise refuse**, one rule in `resolve.ts`. A
+value given as a flag is never asked for; a missing one is asked for; and with
+`--no-input` — or with no terminal at all, which produces the same mode on its
+own — the command aborts naming the flag rather than waiting for an answer that
+cannot come. **Both paths validate with the same Zod schema the API uses, and
+only the reaction differs**: a typed answer that does not parse is asked again,
+an argument that does not parse aborts, because a script cannot be asked twice.
+A confirmation that cannot be asked is never answered with yes — the rule the
+later `tenant delete` needs, written down before there is one.
+
+**A password is three ways and the convenient one is not the recommended one.**
+Typed at a prompt it is read with the echo off and asked twice; `--password`
+lands in the shell history, in the process table while the command runs, and in
+Coolify's command log; `--password-stdin` is the one for a script, unattended and
+in neither. The help says so at the flag.
+
+### The connection is a property of the command
+
+**Every command writes through `asTenant`** — one transaction, one tenant, as
+`praxi_app`, under the policies. `tenant create` included, and that is the part
+worth knowing: the tenant id is generated before the first statement, so
+`app.tenant_id` can be set to it, and the policy on `tenant` (`id =
+app.tenant_id`, WITH CHECK) then permits that one tenant and no other. Measured
+against the running database rather than assumed. It is the stronger form, not a
+trick: the creation can write rows for one tenant and is incapable of writing
+them for a second.
+
+What legitimately looks across tenants is **one file, `cli/owner.ts`**, and a
+test reads the sources to assert that no other file in `cli/` names `ownerDb`.
+It hands out the tenant directory — id, practice name, user count, and nothing
+else, written never — because a command that takes a tenant has to find it
+before it can scope to itself, and under the policies "is there already a
+practice of this name" and "pick one from a list" both answer with nothing. That
+is a fixed part of the way in rather than a capability a command asks for.
+
+`Command.scope` may be `'owner'`, which requires an `ownerReason` — a field, not
+a comment, printed in the help and read by a test, the same shape as the reason
+on `PUBLIC_API_ROUTES`. **No command declares it.** It is declared and unused on
+purpose, the way `verification` is a table nothing writes to yet: the day one is
+needed, the shape and the sentence it has to carry are already settled, and it
+appears in a diff as a deliberate line rather than as an `ownerDb()` somebody
+reached for.
+
+### Provisioning has one path, and the tool walks the application's
+
+`domain/tenant.ts` and `domain/user.ts` are the one way a tenant and a user come
+into being. There were **three** before — the seed, the demo seed and
+`test/fixtures.ts` — and they had already drifted: the fixtures created no
+`practice_settings` at all, which is why three invoice tests carried an insert of
+their own. All of them are readers now, so every domain test runs through the
+path the tool uses.
+
+`createTenant` writes only what a tenant structurally **is**: the row, its
+practice settings carrying the name, its first user, and the two system relation
+types. Everything else — roles, salutations, genders, countries, note types,
+activity types — is an initial fitting-out, and the CLI applies it afterwards
+**through the same domain functions the settings screens call** (`createRoleType`,
+`createNoteType`, …). Writing the rows directly would be shorter and would let
+states exist that the application cannot reach; going the long way means the
+tool is a user who types faster, and a path that has broken is noticed at the
+next tenant rather than at the first customer.
+
+**The boundary between the two is the schema's, not a preference.**
+`contactRelationTypeInputSchema` has no `isSystem` and no `code`, and
+`contact_relation_type_system_needs_code` refuses a system entry without one — so
+`createRelationType` provably cannot produce `guardian` and `billing_recipient`,
+and they are therefore not starting values at all. Without them `finalizeInvoice`
+resolves no recipient and the minor's notice never fires.
+
+**Resumption is the derived state and nothing else.** Each step reads what is
+there and creates what is missing, compared on what the catalogue is unique on —
+the label, the ISO code. A run that broke off halfway is continued by running it
+again, there is no log file that could say "note types done" while somebody has
+deleted them, and one transaction per step means a failure leaves the steps
+before it standing. Entries are read *including* the inactive ones, or a
+deactivated one would be counted as missing and fail on the unique index. The
+progress is printed rather than recorded.
+
+`tenant create` asks one thing before it touches anything: whether an existing
+practice of the same name is the one meant. Two matches are refused with their
+ids and never resolved to the first — a practice name has no unique constraint
+behind it, and picking one of two means working in a tenant nobody chose.
+
+### The starting values are files, and the invented ones are not shipped
+
+`cli/seeds/default/` holds one JSON file per catalogue, **validated against the
+same Zod schema the API validates that form with** — so a hand-edited `#xyz`
+colour or a 70-character label is refused exactly as it would be on screen. The
+lists were `as const` in TypeScript until then and were checked by nothing.
+Beside them a `README.md` carries what the values mean: that `Sitzung` sorts
+first because the note dialog preselects the first entry, that `Firma` is a
+salutation because an organization has one too, that one country is a choice and
+not an omission. Without it they are seven files with words in them, and the next
+person to touch one changes an order without knowing it meant something.
+
+They are **read at runtime, never imported**: a static import would need
+`resolveJsonModule` and would carry the contents into `dist` whether they belong
+there or not. The Dockerfile copies `seeds/default` next to the compiled code,
+exactly as it copies the migrations.
+
+**`cli/seeds/demo/` is not copied.** It holds the placeholder master data, the
+seven invented prices and the demo patients that `praxi dev seed` and `praxi dev
+demo` write. Those two carry `devOnly` in the registry and the runner refuses
+them under `NODE_ENV=production` — which stops the accident, the wrong command in
+the right window, and not somebody determined, since an environment variable
+walks past it. What does not walk past it is the missing directory: on a server
+both commands fail naming the file they cannot find. A frozen list in the test
+says which commands are `devOnly`, and it is worth the noise at two commands
+because the price of a third slipping on unnoticed is a practice database with
+made-up patients in it.
+
+**A new tenant gets no services at all**, and that is the one deliberate gap.
+Every other catalogue is structural — no note type, no note — while an
+`activity_item` may carry no `service_id` (rule 5), so an empty service catalogue
+is a state the software fully supports. And a wrong price is not correctable
+afterwards: an item copies description and price at the moment it is created and
+never looks back, so three sessions billed from an invented 90,00 € stay at
+90,00 € after the catalogue is fixed. The practice's own prices are the one thing
+it certainly knows.
+
+### Two ways, one shelf
+
+`dev seed` and `dev demo` share the shelf, the format and the path through the
+domain functions with `tenant create`. They do **not** share a mechanism, and
+there is deliberately no `--scope=default|demo`: a catalogue is a flat list
+applied by comparing labels and is resumable, while demo data is a graph whose
+every step needs ids from the one before and which must not be repeated at all —
+a second run would double a card index and burn contact numbers. A flag would
+promise "the same mechanism, other values", which none of that is. It would also
+put production one mistyped character from invented patients; `praxi dev demo`
+cannot be typed by accident in place of `praxi tenant create`.
 
 ## Core domain rules
 
@@ -221,7 +380,7 @@ Both sets are **configurable**. `contact_role_type` and `contact_relation_type` 
 
 **A role is a label, and that is the whole of it** (migration 0035). It has no `code`, no `is_system` and no `active`: every entry is alike — creatable, renamable, deletable as long as no contact holds it, and the refusal says how many do. `contact_role` points at the type's `id`. The label is what a role is recognised by, so it is unique per tenant; two roles reading "Patient" would put two indistinguishable tabs in the contact list. `active` went with the rest deliberately — it raises four questions (is an inactive role shown while editing a contact that holds it, does it stay in the filter, and if not, how are those contacts found again) and prevents nothing. With `service` it is different: a service on a finalized invoice can never be removed, so there has to be a way to take it out of the selection. A role assignment is a row of its own with nothing hanging off it. Work, but never a dead end.
 
-**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. The first of those was a promise until L8: the code was seeded, flagged `is_system` and named in this sentence, and nothing outside a comment read it. `invoice.recipient_contact_id` is where it became true, and the shape it took is worth keeping in mind for the next such code — the relation is read **once**, when the document is finalized, and the address goes into `recipient_snapshot`; a relation dissolved next week cannot reach an invoice already posted. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. **A system entry is read-only apart from `active` and its order** (B1), and the reason is not the exclusivity. Rename `billing_recipient` to "Sorgeberechtigt" and the contact record says one thing while `updateInvoice` and `prepareSend` do another, because both of them look the relation up by its code: the label is what a human reads, the code is what the software obeys, and letting the two drift apart makes a screen lie without anything failing. So `code`, both labels, `is_symmetric` and `is_exclusive` are frozen — `SystemTypeReadOnlyError` in `domain/contact-type.ts`, beside the trigger that already froze the code — and **a system entry has no "Bearbeiten" at all** (B1e). It led to a form of five values one could not touch and a single checkbox, which is a control promising an edit and delivering almost none. `active` is reachable from the read detail instead, where it acts immediately and has no save button — a single decision rather than a record being edited, the same shape as ticking a role in the contact header. `active` stays, because a practice that never bills a third party may take the entry out of the picker, and so does `sort_order`, which moves through `/move`. `is_system` appears in no input schema; only the seed sets it.
+**Relation types kept all three, and that is not an oversight.** There the codes carry real logic — `billing_recipient` decides who an invoice goes to and is exclusive, `guardian` drives the minor's notice in the contact record. The first of those was a promise until L8: the code was seeded, flagged `is_system` and named in this sentence, and nothing outside a comment read it. `invoice.recipient_contact_id` is where it became true, and the shape it took is worth keeping in mind for the next such code — the relation is read **once**, when the document is finalized, and the address goes into `recipient_snapshot`; a relation dissolved next week cannot reach an invoice already posted. So entries flagged `is_system` are the ones **logic may depend on**: they cannot be deleted and their `code` cannot change, enforced in `domain/contact-type.ts` and by the `protect_system_type` trigger, whose function stayed when the role trigger went. **A system entry is read-only apart from `active` and its order** (B1), and the reason is not the exclusivity. Rename `billing_recipient` to "Sorgeberechtigt" and the contact record says one thing while `updateInvoice` and `prepareSend` do another, because both of them look the relation up by its code: the label is what a human reads, the code is what the software obeys, and letting the two drift apart makes a screen lie without anything failing. So `code`, both labels, `is_symmetric` and `is_exclusive` are frozen — `SystemTypeReadOnlyError` in `domain/contact-type.ts`, beside the trigger that already froze the code — and **a system entry has no "Bearbeiten" at all** (B1e). It led to a form of five values one could not touch and a single checkbox, which is a control promising an edit and delivering almost none. `active` is reachable from the read detail instead, where it acts immediately and has no save button — a single decision rather than a record being edited, the same shape as ticking a role in the contact header. `active` stays, because a practice that never bills a third party may take the entry out of the picker, and so does `sort_order`, which moves through `/move`. `is_system` appears in no input schema; only `createTenant` sets it, which is where the two system entries are written — see "The administration CLI" above for why they cannot be a seed file.
 
 **Only a system entry has a `code`** (0046). It is what lets `domain/invoice.ts` name `billing_recipient` without writing down a uuid, which differs per installation — and that is the whole of what the code was ever for. Everything the practitioner creates carries `NULL` and is recognised by `labelForward`, which is unique per tenant like the roles' and the note types' labels; two entries reading "Betreut von" would be indistinguishable in the same picker. `contact_relation_type_system_needs_code` makes "a system entry has an anchor" a refusal rather than a habit, and no screen offers a field for the code — it is shown only where it is set, on the entry the software greps for.
 

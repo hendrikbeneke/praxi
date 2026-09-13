@@ -1,0 +1,7 @@
+[
+  { "label": "Sitzung", "showAsTab": true, "sortOrder": 10 },
+  { "label": "Allgemein", "showAsTab": true, "sortOrder": 20 },
+  { "label": "Dokument", "showAsTab": true, "sortOrder": 30 },
+  { "label": "Korrespondenz", "showAsTab": true, "sortOrder": 40 },
+  { "label": "Sonstiges", "showAsTab": true, "sortOrder": 50 }
+]

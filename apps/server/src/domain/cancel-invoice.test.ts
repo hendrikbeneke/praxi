@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../db/client.js'
 import { raisedMessage, uniqueViolationConstraint } from '../db/errors.js'
-import { contact, invoice, numberRange, practiceSettings, service } from '../db/schema.js'
+import { contact, invoice, numberRange, service } from '../db/schema.js'
 import { newId } from '../id.js'
 import { renderInvoicePdf } from '../pdf/render.js'
 import { activityTypeId, createTenant, createUser, finalizeDocument } from '../test/fixtures.js'
@@ -36,7 +36,6 @@ beforeEach(async () => {
   tenantId = await createTenant(db())
   sessionTypeId = await activityTypeId(db(), tenantId, 'Folgesitzung')
   await createUser(db(), { tenantId })
-  await db().insert(practiceSettings).values({ id: newId(), tenantId, practiceName: 'Testpraxis' })
 
   contactId = newId()
   await db().insert(contact).values({

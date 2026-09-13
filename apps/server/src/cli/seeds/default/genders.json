@@ -1,0 +1,5 @@
+[
+  { "label": "weiblich", "sortOrder": 10 },
+  { "label": "männlich", "sortOrder": 20 },
+  { "label": "divers", "sortOrder": 30 }
+]

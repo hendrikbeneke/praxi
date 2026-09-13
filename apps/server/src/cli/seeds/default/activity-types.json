@@ -1,0 +1,6 @@
+[
+  { "label": "Erstgespräch", "color": "#2563eb", "isDefault": false, "sortOrder": 10 },
+  { "label": "Folgesitzung", "color": "#0d9488", "isDefault": true, "sortOrder": 20 },
+  { "label": "Vortrag", "color": "#d97706", "isDefault": false, "sortOrder": 30 },
+  { "label": "Beratung", "color": "#7c3aed", "isDefault": false, "sortOrder": 40 }
+]
