@@ -111,6 +111,92 @@ const envSchema = z.object({
   SEED_USER_NAME: z.string().optional(),
 })
 
+/**
+ * The connection strings that must not cross a network in the clear.
+ *
+ * Patient data travels over both of them, so a database that is not on this
+ * machine is reached with TLS **and** a verified certificate, or the server does
+ * not start. This is the fourth of a family of faults this project keeps
+ * finding: something that looks like it worked. A superuser with BYPASSRLS, a
+ * seed with no tenant set, an `ALTER ROLE` nobody was allowed to run — and this
+ * one is the worst of them, because the failure mode is patient data in the
+ * clear over the public internet with nothing anywhere saying so.
+ */
+const TLS_CHECKED_URLS = ['DATABASE_URL', 'APP_DATABASE_URL'] as const
+
+/**
+ * What counts as local — **loopback and nothing else**, deliberately stricter
+ * than "not reachable from outside".
+ *
+ * A private address or a Docker service name on a shared network would be
+ * legitimate without TLS too, and both are refused here anyway. The trade is
+ * not close: a wrong refusal costs a minute and says exactly what to add, while
+ * a connection waved through costs professional confidentiality and announces
+ * itself to nobody. There is deliberately no opt-out variable — one deployment
+ * exists and it crosses the public internet, so an escape hatch today would be
+ * a hole for a case that does not exist. The day the database sits on a private
+ * network again, that is a deliberate change with a name on it.
+ *
+ * An empty host is `postgres:///praxi` and similar, which means a local socket.
+ */
+function isLoopbackHost(host: string): boolean {
+  if (host === '') return true
+
+  const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
+  const name = bare.toLowerCase()
+
+  if (name === 'localhost' || name.endsWith('.localhost')) return true
+  if (name === '::1') return true
+  // The whole 127.0.0.0/8, not just 127.0.0.1.
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(name)
+}
+
+/**
+ * `null` when the URL is acceptable, otherwise the sentence to refuse with.
+ *
+ * **Only `sslmode=verify-full` counts**, and not because the others cannot
+ * encrypt. Measured against the installed `postgres.js`: `sslmode=require`
+ * sets `rejectUnauthorized: false`, so the connection is encrypted against
+ * whatever certificate answers — which is protection against a passive listener
+ * and none at all against somebody in the middle. No parameter at all is plain
+ * text, silently. `verify-full` is what leaves Node's verification on, so the
+ * chain and the hostname are both checked.
+ *
+ * The URL is never quoted back: it carries the password. The host is, because
+ * it is what makes the message actionable and it is in DNS anyway.
+ */
+export function databaseTlsProblem(name: string, value: string): string | null {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    // Shape is the Zod schema's business; an unparseable URL is its error to
+    // report, not this one's.
+    return null
+  }
+
+  if (isLoopbackHost(url.hostname)) return null
+
+  const sslmode = (url.searchParams.get('sslmode') ?? '').trim().toLowerCase()
+  if (sslmode === 'verify-full') return null
+
+  const found =
+    sslmode === ''
+      ? 'it carries no sslmode at all, which means the connection is made in plain text'
+      : `it carries sslmode=${sslmode}, which does not verify the certificate` +
+        (sslmode === 'require'
+          ? ' — `require` encrypts against whatever certificate answers, so it protects' +
+            ' against listening and not against being redirected'
+          : '')
+
+  return (
+    `${name} points at ${url.hostname}, which is not this machine, and ${found}.\n` +
+    `Add ?sslmode=verify-full&sslrootcert=system to ${name}.\n` +
+    'Patient data crosses this connection; the server refuses to start rather ' +
+    'than send it unprotected.'
+  )
+}
+
 export type Env = z.infer<typeof envSchema>
 
 let cached: Env | undefined
@@ -128,6 +214,14 @@ export function getEnv(): Env {
     const names = result.error.issues.map((issue) => issue.path.join('.')).join(', ')
     throw new Error(`Invalid environment configuration. Check these variables: ${names}`)
   }
+
+  // Both at once: fixing one and being told about the other on the next
+  // deployment is two deployments for one mistake.
+  const problems = TLS_CHECKED_URLS.map((name) =>
+    databaseTlsProblem(name, result.data[name]),
+  ).filter((problem): problem is string => problem !== null)
+
+  if (problems.length > 0) throw new Error(problems.join('\n\n'))
 
   cached = result.data
   return cached

@@ -3774,11 +3774,44 @@ select a.usename, s.ssl, s.version, s.cipher
   from pg_stat_ssl s join pg_stat_activity a using (pid) where a.datname = 'praxi';
 ```
 
-**Offen und benannt:** Nichts in der Anwendung erzwingt TLS. Eine
-Verbindungszeichenfolge ohne Parameter wird angenommen, und nur diese Abfrage
-verrät es. Ein Startprüfung in `env.ts`, die eine nicht-lokale Datenbank ohne
-`sslmode=verify-full` ablehnt, wäre die Stelle dafür — nicht gebaut, weil in
-diesem Paket kein Code vorgesehen war.
+**Nachgereicht: die Anwendung erzwingt es jetzt.** `getEnv()` prüft beide
+Verbindungszeichenfolgen, bevor irgendetwas einen Socket öffnet, und verweigert
+den Start:
+
+```
+APP_DATABASE_URL points at db.example.invalid, which is not this machine, and it
+carries no sslmode at all, which means the connection is made in plain text.
+Add ?sslmode=verify-full&sslrootcert=system to APP_DATABASE_URL.
+Patient data crosses this connection; the server refuses to start rather than
+send it unprotected.
+```
+
+Beide werden in *einer* Absage genannt — eine zu beheben und bei der nächsten
+Auslieferung von der anderen zu erfahren wären zwei Auslieferungen für einen
+Fehler. Die URL wird nie zitiert, sie trägt das Passwort; der Host schon, weil
+er die Meldung handlungsfähig macht.
+
+**„Diese Maschine" heißt Loopback und sonst nichts** — `localhost`,
+`127.0.0.0/8`, `::1`, ein lokaler Socket. Eine private Adresse und ein
+Docker-Servicename im selben Netz wären ohne TLS ebenfalls legitim und werden
+trotzdem abgelehnt. Der Tausch ist nicht knapp: ein falscher Abbruch kostet eine
+Minute und nennt, was zu ergänzen ist; eine durchgelassene Verbindung kostet die
+Schweigepflicht und sagt niemandem etwas. **Kein Opt-out-Schalter**: es gibt eine
+Auslieferung und die kreuzt das öffentliche Netz, also wäre eine Hintertür heute
+ein Loch für einen Fall, den es nicht gibt.
+
+Nur `sslmode=verify-full` zählt, auch `sslrootcert=system` allein nicht — obwohl
+der Treiber daraus dasselbe macht. Eine Schreibweise statt einer Menge
+gleichwertiger, die man kennen muss.
+
+Die Gegenprobe ist Teil des Tests: mit deaktivierter Prüfung fallen genau die
+drei `getEnv`-Fälle durch, die übrigen 25 prüfen die reine Funktion und würden
+auch ohne sie bestehen.
+
+```
+Prüfung deaktiviert  →  Tests  3 failed | 25 passed (28)
+Prüfung aktiv        →  Tests  28 passed (28)
+```
 
 ### Was sonst noch fiel
 

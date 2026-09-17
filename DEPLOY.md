@@ -480,18 +480,43 @@ sslmode=verify-full&sslrootcert=system  ssl = verify-full  → TLS, certificate 
 sslrootcert=system                      ssl = verify-full  → TLS, certificate verified
 ```
 
-Two things follow, and both are traps:
+Two things follow, and both used to be traps:
 
 - **No parameters at all means plaintext**, silently, over the public internet.
-  Nothing in the application refuses that today.
 - **`sslmode=require` is not enough.** In this driver it sets
   `rejectUnauthorized: false` — encrypted, but against whatever certificate
   answers. `verify-full` is what leaves `rejectUnauthorized` at its default and
   checks the chain and the hostname against Node's own CA store.
 
-→ *Check, and this is the only one that speaks for the **application's** own
-connection rather than for `psql`.* With the server running and having served at
-least one request, connect as `owner` or `praxi_owner` and ask:
+**Neither is a trap any more: the server refuses to start.** `getEnv()` checks
+both connection strings before anything opens a socket, and a database that is
+not on this machine without `sslmode=verify-full` stops the deployment with the
+reason, verbatim:
+
+```
+APP_DATABASE_URL points at db.example.invalid, which is not this machine, and it
+carries no sslmode at all, which means the connection is made in plain text.
+Add ?sslmode=verify-full&sslrootcert=system to APP_DATABASE_URL.
+Patient data crosses this connection; the server refuses to start rather than
+send it unprotected.
+```
+
+Both are named in one refusal, so fixing one does not cost a second deployment
+to be told about the other. The URL itself is never quoted back — it carries the
+password — only the host.
+
+**"This machine" means loopback and nothing else**: `localhost`, `127.0.0.0/8`,
+`::1`, a local socket. A private address and a Docker service name on a shared
+network would be legitimate without TLS as well, and both are refused anyway,
+deliberately — a wrong refusal costs a minute and says what to add, one waved
+through costs professional confidentiality and says nothing. There is no opt-out
+variable.
+
+→ *Check.* The refusal above covers the parameters being **absent**. That the
+connection is actually encrypted is a second question, and this is the only
+query that answers it for the **application's** own connection rather than for
+`psql`'s. With the server running and having served at least one request,
+connect as `owner` or `praxi_owner` and ask:
 
 ```sql
 select a.usename, s.ssl, s.version, s.cipher
@@ -646,6 +671,8 @@ baseline needs, the extension as `praxi_owner` inside `praxi`.
 at Sliplane's host and end in `?sslmode=verify-full&sslrootcert=system`.
 → *Check*: the database name in them is `praxi`, not the `app` Sliplane's own
 connection string names.
+→ *Check*: forgetting the TLS parameters is not a thing you have to catch here —
+the server refuses to start and says which variable is missing them (3.1).
 
 **5. Deploy.**
 The image's `CMD` runs `node apps/server/dist/db/migrate.js` and only then
@@ -940,19 +967,34 @@ Two causes, and the `code` beside the message tells them apart:
 The message names both, because the container exits before anything else can be
 asked of it.
 
+### `… points at <host>, which is not this machine, and it carries no sslmode at all`
+
+The startup check in section 3.1. The container never listens and Coolify keeps
+the previous one running. Add `?sslmode=verify-full&sslrootcert=system` to the
+connection string the message names — it names both if both are wrong — and
+redeploy.
+
+The same refusal with `it carries sslmode=require` means the parameter is there
+and does not verify anything: in this driver `require` sets
+`rejectUnauthorized: false`. Only `verify-full` passes.
+
+If the database really is on a private network where TLS is not available, this
+refusal is deliberate and there is no variable to switch it off. That is a
+change to make on purpose, not around.
+
 ### The application is connected but not encrypted
 
-Nothing announces this — it is the reason 3.1 carries a query. If
+Different from the above, and the reason 3.1 carries a query as well as a
+refusal: the parameters can be present and the connection still not be what you
+think. If
 
 ```sql
 select a.usename, s.ssl from pg_stat_ssl s join pg_stat_activity a using (pid)
  where a.datname = 'praxi';
 ```
 
-shows `ssl = f` for `praxi_app`, the connection string is missing its TLS
-parameters or carries `sslmode=require`, which in this driver means encrypted
-without verifying anything. `sslmode=verify-full&sslrootcert=system` on **both**
-URLs, then redeploy so the pool is rebuilt.
+shows `ssl = f` for `praxi_app`, something is answering on that host that is not
+the database you configured. Stop and find out what before any data goes in.
 
 ### The Google button says the connection is not set up
 
