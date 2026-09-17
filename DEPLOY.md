@@ -5,141 +5,307 @@ bottom; every step says how to tell it worked.
 
 ## Where this runs
 
-praxi runs on a **Sliplane** server. [Coolify](https://coolify.io) is installed
-there and deploys this GitHub repository: it builds the `Dockerfile` at the
-repository root, terminates TLS with its bundled Traefik, and Postgres runs
-beside the application in the same Coolify environment.
+Two providers, and they do different things.
 
-`docker-compose.yml` in this repository is **not** used for this. It is
+- **The application** runs on a server of its own with
+  [Coolify](https://coolify.io) installed. Coolify deploys this GitHub
+  repository: it builds the `Dockerfile` at the repository root, terminates TLS
+  with its bundled Traefik, and runs the container.
+- **Postgres is hosted at [Sliplane](https://sliplane.io)** and runs nowhere
+  near it. Sliplane hosts the database and nothing else — it is not a Coolify
+  provider and there is no Coolify database resource in this setup.
+
+**So the connection between the two crosses the public internet**, which is the
+single fact section 1 and section 3 are built around: there is no internal
+Docker network, the host in both connection strings is a public name, and both
+of them carry TLS parameters that are not optional.
+
+`docker-compose.yml` in this repository is **not** used for either. It is
 Postgres for local development and nothing else.
 
 Nothing in the application code branches on any of it. Business logic sits
 behind an HTTP API, and the only value in the whole system that names a host is
 `GOOGLE_REDIRECT_URI`.
 
-### One Coolify project, one environment
-
-The database and the application go into the same environment. Coolify only
-attaches resources to each other's internal Docker network within one
-environment, and the application reaches Postgres by service name over that
-network — never over the public internet.
-
 ---
 
 ## 1. Postgres
 
-### 1.1 The resource
+Sliplane gives you a database and one role. Everything below is done **once, by
+hand, with `psql`** — there is no Coolify database resource to configure, and
+the four steps are in this order for a reason.
 
-Add a PostgreSQL database resource in Coolify:
+### 1.0 What Sliplane hands you
 
-| Setting | Value | Why |
-|---|---|---|
-| Image | `postgres:17-alpine` | the same major version as local development |
-| `POSTGRES_USER` | `praxi` | any name works; this one matches local development (2.1) |
-| `POSTGRES_DB` | `praxi` | |
-| `POSTGRES_PASSWORD` | generated, `openssl rand -hex 24` | goes into `DATABASE_URL` |
-| `POSTGRES_INITDB_ARGS` | `--locale-provider=icu --icu-locale=de-DE --encoding=UTF8` | see 1.2 |
-| Public port | **off** | nothing outside the Docker network needs to reach it |
+A database called **`app`** and a role called **`owner`**. We use neither: the
+database is created below with the right collation, and `owner` stays *your*
+access and goes into no environment variable of the application.
 
-`POSTGRES_INITDB_ARGS` only takes effect while the data directory is still
-empty. Set it **before the first start**, not after.
+Measured on the actual instance:
 
-Note the internal connection string Coolify shows. It is a service hostname and
-port `5432` — not `localhost`, and not the `55432` from local development.
+```sql
+select rolname, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole
+  from pg_roles where rolname = current_user;
+```
 
-### 1.2 The ICU collation — the one thing that stops everything
+```
+ rolname | rolsuper | rolbypassrls | rolcreatedb | rolcreaterole
+---------+----------+--------------+-------------+---------------
+ owner   | f        | f            | t           | t
+```
+
+**No superuser and no `BYPASSRLS`** — which is good news, because it means
+nothing here needs either. `CREATEDB` and `CREATEROLE` are enough for all four
+steps.
+
+The connection string Sliplane shows points at `app`. Change the database name
+to `praxi` once step 2 has created it, and add the TLS parameters from section
+3.1.
+
+### 1.1 Step 1 — the two roles the application will use
+
+Three roles in total, and only the last two are ever entered anywhere:
+
+| Role | Rights | What for | Where it is entered |
+|---|---|---|---|
+| `owner` | `CREATEDB`, `CREATEROLE` | creating the database and the roles — once, by hand | **nowhere** |
+| `praxi_owner` | owns the database and all 39 tables | migrations, `praxi` CLI, maintenance scripts | `DATABASE_URL` |
+| `praxi_app` | `LOGIN`, DML on every table, owns nothing | **every request the server makes** | `APP_DATABASE_URL` |
+
+Connect **as `owner`** to the `app` database and run, with two passwords you
+generated (`openssl rand -hex 24` each):
+
+```sql
+CREATE ROLE praxi_owner LOGIN PASSWORD '<generated>';
+CREATE ROLE praxi_app   LOGIN PASSWORD '<generated>';
+```
+
+→ *Check*: `\du` lists both, neither with any attribute.
+
+### 1.2 Step 2 — the database, owned by `praxi_owner` from the start
+
+`praxi_owner` has to **own** the tables: it creates them, and a table's owner is
+exempt from its own policies unless `FORCE ROW LEVEL SECURITY` is set, which it
+is not — that exemption is what lets migrations and the CLI work at all. So the
+database is created with it as the owner rather than transferred afterwards.
+
+One line has to come first, and it is the one that is easy to miss:
+
+```sql
+GRANT praxi_owner TO CURRENT_USER WITH SET TRUE, INHERIT FALSE;
+
+CREATE DATABASE praxi OWNER praxi_owner
+  TEMPLATE template0 ENCODING 'UTF8'
+  LOCALE_PROVIDER icu ICU_LOCALE 'de-DE' LOCALE 'C';
+```
+
+**Why the `GRANT`.** `CREATE DATABASE … OWNER x` requires being able to
+`SET ROLE` to `x`. Since Postgres 16 a `CREATEROLE` role is granted membership
+in the roles it creates — but with `ADMIN` only, not `SET`:
+
+```
+ member_of   | member | admin_option | inherit_option | set_option
+-------------+--------+--------------+----------------+------------
+ praxi_owner | owner  | t            | f              | f
+```
+
+Without the `GRANT` both routes fail with the same message, measured:
+
+```
+ERROR:  must be able to SET ROLE "praxi_owner"
+```
+
+— and that is true of `ALTER DATABASE praxi OWNER TO praxi_owner` after the
+fact as well, so creating the database first and re-owning it later is not a way
+around it. The `ADMIN` option is what lets you grant yourself the missing
+`SET`, which is why one line is enough.
+
+→ *Check*:
+
+```sql
+select d.datname, pg_get_userbyid(d.datdba) as owner,
+       d.datlocprovider, d.datlocale
+  from pg_database d where d.datname = 'praxi';
+```
+
+```
+ datname |    owner    | datlocprovider | datlocale
+---------+-------------+----------------+-----------
+ praxi   | praxi_owner | i              | de-DE
+```
+
+`datlocprovider = i` and `datlocale = de-DE` are the two the baseline checks —
+see 1.5. Do **not** read `datcollate`/`datctype`: under the ICU provider those
+still show the libc locale the cluster was built with and say nothing about how
+text sorts.
+
+### 1.3 Step 3 — what the baseline needs in order to run
+
+The baseline contains one statement that is not about this database at all:
+
+```sql
+ALTER ROLE praxi_app SET idle_in_transaction_session_timeout = '30s';
+```
+
+A role property, not a database object. Altering another role needs
+`CREATEROLE` **and** `ADMIN OPTION` on that role, and `praxi_owner` has neither
+by default. Still as `owner`:
+
+```sql
+ALTER ROLE praxi_owner CREATEROLE;
+GRANT praxi_app TO praxi_owner WITH ADMIN OPTION;
+```
+
+**Without these two lines the first deployment fails and leaves nothing
+behind.** The baseline is handed to Postgres as a single statement — all or
+nothing — so it stops here and no table is created at all:
+
+```
+ERROR:  permission denied to alter role
+DETAIL:  Only roles with the CREATEROLE attribute and the ADMIN option on
+         role "praxi_app" may alter this role.
+```
+
+Measured both ways: with the two lines the unchanged baseline applies and
+produces 39 tables and 34 policies, all owned by `praxi_owner`; without them,
+zero of each.
+
+→ *Check*:
+
+```sql
+select r.rolname, r.rolcreaterole, m.admin_option
+  from pg_roles r
+  left join pg_auth_members m
+    on m.member = r.oid and m.roleid = 'praxi_app'::regrole
+ where r.rolname = 'praxi_owner';
+```
+
+```
+   rolname   | rolcreaterole | admin_option
+-------------+---------------+--------------
+ praxi_owner | t             | t
+```
+
+Both columns `t`. A `NULL` in the second means the `GRANT` did not happen.
+
+It is deliberately a grant rather than a change to the migration. The
+alternative — wrapping that `ALTER ROLE` in a check so it can be skipped — would
+mean a security-relevant setting could silently not be applied, and this
+document would have no way to tell you whether it was. A named grant is
+checkable (1.6).
+
+The same two rights are what lets `praxi_owner` rotate the `praxi_app` password
+later; see 2.2.
+
+### 1.4 Step 4 — the extension, **in the right database**
+
+Connect **as `praxi_owner` to `praxi`** — not to `app`, not to `postgres`:
+
+```sql
+CREATE EXTENSION btree_gist;
+```
+
+→ *Check*: `select extname from pg_extension order by 1;` lists `btree_gist`
+and `plpgsql`.
+
+**This is the step that looks like a permissions problem and is not.** Run in
+the wrong database it fails like this, verbatim:
+
+```
+ERROR:  permission denied to create extension "btree_gist"
+HINT:  Must have CREATE privilege on current database to create this extension.
+```
+
+That message reads as "my provider does not allow extensions". It means "you are
+in a database you do not own". In its own database `praxi_owner` installs it
+without any special right — measured against a role with neither `SUPERUSER`
+nor `CREATEDB`.
+
+`btree_gist` is needed by `opening_hour_no_overlap`, the `EXCLUDE` constraint
+that keeps two opening-hour intervals on one weekday from overlapping.
+
+**From here on `owner` is not needed again.** Its password stays with you and
+goes into no environment variable; everything the application does is
+`praxi_owner` or `praxi_app`.
+
+### 1.5 The ICU collation — the one thing that stops everything
 
 `contact.sort_name` inherits the database collation, and the order of the
 contact list depends on it. Initialised without ICU, the list puts *Öztürk*
 after *Zimmermann*. So migration `0000_baseline.sql` checks it before it
-creates a single table, and refuses otherwise.
-
-**Check it** — connect to the database and run:
-
-```sql
-select datname, datlocprovider, datlocale, datcollate, datctype
-  from pg_database where datname = current_database();
-```
-
-What it must say:
-
-```
- datname | datlocprovider | datlocale | datcollate | datctype
----------+----------------+-----------+------------+----------
- praxi   | i              | de-DE     | C          | C
-```
-
-`datlocprovider = i` and `datlocale = de-DE` are the two the migration tests.
-`datcollate`/`datctype` are the libc locale the cluster was built with and say
-nothing about how text sorts — do not read them.
-
-**If it says something else**, this is the error you will get on the first
-deployment, verbatim:
+creates a single table, and refuses otherwise:
 
 ```
 ERROR:  Database must use the ICU provider with locale de-DE.
 DETAIL:  found provider=i, locale=C
 ```
 
-There are two ways out, and the second one works even on a managed Postgres
-where you cannot touch `initdb`.
+Step 2 above is what satisfies it — **creating the *database* with the locale,
+not the cluster**, which is exactly the path a hosted Postgres leaves open: any
+role with `CREATEDB` can do it, and it needs no `initdb` arguments and no
+access to the server's disk.
 
-**(a) The data directory is still empty.** Set `POSTGRES_INITDB_ARGS` as above
-and let the container initialise again. On Coolify this means deleting the
-volume, which is only safe because nothing is in it yet.
-
-**(b) You cannot set `initdb` arguments.** Then create the *database* with the
-locale instead of the *cluster* — any role with `CREATEDB` can do this, and it
-satisfies the check exactly the same way:
-
-```sql
-CREATE DATABASE praxi
-  TEMPLATE template0
-  ENCODING 'UTF8'
-  LOCALE_PROVIDER icu
-  ICU_LOCALE 'de-DE'
-  LOCALE 'C';
-```
-
-Verified: a database created this way reports `datlocprovider = i`,
-`datlocale = de-DE`, and the baseline applies.
-
-This needs ICU compiled into the server, which every official `postgres` image
-has. Check first if you want to know before trying:
+If you want to know before trying whether ICU is compiled in at all:
 
 ```sql
 select count(*) > 0 as icu_available from pg_collation where collprovider = 'i';
 -- t
 ```
 
-If that answers `f`, the image has no ICU and no `CREATE DATABASE` will help.
-Use a different image.
+If that answers `f`, no `CREATE DATABASE` will help and the provider is the
+wrong one.
+
+### 1.6 The three checks in one place
+
+Run these after step 4 and keep them — together they say whether the ground the
+rest of this document stands on is actually there:
+
+```sql
+-- 1. the database, its owner and its collation
+select d.datname, pg_get_userbyid(d.datdba) as owner, d.datlocprovider, d.datlocale
+  from pg_database d where d.datname = 'praxi';
+--  praxi | praxi_owner | i | de-DE
+
+-- 2. the roles (connect to `praxi`)
+select rolname, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolcanlogin
+  from pg_roles where rolname in ('owner','praxi_owner','praxi_app') order by rolname;
+--  owner       | f | f | t | t | t
+--  praxi_app   | f | f | f | f | t
+--  praxi_owner | f | f | f | t | t
+
+-- 3. the extension
+select extname from pg_extension order by 1;
+--  btree_gist, plpgsql
+```
+
+**The `praxi_app` row is the one that matters: four `f` and one `t`.**
+`praxi_owner` carries `rolcreaterole = t` on purpose — step 3 — and that is the
+only attribute it has.
 
 ---
 
-## 2. The two database users
+## 2. Why the roles are split this way
 
-This is the part that decides whether row-level security is real or decoration,
-so it gets its own section.
+Section 1 created them. This section is what they are *for*, and it is the part
+that decides whether row-level security is real or decoration.
 
-| User | Rights | What for | Where it is entered |
-|---|---|---|---|
-| `praxi` | owner of the database and all 39 tables; superuser as the Postgres image creates it | migrations, the seed, `db:app-role`, maintenance scripts, backups | `DATABASE_URL` |
-| `praxi_app` | `LOGIN`, `USAGE` on schema `public`, `SELECT/INSERT/UPDATE/DELETE` on every table, `SELECT/USAGE` on sequences, `EXECUTE` on `google_connection_tenant_ids()` | **every request the server makes** | `APP_DATABASE_URL` |
+`praxi_app` must **not** have `SUPERUSER`, `BYPASSRLS`, `CREATEDB` or
+`CREATEROLE`, and it must own nothing. Each of those on its own walks past every
+policy ever written here — a table's owner is exempt from its own policies
+unless `FORCE ROW LEVEL SECURITY` is set, and it is not. Running the server
+under such a role changes nothing visible: every query answers exactly as it did
+before, nothing fails, nothing is logged, and the isolation is simply gone.
+**That is the worst outcome a safeguard can have: one that is believed.**
 
-`praxi_app` must **not** have: `SUPERUSER`, `BYPASSRLS`, `CREATEDB`,
-`CREATEROLE`, and it must own nothing. Each of those three on its own walks
-past every policy ever written here — a table's owner is exempt from its own
-policies unless `FORCE ROW LEVEL SECURITY` is set, and it is not. Enabling RLS
-under such a role changes nothing, with no error and no hint, which is the
-worst outcome a safeguard can have: one that is believed.
+`praxi_owner` is the opposite and deliberately so. It owns the tables, so the
+policies do not apply to it — which is what migrations, `praxi tenant create`
+and `files:orphans` need, because they legitimately work across tenants or
+before any tenant exists.
 
 ### 2.1 The owner may be called anything
 
-`POSTGRES_USER=praxi` in section 1.1 is for consistency with local development
-and nothing more. If your Postgres hands you an owner whose name you cannot
-choose — `postgres`, or something generated — that is fine, and only the two
-connection strings have to say so.
+`praxi_owner` is a name this document chose. If you already have an owner role
+under another name, only the connection strings have to say so.
 
 Worth knowing because it was not always true: `pg_dump` writes the owner's name
 into the two `ALTER DEFAULT PRIVILEGES` statements at the end of the baseline,
@@ -156,62 +322,48 @@ The clause is gone, the reason stands at those two statements, and it says that
 produce a new baseline, that is the one edit to make by hand besides stripping
 `\restrict`.
 
-### 2.2 Creating `praxi_app`
+### 2.2 Rotating the `praxi_app` password
 
-**Do this before the first deployment.** The baseline creates the role
-`NOLOGIN` and grants it what it needs, but it deliberately sets no password —
-a migration is committed to git. And the server calls
-`verifyDatabaseConnection()` at startup and exits if it fails, so a first
-deployment against a role that cannot log in never comes up, which also means
-you cannot exec into the container to fix it.
+`praxi_app` is created **with** a password in section 1.1, and that is not the
+same as it used to be: the baseline creates the role `NOLOGIN` and grants it
+what it needs, but deliberately sets no password, because a migration is
+committed to git. The `IF NOT EXISTS` around its `CREATE ROLE` finds your role
+and leaves it alone.
 
-Connect as `praxi` and run, with a password you generated (`openssl rand -hex 24`):
+That matters for the first deployment: the server calls
+`verifyDatabaseConnection()` at startup and exits if it fails, so a deployment
+against a role that cannot log in never comes up — which also means you cannot
+exec into the container to fix it.
+
+To change the password **later**:
 
 ```sql
-CREATE ROLE praxi_app LOGIN PASSWORD '<the generated password>';
+-- as praxi_owner, which section 1.3 gave CREATEROLE and ADMIN on praxi_app
+ALTER ROLE praxi_app LOGIN PASSWORD '<new>';
 ```
 
-That is all. The baseline's own `CREATE ROLE` is wrapped in
-`IF NOT EXISTS`, so it will find your role and leave it alone, and the grants
-land on it during the first migration.
+`pnpm db:app-role` (in the container:
+`node apps/server/dist/scripts/app-role.js`) does exactly this from
+`APP_DATABASE_PASSWORD`, connecting through `DATABASE_URL`. It works here
+**only because of the two grants in section 1.3** — without them it fails with
+`permission denied to alter role`, the same message the baseline would give.
 
-`pnpm db:app-role` (in the container: `node apps/server/dist/scripts/app-role.js`)
-does the same thing from `APP_DATABASE_PASSWORD` and is what you use **later**,
-to rotate the password — it connects as the owner through `DATABASE_URL`,
-because only a role with `CREATEROLE` or superuser may alter another role. It
-cannot help with the first deployment for the reason above.
+Remember to change `APP_DATABASE_URL` at the same time; they are two places
+holding one password.
 
 ### 2.3 Verifying it has no special rights
 
-Run this after the first migration and keep it for later — it is the check
-that says whether the isolation exists at all:
-
-```sql
-select rolname, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolcanlogin
-  from pg_roles where rolname in ('praxi', 'praxi_app') order by rolname;
-```
-
-Expected:
-
-```
-  rolname  | rolsuper | rolbypassrls | rolcreatedb | rolcreaterole | rolcanlogin
------------+----------+--------------+-------------+---------------+-------------
- praxi     | t        | t            | t           | t             | t
- praxi_app | f        | f            | f           | f             | t
-```
-
-**The `praxi_app` row is the one that matters: three `f` and one `t`.**
-
-And that it owns nothing:
+Section 1.6 has the query. Run it again after the first migration, and add the
+one it cannot answer before the tables exist:
 
 ```sql
 select tableowner, count(*) from pg_tables where schemaname = 'public'
  group by tableowner;
--- praxi | 39
+-- praxi_owner | 39
 ```
 
-If `praxi_app` appears in that second result at all, stop and fix it before
-real data goes in.
+If `praxi_app` appears in that result at all, stop and fix it before real data
+goes in.
 
 ### 2.4 The proof, if you want to see it
 
@@ -227,26 +379,28 @@ Then with one:
 ```sql
 begin;
   select set_config('app.tenant_id', '<tenant uuid>', true);
-  select count(*) from service;   -- 7
+  select count(*) from service;   -- as many as that tenant has
 commit;
 ```
 
-Zero without, rows with. That is the policy working. As `praxi` both answer the
-same, which is exactly why the server does not connect as `praxi`.
+Zero without, rows with. That is the policy working. As `praxi_owner` both
+answer the same, which is exactly why the server does not connect as
+`praxi_owner`.
 
 ---
 
 ## 3. Environment variables
 
-All of these go on the **application** resource in Coolify, not on the database
-resource — except where the table says otherwise.
+All of these go on the **application** resource in Coolify. There is no
+database resource here — Postgres is at Sliplane and is configured with `psql`,
+in section 1.
 
 | Variable | Value | Where from | Required |
 |---|---|---|---|
 | `NODE_ENV` | `production` | fixed | no, but set it — it is what makes the server serve the built SPA |
 | `PORT` | `3000` | fixed | no (default `3000`) |
-| `DATABASE_URL` | `postgres://praxi:<pw>@<service>:5432/praxi` | the Postgres resource | **yes** |
-| `APP_DATABASE_URL` | `postgres://praxi_app:<pw>@<service>:5432/praxi` | same database, the role from 2.2 | **yes** |
+| `DATABASE_URL` | `postgres://praxi_owner:<pw>@<host>:<port>/praxi?sslmode=verify-full&sslrootcert=system` | the roles from 1.1, Sliplane's host | **yes** |
+| `APP_DATABASE_URL` | `postgres://praxi_app:<pw>@<host>:<port>/praxi?sslmode=verify-full&sslrootcert=system` | same database, the other role | **yes** |
 | `BETTER_AUTH_SECRET` | 64 hex characters | `openssl rand -hex 32` | **yes**, at least 32 characters |
 | `DATA_DIR` | `/data` | matches the mount in section 4 | no (default is inside the image and would be lost on redeploy) — **set it** |
 | `LOG_LEVEL` | `info` | fixed | no (default `info`) |
@@ -254,14 +408,17 @@ resource — except where the table says otherwise.
 | `GOOGLE_CLIENT_ID` | the **Web application** client's id | Google Cloud, section 5 | only for the calendar |
 | `GOOGLE_CLIENT_SECRET` | that client's secret | Google Cloud, section 5 | only for the calendar |
 | `GOOGLE_REDIRECT_URI` | `https://<domain>/api/google/oauth/callback` | your domain | only for the calendar |
-| `SEED_USER_EMAIL` | the practitioner's login address | you | seed only, temporarily |
-| `SEED_USER_NAME` | the practitioner's name | you | seed only, temporarily |
-| `SEED_USER_PASSWORD` | at least 12 characters | you | seed only, temporarily |
-| `APP_DATABASE_PASSWORD` | the password from 2.2 | you | only if you use `db:app-role` to rotate it |
+| `APP_DATABASE_PASSWORD` | the `praxi_app` password | you | only if you use `db:app-role` to rotate it (2.2) |
+
+**`SEED_USER_EMAIL`, `SEED_USER_NAME` and `SEED_USER_PASSWORD` do not belong
+here.** They are read by `praxi dev seed`, which is local development only and
+refuses to run under `NODE_ENV=production` — and whose data is not in the image
+at all. The practice is created with `praxi tenant create`, which asks for the
+address and the password, or takes them as arguments (section 6, step 7). No
+plaintext password of a person ever has to sit in the secret store.
 
 Mark `DATABASE_URL`, `APP_DATABASE_URL`, `BETTER_AUTH_SECRET`,
-`ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET` and `SEED_USER_PASSWORD` as secrets in
-Coolify.
+`ENCRYPTION_KEY` and `GOOGLE_CLIENT_SECRET` as secrets in Coolify.
 
 **What happens when a required one is missing**: `getEnv()` refuses at startup
 with `Invalid environment configuration. Check these variables: <names>` — it
@@ -273,16 +430,15 @@ message is in the deployment log.
 Nothing here is read lazily at the first request; the environment is parsed
 once, at startup, on purpose.
 
-### 3.1 The two connection strings point at the same database
+### 3.1 The two connection strings, and the TLS parameters on both
 
-They differ only in the user, and they are deliberately not interchangeable.
+They point at the same database and differ only in the role. They are
+deliberately not interchangeable.
 
-- **`DATABASE_URL` — the owner.** Used by `migrate.js` at container start, by
-  the seed, by `db:app-role`, and by `files:orphans` / `invoices:verify`. Those
-  legitimately work across tenants: the seed creates the tenant it is about to
-  fill, and the orphan sweep compares every stored file against every note
-  there is.
-- **`APP_DATABASE_URL` — the server.** Every HTTP request. Row-level security
+- **`DATABASE_URL` — `praxi_owner`.** Used by `migrate.js` at container start,
+  by the `praxi` CLI, and by `files:orphans` / `invoices:verify`. Those
+  legitimately work across tenants or before any tenant exists.
+- **`APP_DATABASE_URL` — `praxi_app`.** Every HTTP request. Row-level security
   applies to this role, and every request runs inside a transaction that sets
   `app.tenant_id` for the policies to read.
 
@@ -291,6 +447,61 @@ than strictness. With the policies on, falling back to the owner bypasses all
 of them and answers every query exactly as it did before: nothing fails,
 nothing is logged, and the isolation is simply gone. A server that refuses to
 start says so at the only moment anyone would notice.
+
+#### Both of them end in `?sslmode=verify-full&sslrootcert=system`
+
+The database is not on this machine and not on a private network. Every row
+that crosses this connection is patient data, so the connection is encrypted
+*and* the certificate is verified.
+
+Sliplane presents a publicly trusted certificate, so `verify-full` costs
+nothing — no certificate file to distribute, no `sslrootcert` pointing at a
+copy. Measured with `psql` against the actual host:
+
+```
+psql "…?sslmode=verify-full&sslrootcert=system"
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, …)
+```
+
+**`sslrootcert=system` is the one that gets forgotten.** Without it `psql` looks
+for `~/.postgresql/root.crt`, does not find it, and refuses — with a certificate
+that is perfectly valid.
+
+**What the driver does with them**, because the answer is not obvious and the
+cost of being wrong is silent. `postgres.js` reads both out of the query string
+in `parseOptions`. Measured against the installed version, with the same options
+object `db/client.ts` passes:
+
+```
+(no query)                              ssl = false        → PLAINTEXT
+sslmode=require                         ssl = require      → TLS, certificate NOT verified
+sslmode=verify-full                     ssl = verify-full  → TLS, certificate verified
+sslmode=verify-full&sslrootcert=system  ssl = verify-full  → TLS, certificate verified
+sslrootcert=system                      ssl = verify-full  → TLS, certificate verified
+```
+
+Two things follow, and both are traps:
+
+- **No parameters at all means plaintext**, silently, over the public internet.
+  Nothing in the application refuses that today.
+- **`sslmode=require` is not enough.** In this driver it sets
+  `rejectUnauthorized: false` — encrypted, but against whatever certificate
+  answers. `verify-full` is what leaves `rejectUnauthorized` at its default and
+  checks the chain and the hostname against Node's own CA store.
+
+→ *Check, and this is the only one that speaks for the **application's** own
+connection rather than for `psql`.* With the server running and having served at
+least one request, connect as `owner` or `praxi_owner` and ask:
+
+```sql
+select a.usename, s.ssl, s.version, s.cipher
+  from pg_stat_ssl s join pg_stat_activity a using (pid)
+ where a.datname = 'praxi';
+```
+
+Every row for `praxi_app` must say `ssl = t`. A row with `ssl = f` is the
+application talking in the clear, and it will not announce itself any other
+way.
 
 ### 3.2 Generating the two keys
 
@@ -420,25 +631,23 @@ on day eight.
 
 Numbered, with what tells you each step worked.
 
-**1. Create the Postgres resource** (section 1), with `POSTGRES_USER=praxi` and
-the ICU `INITDB_ARGS`.
-→ *Check*: the ICU query in 1.2 says `i` / `de-DE`.
+**1. Set up the database** at Sliplane and do the four steps of section 1 with
+`psql`, as `owner`: the two roles, the database with ICU, the two grants the
+baseline needs, the extension as `praxi_owner` inside `praxi`.
+→ *Check*: the three queries in 1.6.
 
-**2. Create the role `praxi_app`** with a password (section 2.2), connected as
-`praxi`.
-→ *Check*: `select rolcanlogin from pg_roles where rolname = 'praxi_app';` says `t`.
-
-**3. Create the application resource** in Coolify: this repository, branch
+**2. Create the application resource** in Coolify: this repository, branch
 `main`, build pack **Dockerfile**, port `3000`, health check path
 `/api/health`, your domain with automatic TLS.
 
-**4. Add the persistent volume** and `chown` it (section 4).
+**3. Add the persistent volume** and `chown` it (section 4).
 
-**5. Set the environment variables** (section 3), including
-`SEED_USER_EMAIL`, `SEED_USER_NAME` and `SEED_USER_PASSWORD` — you need them
-for step 7 and remove them in step 8.
+**4. Set the environment variables** (section 3). Both connection strings point
+at Sliplane's host and end in `?sslmode=verify-full&sslrootcert=system`.
+→ *Check*: the database name in them is `praxi`, not the `app` Sliplane's own
+connection string names.
 
-**6. Deploy.**
+**5. Deploy.**
 The image's `CMD` runs `node apps/server/dist/db/migrate.js` and only then
 `node apps/server/dist/index.js`. There is no separate migration step to
 configure, and deliberately no Coolify pre/post-deployment hook: the
@@ -451,63 +660,78 @@ the new code, before it takes traffic, and hard-fail if it does not apply.
 
 → *Check*: `https://<domain>/api/health` answers `{"status":"ok","time":...}`.
 → *Check*: the deployment log shows `migrations applied` and `server listening`.
-→ *Check*: the queries in 2.3 — 39 tables owned by `praxi`, `praxi_app` with
-three `f`.
+→ *Check*: the queries in 1.6 and 2.3 — 39 tables owned by `praxi_owner`,
+`praxi_app` with four `f`.
+→ *Check*: the TLS query in 3.1 — every `praxi_app` row says `ssl = t`.
 
-If the container does not come up, go to section 9. It will be one of four
+If the container does not come up, go to section 9. It will be one of five
 things and they all name themselves in the log.
 
-**7. Seed.** In Coolify's *Execute Command* against the running container:
+**6. Create the practice.** In Coolify's *Execute Command* against the running
+container:
 
 ```bash
-node apps/server/dist/db/seed/run.js
+praxi tenant create
 ```
 
-This creates the tenant, the practice settings, the one user with their
-password, and the catalogues — roles, relation types, salutations, genders,
-countries, note types, activity types, the example services and one service
-group.
+It asks for the practice name, the practitioner's email and name, and a
+password — typed, not echoed, and asked twice.
 
-It connects **as the owner**, through `DATABASE_URL` — it has to, because its
-very first statement creates the tenant that row-level security keys on, and
-under `praxi_app` with no tenant set every query would answer with nothing.
+**If Coolify's *Execute Command* does not give you a real terminal, it will not
+ask.** A command with nothing to ask at behaves exactly as if `--no-input` had
+been passed: it aborts naming the flag it is missing, rather than hanging on an
+answer that cannot come. Then use the unattended form, where the password goes
+through `--password-stdin` rather than `--password` — the latter lands in the
+shell history and in Coolify's own command log:
 
-**Running it twice is safe.** Every section is idempotent, and the one thing
-worth knowing is what it does *not* do:
-
-```
-user live@praxi.invalid already exists — password left unchanged
-services: 0 created, 7 already present
-service group "…" already exists — left unchanged
+```bash
+printf '%s' '<password>' | praxi tenant create \
+  --practice-name '<practice>' --email '<address>' --name '<name>' \
+  --password-stdin --no-input
 ```
 
-It never overwrites the password of a user that already exists. Changing
-`SEED_USER_PASSWORD` and running it again does nothing.
+This creates the tenant, its practice settings carrying **only the name**, the
+practitioner as the first user, the two system relation types, and the starting
+catalogues — roles, relation types, salutations, genders, countries, note types,
+activity types.
 
-**`pnpm db:seed:demo` must never run on the server.** It creates invented
-contacts with treatment histories, notes and invoices, and a second practice.
-It is a convenience for development. There is no undo, and the contact numbers
-it burns are gone.
+**It invents nothing.** Address, tax number, bank details and the whole service
+catalogue stay empty, because a placeholder in a real practice's settings is
+read as a record that exists rather than as a gap to fill. Section 7 is the list
+of what is still to be filled in.
 
-`pnpm db:seed:services` needs no separate run either — it is part of
-`db:seed`.
+**Running it again is safe.** It asks whether an existing practice of that name
+is the one meant, and then continues: every step reads what is already there and
+creates only what is missing. A run that broke off halfway is finished by
+running it again — there is no log file that could disagree with the database.
 
-→ *Check*: the command prints `seed complete`.
+```
+  structure         tenant, practice settings, user, 2 system relation types
+  roles             3 created
+  …
+  services          none — enter your own under "Leistungen"
+```
 
-**8. Remove `SEED_USER_PASSWORD`** (and the other two, if you like) from the
-environment variables. The seed refuses an empty password and never overwrites
-an existing user, so leaving them would be harmless rather than dangerous —
-taking them out is just keeping a plaintext password out of the secret store.
+**`praxi dev seed` and `praxi dev demo` cannot run here**, and not only by
+convention: both are refused under `NODE_ENV=production`, and their data
+(a made-up practice, seven invented prices, demo patients) is not copied into
+the container image at all, so they fail naming the file they cannot find even
+if `NODE_ENV` is set by hand.
 
-**9. Sign in** at `https://<domain>` with `SEED_USER_EMAIL` and the password.
+→ *Check*: the command prints the tenant id and the email, and ends with the
+list of what to enter by hand.
 
-→ *Check*: the practice name in the sidebar. It will read *Praxis Musterfrau —
-Heilpraktikerin für Psychotherapie*, which is the seed's placeholder and the
-first thing section 7 replaces.
+**7. Sign in** at `https://<domain>` with that email and password.
+
+→ *Check*: the practice name in the sidebar is the one you just typed.
 
 Note the login rate limit: five attempts a minute, by IP, and it never locks an
 account — with one practitioner an account lockout would be a denial of service
 against exactly that person the moment somebody knows the address.
+
+**8. Add further users**, if there are any, with `praxi user add`. The email is
+unique across all tenants, not per tenant, because the sign-in form has no
+tenant context; the command says so if it collides.
 
 ---
 
@@ -516,15 +740,15 @@ against exactly that person the moment somebody knows the address.
 Everything below is configuration, not deployment: it lives in the database and
 is entered in the application.
 
-**The practice master data is not empty — it is seeded with placeholders**, and
-they are wrong rather than missing. Overwrite them, do not merely check them.
+**The fields are empty, not wrong.** `praxi tenant create` stores the practice
+name and nothing else, so there is no placeholder to spot and overwrite — what
+is not filled in is visibly not filled in. That is the only thing this list asks
+of you.
 
-- [ ] **Praxis-Stammdaten** — *Einstellungen → Praxis*. Name, address, phone,
-      email, website. The seed put *Praxis Musterfrau*, *Beispielweg 1*,
-      *12345 Musterstadt*, `kontakt@praxi.invalid` there.
-- [ ] **Bankverbindung** — same screen. The seed put a made-up IBAN
-      (`DE02120300000000202051`) and BIC there.
-- [ ] **Steuernummer** — same screen. The seed put `00/000/00000` there.
+- [ ] **Praxis-Stammdaten** — *Einstellungen → Praxis*. Address, phone, email,
+      website.
+- [ ] **Bankverbindung** — same screen. IBAN and BIC.
+- [ ] **Steuernummer** — same screen.
 - [ ] **Zahlungsziel** — same screen, default 14 days.
 - [ ] **Öffnungszeiten** — same screen, below the form. Empty means *not
       configured*, and the slot finder says so rather than assuming a working
@@ -534,23 +758,29 @@ they are wrong rather than missing. Overwrite them, do not merely check them.
       file, not from the code. One page backs every page; two pages means page 1
       backs the first and page 2 all the following ones.
 - [ ] **Rechnungs-Nummernkreis** — *Einstellungen → Rechnungsstellung*. See below.
-- [ ] **Textbausteine** — *Einstellungen → Textbausteine*. **Nothing is seeded
-      here.** You need at least one intro and one outro, one of each marked as
-      the default. Mark one outro as the *paid variant* if you use the "Betrag
-      erhalten" action — without it that action still works but reports that the
-      text was not found. The VAT note belongs in the outro text: the software
-      computes, inserts and validates no tax statement at all, so for treatments
-      the exemption under § 4 Nr. 14 lit. a UStG is a sentence you write there.
-- [ ] **Leistungen** — *Leistungen*. See below.
+- [ ] **Textbausteine** — *Einstellungen → Textbausteine*. You need at least one
+      intro and one outro, one of each marked as the default. Mark one outro as
+      the *paid variant* if you use the "Betrag erhalten" action — without it
+      that action still works but reports that the text was not found. The VAT
+      note belongs in the outro text: the software computes, inserts and
+      validates no tax statement at all, so for treatments the exemption under
+      § 4 Nr. 14 lit. a UStG is a sentence you write there.
+- [ ] **Leistungen** — *Leistungen*. Empty on purpose. See below.
 - [ ] **Mailkonto** — *Einstellungen → Mailversand*. Host, port, security, user,
       password, sender address. The password is stored encrypted with
       `ENCRYPTION_KEY`. The test send has exactly one possible recipient, the
       configured sender address; it is not a field and cannot be redirected.
-- [ ] **Mailvorlagen** — same screen. Nothing is seeded here either.
+- [ ] **Mailvorlagen** — same screen.
 - [ ] **Google-Kalender** — *Einstellungen → Google-Kalender*. Connect, choose
       the practice calendar, and look at the event-title template: it starts at
       `{{contactNumber}}`, and the title is all Google ever learns. The preview
       beside it shows what an event will be called before anything is written.
+
+The catalogues that *are* filled — roles, relation types, salutations, genders,
+countries, note types, activity types — are starting values, not a
+specification. Rename them, delete them, add your own. Two of the relation types
+cannot go: `Sorgeberechtigt` and `Rechnungsempfänger` are what the software
+resolves when it needs a guardian or a billing recipient.
 
 ### The number range is the one that cannot be corrected later
 
@@ -574,103 +804,98 @@ There is no automatic yearly reset either: before the first invoice of a new
 year you edit the range yourself — new prefix, next value back to 1. The prefix
 is part of the uniqueness key precisely so that value 1 may exist once per year.
 
-### The example services have invented prices
+### The service catalogue starts empty, and that is deliberate
 
-The seed creates seven: Erstgespräch 135,00 €, Folgesitzung 90,00 €,
-Kurzsitzung 50,00 €, Telefonische Beratung 35,00 €, Ausfallhonorar 60,00 €,
-Prüfungsvorbereitung 150,00 €, Vortrag 350,00 € — and one group,
-*Prüfungsvorbereitung Kompakttag*. Every figure is made up.
+Every other catalogue is structural: without a note type no note can be written,
+without an activity type no activity exists. A service is not — an
+`activity_item` may carry no service reference at all — so an empty catalogue is
+a state the software fully supports, and *Leistungen* is a screen you fill in
+with your own prices.
 
-Under *Leistungen* you can **edit** them (description, short code, price,
-duration) or **delete** them outright — the bin is there, and a service can be
-deleted as long as nothing references it. Do this before the first invoice: an
-`activity_item` copies description, fee code and price from the catalogue at
-the moment it is created and never looks back, so a wrong price that made it
-onto a rendered service stays there. Deactivating (`aktiv` off) takes a service
-out of the picker without touching anything that already exists — that is the
-tool for later, when deleting is no longer possible.
+The reason it is not seeded with examples is that **a wrong price cannot be
+corrected after the fact**: an `activity_item` copies description, fee code and
+price at the moment it is created and never looks back, so three sessions billed
+from an invented figure stay at that figure after the catalogue is fixed. Your
+own prices are the one thing you certainly know.
+
+Later, when deleting is no longer possible because something references an
+entry, deactivating (`aktiv` off) takes a service out of the picker without
+touching anything that already exists.
 
 ---
 
-## 8. Backup
+## 8. Backup — not solved, and this says so rather than pretending
 
-Two things have to be backed up, and one of them is not the database.
+**There is no backup procedure in this document, and that is deliberate.**
 
-- **Postgres** — everything except the files.
-- **`DATA_DIR`** — invoice PDFs under `invoices/{year}/` and note attachments
-  under `files/{contactId}/{noteId}/`. A finalized invoice must render
-  identically for the whole retention period, so it is served from disk and
-  never re-rendered. A database backup without this directory restores rows
-  that point at documents that are gone.
+What stood here was written for a Postgres container on the same server as the
+application (`docker exec <pg> pg_dump`, a `tar` of the volume beside it). None
+of that holds now: the database is hosted elsewhere and reached over the public
+internet. A corrected version would have been worse than none — it would have
+looked like a procedure while nobody had run it.
 
-### Making one
+What is actually needed is its own piece of work, and it has four parts:
 
-On the server, with `<pg>` the Postgres container's name:
+- **The database.** A dump taken from outside, encrypted, stored off the server.
+- **`DATA_DIR`.** Invoice PDFs under `invoices/{year}/` and note attachments
+  under `files/{contactId}/{noteId}/`. **A database backup without this
+  directory restores rows that point at documents that are gone** — a finalized
+  invoice is served from disk and never re-rendered, precisely so that it looks
+  the same for the whole retention period.
+- **Somewhere that is not this machine.** A copy on the same disk is a copy.
+- **A restore that has been performed.** Three things a restore forgets, in the
+  order they will bite: the ICU collation (a database created without it sorts
+  wrongly and the next migration refuses — section 1.5), the roles (`pg_dump`
+  writes grants and policies but no `CREATE ROLE`), and `ENCRYPTION_KEY`
+  (the rows come back; the Google token and the SMTP password inside them are
+  only readable with the same key).
 
-```bash
-# database — custom format, so pg_restore can be selective
-docker exec <pg> pg_dump -U praxi -Fc praxi \
-  | gpg --symmetric --cipher-algo AES256 \
-        -o praxi-db-$(date +%F).dump.gpg
+**Sliplane takes backups of its own, and they are not verified here.** Two
+questions are open and both belong to that piece of work: whether restoring one
+reproduces the ICU collation this schema requires — Sliplane provisions a new
+database on restore, and section 1.2 is what gives ours its locale — and whether
+their snapshot is consistent in the sense a `pg_dump` is. Neither is a property
+of this application, and neither should be assumed.
 
-# the files
-tar czf - -C /data/coolify-volumes/praxi-data . \
-  | gpg --symmetric --cipher-algo AES256 \
-        -o praxi-data-$(date +%F).tar.gz.gpg
-```
-
-`gpg --symmetric` asks for a passphrase. Keep it where you keep
-`ENCRYPTION_KEY` — and note that they are different things: this one protects
-the backup, that one protects two credentials *inside* the backup. A restore
-needs both.
-
-Take the two files off the server. A backup on the same disk is a copy, not a
-backup.
-
-### Restoring
-
-```bash
-# 1. an empty database with the right collation — see 1.2
-psql -U praxi -d postgres -c "CREATE DATABASE praxi TEMPLATE template0 \
-  ENCODING 'UTF8' LOCALE_PROVIDER icu ICU_LOCALE 'de-DE' LOCALE 'C';"
-
-# 2. the role, if this is a new cluster — a dump does not carry roles
-psql -U praxi -d postgres -c "CREATE ROLE praxi_app LOGIN PASSWORD '<pw>';"
-
-# 3. the rows
-gpg -d praxi-db-YYYY-MM-DD.dump.gpg | pg_restore -U praxi -d praxi --no-owner
-
-# 4. the files
-gpg -d praxi-data-YYYY-MM-DD.tar.gz.gpg \
-  | tar xzf - -C /data/coolify-volumes/praxi-data
-chown -R 1000:1000 /data/coolify-volumes/praxi-data
-```
-
-Three things a restore forgets, in the order they will bite:
-
-1. **The collation.** A restored database created without ICU sorts wrongly and
-   the next migration refuses. Step 1 is not optional.
-2. **The roles.** `pg_dump` writes grants and policies but no `CREATE ROLE`. A
-   restore into a fresh cluster with no `praxi_app` leaves a schema whose grants
-   name a role that does not exist.
-3. **`ENCRYPTION_KEY`.** The rows come back; the Google token and the SMTP
-   password inside them are only readable with the same key.
-
-Then check the way in from section 6: health, sign in, open an invoice PDF.
-
-### Do it once now
-
-Before real data exists, make a backup and restore it into a scratch database.
-It costs twenty minutes today and it is the only way to know the three points
-above are handled in *your* environment rather than in this document.
-
-**A backup that has never been restored is a guess.**
+**This has to be settled before the first real patient record exists**, not
+before go-live in general: up to that point the only loss is configuration you
+can retype. It is on the list in `WORKPLAN.md`.
 
 ---
 
 ## 9. What can go wrong
 
 The failures found while building this, with the error you will actually see.
+
+### `permission denied to alter role` on the first deployment
+
+The deployment log stops there and no table exists. The baseline sets
+`idle_in_transaction_session_timeout` on `praxi_app`, which needs `CREATEROLE`
+**and** `ADMIN OPTION` on that role — section 1.3, the two lines that are easy
+to skip because they look like they belong to somebody else's problem:
+
+```sql
+ALTER ROLE praxi_owner CREATEROLE;
+GRANT praxi_app TO praxi_owner WITH ADMIN OPTION;
+```
+
+The baseline applies as one statement, so this is all-or-nothing: run the two
+lines as `owner` and deploy again, nothing has to be cleaned up first.
+
+### `must be able to SET ROLE "praxi_owner"`
+
+Section 1.2. `CREATE DATABASE … OWNER x` needs `SET ROLE` on `x`, and a
+`CREATEROLE` role gets only `ADMIN` on the roles it creates, not `SET`. The
+`GRANT … WITH SET TRUE` line before it is what supplies the missing half.
+`ALTER DATABASE … OWNER TO` afterwards fails on exactly the same thing, so it is
+not a way around it.
+
+### `permission denied to create extension "btree_gist"`
+
+Almost always the right permissions in the wrong database — section 1.4. As the
+owner of `praxi`, `praxi_owner` installs it without any special right; in `app`
+or `postgres` it cannot, and the message reads like a restriction of the
+provider.
 
 ### `type "contact_kind" already exists`
 
@@ -690,27 +915,44 @@ previous container. Fix the variable and redeploy.
 
 ### `Database must use the ICU provider with locale de-DE.`
 
-Section 1.2. The migration refuses before creating a single table, which is the
-loud version of a defect that would otherwise surface as a wrongly sorted
-contact list months later.
+Section 1.5, and the fix is section 1.2: the database was created without
+`LOCALE_PROVIDER icu ICU_LOCALE 'de-DE'`. The migration refuses before creating
+a single table, which is the loud version of a defect that would otherwise
+surface as a wrongly sorted contact list months later. Nothing is in the
+database yet at that point — drop it and create it again.
 
 ### `role "praxi" does not exist` or `permission denied to change default privileges`
 
-A baseline regenerated with `pg_dump` and not edited: it wrote `FOR ROLE praxi`
-back into the last two statements. Section 2.1.
+A baseline regenerated with `pg_dump` and not edited: it wrote `FOR ROLE <the
+owner it was dumped under>` back into the last two statements. Section 2.1.
 
 ### `cannot reach the database …` at startup
 
 Two causes, and the `code` beside the message tells them apart:
 
-- **`28P01`** — Postgres refused the credentials. On a server this is almost
-  always `praxi_app` with no password or no `LOGIN`, because the baseline
-  creates it `NOLOGIN` on purpose. Section 2.2.
-- **`ECONNREFUSED`** — Postgres is not there at all. Check the service name and
-  port in `APP_DATABASE_URL`; inside Coolify's network it is not `localhost`.
+- **`28P01`** — Postgres refused the credentials. Either the password in the
+  connection string is not the one section 1.1 set, or the role was never given
+  `LOGIN`. Section 2.2.
+- **`ECONNREFUSED`** — Postgres is not there at all. Check the host and port in
+  `APP_DATABASE_URL`: it is Sliplane's public hostname and its port, never
+  `localhost` and never the `55432` from local development.
 
 The message names both, because the container exits before anything else can be
 asked of it.
+
+### The application is connected but not encrypted
+
+Nothing announces this — it is the reason 3.1 carries a query. If
+
+```sql
+select a.usename, s.ssl from pg_stat_ssl s join pg_stat_activity a using (pid)
+ where a.datname = 'praxi';
+```
+
+shows `ssl = f` for `praxi_app`, the connection string is missing its TLS
+parameters or carries `sslmode=require`, which in this driver means encrypted
+without verifying anything. `sslmode=verify-full&sslrootcert=system` on **both**
+URLs, then redeploy so the pool is rebuilt.
 
 ### The Google button says the connection is not set up
 
@@ -743,38 +985,34 @@ Everyone is signed out. That is the whole consequence; sign in again.
 
 If it happens after a change to the connection strings: the server is running
 as a role no policy exempts and no tenant is reaching the database, or it is
-running as the owner and the isolation is silently gone. Section 2.3 and 2.4
+running as `praxi_owner` and the isolation is silently gone. Section 2.3 and 2.4
 tell the two apart in one query each.
 
 ---
 
 ## 10. What this document does not know
 
-Named rather than guessed at.
+Named rather than guessed at. The list is short now — most of what stood here
+was about how the hosted Postgres behaves, and section 1 answers it with
+measurements.
 
-- **How Sliplane exposes Postgres.** This file assumes Postgres is a *Coolify
-  database resource* — a container in the same Coolify environment, where you
-  set `POSTGRES_USER`, `POSTGRES_INITDB_ARGS` and so on. If you are instead
-  using a Postgres that Sliplane manages for you, two things need checking
-  before section 1 applies: whether you can create a role (2.2), and whether
-  ICU is available (1.2, path (b) is the fallback and needs only `CREATEDB`).
-  The owner's name is not one of them any more (2.1).
-- **Sliplane's own volume and backup mechanics.** Section 4 is written for a
-  host path on the server's disk, which is what Coolify's persistent storage
-  gives you. If Sliplane provides volumes or snapshots of its own, they may be
-  a better answer than section 8 — but a volume snapshot is not a substitute
-  for the database dump unless it is consistent, and that is a property of
-  their implementation, not of this application.
 - **Whether the Google account is a Workspace account.** Section 5.3 turns on
-  it, and only you can look.
-- **The domain and DNS.** Not covered here: an `A` record at the Sliplane
-  server and Coolify's automatic TLS are the whole of it, and they are the same
-  as for any other application.
+  it, and only you can look. If it is not, an External app in *Testing* mode
+  expires the refresh token after seven days and the calendar sync stops — a
+  decision to take deliberately, not to discover on day eight.
+- **Backup and restore.** Section 8: not solved, not written down as if it
+  were, and to be settled before the first real patient record.
+- **The domain and DNS.** Not covered here: an `A` record at the Coolify server
+  and Coolify's automatic TLS are the whole of it, and they are the same as for
+  any other application.
+
 
 ## Still open after go-live
 
 `WORKPLAN.md`'s "Before going live" section holds what is deliberately not part
-of this: an access log, a retention and deletion concept, a route-level tenant
-test, and the decision whether the database itself is encrypted at rest. Rate
-limiting arrived with S-B, row-level security with S-C2, and the migration
-history was squashed into `0000_baseline.sql` in S-E.
+of this: a backup and restore procedure (section 8), an access log, a retention
+and deletion concept, a route-level tenant test, and the decision whether the
+database itself is encrypted at rest. Rate limiting arrived with S-B,
+row-level security with S-C2, the migration history was squashed into
+`0000_baseline.sql` in S-E, and `praxi tenant create` replaced the seed as the
+way a practice comes into being in S-CLI.

@@ -3454,7 +3454,7 @@ Postgres nicht erreichbar            | code: "ECONNREFUSED"
 Nur der Code wandert ins Log, nie die Fehlermeldung: die zitiert die
 Verbindungszeichenfolge samt Passwort (Regel 12).
 
-## S-F — `praxi`, ein Einstiegspunkt für die Verwaltung
+## S-CLI — `praxi`, ein Einstiegspunkt für die Verwaltung
 
 Zwei Befehle heute, in einem Jahr vermutlich zwanzig — deshalb ging es in
 diesem Paket vor allem um die Form, die zwanzig trägt. Was dabei
@@ -3687,11 +3687,138 @@ existieren — `createTenant` setzt `app.tenant_id` auf den Mandanten, den es
 gleich anlegt. Der Kommentar in `src/id.ts` sagte das Falsche und sagt es jetzt
 richtig.
 
+## S-F — `DEPLOY.md` stand auf falschen Annahmen
+
+Sliplane ist kein Coolify-Anbieter, sondern gehostetes Postgres; die Anwendung
+läuft auf einem eigenen Server mit Coolify. Damit fiel die Annahme, die
+Datenbank sei eine Coolify-Ressource im selben Docker-Netz — und mit ihr
+Abschnitt 1 samt `POSTGRES_USER`, `POSTGRES_INITDB_ARGS` und abgeschaltetem
+öffentlichem Port. Korrigiert, nicht neu geschrieben: die Abschnitte, die
+stimmten, stehen unverändert.
+
+### Drei Rollen, und zwei Rechte, die niemand erwartet hätte
+
+`owner` (Sliplanes Zugang, `CREATEDB` + `CREATEROLE`, **kein** Superuser) legt
+`praxi_owner` und `praxi_app` an und kommt danach in keine Umgebungsvariable.
+Zwei Stellen dabei sind gemessen und beide hätten die erste Auslieferung
+scheitern lassen:
+
+**`CREATE DATABASE … OWNER praxi_owner` geht nicht ohne Weiteres.** Seit
+Postgres 16 bekommt eine `CREATEROLE`-Rolle an den von ihr erzeugten Rollen nur
+`ADMIN`, nicht `SET`:
+
+```
+ member_of   | member | admin_option | inherit_option | set_option
+ praxi_owner | owner  | t            | f              | f
+→ ERROR: must be able to SET ROLE "praxi_owner"
+```
+
+Der vorgeschlagene Ausweg — Datenbank anlegen, danach `ALTER DATABASE … OWNER
+TO` — scheitert an genau demselben. Was trägt, ist eine Zeile davor:
+`GRANT praxi_owner TO CURRENT_USER WITH SET TRUE`, erlaubt durch das
+`ADMIN`-Recht, das man ohnehin hat.
+
+**Die Baseline enthält eine Anweisung, die gar nicht dieser Datenbank gilt.**
+`ALTER ROLE praxi_app SET idle_in_transaction_session_timeout = '30s'` ist eine
+Rolleneigenschaft; sie zu setzen verlangt `CREATEROLE` **und** `ADMIN OPTION`
+auf diese Rolle, und `praxi_owner` hat von Haus aus keines von beidem:
+
+```
+praxi_owner ohne die Grants   → ERROR bei Zeile 102, 0 Tabellen, 0 Policies
+praxi_owner mit den Grants    → 39 Tabellen, 34 Policies, alle praxi_owner
+```
+
+Die Baseline läuft als *eine* Anweisung, also ist das alles oder nichts — die
+Auslieferung hätte gestoppt und nichts hinterlassen. **Es braucht dafür keine
+Codeänderung**, und das ist die bessere Auflösung: zwei benannte Grants in der
+Anleitung statt eines Wächters um das `ALTER ROLE`, der eine
+sicherheitsrelevante Einstellung stillschweigend hätte auslassen können. Ein
+Grant ist prüfbar, ein übersprungenes Statement nicht.
+
+Nebenbei: dieselben zwei Rechte sind es, die `db:app-role` dort überhaupt
+funktionieren lassen.
+
+### Die Erweiterung, die wie ein Anbieterproblem aussieht
+
+```
+in `app` oder `postgres`:  ERROR: permission denied to create extension "btree_gist"
+                           HINT: Must have CREATE privilege on current database
+in `praxi` als dessen Eigentümer:  CREATE EXTENSION
+```
+
+Dieselbe Rolle, ohne jedes zusätzliche Recht. Die Meldung liest sich als „mein
+Anbieter erlaubt das nicht" und heißt „du sitzt in der falschen Datenbank" —
+deshalb steht sie wörtlich in der Anleitung.
+
+### TLS: der Treiber liest es, und `require` ist zu wenig
+
+Die Verbindung kreuzt das öffentliche Netz. Gemessen gegen die installierte
+`postgres.js`, mit demselben Optionsobjekt, das `db/client.ts` übergibt:
+
+```
+(keine Parameter)                       ssl = false        → KLARTEXT
+sslmode=require                         ssl = require      → TLS, Zertifikat NICHT geprüft
+sslmode=verify-full                     ssl = verify-full  → TLS, Zertifikat geprüft
+sslmode=verify-full&sslrootcert=system  ssl = verify-full  → TLS, Zertifikat geprüft
+sslrootcert=system                      ssl = verify-full  → TLS, Zertifikat geprüft
+```
+
+Der Treiber liest also beide Parameter aus der URL — aber `require` setzt
+`rejectUnauthorized: false`, und ganz ohne Parameter läuft die Anwendung
+lautlos im Klartext. Beide Zeichenfolgen tragen `verify-full`, und die
+Anleitung hat jetzt eine Abfrage, die die Verbindung **der Anwendung** belegt
+statt die von `psql`:
+
+```sql
+select a.usename, s.ssl, s.version, s.cipher
+  from pg_stat_ssl s join pg_stat_activity a using (pid) where a.datname = 'praxi';
+```
+
+**Offen und benannt:** Nichts in der Anwendung erzwingt TLS. Eine
+Verbindungszeichenfolge ohne Parameter wird angenommen, und nur diese Abfrage
+verrät es. Ein Startprüfung in `env.ts`, die eine nicht-lokale Datenbank ohne
+`sslmode=verify-full` ablehnt, wäre die Stelle dafür — nicht gebaut, weil in
+diesem Paket kein Code vorgesehen war.
+
+### Was sonst noch fiel
+
+Abschnitt 6 Schritt 7 zeigte auf `node .../db/seed/run.js`, den es seit S-CLI
+nicht gibt — jetzt `praxi tenant create`, samt der unbeaufsichtigten Form mit
+`--password-stdin`. `SEED_USER_*` fallen aus den Umgebungsvariablen: sie gehören
+zu `praxi dev seed`, das unter `NODE_ENV=production` verweigert und dessen Daten
+nicht im Image liegen. Damit muss auch kein Klartextpasswort einer Person mehr
+im Secret Store stehen.
+
+Abschnitt 7 wurde kürzer und ehrlicher: **die Felder sind leer, nicht falsch.**
+Der Absatz, der erklärte, welche Platzhalter zu überschreiben sind, ist
+ersatzlos weg.
+
+Abschnitt 8 ist entfernt statt korrigiert — siehe „Before going live".
+Abschnitt 10 verliert die Sliplane-Unsicherheiten, weil sie jetzt gemessen sind;
+was bleibt, ist das Google-Konto, das Backup und DNS.
+
 ## Before going live
 
-Findings of a security review of the auth concept. Nothing here is built yet;
-each line names the reason, not the solution.
+Findings of a security review of the auth concept, and what the deployment pass
+left open. Nothing here is built yet; each line names the reason, not the
+solution.
 
+- **Ein Backup- und Restore-Verfahren.** `DEPLOY.md` Abschnitt 8 wurde
+  *entfernt* statt korrigiert: er war für einen Postgres-Container auf demselben
+  Server geschrieben, und die Datenbank liegt jetzt gehostet woanders. Eine
+  korrigierte halbe Anleitung wäre schlechter als ein ehrlicher Verweis. Vier
+  Teile gehören dazu — ein Dump von außen, verschlüsselt; **`DATA_DIR`**, ohne
+  das eine wiederhergestellte Datenbank auf Dokumente zeigt, die es nicht mehr
+  gibt; eine Ablage, die nicht dieselbe Maschine ist; und ein Restore, der
+  einmal durchgeführt wurde. Drei Dinge vergisst ein Restore, in dieser
+  Reihenfolge: die ICU-Collation, die Rollen (`pg_dump` schreibt Grants und
+  Policies, aber kein `CREATE ROLE`) und `ENCRYPTION_KEY`.
+  **Sliplanes eigene Backups sind ungeprüft**: ob ein Restore die ICU-Collation
+  reproduziert — Sliplane legt dabei eine neue Datenbank an — und ob der
+  Snapshot in dem Sinne konsistent ist, in dem ein `pg_dump` es ist. Beides ist
+  eine Eigenschaft ihrer Umsetzung, nicht dieser Anwendung. **Vor dem ersten
+  echten Patientendatensatz zu klären**, nicht vor dem Livegang allgemein: bis
+  dahin ist das Einzige, was verloren gehen kann, Konfiguration zum Neutippen.
 - **A route-level test with two tenants and real data**, asserting that every
   route filters by `tenant_id`. S-C2 covered the database — `routes/rls.test.ts`
   proves the policies hold — but not the routes: `tenantId(c)` says where the
