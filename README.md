@@ -12,7 +12,7 @@ holds the production deployment steps.
 - **Node 24 LTS** — the exact version is pinned in `.nvmrc`
 - **pnpm 11** — `corepack enable` is enough, the version is pinned in
   `package.json` under `packageManager`
-- **Docker** — for Postgres 17 locally; the application itself is not
+- **Docker** — for Postgres 18 locally; the application itself is not
   containerised for development, only for the production deployment
   described in `DEPLOY.md`
 
@@ -22,7 +22,7 @@ holds the production deployment steps.
 corepack enable          # provides the pinned pnpm
 pnpm install
 cp .env.example .env     # then set SEED_USER_PASSWORD and BETTER_AUTH_SECRET
-pnpm db:up               # starts Postgres 17 on host port 55432
+pnpm db:up               # starts Postgres 18 on host port 55432
 pnpm db:migrate          # creates the tables
 pnpm db:app-role         # gives the server's own role its password (required)
 pnpm db:seed             # local development: tenant, user, catalogues, example prices
@@ -146,7 +146,7 @@ orders carry a decision.
 
 ## Database
 
-Postgres 17 runs in Docker on **host port 55432** — deliberately far away from
+Postgres 18 runs in Docker on **host port 55432** — deliberately far away from
 5432 and 5433 so it cannot clash with another local Postgres. Its data lives in
 a bind mount under `.docker-data/`, which is not in version control.
 

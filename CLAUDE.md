@@ -69,7 +69,10 @@ The practice does not only treat patients. It also sells courses, exam preparati
 - Node 24 LTS, TypeScript `strict`, ESM
 - pnpm workspace (monorepo)
 - Backend: **Hono** (Node adapter), one process serving both the API and the built frontend
-- DB: **PostgreSQL 17**, local via Docker Compose (Postgres only — never the app)
+- DB: **PostgreSQL 18**, local via Docker Compose (Postgres only — never the app).
+  The version is matched to the hosted database the server talks to; 17 until
+  the move, and the baseline applies on both — measured, the schema dump is
+  identical bar the version header.
 - DB access: **Drizzle ORM** + drizzle-kit
 - Validation: **Zod**, schemas in `packages/shared`, imported by server and client
 - Frontend: **Vite + React 19**, TanStack Router (file-based), TanStack Query
@@ -130,7 +133,7 @@ praxi/
 │     ├─ tsr.config.json   TanStack Router file-based routing
 │     └─ vite.config.ts
 ├─ packages/shared/        Zod schemas + derived types
-├─ docker-compose.yml      Postgres 17 only, host port 55432
+├─ docker-compose.yml      Postgres 18 only, host port 55432
 ├─ tsconfig.base.json
 ├─ biome.jsonc
 ├─ pnpm-workspace.yaml

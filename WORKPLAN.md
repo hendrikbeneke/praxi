@@ -949,8 +949,9 @@ First vertical slice. It establishes the pattern every later slice copies.
   schema-per-worker does not work: drizzle-kit writes foreign keys as
   `REFERENCES "public"."tenant"`, so every worker would land on the same
   tables. `pnpm test` therefore needs `pnpm db:up`.
-- **UUIDv7 from the `uuid` package** (`src/id.ts`). Postgres 17 has no native
-  `uuidv7()`, and ids are generated in the application anyway.
+- **UUIDv7 from the `uuid` package** (`src/id.ts`). Postgres 17 had no native
+  `uuidv7()`; 18 does, and it is still not used — ids are generated in the
+  application so that one exists before the insert.
 - **URL paths are English** (`/login`, `/settings`, `/contacts` …), consistent
   with the identifier rule; all visible labels stay German. The glossary row in
   CLAUDE.md that was thought to say otherwise does not exist — nothing to
@@ -3616,6 +3617,75 @@ kurzes Paket.
 einen eigenen Durchgang, in dem auch die Sliplane-Annahme korrigiert wird
 (gehostetes Postgres, kein Coolify-Anbieter) — samt Abschnitt 1, dem internen
 Docker-Netz und der Superuser-Annahme. Das korrigiert man einmal, nicht zweimal.
+
+## Vor S-F — die lokale Entwicklung auf Postgres 18
+
+Der gehostete Server läuft auf 18, lokal war es 17. Beide Seiten sprechen jetzt
+dieselbe Version — ein eigener kleiner Schritt, damit die Korrektur von
+`DEPLOY.md` nicht auf einer Vermutung steht.
+
+### Der Ablauf, weil das Datenverzeichnis nicht übernommen werden kann
+
+Ein 17er-Datenverzeichnis startet unter 18 nicht. Folgenlos hier, es lagen nur
+Demodaten darin:
+
+```
+docker compose down · rm -rf .docker-data/postgres · docker compose up -d
+pnpm db:migrate · pnpm db:app-role · pnpm db:seed · pnpm db:seed:demo
+```
+
+### Das Image hat den Mount verschoben
+
+`postgres:18` legt den Cluster in ein versionsbenanntes Unterverzeichnis und
+will **einen** Mount auf `/var/lib/postgresql` statt auf `.../data` — damit
+`pg_upgrade --link` keine Mount-Grenze überqueren muss. Mit dem alten Pfad
+startet 18 nicht und sagt es ausführlich. `docker-compose.yml` zieht nach, der
+Grund steht an der Zeile.
+
+`POSTGRES_INITDB_ARGS` mit `--locale-provider=icu --icu-locale=de-DE` gilt
+unverändert; die Prüfung aus Migration 0002 läuft durch.
+
+### Die Baseline läuft unverändert durch — gemessen
+
+Schemadump derselben Datenbank unter 17 und unter 18, beide 4230 Zeilen:
+
+```
+diff schema-pg17.sql schema-pg18.sql   →  14 Zeilen, und zwar nur:
+  \restrict / \unrestrict              (Zufalls-Nonce, in der Baseline ohnehin entfernt)
+  -- Dumped from database version      17.10 → 18.6
+  -- Dumped by pg_dump version         17.10 → 18.6
+```
+
+Kein Objekt, kein Constraint, keine Policy anders. Die Baseline muss für 18
+nicht neu erzeugt werden.
+
+### Was 18 wirklich ändert, und es wäre erst auf dem Server aufgefallen
+
+**Eine abgelehnte `ON DELETE RESTRICT` meldet sich als SQLSTATE `23001`**
+(`restrict_violation`), nicht mehr als `23503`:
+
+```
+ERROR:  23001: update or delete on table "note_type" violates RESTRICT setting
+        of foreign key constraint "note_type_fk" on table "note"
+```
+
+`foreignKeyViolationConstraint` in `db/errors.ts` prüfte auf 23503 und gab
+damit `null` zurück — und **acht Routendateien** übersetzen genau diesen
+Constraint-Namen in einen deutschen Satz. Kein Absturz: an die Stelle von „Diese
+Notizart wird noch verwendet" wäre ein allgemeiner Fehler getreten, und zwar nur
+dort, wo 18 läuft. Vier Domänentests haben es hochgehalten, weil sie den
+Constraint-Namen gegen den echten Fehler prüfen und nicht gegen ein gebautes
+Objekt.
+
+Beide Codes zählen jetzt — die andere Richtung (eine Zeile zeigt auf etwas, das
+es nicht gibt) meldet weiterhin 23503 —, und `db/errors.test.ts` hält die
+RESTRICT-Richtung mit einem eigenen Fall fest.
+
+**`uuidv7()` gibt es in 18 nativ** und wird trotzdem nicht benutzt. Der Grund
+war nie, dass die Datenbank es nicht könnte: die Id muss *vor* dem INSERT
+existieren — `createTenant` setzt `app.tenant_id` auf den Mandanten, den es
+gleich anlegt. Der Kommentar in `src/id.ts` sagte das Falsche und sagt es jetzt
+richtig.
 
 ## Before going live
 

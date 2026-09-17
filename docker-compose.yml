@@ -1,7 +1,7 @@
 # Postgres only. The application itself is never containerised.
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: praxi-postgres
     restart: unless-stopped
     environment:
@@ -16,7 +16,12 @@ services:
       # installed Postgres (5432) or another project's compose file (5433).
       - '55432:5432'
     volumes:
-      - ./.docker-data/postgres:/var/lib/postgresql/data
+      # One mount at /var/lib/postgresql, not at .../data — the 18 image places
+      # the cluster in a major-version subdirectory below it
+      # (/var/lib/postgresql/18/docker), so that `pg_upgrade --link` does not
+      # have to cross a mount boundary. Mounting .../data as before makes 18
+      # refuse to start and say so at length.
+      - ./.docker-data/postgres:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U praxi -d praxi']
       interval: 5s

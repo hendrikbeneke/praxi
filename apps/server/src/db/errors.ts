@@ -42,6 +42,26 @@ export function uniqueViolationConstraint(error: unknown): string | null {
 const FOREIGN_KEY_VIOLATION = '23503'
 
 /**
+ * SQLSTATE 23001, `restrict_violation`.
+ *
+ * **Postgres 18 reports a refused `ON DELETE RESTRICT` under this code**, where
+ * 17 and everything before it said 23503. Measured on 18.6:
+ *
+ *     ERROR: 23001: update or delete on table "note_type" violates RESTRICT
+ *            setting of foreign key constraint "note_type_fk" on table "note"
+ *
+ * It is the same fact — a row still points at this one — and every caller here
+ * asks the same question of it, so both codes answer that question. Without
+ * this the eight route files that translate a constraint name into a German
+ * sentence would have gone on matching nothing on 18: not a crash, just a
+ * generic error where a readable one used to be, and only on the server.
+ *
+ * The other direction (a row pointing at something that does not exist) still
+ * raises 23503, which is why both stay.
+ */
+const RESTRICT_VIOLATION = '23001'
+
+/**
  * The name of the violated foreign key, or `null` if this is a different
  * error. Reported both ways round: a row pointing at something that does not
  * exist, and a row that cannot be deleted because something still points at
@@ -49,7 +69,9 @@ const FOREIGN_KEY_VIOLATION = '23503'
  */
 export function foreignKeyViolationConstraint(error: unknown): string | null {
   const driver = driverError(error)
-  if (!driver || driver.code !== FOREIGN_KEY_VIOLATION) return null
+  if (!driver || (driver.code !== FOREIGN_KEY_VIOLATION && driver.code !== RESTRICT_VIOLATION)) {
+    return null
+  }
 
   return typeof driver.constraint_name === 'string' ? driver.constraint_name : ''
 }
